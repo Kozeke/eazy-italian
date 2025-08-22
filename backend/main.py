@@ -52,13 +52,13 @@ async def startup_event():
                 print("Starting application without database initialization...")
                 break
 
-# Mount static files
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-
-@app.get("/")
-async def root():
-    return {"message": "Eazy Italian API", "version": "1.0.0"}
+# Mount static files for frontend
+if os.path.exists("../frontend/dist"):
+    app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="static")
+else:
+    @app.get("/")
+    async def root():
+        return {"message": "Eazy Italian API", "version": "1.0.0"}
 
 @app.get("/health")
 async def health_check():
