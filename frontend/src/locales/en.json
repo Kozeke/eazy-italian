@@ -1,0 +1,167 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "close": "Close"
+  },
+  "nav": {
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "dashboard": "Dashboard",
+    "units": "Units",
+    "tasks": "Tasks",
+    "tests": "Tests",
+    "profile": "Profile"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "loginButton": "Login",
+    "registerButton": "Register",
+    "alreadyHaveAccount": "Already have an account?",
+    "dontHaveAccount": "Don't have an account?",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "invalidCredentials": "Invalid credentials"
+  },
+  "dashboard": {
+    "welcome": "Welcome",
+    "myCourses": "My Courses",
+    "completedUnits": "Completed Units",
+    "averageScore": "Average Score",
+    "timeSpent": "Time Spent",
+    "recentActivity": "Recent Activity",
+    "upcomingDeadlines": "Upcoming Deadlines"
+  },
+  "units": {
+    "title": "Units",
+    "description": "Learn Italian language lessons",
+    "level": "Level",
+    "duration": "Duration",
+    "start": "Start Lesson",
+    "continue": "Continue",
+    "completed": "Completed"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "description": "Complete tasks to reinforce material",
+    "dueDate": "Due Date",
+    "status": "Status",
+    "submitted": "Submitted",
+    "graded": "Graded",
+    "pending": "Pending"
+  },
+  "tests": {
+    "title": "Tests",
+    "description": "Test your knowledge with quizzes",
+    "timeLimit": "Time Limit",
+    "questions": "Questions",
+    "start": "Start Test",
+    "completed": "Completed",
+    "score": "Score"
+  },
+  "profile": {
+    "title": "Profile",
+    "personalInfo": "Personal Information",
+    "settings": "Settings",
+    "changePassword": "Change Password"
+  },
+  "admin": {
+    "dashboard": "Admin Dashboard",
+    "students": "Students",
+    "overview": "Overview",
+    "manage": "Manage",
+    "nav": {
+      "dashboard": "Dashboard",
+      "units": "Units",
+      "videos": "Videos",
+      "tasks": "Tasks",
+      "tests": "Tests",
+      "questionBank": "Question Bank",
+      "students": "Students",
+      "emailCampaigns": "Email Campaigns",
+      "grades": "Grades",
+      "progress": "Progress",
+      "settings": "Settings",
+      "auditLog": "Audit Log"
+    },
+    "search": {
+      "placeholder": "Search everything..."
+    },
+    "actions": {
+      "new": "New",
+      "save": "Save",
+      "publish": "Publish",
+      "preview": "Preview",
+      "edit": "Edit",
+      "delete": "Delete",
+      "duplicate": "Duplicate",
+      "archive": "Archive"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "kpi": {
+        "activeStudents": "Active Students",
+        "pendingSubmissions": "Pending Submissions",
+        "testsInProgress": "Tests in Progress",
+        "emailCampaigns": "Email Campaigns"
+      },
+      "quickActions": {
+        "createUnit": "Create Unit",
+        "createTask": "Create Task",
+        "createTest": "Create Test",
+        "newEmailCampaign": "New Email Campaign"
+      },
+      "recentActivity": "Recent Activity",
+      "alerts": "Alerts"
+    },
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "scheduled": "Scheduled",
+      "archived": "Archived"
+    }
+  },
+  "landing": {
+    "hero": {
+      "title": "Learn Italian easily and effectively",
+      "subtitle": "Modern platform for learning Italian with personalized approach and interactive materials",
+      "cta": "Start Learning"
+    },
+    "benefits": {
+      "title": "Why Choose Us",
+      "interactive": "Interactive Learning",
+      "personalized": "Personalized Approach",
+      "progress": "Progress Tracking",
+      "expert": "Expert Teachers"
+    },
+    "howItWorks": {
+      "title": "How It Works",
+      "step1": "Choose Level",
+      "step2": "Study Lessons",
+      "step3": "Complete Tasks",
+      "step4": "Get Certificates"
+    },
+    "pricing": {
+      "title": "Pricing Plans",
+      "free": "Free",
+      "premium": "Premium",
+      "pro": "Pro"
+    }
+  }
+}

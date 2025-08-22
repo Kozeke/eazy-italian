@@ -1,0 +1,167 @@
+{
+  "common": {
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "success": "Успешно",
+    "cancel": "Отмена",
+    "save": "Сохранить",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "add": "Добавить",
+    "back": "Назад",
+    "next": "Далее",
+    "previous": "Назад",
+    "submit": "Отправить",
+    "close": "Закрыть"
+  },
+  "nav": {
+    "login": "Войти",
+    "register": "Зарегистрироваться",
+    "logout": "Выйти",
+    "dashboard": "Панель управления",
+    "units": "Уроки",
+    "tasks": "Задания",
+    "tests": "Тесты",
+    "profile": "Профиль"
+  },
+  "auth": {
+    "login": "Вход",
+    "register": "Регистрация",
+    "email": "Email",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердите пароль",
+    "firstName": "Имя",
+    "lastName": "Фамилия",
+    "loginButton": "Войти",
+    "registerButton": "Зарегистрироваться",
+    "alreadyHaveAccount": "Уже есть аккаунт?",
+    "dontHaveAccount": "Нет аккаунта?",
+    "passwordsDoNotMatch": "Пароли не совпадают",
+    "invalidCredentials": "Неверные учетные данные"
+  },
+  "dashboard": {
+    "welcome": "Добро пожаловать",
+    "myCourses": "Мои курсы",
+    "completedUnits": "Завершенные уроки",
+    "averageScore": "Средний балл",
+    "timeSpent": "Время обучения",
+    "recentActivity": "Последняя активность",
+    "upcomingDeadlines": "Ближайшие дедлайны"
+  },
+  "units": {
+    "title": "Уроки",
+    "description": "Изучайте уроки итальянского языка",
+    "level": "Уровень",
+    "duration": "Длительность",
+    "start": "Начать урок",
+    "continue": "Продолжить",
+    "completed": "Завершено"
+  },
+  "tasks": {
+    "title": "Задания",
+    "description": "Выполняйте задания для закрепления материала",
+    "dueDate": "Срок сдачи",
+    "status": "Статус",
+    "submitted": "Отправлено",
+    "graded": "Оценено",
+    "pending": "В ожидании"
+  },
+  "tests": {
+    "title": "Тесты",
+    "description": "Проверяйте свои знания с помощью тестов",
+    "timeLimit": "Временной лимит",
+    "questions": "Вопросов",
+    "start": "Начать тест",
+    "completed": "Завершено",
+    "score": "Балл"
+  },
+  "profile": {
+    "title": "Профиль",
+    "personalInfo": "Личная информация",
+    "settings": "Настройки",
+    "changePassword": "Изменить пароль"
+  },
+  "admin": {
+    "dashboard": "Панель администратора",
+    "students": "Студенты",
+    "overview": "Обзор",
+    "manage": "Управление",
+    "nav": {
+      "dashboard": "Панель управления",
+      "units": "Уроки",
+      "videos": "Видео",
+      "tasks": "Задания",
+      "tests": "Тесты",
+      "questionBank": "Банк вопросов",
+      "students": "Студенты",
+      "emailCampaigns": "Email кампании",
+      "grades": "Оценки",
+      "progress": "Прогресс",
+      "settings": "Настройки",
+      "auditLog": "Журнал аудита"
+    },
+    "search": {
+      "placeholder": "Поиск по всему..."
+    },
+    "actions": {
+      "new": "Создать",
+      "save": "Сохранить",
+      "publish": "Опубликовать",
+      "preview": "Предварительный просмотр",
+      "edit": "Редактировать",
+      "delete": "Удалить",
+      "duplicate": "Дублировать",
+      "archive": "Архивировать"
+    },
+    "dashboard": {
+      "title": "Панель управления",
+      "kpi": {
+        "activeStudents": "Активных студентов",
+        "pendingSubmissions": "Ожидающих проверки",
+        "testsInProgress": "Тестов в процессе",
+        "emailCampaigns": "Email кампаний"
+      },
+      "quickActions": {
+        "createUnit": "Создать урок",
+        "createTask": "Создать задание",
+        "createTest": "Создать тест",
+        "newEmailCampaign": "Новая email кампания"
+      },
+      "recentActivity": "Последняя активность",
+      "alerts": "Уведомления"
+    },
+    "status": {
+      "draft": "Черновик",
+      "published": "Опубликовано",
+      "scheduled": "Запланировано",
+      "archived": "Архивировано"
+    }
+  },
+  "landing": {
+    "hero": {
+      "title": "Изучайте итальянский язык легко и эффективно",
+      "subtitle": "Современная платформа для изучения итальянского языка с персональным подходом и интерактивными материалами",
+      "cta": "Начать обучение"
+    },
+    "benefits": {
+      "title": "Почему выбирают нас",
+      "interactive": "Интерактивное обучение",
+      "personalized": "Персонализированный подход",
+      "progress": "Отслеживание прогресса",
+      "expert": "Опытные преподаватели"
+    },
+    "howItWorks": {
+      "title": "Как это работает",
+      "step1": "Выберите уровень",
+      "step2": "Изучайте уроки",
+      "step3": "Выполняйте задания",
+      "step4": "Получайте сертификаты"
+    },
+    "pricing": {
+      "title": "Тарифные планы",
+      "free": "Бесплатный",
+      "premium": "Premium",
+      "pro": "Pro"
+    }
+  }
+}
