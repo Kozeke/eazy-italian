@@ -29,13 +29,36 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.on_event("startup")
 async def startup_event():
-    # For now, skip database initialization for deployment
-    print("Starting application without database initialization...")
-    pass
+    # Create database tables with retry logic
+    import time
+    from sqlalchemy.exc import OperationalError
+    
+    max_retries = 5
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("Database tables created successfully")
+            break
+        except OperationalError as e:
+            if attempt < max_retries - 1:
+                print(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                print(f"Failed to connect to database after {max_retries} attempts")
+                print("Starting application without database initialization...")
+                break
 
-@app.get("/")
-async def root():
-    return {"message": "Eazy Italian API", "version": "1.0.0", "status": "deployed"}
+# Mount static files for frontend
+if os.path.exists("../frontend/dist"):
+    app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="static")
+else:
+    @app.get("/")
+    async def root():
+        return {"message": "Eazy Italian API", "version": "1.0.0", "status": "deployed"}
 
 @app.get("/health")
 async def health_check():
