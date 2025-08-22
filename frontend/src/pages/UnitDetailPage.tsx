@@ -31,7 +31,7 @@ interface Unit {
 }
 
 export default function UnitDetailPage() {
-  const { t } = useTranslation();
+  // const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [unit, setUnit] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(true);

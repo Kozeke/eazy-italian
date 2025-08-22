@@ -17,15 +17,26 @@ export interface Unit {
   title: string;
   level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
   description?: string;
+  goals?: string;
+  tags?: string[];
+  publish_at?: string;
   release_at?: string;
   status: 'draft' | 'published' | 'archived';
   order_index: number;
+  is_visible_to_students?: boolean;
+  meta_title?: string;
+  meta_description?: string;
   created_by: number;
   created_at: string;
   updated_at?: string;
   videos?: Video[];
   tasks?: Task[];
   tests?: Test[];
+  content_count?: {
+    videos: number;
+    tasks: number;
+    tests: number;
+  };
 }
 
 export interface Video {
@@ -37,6 +48,8 @@ export interface Video {
   file_path?: string;
   external_url?: string;
   duration_sec?: number;
+  status?: string;
+  order_index?: number;
   created_at: string;
   updated_at?: string;
 }

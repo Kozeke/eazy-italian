@@ -142,11 +142,11 @@ export default function AdminUnitCreatePage() {
     return youtubeRegex.test(url);
   };
 
-  const extractYouTubeVideoId = (url: string): string | null => {
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-  };
+  // const extractYouTubeVideoId = (url: string): string | null => {
+  //   const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+  //   const match = url.match(regex);
+  //   return match ? match[1] : null;
+  // };
 
   const handleSave = async (publish: boolean = false) => {
     setSaving(true);
