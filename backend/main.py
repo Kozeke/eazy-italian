@@ -16,6 +16,7 @@ app = FastAPI(
 )
 
 # Set up CORS
+print(f"Setting up CORS with origins: {settings.cors_origins_list}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -56,6 +57,11 @@ async def startup_event():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# CORS test endpoint
+@app.get("/cors-test")
+async def cors_test():
+    return {"message": "CORS is working", "origins": settings.cors_origins_list}
 
 # Root endpoint
 @app.get("/")

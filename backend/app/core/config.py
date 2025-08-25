@@ -32,12 +32,26 @@ class Settings(BaseSettings):
     
     @property
     def cors_origins_list(self) -> List[str]:
-        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
-        # Add wildcard for onrender.com domains
-        if "https://*.onrender.com" in self.CORS_ORIGINS:
-            origins.append("https://eazy-italian-frontend.onrender.com")
-        print(f"CORS origins configured: {origins}")
-        return origins
+        # Always include the frontend domain regardless of environment variable
+        default_origins = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000", 
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+            "http://localhost:3002",
+            "http://127.0.0.1:3002",
+            "https://eazy-italian-frontend.onrender.com",
+            "https://*.onrender.com"
+        ]
+        
+        # Parse environment variable origins
+        env_origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        
+        # Combine and deduplicate
+        all_origins = list(set(default_origins + env_origins))
+        
+        print(f"CORS origins configured: {all_origins}")
+        return all_origins
     
     # Application
     DEBUG: bool = True
