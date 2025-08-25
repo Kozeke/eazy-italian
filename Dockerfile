@@ -22,6 +22,8 @@ RUN npm ci --only=production
 
 # Copy frontend source and build
 COPY frontend/ ./
+# Fix for rollup platform-specific dependencies
+RUN npm rebuild
 RUN npm run build
 
 # Copy backend source
