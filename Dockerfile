@@ -1,6 +1,10 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
+# Add build argument to force rebuild
+ARG BUILD_DATE=unknown
+ARG VCS_REF=unknown
+
 # Set working directory
 WORKDIR /app
 
@@ -27,7 +31,7 @@ COPY frontend/ ./
 RUN npm install @rollup/rollup-linux-x64-gnu
 RUN npm run build
 
-# Copy backend source
+# Copy backend source (this will now be rebuilt every time)
 WORKDIR /app
 COPY backend/ ./
 

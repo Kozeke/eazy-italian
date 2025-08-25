@@ -52,17 +52,19 @@ async def startup_event():
                 print("Starting application without database initialization...")
                 break
 
-# Mount static files for frontend
-if os.path.exists("frontend/dist"):
-    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
-else:
-    @app.get("/")
-    async def root():
-        return {"message": "Eazy Italian API", "version": "1.0.0", "status": "deployed", "database": "connected"}
-
+# Health check endpoint (must be before static file mounting)
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# Root endpoint
+@app.get("/")
+async def root():
+    return {"message": "Eazy Italian API", "version": "1.0.0", "status": "deployed", "database": "connected"}
+
+# Mount static files for frontend at /static path
+if os.path.exists("frontend/dist"):
+    app.mount("/static", StaticFiles(directory="frontend/dist", html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn

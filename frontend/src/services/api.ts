@@ -19,7 +19,7 @@ import {
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
-  baseURL: '/api/v1',
+  baseURL: 'https://eazy-italian.onrender.com/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
