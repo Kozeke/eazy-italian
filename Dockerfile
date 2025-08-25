@@ -18,12 +18,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy frontend package files and install Node.js dependencies
 COPY frontend/package*.json ./frontend/
 WORKDIR /app/frontend
-RUN npm ci --only=production
+# Install all dependencies (including dev dependencies for build)
+RUN npm ci
 
 # Copy frontend source and build
 COPY frontend/ ./
-# Fix for rollup platform-specific dependencies
-RUN npm rebuild
+# Force install platform-specific dependencies
+RUN npm install @rollup/rollup-linux-x64-gnu
 RUN npm run build
 
 # Copy backend source
