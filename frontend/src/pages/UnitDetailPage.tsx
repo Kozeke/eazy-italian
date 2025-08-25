@@ -95,7 +95,7 @@ export default function UnitDetailPage() {
             <div className="flex items-center space-x-2 mt-1">
               {getLevelBadge(unit.level)}
               <span className="text-sm text-gray-500">•</span>
-              <span className="text-sm text-gray-500">{unit.videos.length} видео</span>
+              <span className="text-sm text-gray-500">{unit.videos?.length || 0} видео</span>
             </div>
           </div>
         </div>
@@ -145,9 +145,9 @@ export default function UnitDetailPage() {
                 <h3 className="text-lg font-medium text-gray-900">Видео в этом юните</h3>
               </div>
               <div className="p-4">
-                {unit.videos.length > 0 ? (
+                {unit.videos && unit.videos.length > 0 ? (
                   <div className="space-y-2">
-                    {unit.videos.map((video, index) => (
+                    {unit.videos?.map((video, index) => (
                       <button
                         key={video.id}
                         onClick={() => setSelectedVideo(video)}
