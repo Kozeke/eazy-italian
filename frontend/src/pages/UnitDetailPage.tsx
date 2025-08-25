@@ -197,7 +197,7 @@ export default function UnitDetailPage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Просмотрено видео</span>
-                  <span className="text-sm font-medium text-gray-900">0 / {unit.videos.length}</span>
+                  <span className="text-sm font-medium text-gray-900">0 / {unit.videos?.length || 0}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div className="bg-primary-600 h-2 rounded-full" style={{ width: '0%' }}></div>
