@@ -98,14 +98,14 @@ export default function AdminUnitEditPage() {
           title: unitData.title || '',
           level: unitData.level || 'A1',
           description: unitData.description || '',
-          goals: unitData.goals || '',
-          tags: unitData.tags || [],
+          goals: (unitData as any).goals || '',
+          tags: (unitData as any).tags || [],
           status: unitData.status || 'draft',
-          publish_at: unitData.publish_at ? unitData.publish_at.slice(0, 16) : '',
+          publish_at: (unitData as any).publish_at ? (unitData as any).publish_at.slice(0, 16) : '',
           order_index: unitData.order_index || 0,
-          is_visible_to_students: unitData.is_visible_to_students || false,
-          meta_title: unitData.meta_title || '',
-          meta_description: unitData.meta_description || ''
+          is_visible_to_students: (unitData as any).is_visible_to_students || false,
+          meta_title: (unitData as any).meta_title || '',
+          meta_description: (unitData as any).meta_description || ''
         });
 
         // TODO: Load videos, tasks, tests, and summary data from API
@@ -201,7 +201,7 @@ export default function AdminUnitEditPage() {
         ...formData,
         status: publish ? 'published' : 'draft',
         publish_at: publish ? new Date().toISOString() : null
-      };
+      } as any;
 
       await unitsApi.updateUnit(parseInt(id), unitData);
       

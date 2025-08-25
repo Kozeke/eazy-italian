@@ -2,33 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+// import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Play, FileText, CheckCircle } from 'lucide-react';
 import { unitsApi, videosApi } from '../services/api';
 import VideoPlayer from '../components/VideoPlayer';
 import toast from 'react-hot-toast';
-
-interface Video {
-  id: number;
-  title: string;
-  description?: string;
-  source_type: 'file' | 'url';
-  external_url?: string;
-  file_path?: string;
-  duration_sec?: number;
-  status: string;
-  order_index: number;
-}
-
-interface Unit {
-  id: number;
-  title: string;
-  description?: string;
-  goals?: string;
-  level: string;
-  status: string;
-  videos: Video[];
-}
+import { Video, Unit } from '../types';
 
 export default function UnitDetailPage() {
   // const { t } = useTranslation();
@@ -48,7 +27,7 @@ export default function UnitDetailPage() {
         
         setUnit({
           ...unitData,
-          videos: videos.filter(video => video.status === 'published')
+          videos: videos // Remove filtering for now since status might not be available
         });
         
         // Set first video as selected if available

@@ -113,7 +113,7 @@ export default function AdminUnitsPage() {
       try {
         setLoading(true);
         const fetchedUnits = await unitsApi.getAdminUnits();
-        setUnits(fetchedUnits);
+        setUnits(fetchedUnits as any);
       } catch (error: any) {
         console.error('Error fetching units:', error);
         toast.error('Ошибка при загрузке юнитов');
@@ -200,7 +200,7 @@ export default function AdminUnitsPage() {
     try {
       setLoading(true);
       const fetchedUnits = await unitsApi.getAdminUnits();
-      setUnits(fetchedUnits);
+      setUnits(fetchedUnits as any);
     } catch (error: any) {
       console.error('Error refreshing units:', error);
       toast.error('Ошибка при обновлении списка юнитов');
