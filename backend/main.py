@@ -53,8 +53,8 @@ async def startup_event():
                 break
 
 # Mount static files for frontend
-if os.path.exists("../frontend/dist"):
-    app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="static")
+if os.path.exists("frontend/dist"):
+    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
 else:
     @app.get("/")
     async def root():
