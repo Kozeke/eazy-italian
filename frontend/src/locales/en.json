@@ -141,27 +141,94 @@
     "hero": {
       "title": "Learn Italian easily and effectively",
       "subtitle": "Modern platform for learning Italian with personalized approach and interactive materials",
-      "cta": "Start Learning"
+      "cta": "Start Learning",
+      "watchDemo": "Watch Demo"
     },
     "benefits": {
       "title": "Why Choose Us",
+      "subtitle": "Our platform offers a modern approach to learning Italian",
       "interactive": "Interactive Learning",
+      "interactiveDesc": "Interactive video lessons with native speakers and practical exercises",
       "personalized": "Personalized Approach",
+      "personalizedDesc": "Personalized learning program adapted to your level",
       "progress": "Progress Tracking",
-      "expert": "Expert Teachers"
+      "progressDesc": "Detailed progress tracking with analytics and recommendations",
+      "expert": "Expert Teachers",
+      "expertDesc": "Experienced Italian language teachers with CELI certificates"
     },
     "howItWorks": {
       "title": "How It Works",
+      "subtitle": "Simple and effective learning process",
       "step1": "Choose Level",
+      "step1Desc": "Select your current Italian language proficiency level",
       "step2": "Study Lessons",
+      "step2Desc": "Study structured lessons with video and audio materials",
       "step3": "Complete Tasks",
-      "step4": "Get Certificates"
+      "step3Desc": "Complete practical tasks and receive feedback",
+      "step4": "Get Certificates",
+      "step4Desc": "Take tests to consolidate knowledge and receive certificates"
+    },
+    "testimonials": {
+      "title": "Student Reviews",
+      "subtitle": "Find out what those who are already learning Italian with us have to say"
+    },
+    "stats": {
+      "students": "Students",
+      "lessons": "Lessons",
+      "satisfaction": "Satisfaction Rate",
+      "teachers": "Expert Teachers"
     },
     "pricing": {
       "title": "Pricing Plans",
+      "subtitle": "Choose the plan that's right for you",
       "free": "Free",
       "premium": "Premium",
-      "pro": "Pro"
+      "pro": "Pro",
+      "perMonth": "/month",
+      "popular": "Popular",
+      "freeFeatures": {
+        "feature1": "Access to 3 basic lessons",
+        "feature2": "Basic tests",
+        "feature3": "Limited support"
+      },
+      "premiumFeatures": {
+        "feature1": "Full access to all lessons",
+        "feature2": "Unlimited tests",
+        "feature3": "Personal curator",
+        "feature4": "Level certificates",
+        "feature5": "Priority support"
+      },
+      "proFeatures": {
+        "feature1": "All Premium features",
+        "feature2": "Individual lessons",
+        "feature3": "CELI exam preparation",
+        "feature4": "Personal learning plan",
+        "feature5": "24/7 support"
+      },
+      "chooseFree": "Start Free",
+      "choosePremium": "Choose Premium",
+      "choosePro": "Choose Pro"
+    },
+    "cta": {
+      "title": "Ready to start learning Italian?",
+      "subtitle": "Join thousands of students who are already learning Italian with us",
+      "button": "Start Free"
+    },
+    "footer": {
+      "description": "Modern platform for learning Italian",
+      "product": "Product",
+      "lessons": "Lessons",
+      "tests": "Tests",
+      "certificates": "Certificates",
+      "support": "Support",
+      "help": "Help",
+      "faq": "FAQ",
+      "contact": "Contact",
+      "company": "Company",
+      "about": "About Us",
+      "blog": "Blog",
+      "careers": "Careers",
+      "copyright": "© 2024 Eazy Italian. All rights reserved."
     }
   }
 }

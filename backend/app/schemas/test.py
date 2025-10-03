@@ -1,24 +1,31 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from app.models.test import TestStatus
 
 class TestBase(BaseModel):
-    title: str
+    title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
-    settings: Dict[str, Any] = {}
-    pass_threshold: float = 70.0
+    instructions: Optional[str] = None
+    time_limit_minutes: int = Field(30, ge=1, le=300)
+    passing_score: float = Field(70.0, ge=0, le=100)
     status: TestStatus = TestStatus.DRAFT
+    publish_at: Optional[datetime] = None
+    order_index: int = Field(0, ge=0)
+    settings: Dict[str, Any] = Field(default_factory=dict)
 
 class TestCreate(TestBase):
     unit_id: Optional[int] = None
 
 class TestUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
+    instructions: Optional[str] = None
+    time_limit_minutes: Optional[int] = Field(None, ge=1, le=300)
+    passing_score: Optional[float] = Field(None, ge=0, le=100)
     settings: Optional[Dict[str, Any]] = None
-    pass_threshold: Optional[float] = None
     status: Optional[TestStatus] = None
+    order_index: Optional[int] = Field(None, ge=0)
 
 class TestResponse(TestBase):
     id: int

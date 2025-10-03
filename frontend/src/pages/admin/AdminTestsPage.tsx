@@ -1,7 +1,9 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { testsApi } from '../../services/api';
 import { 
   Plus, 
   Search, 
@@ -87,6 +89,55 @@ export default function AdminTestsPage() {
   const [sortField, setSortField] = useState('orderIndex');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Load tests from API
+  useEffect(() => {
+    loadTests();
+  }, []);
+
+  const loadTests = async () => {
+    setLoading(true);
+    try {
+      const response = await testsApi.getTests();
+      const fetchedTests = Array.isArray(response) ? response : response.items || [];
+      console.log('Loaded tests from API:', fetchedTests);
+      
+      // Map backend tests to frontend format
+      const mappedTests = fetchedTests.map((test: any) => ({
+        id: test.id,
+        title: test.title,
+        description: test.description || '',
+        level: test.unit?.level || 'A1',
+        status: test.status,
+        type: 'grammar', // Default type
+        difficulty: 'medium',
+        duration: test.time_limit_minutes || 30,
+        questionsCount: test.test_questions?.length || 0,
+        passingScore: test.passing_score || 70,
+        attemptsCount: test.attempts?.length || 0,
+        averageScore: 0,
+        dueDate: null,
+        lastUpdated: test.updated_at || test.created_at,
+        orderIndex: test.order_index || 0,
+      }));
+      
+      // If we have real tests from API, show them; otherwise show mock tests
+      if (mappedTests.length > 0) {
+        setTests(mappedTests);
+      } else {
+        // Show mock tests only if no real tests exist
+        setTests(mockTests);
+      }
+    } catch (error) {
+      console.error('Error loading tests:', error);
+      toast.error('Ошибка загрузки тестов');
+      // Keep mock data on error
+      setTests(mockTests);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSort = (field: string) => {
     if (sortField === field) {

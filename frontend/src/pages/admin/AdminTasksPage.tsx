@@ -1,7 +1,8 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { 
   Plus, 
   Search, 
@@ -13,76 +14,30 @@ import {
   Calendar,
   FileText,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Users,
+  CheckCircle,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
+import { Task } from '../../types';
+import { tasksApi } from '../../services/api';
 
-// Mock data - replace with actual API calls
-const mockTasks = [
-  {
-    id: 1,
-    title: 'Грамматическое упражнение: Артикли',
-    description: 'Заполните пропуски правильными артиклями',
-    level: 'A1',
-    status: 'published',
-    type: 'grammar',
-    difficulty: 'easy',
-    estimatedTime: 15,
-    points: 10,
-    dueDate: '2024-02-15T23:59:00Z',
-    submissionsCount: 45,
-    averageScore: 85,
-    lastUpdated: '2024-01-10T10:30:00Z',
-    orderIndex: 1
-  },
-  {
-    id: 2,
-    title: 'Лексическое задание: Еда и рестораны',
-    description: 'Изучите словарь по теме еды и выполните упражнения',
-    level: 'A2',
-    status: 'draft',
-    type: 'vocabulary',
-    difficulty: 'medium',
-    estimatedTime: 25,
-    points: 15,
-    dueDate: null,
-    submissionsCount: 0,
-    averageScore: 0,
-    lastUpdated: '2024-01-12T14:20:00Z',
-    orderIndex: 2
-  },
-  {
-    id: 3,
-    title: 'Аудирование: Диалог в магазине',
-    description: 'Прослушайте диалог и ответьте на вопросы',
-    level: 'A2',
-    status: 'scheduled',
-    type: 'listening',
-    difficulty: 'medium',
-    estimatedTime: 20,
-    points: 12,
-    dueDate: '2024-02-20T23:59:00Z',
-    submissionsCount: 0,
-    averageScore: 0,
-    lastUpdated: '2024-01-08T09:15:00Z',
-    orderIndex: 3
-  }
-];
-
-const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const statuses = ['draft', 'published', 'scheduled', 'archived'];
-const types = ['grammar', 'vocabulary', 'listening', 'reading', 'writing', 'speaking'];
+const types = ['manual', 'auto', 'practice', 'writing'];
 
 export default function AdminTasksPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState(mockTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
-  const [sortField, setSortField] = useState('orderIndex');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortField, setSortField] = useState('created_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
 
   const handleSort = (field: string) => {
@@ -110,15 +65,76 @@ export default function AdminTasksPage() {
     );
   };
 
-  const handleBulkAction = (action: string) => {
-    console.log(`Bulk action: ${action} on tasks:`, selectedTasks);
-    // Implement bulk actions
-    setSelectedTasks([]);
+  // Load tasks
+  useEffect(() => {
+    const loadTasks = async () => {
+      setIsLoading(true);
+      try {
+        const params: any = {
+          search: searchQuery || undefined,
+          unit_id: selectedUnit || undefined,
+          type: selectedType || undefined,
+          status: selectedStatus || undefined,
+          sort_by: sortField,
+          sort_order: sortDirection,
+          skip: 0,
+          limit: 100
+        };
+        
+        const tasksData = await tasksApi.getAdminTasks(params);
+        setTasks(tasksData);
+      } catch (error) {
+        console.error('Failed to load tasks:', error);
+        toast.error('Ошибка при загрузке заданий');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTasks();
+  }, [searchQuery, selectedUnit, selectedType, selectedStatus, sortField, sortDirection]);
+
+  const handleBulkAction = async (action: string) => {
+    if (selectedTasks.length === 0) return;
+    
+    try {
+      await tasksApi.bulkActionTasks({
+        task_ids: selectedTasks,
+        action
+      });
+      
+      toast.success(`Действие "${action}" выполнено успешно`);
+      setSelectedTasks([]);
+      
+      // Reload tasks
+      const params: any = {
+        search: searchQuery || undefined,
+        unit_id: selectedUnit || undefined,
+        type: selectedType || undefined,
+        status: selectedStatus || undefined,
+        sort_by: sortField,
+        sort_order: sortDirection,
+        skip: 0,
+        limit: 100
+      };
+      const tasksData = await tasksApi.getAdminTasks(params);
+      setTasks(tasksData);
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+      toast.error('Ошибка при выполнении действия');
+    }
   };
 
-  const handleDeleteTask = (taskId: number) => {
+  const handleDeleteTask = async (taskId: number) => {
     if (window.confirm('Вы уверены, что хотите удалить это задание?')) {
-      setTasks(prev => prev.filter(task => task.id !== taskId));
+      try {
+        await tasksApi.deleteTask(taskId);
+        setTasks(prev => prev.filter(task => task.id !== taskId));
+        toast.success('Задание удалено');
+      } catch (error) {
+        console.error('Failed to delete task:', error);
+        toast.error('Ошибка при удалении задания');
+      }
     }
   };
 
@@ -139,25 +155,15 @@ export default function AdminTasksPage() {
     );
   };
 
-  const getLevelBadge = (level: string) => {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-        {level}
-      </span>
-    );
-  };
-
   const getTypeBadge = (type: string) => {
     const typeConfig = {
-      grammar: { color: 'bg-blue-100 text-blue-800', label: 'Грамматика' },
-      vocabulary: { color: 'bg-green-100 text-green-800', label: 'Лексика' },
-      listening: { color: 'bg-yellow-100 text-yellow-800', label: 'Аудирование' },
-      reading: { color: 'bg-purple-100 text-purple-800', label: 'Чтение' },
-      writing: { color: 'bg-indigo-100 text-indigo-800', label: 'Письмо' },
-      speaking: { color: 'bg-pink-100 text-pink-800', label: 'Говорение' }
+      manual: { color: 'bg-blue-100 text-blue-800', label: 'Ручная проверка' },
+      auto: { color: 'bg-green-100 text-green-800', label: 'Авто-проверка' },
+      practice: { color: 'bg-yellow-100 text-yellow-800', label: 'Практика' },
+      writing: { color: 'bg-purple-100 text-purple-800', label: 'Письменная работа' }
     };
     
-    const config = typeConfig[type as keyof typeof typeConfig] || typeConfig.grammar;
+    const config = typeConfig[type as keyof typeof typeConfig] || typeConfig.manual;
     
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
@@ -166,47 +172,17 @@ export default function AdminTasksPage() {
     );
   };
 
-  const getDifficultyBadge = (difficulty: string) => {
-    const difficultyConfig = {
-      easy: { color: 'bg-green-100 text-green-800', label: 'Легко' },
-      medium: { color: 'bg-yellow-100 text-yellow-800', label: 'Средне' },
-      hard: { color: 'bg-red-100 text-red-800', label: 'Сложно' }
-    };
-    
-    const config = difficultyConfig[difficulty as keyof typeof difficultyConfig] || difficultyConfig.easy;
-    
+  // Loading state
+  if (isLoading) {
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
-      </span>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Загрузка заданий...</p>
+        </div>
+      </div>
     );
-  };
-
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         task.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesLevel = !selectedLevel || task.level === selectedLevel;
-    const matchesStatus = !selectedStatus || task.status === selectedStatus;
-    const matchesType = !selectedType || task.type === selectedType;
-    
-    return matchesSearch && matchesLevel && matchesStatus && matchesType;
-  });
-
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
-    const aValue = a[sortField as keyof typeof a];
-    const bValue = b[sortField as keyof typeof b];
-    
-    // Handle null values
-    if (aValue === null && bValue === null) return 0;
-    if (aValue === null) return 1;
-    if (bValue === null) return -1;
-    
-    if (sortDirection === 'asc') {
-      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-    } else {
-      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-    }
-  });
+  }
 
   return (
     <div className="space-y-6">
@@ -262,20 +238,18 @@ export default function AdminTasksPage() {
           {showFilters && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Level Filter */}
+                {/* Unit Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Уровень
+                    Юнит
                   </label>
                   <select
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
+                    value={selectedUnit}
+                    onChange={(e) => setSelectedUnit(e.target.value)}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   >
-                    <option value="">Все уровни</option>
-                    {levels.map(level => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
+                    <option value="">Все юниты</option>
+                    {/* Units will be loaded dynamically */}
                   </select>
                 </div>
 
@@ -313,11 +287,9 @@ export default function AdminTasksPage() {
                     <option value="">Все типы</option>
                     {types.map(type => (
                       <option key={type} value={type}>
-                        {type === 'grammar' ? 'Грамматика' :
-                         type === 'vocabulary' ? 'Лексика' :
-                         type === 'listening' ? 'Аудирование' :
-                         type === 'reading' ? 'Чтение' :
-                         type === 'writing' ? 'Письмо' : 'Говорение'}
+                        {type === 'manual' ? 'Ручная проверка' :
+                         type === 'auto' ? 'Авто-проверка' :
+                         type === 'practice' ? 'Практика' : 'Письменная работа'}
                       </option>
                     ))}
                   </select>
@@ -386,11 +358,11 @@ export default function AdminTasksPage() {
                 </th>
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('level')}
+                  onClick={() => handleSort('unit_id')}
                 >
                   <div className="flex items-center">
-                    Уровень
-                    {sortField === 'level' && (
+                    Юнит
+                    {sortField === 'unit_id' && (
                       sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
                     )}
                   </div>
@@ -399,7 +371,7 @@ export default function AdminTasksPage() {
                   Тип
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Сложность
+                  Назначено
                 </th>
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -417,11 +389,11 @@ export default function AdminTasksPage() {
                 </th>
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('dueDate')}
+                  onClick={() => handleSort('due_at')}
                 >
                   <div className="flex items-center">
                     Дедлайн
-                    {sortField === 'dueDate' && (
+                    {sortField === 'due_at' && (
                       sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
                     )}
                   </div>
@@ -432,7 +404,7 @@ export default function AdminTasksPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sortedTasks.map((task) => (
+              {tasks.map((task) => (
                 <tr key={task.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
@@ -451,35 +423,40 @@ export default function AdminTasksPage() {
                         {task.description}
                       </div>
                       <div className="text-xs text-gray-400">
-                        Порядок: {task.orderIndex} | {task.points} баллов | {task.estimatedTime} мин
+                        Порядок: {task.order_index} | {task.max_score} баллов
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {getLevelBadge(task.level)}
+                    {task.unit_title || 'Без юнита'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getTypeBadge(task.type)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {getDifficultyBadge(task.difficulty)}
+                    <div className="flex items-center space-x-1">
+                      <Users className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-900">
+                        {task.assigned_student_count || 0}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getStatusBadge(task.status)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {task.submissionsCount} сдач
+                      {task.submission_stats?.submitted || 0} сдач
                     </div>
                     <div className="text-sm text-gray-500">
-                      {task.averageScore > 0 ? `${task.averageScore}%` : 'Нет данных'}
+                      {task.average_score ? `${task.average_score.toFixed(1)}%` : 'Нет данных'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {task.dueDate ? (
+                    {task.due_at ? (
                       <div className="flex items-center">
                         <Calendar className="w-4 h-4 mr-1" />
-                        {new Date(task.dueDate).toLocaleDateString('ru-RU')}
+                        {new Date(task.due_at).toLocaleDateString('ru-RU')}
                       </div>
                     ) : (
                       <span className="text-gray-400">Не установлен</span>
@@ -524,17 +501,17 @@ export default function AdminTasksPage() {
         </div>
 
         {/* Empty State */}
-        {sortedTasks.length === 0 && (
+        {tasks.length === 0 && (
           <div className="text-center py-12">
             <FileText className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">Нет заданий</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || selectedLevel || selectedStatus || selectedType
+              {searchQuery || selectedUnit || selectedStatus || selectedType
                 ? 'Попробуйте изменить фильтры поиска.'
                 : 'Начните с создания первого задания.'
               }
             </p>
-            {!searchQuery && !selectedLevel && !selectedStatus && !selectedType && (
+            {!searchQuery && !selectedUnit && !selectedStatus && !selectedType && (
               <div className="mt-6">
                 <button
                   onClick={() => navigate('/admin/tasks/new')}

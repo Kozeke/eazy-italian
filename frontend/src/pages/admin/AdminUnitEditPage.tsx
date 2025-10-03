@@ -92,7 +92,7 @@ export default function AdminUnitEditPage() {
 
       try {
         setLoading(true);
-        const unitData = await unitsApi.getUnit(parseInt(id));
+        const unitData = await unitsApi.getAdminUnit(parseInt(id));
         
         setFormData({
           title: unitData.title || '',
@@ -108,11 +108,40 @@ export default function AdminUnitEditPage() {
           meta_description: (unitData as any).meta_description || ''
         });
 
-        // TODO: Load videos, tasks, tests, and summary data from API
-        // For now, keeping empty arrays
-        setVideos([]);
-        setTasks([]);
-        setTests([]);
+        // Load videos, tasks, tests for this unit
+        try {
+          // Load videos
+          const videosResponse = await fetch(`http://localhost:8000/api/v1/videos/units/${id}/videos`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          });
+          if (videosResponse.ok) {
+            const videosData = await videosResponse.json();
+            setVideos(videosData.map((v: any) => ({ id: v.id, title: v.title, type: 'video' })));
+          }
+
+          // Load tasks
+          const tasksResponse = await fetch(`http://localhost:8000/api/v1/tasks?unit_id=${id}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          });
+          if (tasksResponse.ok) {
+            const tasksData = await tasksResponse.json();
+            const tasksList = Array.isArray(tasksData) ? tasksData : tasksData.items || [];
+            setTasks(tasksList.map((t: any) => ({ id: t.id, title: t.title, type: 'task' })));
+          }
+
+          // Load tests
+          const testsResponse = await fetch(`http://localhost:8000/api/v1/tests?unit_id=${id}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          });
+          if (testsResponse.ok) {
+            const testsData = await testsResponse.json();
+            const testsList = Array.isArray(testsData) ? testsData : testsData.items || [];
+            setTests(testsList.map((t: any) => ({ id: t.id, title: t.title, type: 'test' })));
+          }
+        } catch (contentError) {
+          console.error('Error loading unit content:', contentError);
+        }
+
         setSummary({
           total_enrolled: 0,
           started_count: 0,

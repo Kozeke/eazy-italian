@@ -21,6 +21,9 @@ import AdminVideoEditPage from './pages/admin/AdminVideoEditPage';
 import AdminTasksPage from './pages/admin/AdminTasksPage';
 import AdminTaskCreatePage from './pages/admin/AdminTaskCreatePage';
 import AdminTaskEditPage from './pages/admin/AdminTaskEditPage';
+import AdminTaskDetailPage from './pages/admin/AdminTaskDetailPage';
+import AdminTaskSubmissionsPage from './pages/admin/AdminTaskSubmissionsPage';
+import AdminTaskGradingPage from './pages/admin/AdminTaskGradingPage';
 import AdminTestsPage from './pages/admin/AdminTestsPage';
 import AdminTestCreatePage from './pages/admin/AdminTestCreatePage';
 import AdminTestEditPage from './pages/admin/AdminTestEditPage';
@@ -86,7 +89,10 @@ function App() {
          {/* Tasks routes */}
          <Route path="/admin/tasks" element={<AdminTasksPage />} />
          <Route path="/admin/tasks/new" element={<AdminTaskCreatePage />} />
+         <Route path="/admin/tasks/:id" element={<AdminTaskDetailPage />} />
          <Route path="/admin/tasks/:id/edit" element={<AdminTaskEditPage />} />
+         <Route path="/admin/tasks/:id/submissions" element={<AdminTaskSubmissionsPage />} />
+         <Route path="/admin/tasks/:id/submissions/:submissionId" element={<AdminTaskGradingPage />} />
          
          {/* Tests routes */}
          <Route path="/admin/tests" element={<AdminTestsPage />} />

@@ -19,7 +19,7 @@ import {
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
-  baseURL: 'https://eazy-italian.onrender.com/api/v1',
+  baseURL: 'http://localhost:8000/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -90,6 +90,11 @@ export const unitsApi = {
     return response.data;
   },
 
+  getAdminUnit: async (id: number): Promise<Unit> => {
+    const response: AxiosResponse<Unit> = await api.get(`/units/admin/units/${id}`);
+    return response.data;
+  },
+
   createUnit: async (unitData: Partial<Unit>): Promise<Unit> => {
     const response: AxiosResponse<Unit> = await api.post('/units/admin/units', unitData);
     return response.data;
@@ -129,8 +134,64 @@ export const videosApi = {
 
 // Tasks API
 export const tasksApi = {
-  getTasks: async (params?: any): Promise<PaginatedResponse<Task>> => {
-    const response: AxiosResponse<PaginatedResponse<Task>> = await api.get('/tasks', { params });
+  // Admin endpoints
+  getAdminTasks: async (params?: any): Promise<Task[]> => {
+    const response: AxiosResponse<Task[]> = await api.get('/tasks/admin/tasks', { params });
+    return response.data;
+  },
+
+  getAdminTask: async (id: number): Promise<Task> => {
+    const response: AxiosResponse<Task> = await api.get(`/tasks/admin/tasks/${id}`);
+    return response.data;
+  },
+
+  createTask: async (taskData: Partial<Task>): Promise<Task> => {
+    const response: AxiosResponse<Task> = await api.post('/tasks/admin/tasks', taskData);
+    return response.data;
+  },
+
+  updateTask: async (id: number, taskData: Partial<Task>): Promise<Task> => {
+    const response: AxiosResponse<Task> = await api.put(`/tasks/admin/tasks/${id}`, taskData);
+    return response.data;
+  },
+
+  deleteTask: async (id: number): Promise<void> => {
+    await api.delete(`/tasks/admin/tasks/${id}`);
+  },
+
+  bulkActionTasks: async (bulkAction: { task_ids: number[]; action: string }): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post('/tasks/admin/tasks/bulk-action', bulkAction);
+    return response.data;
+  },
+
+  bulkAssignTasks: async (bulkAssign: { task_ids: number[]; assign_to_all: boolean; cohort_ids: number[]; student_ids: number[] }): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post('/tasks/admin/tasks/bulk-assign', bulkAssign);
+    return response.data;
+  },
+
+  getTaskSubmissions: async (taskId: number, params?: any): Promise<TaskSubmission[]> => {
+    const response: AxiosResponse<TaskSubmission[]> = await api.get(`/tasks/admin/tasks/${taskId}/submissions`, { params });
+    return response.data;
+  },
+
+  getTaskSubmission: async (taskId: number, submissionId: number): Promise<TaskSubmission> => {
+    const response: AxiosResponse<TaskSubmission> = await api.get(`/tasks/admin/tasks/${taskId}/submissions/${submissionId}`);
+    return response.data;
+  },
+
+  gradeSubmission: async (taskId: number, submissionId: number, gradeData: { score: number; feedback_rich?: string }): Promise<TaskSubmission> => {
+    const response: AxiosResponse<TaskSubmission> = await api.post(`/tasks/admin/tasks/${taskId}/submissions/${submissionId}/grade`, gradeData);
+    return response.data;
+  },
+
+  getTaskStatistics: async (taskId: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/tasks/admin/tasks/${taskId}/statistics`);
+    return response.data;
+  },
+
+  // Student endpoints
+  getTasks: async (params?: any): Promise<Task[]> => {
+    const response: AxiosResponse<Task[]> = await api.get('/tasks', { params });
     return response.data;
   },
 
@@ -139,27 +200,8 @@ export const tasksApi = {
     return response.data;
   },
 
-  createTask: async (taskData: Partial<Task>): Promise<Task> => {
-    const response: AxiosResponse<Task> = await api.post('/admin/tasks', taskData);
-    return response.data;
-  },
-
-  updateTask: async (id: number, taskData: Partial<Task>): Promise<Task> => {
-    const response: AxiosResponse<Task> = await api.put(`/admin/tasks/${id}`, taskData);
-    return response.data;
-  },
-
-  deleteTask: async (id: number): Promise<void> => {
-    await api.delete(`/admin/tasks/${id}`);
-  },
-
   submitTask: async (id: number, submissionData: Partial<TaskSubmission>): Promise<TaskSubmission> => {
     const response: AxiosResponse<TaskSubmission> = await api.post(`/tasks/${id}/submit`, submissionData);
-    return response.data;
-  },
-
-  gradeTask: async (id: number, gradeData: { score: number; feedback?: string }): Promise<TaskSubmission> => {
-    const response: AxiosResponse<TaskSubmission> = await api.post(`/admin/tasks/${id}/grade`, gradeData);
     return response.data;
   },
 };
@@ -177,17 +219,17 @@ export const testsApi = {
   },
 
   createTest: async (testData: Partial<Test>): Promise<Test> => {
-    const response: AxiosResponse<Test> = await api.post('/admin/tests', testData);
+    const response: AxiosResponse<Test> = await api.post('/tests/', testData);
     return response.data;
   },
 
   updateTest: async (id: number, testData: Partial<Test>): Promise<Test> => {
-    const response: AxiosResponse<Test> = await api.put(`/admin/tests/${id}`, testData);
+    const response: AxiosResponse<Test> = await api.put(`/tests/${id}`, testData);
     return response.data;
   },
 
   deleteTest: async (id: number): Promise<void> => {
-    await api.delete(`/admin/tests/${id}`);
+    await api.delete(`/tests/${id}`);
   },
 
   startTest: async (id: number): Promise<TestAttempt> => {
@@ -197,6 +239,36 @@ export const testsApi = {
 
   submitTest: async (id: number, answers: Record<string, any>): Promise<TestAttempt> => {
     const response: AxiosResponse<TestAttempt> = await api.post(`/tests/${id}/submit`, { answers });
+    return response.data;
+  },
+
+  // Test constructor endpoints
+  addQuestionToTest: async (testId: number, questionData: any): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(`/tests/${testId}/questions`, questionData);
+    return response.data;
+  },
+
+  getTestQuestions: async (testId: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/tests/${testId}/questions`);
+    return response.data;
+  },
+
+  removeQuestionFromTest: async (testId: number, questionId: number): Promise<void> => {
+    await api.delete(`/tests/${testId}/questions/${questionId}`);
+  },
+
+  publishTest: async (testId: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.patch(`/tests/${testId}/publish`);
+    return response.data;
+  },
+
+  unpublishTest: async (testId: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.patch(`/tests/${testId}/unpublish`);
+    return response.data;
+  },
+
+  getTestResources: async (): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get('/tests/resources/all');
     return response.data;
   },
 };

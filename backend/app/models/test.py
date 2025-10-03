@@ -7,6 +7,8 @@ import enum
 class QuestionType(str, enum.Enum):
     MULTIPLE_CHOICE = "multiple_choice"
     SINGLE_CHOICE = "single_choice"
+    OPEN_ANSWER = "open_answer"  # Added for open-ended answers
+    CLOZE = "cloze"  # Added for fill-in-the-blank
     GAP_FILL = "gap_fill"
     MATCHING = "matching"
     ORDERING = "ordering"
@@ -30,14 +32,20 @@ class Question(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bank_tags = Column(JSON, default=list)  # List of tags for question bank
-    level = Column(String, nullable=False)  # A1, A2, B1, B2, C1, C2
+    level = Column(String, nullable=True)  # A1, A2, B1, B2, C1, C2
     type = Column(Enum(QuestionType), nullable=False)
-    prompt_rich = Column(Text, nullable=False)
+    prompt_rich = Column(Text, nullable=False)  # Question prompt/text
     media = Column(JSON, default=list)  # List of media files (audio, images)
     options = Column(JSON, default=list)  # For multiple choice, single choice
     correct_answer = Column(JSON, nullable=False)  # Answer format depends on type
     explanation_rich = Column(Text, nullable=True)
-    points = Column(Float, default=1.0, nullable=False)
+    points = Column(Float, default=1.0, nullable=False)  # Score weight
+    shuffle_options = Column(Boolean, default=False)  # Shuffle answer options
+    autograde = Column(Boolean, default=True)  # Enable auto-grading
+    manual_review_threshold = Column(Float, nullable=True)  # Review if score < threshold
+    expected_answer_config = Column(JSON, default=dict)  # For open answers: keywords, regex
+    gaps_config = Column(JSON, default=list)  # For cloze: gap definitions
+    question_metadata = Column(JSON, default=dict)  # Difficulty, tags, etc.
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

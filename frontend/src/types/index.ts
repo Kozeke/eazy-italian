@@ -56,18 +56,55 @@ export interface Video {
 
 export interface Task {
   id: number;
-  unit_id: number;
+  unit_id?: number;
   title: string;
-  instructions_rich?: string;
-  attachments: string[];
-  type: 'manual' | 'auto';
+  description?: string;
+  instructions?: string;
+  content?: string;
+  type: 'manual' | 'auto' | 'practice' | 'writing';
+  auto_task_type?: 'single_choice' | 'multiple_choice' | 'matching' | 'ordering' | 'gap_fill' | 'short_answer' | 'numeric';
+  status: 'draft' | 'scheduled' | 'published' | 'archived';
+  publish_at?: string;
+  order_index: number;
+  max_score: number;
   due_at?: string;
-  max_points: number;
+  allow_late_submissions: boolean;
+  late_penalty_percent: number;
+  max_attempts?: number;
+  attachments: string[];
   rubric: Record<string, any>;
   auto_check_config: Record<string, any>;
+  
+  // Assignment settings
+  assign_to_all: boolean;
+  assigned_cohorts: number[];
+  assigned_students: number[];
+  
+  // Notification settings
+  send_assignment_email: boolean;
+  reminder_days_before?: number;
+  send_results_email: boolean;
+  send_teacher_copy: boolean;
+  
   created_by: number;
   created_at: string;
   updated_at?: string;
+  
+  // Computed properties
+  assigned_student_count?: number;
+  submission_stats?: {
+    total: number;
+    submitted: number;
+    graded: number;
+    pending: number;
+  };
+  average_score?: number;
+  is_available?: boolean;
+  is_overdue?: boolean;
+  unit_title?: string;
+  
+  // Relationships
+  unit?: Unit;
   submissions?: TaskSubmission[];
 }
 
@@ -83,6 +120,18 @@ export interface TaskSubmission {
   score?: number;
   feedback_rich?: string;
   status: 'draft' | 'submitted' | 'graded';
+  attempt_number: number;
+  time_spent_minutes?: number;
+  
+  // Computed properties
+  is_submitted?: boolean;
+  is_graded?: boolean;
+  is_late?: boolean;
+  final_score?: number;
+  student_name?: string;
+  grader_name?: string;
+  
+  // Relationships
   task?: Task;
   student?: User;
   grader?: User;
