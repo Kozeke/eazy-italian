@@ -4,13 +4,11 @@ import { useTranslation } from 'react-i18next';
 import {
   Save,
   CheckCircle,
-  Eye,
   Send,
   Plus,
   Trash2,
   GripVertical,
-  AlertCircle,
-  Settings as SettingsIcon
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { testsApi } from '../../services/api';
@@ -76,7 +74,6 @@ interface TestSettings {
 type TestStatus = 'draft' | 'ready' | 'published' | 'archived';
 
 const AdminTestCreatePage: React.FC = () => {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const unitId = searchParams.get('unitId');
@@ -86,8 +83,8 @@ const AdminTestCreatePage: React.FC = () => {
   const [testTitle, setTestTitle] = useState('');
   const [selectedUnitId, setSelectedUnitId] = useState<number | null>(unitId ? parseInt(unitId) : null);
   const [timeLimit, setTimeLimit] = useState(30);
-  const [description, setDescription] = useState('');
-  const [instructions, setInstructions] = useState('');
+  const [description] = useState('');
+  const [instructions] = useState('');
   const [status, setStatus] = useState<TestStatus>('draft');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [settings, setSettings] = useState<TestSettings>({

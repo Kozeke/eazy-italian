@@ -145,11 +145,11 @@ export interface Test {
   instructions?: string;
   time_limit_minutes?: number;
   passing_score?: number;
-  settings: Record<string, any>;
-  pass_threshold: number;
-  status: 'draft' | 'published' | 'archived';
-  created_by: number;
-  created_at: string;
+  settings?: Record<string, any>;
+  pass_threshold?: number;
+  status?: 'draft' | 'published' | 'archived' | string;
+  created_by?: number;
+  created_at?: string;
   updated_at?: string;
   test_questions?: TestQuestion[];
   attempts?: TestAttempt[];

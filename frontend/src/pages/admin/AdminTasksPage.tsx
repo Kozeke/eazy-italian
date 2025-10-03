@@ -14,11 +14,7 @@ import {
   Calendar,
   FileText,
   ChevronDown,
-  ChevronUp,
-  Users,
-  CheckCircle,
-  Clock,
-  AlertCircle
+  ChevronUp
 } from 'lucide-react';
 import { Task } from '../../types';
 import { tasksApi } from '../../services/api';
@@ -27,7 +23,6 @@ const statuses = ['draft', 'published', 'scheduled', 'archived'];
 const types = ['manual', 'auto', 'practice', 'writing'];
 
 export default function AdminTasksPage() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
