@@ -3,14 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Save,
-  CheckCircle,
-  Eye,
-  Send,
-  Plus,
-  Trash2,
-  GripVertical,
-  AlertCircle,
-  Settings as SettingsIcon,
   ArrowLeft
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -74,7 +66,6 @@ interface TestSettings {
 type TestStatus = 'draft' | 'ready' | 'published' | 'archived';
 
 const AdminTestEditPage: React.FC = () => {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -97,7 +88,6 @@ const AdminTestEditPage: React.FC = () => {
     allow_review: true,
   });
   const [units, setUnits] = useState<Unit[]>([]);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Load test data
   useEffect(() => {

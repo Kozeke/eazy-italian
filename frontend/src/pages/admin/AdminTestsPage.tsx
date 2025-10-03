@@ -89,7 +89,6 @@ export default function AdminTestsPage() {
   const [sortField, setSortField] = useState('orderIndex');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [showFilters, setShowFilters] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   // Load tests from API
   useEffect(() => {
@@ -97,7 +96,6 @@ export default function AdminTestsPage() {
   }, []);
 
   const loadTests = async () => {
-    setLoading(true);
     try {
       const response = await testsApi.getTests();
       const fetchedTests = Array.isArray(response) ? response : response.items || [];
@@ -134,8 +132,6 @@ export default function AdminTestsPage() {
       toast.error('Ошибка загрузки тестов');
       // Keep mock data on error
       setTests(mockTests);
-    } finally {
-      setLoading(false);
     }
   };
 

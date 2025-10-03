@@ -139,9 +139,12 @@ export interface TaskSubmission {
 
 export interface Test {
   id: number;
-  unit_id?: number;
+  unit_id?: number | null;
   title: string;
   description?: string;
+  instructions?: string;
+  time_limit_minutes?: number;
+  passing_score?: number;
   settings: Record<string, any>;
   pass_threshold: number;
   status: 'draft' | 'published' | 'archived';
