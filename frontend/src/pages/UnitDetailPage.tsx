@@ -1,20 +1,23 @@
 
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 // import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Play, FileText, CheckCircle } from 'lucide-react';
-import { unitsApi, videosApi } from '../services/api';
+import { ArrowLeft, Play, FileText, CheckCircle, ClipboardList, BookOpen } from 'lucide-react';
+import { unitsApi, videosApi, tasksApi, testsApi } from '../services/api';
 import VideoPlayer from '../components/VideoPlayer';
 import toast from 'react-hot-toast';
-import { Video, Unit } from '../types';
+import { Video, Unit, Task, Test } from '../types';
 
 export default function UnitDetailPage() {
   // const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [unit, setUnit] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tests, setTests] = useState<Test[]>([]);
 
   useEffect(() => {
     const fetchUnit = async () => {
@@ -33,6 +36,25 @@ export default function UnitDetailPage() {
         // Set first video as selected if available
         if (videos.length > 0) {
           setSelectedVideo(videos[0]);
+        }
+        
+        // Load tasks for this unit
+        try {
+          const tasksData = await tasksApi.getTasks({ unit_id: parseInt(id) });
+          setTasks(Array.isArray(tasksData) ? tasksData : []);
+          console.log('Loaded tasks for unit:', tasksData.length);
+        } catch (error) {
+          console.error('Error loading tasks:', error);
+        }
+        
+        // Load tests for this unit
+        try {
+          const testsData = await testsApi.getTests({ unit_id: parseInt(id) });
+          const testsList = testsData?.items || (Array.isArray(testsData) ? testsData : []);
+          setTests(testsList);
+          console.log('Loaded tests for unit:', testsList.length);
+        } catch (error) {
+          console.error('Error loading tests:', error);
         }
       } catch (error: any) {
         console.error('Error fetching unit:', error);
@@ -191,6 +213,114 @@ export default function UnitDetailPage() {
               </div>
             </div>
 
+            {/* Tasks List */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900 flex items-center">
+                  <ClipboardList className="h-5 w-5 mr-2 text-green-600" />
+                  Задания ({tasks.length})
+                </h3>
+              </div>
+              <div className="p-4">
+                {tasks.length > 0 ? (
+                  <div className="space-y-2">
+                    {tasks.map((task, index) => (
+                      <button
+                        key={task.id}
+                        onClick={() => navigate(`/tasks/${task.id}`)}
+                        className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors"
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0">
+                            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                              <span className="text-sm font-semibold text-green-600">{index + 1}</span>
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {task.title}
+                            </p>
+                            {task.description && (
+                              <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                {task.description}
+                              </p>
+                            )}
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className="text-xs text-gray-400">{task.max_score} баллов</span>
+                              {task.due_at && (
+                                <>
+                                  <span className="text-xs text-gray-400">•</span>
+                                  <span className="text-xs text-gray-400">
+                                    До {new Date(task.due_at).toLocaleDateString('ru-RU')}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <ClipboardList className="mx-auto h-8 w-8 text-gray-400" />
+                    <p className="text-sm text-gray-500 mt-2">Нет заданий</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Tests List */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900 flex items-center">
+                  <BookOpen className="h-5 w-5 mr-2 text-purple-600" />
+                  Тесты ({tests.length})
+                </h3>
+              </div>
+              <div className="p-4">
+                {tests.length > 0 ? (
+                  <div className="space-y-2">
+                    {tests.map((test, index) => (
+                      <button
+                        key={test.id}
+                        onClick={() => navigate(`/tests/${test.id}`)}
+                        className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors"
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0">
+                            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                              <span className="text-sm font-semibold text-purple-600">{index + 1}</span>
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {test.title}
+                            </p>
+                            {test.description && (
+                              <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                {test.description}
+                              </p>
+                            )}
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className="text-xs text-gray-400">{test.time_limit_minutes} минут</span>
+                              <span className="text-xs text-gray-400">•</span>
+                              <span className="text-xs text-gray-400">Проходной балл: {test.passing_score}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <BookOpen className="mx-auto h-8 w-8 text-gray-400" />
+                    <p className="text-sm text-gray-500 mt-2">Нет тестов</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Progress */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Прогресс</h3>
@@ -198,6 +328,14 @@ export default function UnitDetailPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Просмотрено видео</span>
                   <span className="text-sm font-medium text-gray-900">0 / {unit.videos?.length || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Выполнено заданий</span>
+                  <span className="text-sm font-medium text-gray-900">0 / {tasks.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Пройдено тестов</span>
+                  <span className="text-sm font-medium text-gray-900">0 / {tests.length}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div className="bg-primary-600 h-2 rounded-full" style={{ width: '0%' }}></div>
