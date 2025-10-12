@@ -15,14 +15,16 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Set up CORS
+# Set up CORS - Must be before including routers
 print(f"Setting up CORS with origins: {settings.cors_origins_list}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # Include API router
@@ -58,15 +60,30 @@ async def startup_event():
 async def health_check():
     return {"status": "healthy"}
 
-# CORS test endpoint
+# CORS test endpoint - Test if CORS is properly configured
 @app.get("/cors-test")
 async def cors_test():
-    return {"message": "CORS is working", "origins": settings.cors_origins_list}
+    return {
+        "message": "CORS is working", 
+        "origins": settings.cors_origins_list,
+        "environment": settings.ENVIRONMENT
+    }
+
+# OPTIONS handler for CORS preflight - Explicit handler for debugging
+@app.options("/api/v1/auth/login")
+async def options_login():
+    return {"message": "OK"}
 
 # Root endpoint
 @app.get("/")
 async def root():
-    return {"message": "Eazy Italian API", "version": "1.0.0", "status": "deployed", "database": "connected"}
+    return {
+        "message": "Eazy Italian API", 
+        "version": "1.0.0", 
+        "status": "deployed", 
+        "database": "connected",
+        "cors_origins": settings.cors_origins_list
+    }
 
 # Mount static files for frontend at /static path
 if os.path.exists("frontend/dist"):
