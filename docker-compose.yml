@@ -68,7 +68,7 @@ services:
       - SMTP_PORT=587
       - SMTP_USER=your-email@gmail.com
       - SMTP_PASSWORD=your-app-password
-                  - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002
     ports:
       - "8000:8000"
     volumes:
@@ -148,7 +148,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
     depends_on:
       - backend
 
