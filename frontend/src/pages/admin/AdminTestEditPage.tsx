@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Save,
-  ArrowLeft
+  ArrowLeft,
+  Plus,
+  Trash2,
+  GripVertical,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { testsApi } from '../../services/api';
+import { testsApi, questionsApi } from '../../services/api';
 
 interface Unit {
   id: number;
@@ -87,12 +91,35 @@ const AdminTestEditPage: React.FC = () => {
     allow_review: true,
   });
   const [units, setUnits] = useState<Unit[]>([]);
+  
+  // Available questions from question bank
+  const [availableQuestions, setAvailableQuestions] = useState<any[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(true);
+  const [questionsToAdd, setQuestionsToAdd] = useState<number[]>([]);
+  const [questionsToRemove, setQuestionsToRemove] = useState<number[]>([]);
 
   // Load test data
   useEffect(() => {
     loadTestData();
     loadUnits();
+    loadAvailableQuestions();
   }, [id]);
+  
+  // Load available questions from question bank
+  const loadAvailableQuestions = async () => {
+    try {
+      setLoadingQuestions(true);
+      const response = await questionsApi.getQuestions({ limit: 100 });
+      const questionsList = response.items || (Array.isArray(response) ? response : []);
+      setAvailableQuestions(questionsList);
+      console.log('Loaded available questions:', questionsList.length);
+    } catch (error) {
+      console.error('Error loading questions:', error);
+      // Silently fail - questions feature is optional
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
 
   const loadTestData = async () => {
     if (!id) return;
@@ -159,6 +186,80 @@ const AdminTestEditPage: React.FC = () => {
       setUnits(response.units || []);
     } catch (error) {
       console.error('Error loading units:', error);
+    }
+  };
+  
+  // Add a new blank question to the test
+  const addMCQQuestion = async () => {
+    if (!id) return;
+    
+    try {
+      const questionData = {
+        type: 'multiple_choice',
+        prompt: 'Новый вопрос с выбором ответа',
+        score: 1,
+        autograde: true,
+        metadata: { difficulty: 'medium', tags: [] },
+        options: [
+          { id: 'A', text: 'Вариант A' },
+          { id: 'B', text: 'Вариант B' },
+          { id: 'C', text: 'Вариант C' },
+        ],
+        correct_option_ids: ['A'],
+        shuffle_options: true,
+      };
+      
+      await testsApi.addQuestionToTest(parseInt(id), questionData);
+      toast.success('Вопрос добавлен');
+      await loadTestData();
+    } catch (error: any) {
+      console.error('Error adding question:', error);
+      toast.error('Ошибка при добавлении вопроса');
+    }
+  };
+  
+  const addOpenAnswerQuestion = async () => {
+    if (!id) return;
+    
+    try {
+      const questionData = {
+        type: 'open_answer',
+        prompt: 'Новый открытый вопрос',
+        score: 2,
+        autograde: true,
+        metadata: { difficulty: 'medium', tags: [] },
+        expected: {
+          mode: 'keywords',
+          keywords: [{ text: 'ключевое слово', weight: 1.0 }],
+          case_insensitive: true,
+          normalize_accents: true,
+        },
+        manual_review_if_below: 0.6,
+      };
+      
+      await testsApi.addQuestionToTest(parseInt(id), questionData);
+      toast.success('Вопрос добавлен');
+      await loadTestData();
+    } catch (error: any) {
+      console.error('Error adding question:', error);
+      toast.error('Ошибка при добавлении вопроса');
+    }
+  };
+  
+  // Remove question from test
+  const handleRemoveQuestion = async (questionId: number | string) => {
+    if (!id) return;
+    
+    if (!window.confirm('Удалить этот вопрос из теста?')) return;
+    
+    try {
+      await testsApi.removeQuestionFromTest(parseInt(id), typeof questionId === 'string' ? parseInt(questionId) : questionId);
+      toast.success('Вопрос удален');
+      // Reload questions
+      await loadTestData();
+    } catch (error: any) {
+      console.error('Error removing question:', error);
+      toast.error('Ошибка при удалении вопроса');
     }
   };
 
@@ -329,25 +430,83 @@ const AdminTestEditPage: React.FC = () => {
         {activeTab === 'questions' && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Вопросы теста</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Вопросы теста ({questions.length})
+                </h2>
+                {status === 'draft' && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={addMCQQuestion}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      title="Добавить вопрос с выбором ответа"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Выбор ответа
+                    </button>
+                    <button
+                      onClick={addOpenAnswerQuestion}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      title="Добавить открытый вопрос"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Открытый ответ
+                    </button>
+                  </div>
+                )}
+              </div>
+              
               {questions.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  В этом тесте пока нет вопросов
-                  {status === 'draft' && ' Добавьте вопросы через форму создания теста.'}
-                </p>
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <p className="text-gray-500 mb-4">В этом тесте пока нет вопросов</p>
+                  {status === 'draft' && (
+                    <div className="flex items-center justify-center space-x-2">
+                      <button
+                        onClick={addMCQQuestion}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Выбор ответа
+                      </button>
+                      <button
+                        onClick={addOpenAnswerQuestion}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Открытый ответ
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-4">
                   {questions.map((question, index) => (
                     <div key={question.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-gray-900">Вопрос {index + 1}</span>
-                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                            {question.type === 'multiple_choice' ? 'Выбор ответа' : 
-                             question.type === 'open_answer' ? 'Открытый ответ' : 'Пропуски'}
-                          </span>
+                        <div className="flex items-center space-x-3">
+                          {status === 'draft' && (
+                            <GripVertical className="w-5 h-5 text-gray-400 cursor-move" />
+                          )}
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium text-gray-900">Вопрос {index + 1}</span>
+                            <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                              {question.type === 'multiple_choice' ? 'Выбор ответа' : 
+                               question.type === 'open_answer' ? 'Открытый ответ' : 'Пропуски'}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-sm text-gray-600">{question.score} баллов</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-gray-600">{question.score} баллов</span>
+                          {status === 'draft' && (
+                            <button
+                              onClick={() => handleRemoveQuestion(question.id)}
+                              className="p-1 text-red-600 hover:text-red-800"
+                              title="Удалить вопрос"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <p className="text-gray-700">{question.prompt}</p>
                       
@@ -372,11 +531,11 @@ const AdminTestEditPage: React.FC = () => {
               )}
             </div>
             
-            {status === 'draft' && (
+            {status === 'draft' && questions.length > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
-                  💡 Чтобы добавить или удалить вопросы, используйте форму создания теста. 
-                  Редактирование вопросов доступно только для черновиков.
+                  💡 Используйте кнопки "Выбор ответа" или "Открытый ответ" выше, чтобы добавить новые вопросы.
+                  Вопросы можно удалить, нажав на иконку корзины.
                 </p>
               </div>
             )}
