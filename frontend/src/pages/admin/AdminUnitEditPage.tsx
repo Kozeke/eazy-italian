@@ -284,6 +284,8 @@ export default function AdminUnitEditPage() {
         status: publish ? 'published' : 'draft',
         publish_at: publish ? new Date().toISOString() : null
       } as any;
+      
+      console.log('Sending unit data:', JSON.stringify(unitData, null, 2));
 
       await unitsApi.updateUnit(parseInt(id), unitData);
       console.log('✅ Unit data saved');
