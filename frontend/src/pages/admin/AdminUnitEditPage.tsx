@@ -296,6 +296,12 @@ export default function AdminUnitEditPage() {
     setSaving(true);
     
     try {
+      console.log('=== STARTING SAVE ===');
+      console.log('Unit ID:', id);
+      console.log('Tasks to save:', tasks);
+      console.log('Tests to save:', tests);
+      console.log('Videos to save:', videos);
+      
       // Save unit data
       const unitData = {
         ...formData,
@@ -304,31 +310,42 @@ export default function AdminUnitEditPage() {
       } as any;
 
       await unitsApi.updateUnit(parseInt(id), unitData);
+      console.log('✅ Unit data saved');
       
       // Update tasks to associate with this unit
+      let tasksUpdated = 0;
       for (const task of tasks) {
         try {
+          console.log(`Updating task ${task.id} to unit ${id}...`);
           await tasksApi.updateTask(task.id, { unit_id: parseInt(id) } as any);
+          tasksUpdated++;
+          console.log(`✅ Task ${task.id} updated`);
         } catch (error) {
-          console.error(`Error updating task ${task.id}:`, error);
+          console.error(`❌ Error updating task ${task.id}:`, error);
         }
       }
       
       // Update tests to associate with this unit
+      let testsUpdated = 0;
       for (const test of tests) {
         try {
+          console.log(`Updating test ${test.id} to unit ${id}...`);
           await testsApi.updateTest(test.id, { unit_id: parseInt(id) } as any);
+          testsUpdated++;
+          console.log(`✅ Test ${test.id} updated`);
         } catch (error) {
-          console.error(`Error updating test ${test.id}:`, error);
+          console.error(`❌ Error updating test ${test.id}:`, error);
         }
       }
       
-      toast.success(publish ? 'Юнит опубликован!' : 'Юнит сохранен!');
+      console.log(`=== SAVE COMPLETE: ${tasksUpdated} tasks, ${testsUpdated} tests updated ===`);
+      toast.success(`Юнит сохранен! Обновлено: ${tasksUpdated} заданий, ${testsUpdated} тестов`);
       
       // Reload the page to show saved content
       setTimeout(() => {
+        console.log('Reloading page...');
         window.location.reload();
-      }, 1000);
+      }, 1500);
     } catch (error: any) {
       console.error('Error saving unit:', error);
       toast.error(error.response?.data?.detail || 'Ошибка при сохранении юнита');
