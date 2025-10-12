@@ -32,18 +32,15 @@ export default function TestDetailPage() {
   }, [id]);
 
   const handleStartTest = async () => {
-    if (!id) return;
-    
-    try {
-      const attempt = await testsApi.startTest(parseInt(id));
-      toast.success('Тест начат! Удачи!');
-      // Navigate to test taking page (to be implemented)
-      console.log('Test attempt started:', attempt);
-      toast('Страница прохождения теста в разработке', { icon: '🚧' });
-    } catch (error: any) {
-      console.error('Error starting test:', error);
-      toast.error('Ошибка при начале теста');
-    }
+    toast('Функция прохождения тестов находится в разработке', { 
+      icon: '🚧',
+      duration: 4000,
+    });
+    console.log('Test taking feature is under development');
+    // TODO: Implement test taking functionality
+    // 1. Create backend endpoint: POST /api/v1/tests/{id}/start
+    // 2. Create test taking page with timer and questions
+    // 3. Create submit endpoint: POST /api/v1/tests/{id}/submit
   };
 
   if (loading) {
