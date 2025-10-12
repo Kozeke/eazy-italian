@@ -51,9 +51,12 @@ class UnitUpdate(BaseModel):
 
     @validator('publish_at')
     def validate_publish_at(cls, v, values):
+        # For updates, only validate if status is SCHEDULED
+        # Allow past dates for already published units
         if values.get('status') == UnitStatus.SCHEDULED and not v:
             raise ValueError('Publish date is required when status is scheduled')
-        if v:
+        # Only check future date if status is SCHEDULED (not for published or draft)
+        if v and values.get('status') == UnitStatus.SCHEDULED:
             # Make both datetimes timezone-naive for comparison
             now = datetime.utcnow()
             v_naive = v.replace(tzinfo=None) if v.tzinfo else v
