@@ -101,9 +101,15 @@ export default function AdminUnitEditPage() {
         
         // Load all available tests  
         const testsData = await testsApi.getTests({ limit: 100 });
-        setAvailableTests(testsData.items || testsData || []);
+        const testsList = testsData?.items || (Array.isArray(testsData) ? testsData : []);
+        setAvailableTests(testsList);
         
-        console.log('Loaded available content:', { tasks: tasksData?.length, tests: testsData?.items?.length });
+        console.log('Loaded available content:', { 
+          tasks: tasksData?.length || 0, 
+          tests: testsList?.length || 0,
+          tasksData,
+          testsData 
+        });
       } catch (error) {
         console.error('Error loading available content:', error);
         toast.error('Ошибка при загрузке доступного контента');
