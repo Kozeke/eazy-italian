@@ -5,11 +5,10 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
-  GripVertical,
-  ExternalLink
+  GripVertical
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { testsApi, questionsApi } from '../../services/api';
+import { testsApi } from '../../services/api';
 
 interface Unit {
   id: number;
@@ -91,35 +90,12 @@ const AdminTestEditPage: React.FC = () => {
     allow_review: true,
   });
   const [units, setUnits] = useState<Unit[]>([]);
-  
-  // Available questions from question bank
-  const [availableQuestions, setAvailableQuestions] = useState<any[]>([]);
-  const [loadingQuestions, setLoadingQuestions] = useState(true);
-  const [questionsToAdd, setQuestionsToAdd] = useState<number[]>([]);
-  const [questionsToRemove, setQuestionsToRemove] = useState<number[]>([]);
 
   // Load test data
   useEffect(() => {
     loadTestData();
     loadUnits();
-    loadAvailableQuestions();
   }, [id]);
-  
-  // Load available questions from question bank
-  const loadAvailableQuestions = async () => {
-    try {
-      setLoadingQuestions(true);
-      const response = await questionsApi.getQuestions({ limit: 100 });
-      const questionsList = response.items || (Array.isArray(response) ? response : []);
-      setAvailableQuestions(questionsList);
-      console.log('Loaded available questions:', questionsList.length);
-    } catch (error) {
-      console.error('Error loading questions:', error);
-      // Silently fail - questions feature is optional
-    } finally {
-      setLoadingQuestions(false);
-    }
-  };
 
   const loadTestData = async () => {
     if (!id) return;
