@@ -12,7 +12,7 @@ import {
   Users,
   ExternalLink
 } from 'lucide-react';
-import { unitsApi, tasksApi, testsApi } from '../../services/api';
+import { unitsApi, tasksApi, testsApi, videosApi } from '../../services/api';
 import toast from 'react-hot-toast';
 
 interface UnitFormData {
@@ -149,56 +149,33 @@ export default function AdminUnitEditPage() {
 
         // Load videos, tasks, tests for this unit
         try {
-          const token = localStorage.getItem('token');
-          const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-          
-          // Load videos
+          // Load videos using API service
           try {
-            const videosResponse = await fetch(`http://localhost:8000/api/v1/videos/units/${id}/videos`, {
-              headers
-            });
-            if (videosResponse.ok) {
-              const videosData = await videosResponse.json();
-              setVideos(videosData.map((v: any) => ({ id: v.id, title: v.title, status: v.status, order_index: v.order_index, type: 'video' })));
-            }
+            const videosData = await videosApi.getVideos(parseInt(id));
+            setVideos(videosData.map((v: any) => ({ id: v.id, title: v.title, status: v.status, order_index: v.order_index, type: 'video' })));
+            console.log('Loaded videos:', videosData.length);
           } catch (error) {
             console.error('Error loading videos:', error);
           }
 
-          // Load tasks
+          // Load tasks using API service
           try {
-            const tasksResponse = await fetch(`http://localhost:8000/api/v1/tasks/admin/tasks?unit_id=${id}`, {
-              headers
-            });
-            console.log('Tasks response status:', tasksResponse.status);
-            if (tasksResponse.ok) {
-              const tasksData = await tasksResponse.json();
-              console.log('Loaded tasks for unit:', tasksData);
-              const tasksList = Array.isArray(tasksData) ? tasksData : tasksData.items || [];
-              setTasks(tasksList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'task' })));
-              console.log('Set tasks state:', tasksList.length);
-            } else {
-              console.error('Failed to load tasks:', tasksResponse.status, await tasksResponse.text());
-            }
+            const tasksData = await tasksApi.getAdminTasks({ unit_id: parseInt(id) });
+            console.log('Loaded tasks for unit:', tasksData);
+            const tasksList = Array.isArray(tasksData) ? tasksData : [];
+            setTasks(tasksList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'task' })));
+            console.log('Set tasks state:', tasksList.length);
           } catch (error) {
             console.error('Error loading tasks:', error);
           }
 
-          // Load tests
+          // Load tests using API service
           try {
-            const testsResponse = await fetch(`http://localhost:8000/api/v1/tests?unit_id=${id}`, {
-              headers
-            });
-            console.log('Tests response status:', testsResponse.status);
-            if (testsResponse.ok) {
-              const testsData = await testsResponse.json();
-              console.log('Loaded tests for unit:', testsData);
-              const testsList = Array.isArray(testsData) ? testsData : testsData.items || [];
-              setTests(testsList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'test' })));
-              console.log('Set tests state:', testsList.length);
-            } else {
-              console.error('Failed to load tests:', testsResponse.status, await testsResponse.text());
-            }
+            const testsData = await testsApi.getTests({ unit_id: parseInt(id) });
+            console.log('Loaded tests for unit:', testsData);
+            const testsList = testsData?.items || (Array.isArray(testsData) ? testsData : []);
+            setTests(testsList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'test' })));
+            console.log('Set tests state:', testsList.length);
           } catch (error) {
             console.error('Error loading tests:', error);
           }
