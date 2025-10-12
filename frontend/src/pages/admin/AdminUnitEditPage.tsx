@@ -144,33 +144,48 @@ export default function AdminUnitEditPage() {
 
         // Load videos, tasks, tests for this unit
         try {
+          const token = localStorage.getItem('token');
+          const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+          
           // Load videos
-          const videosResponse = await fetch(`http://localhost:8000/api/v1/videos/units/${id}/videos`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-          });
-          if (videosResponse.ok) {
-            const videosData = await videosResponse.json();
-            setVideos(videosData.map((v: any) => ({ id: v.id, title: v.title, type: 'video' })));
+          try {
+            const videosResponse = await fetch(`http://localhost:8000/api/v1/videos/units/${id}/videos`, {
+              headers
+            });
+            if (videosResponse.ok) {
+              const videosData = await videosResponse.json();
+              setVideos(videosData.map((v: any) => ({ id: v.id, title: v.title, status: v.status, order_index: v.order_index, type: 'video' })));
+            }
+          } catch (error) {
+            console.error('Error loading videos:', error);
           }
 
           // Load tasks
-          const tasksResponse = await fetch(`http://localhost:8000/api/v1/tasks?unit_id=${id}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-          });
-          if (tasksResponse.ok) {
-            const tasksData = await tasksResponse.json();
-            const tasksList = Array.isArray(tasksData) ? tasksData : tasksData.items || [];
-            setTasks(tasksList.map((t: any) => ({ id: t.id, title: t.title, type: 'task' })));
+          try {
+            const tasksResponse = await fetch(`http://localhost:8000/api/v1/tasks/admin/tasks?unit_id=${id}`, {
+              headers
+            });
+            if (tasksResponse.ok) {
+              const tasksData = await tasksResponse.json();
+              const tasksList = Array.isArray(tasksData) ? tasksData : tasksData.items || [];
+              setTasks(tasksList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'task' })));
+            }
+          } catch (error) {
+            console.error('Error loading tasks:', error);
           }
 
           // Load tests
-          const testsResponse = await fetch(`http://localhost:8000/api/v1/tests?unit_id=${id}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-          });
-          if (testsResponse.ok) {
-            const testsData = await testsResponse.json();
-            const testsList = Array.isArray(testsData) ? testsData : testsData.items || [];
-            setTests(testsList.map((t: any) => ({ id: t.id, title: t.title, type: 'test' })));
+          try {
+            const testsResponse = await fetch(`http://localhost:8000/api/v1/tests?unit_id=${id}`, {
+              headers
+            });
+            if (testsResponse.ok) {
+              const testsData = await testsResponse.json();
+              const testsList = Array.isArray(testsData) ? testsData : testsData.items || [];
+              setTests(testsList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'test' })));
+            }
+          } catch (error) {
+            console.error('Error loading tests:', error);
           }
         } catch (contentError) {
           console.error('Error loading unit content:', contentError);
