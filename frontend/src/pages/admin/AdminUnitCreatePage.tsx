@@ -202,7 +202,38 @@ export default function AdminUnitCreatePage() {
         }
       }
       
-      toast.success(publish ? 'Юнит опубликован!' : 'Юнит сохранен как черновик!');
+      // Update tasks to associate with the newly created unit
+      let tasksUpdated = 0;
+      for (const task of tasks) {
+        try {
+          console.log(`Associating task ${task.id} with new unit ${savedUnit.id}...`);
+          await tasksApi.updateTask(task.id, { unit_id: savedUnit.id } as any);
+          tasksUpdated++;
+          console.log(`✅ Task ${task.id} associated`);
+        } catch (error) {
+          console.error(`❌ Error associating task ${task.id}:`, error);
+        }
+      }
+      
+      // Update tests to associate with the newly created unit
+      let testsUpdated = 0;
+      for (const test of tests) {
+        try {
+          console.log(`Associating test ${test.id} with new unit ${savedUnit.id}...`);
+          await testsApi.updateTest(test.id, { unit_id: savedUnit.id } as any);
+          testsUpdated++;
+          console.log(`✅ Test ${test.id} associated`);
+        } catch (error) {
+          console.error(`❌ Error associating test ${test.id}:`, error);
+        }
+      }
+      
+      console.log(`✅ Unit created with ${tasksUpdated} tasks and ${testsUpdated} tests`);
+      toast.success(
+        publish 
+          ? `Юнит опубликован! Добавлено: ${tasksUpdated} заданий, ${testsUpdated} тестов` 
+          : `Юнит сохранен! Добавлено: ${tasksUpdated} заданий, ${testsUpdated} тестов`
+      );
       
       // Navigate back to units list
       navigate('/admin/units');
