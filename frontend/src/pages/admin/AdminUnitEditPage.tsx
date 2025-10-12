@@ -9,9 +9,10 @@ import {
   Trash2,
   BarChart3,
   Clock,
-  Users
+  Users,
+  ExternalLink
 } from 'lucide-react';
-import { unitsApi } from '../../services/api';
+import { unitsApi, tasksApi, testsApi } from '../../services/api';
 import toast from 'react-hot-toast';
 
 interface UnitFormData {
@@ -72,6 +73,13 @@ export default function AdminUnitEditPage() {
   const [videos, setVideos] = useState<ContentItem[]>([]);
   const [tasks, setTasks] = useState<ContentItem[]>([]);
   const [tests, setTests] = useState<ContentItem[]>([]);
+  
+  // Available content from API
+  const [availableVideos, setAvailableVideos] = useState<any[]>([]);
+  const [availableTasks, setAvailableTasks] = useState<any[]>([]);
+  const [availableTests, setAvailableTests] = useState<any[]>([]);
+  const [loadingContent, setLoadingContent] = useState(true);
+  
   const [summary, setSummary] = useState<UnitSummary>({
     total_enrolled: 0,
     started_count: 0,
@@ -80,6 +88,32 @@ export default function AdminUnitEditPage() {
     average_time_minutes: 0,
     completion_rate: 0
   });
+
+  // Load available content on mount
+  useEffect(() => {
+    const loadAvailableContent = async () => {
+      try {
+        setLoadingContent(true);
+        
+        // Load all available tasks
+        const tasksData = await tasksApi.getAdminTasks({ limit: 100 });
+        setAvailableTasks(tasksData || []);
+        
+        // Load all available tests  
+        const testsData = await testsApi.getTests({ limit: 100 });
+        setAvailableTests(testsData.items || testsData || []);
+        
+        console.log('Loaded available content:', { tasks: tasksData?.length, tests: testsData?.items?.length });
+      } catch (error) {
+        console.error('Error loading available content:', error);
+        toast.error('Ошибка при загрузке доступного контента');
+      } finally {
+        setLoadingContent(false);
+      }
+    };
+    
+    loadAvailableContent();
+  }, []);
 
   useEffect(() => {
     // Load unit data
@@ -189,15 +223,20 @@ export default function AdminUnitEditPage() {
     }));
   };
 
-  const handleAddContent = (type: 'video' | 'task' | 'test') => {
+  const handleAddExistingContent = (type: 'video' | 'task' | 'test', contentId: number) => {
+    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : availableTests;
+    const content = availableContent.find(item => item.id === contentId);
+    
+    if (!content) return;
+    
     const newItem: ContentItem = {
-      id: Date.now(),
-      title: `Новое ${type === 'video' ? 'видео' : type === 'task' ? 'задание' : 'тест'}`,
-      status: 'draft',
+      id: content.id,
+      title: content.title,
+      status: content.status || 'draft',
       order_index: type === 'video' ? videos.length : type === 'task' ? tasks.length : tests.length,
       type
     };
-
+    
     if (type === 'video') {
       setVideos(prev => [...prev, newItem]);
     } else if (type === 'task') {
@@ -266,34 +305,73 @@ export default function AdminUnitEditPage() {
     items: ContentItem[],
     type: 'video' | 'task' | 'test',
     icon: React.ReactNode
-  ) => (
-    <div className="bg-gray-50 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-900 flex items-center">
-          {icon}
-          <span className="ml-2">{title}</span>
-          <span className="ml-2 text-sm text-gray-500">({items.length})</span>
-        </h3>
-        <button
-          onClick={() => handleAddContent(type)}
-          className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200"
-        >
-                          <Plus className="h-4 w-4 mr-1" />
-          Добавить
-        </button>
-      </div>
-      
-      {items.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <p>Нет {type === 'video' ? 'видео' : type === 'task' ? 'заданий' : 'тестов'}</p>
-          <button
-            onClick={() => handleAddContent(type)}
-            className="mt-2 text-primary-600 hover:text-primary-700"
-          >
-            Добавить первое {type === 'video' ? 'видео' : type === 'task' ? 'задание' : 'тест'}
-          </button>
+  ) => {
+    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : availableTests;
+    const unusedContent = availableContent.filter(content => 
+      !items.some(item => item.id === content.id)
+    );
+    
+    const createPageUrl = type === 'video' ? '/admin/videos/new' : 
+                          type === 'task' ? '/admin/tasks/new' : 
+                          '/admin/tests/new';
+    
+    return (
+      <div className="bg-gray-50 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            {icon}
+            <span className="ml-2">{title}</span>
+            <span className="ml-2 text-sm text-gray-500">({items.length})</span>
+          </h3>
+          <div className="flex items-center space-x-2">
+            {unusedContent.length > 0 && (
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleAddExistingContent(type, parseInt(e.target.value));
+                    e.target.value = '';
+                  }
+                }}
+                className="text-sm px-3 py-1 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">Добавить существующий...</option>
+                {unusedContent.map(content => (
+                  <option key={content.id} value={content.id}>
+                    {content.title}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={() => navigate(createPageUrl)}
+              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+              title={`Создать новый ${type === 'video' ? 'видео' : type === 'task' ? 'задание' : 'тест'}`}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Создать новый
+            </button>
+          </div>
         </div>
-      ) : (
+        
+        {availableContent.length === 0 && !loadingContent ? (
+          <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
+            <p className="text-gray-500 mb-3">
+              Нет доступных {type === 'video' ? 'видео' : type === 'task' ? 'заданий' : 'тестов'}
+            </p>
+            <button
+              onClick={() => navigate(createPageUrl)}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Создать первый {type === 'video' ? 'видео' : type === 'task' ? 'задание' : 'тест'}
+            </button>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>В этом юните нет {type === 'video' ? 'видео' : type === 'task' ? 'заданий' : 'тестов'}</p>
+            <p className="text-sm mt-1">Выберите существующий или создайте новый выше</p>
+          </div>
+        ) : (
         <div className="space-y-2">
           {items.map((item, index) => (
             <div key={item.id} className="flex items-center justify-between bg-white p-3 rounded-md border">
@@ -327,6 +405,7 @@ export default function AdminUnitEditPage() {
       )}
     </div>
   );
+  };
 
   const renderProgressTab = () => (
     <div className="space-y-6">
