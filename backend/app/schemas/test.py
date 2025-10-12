@@ -26,6 +26,8 @@ class TestUpdate(BaseModel):
     settings: Optional[Dict[str, Any]] = None
     status: Optional[TestStatus] = None
     order_index: Optional[int] = Field(None, ge=0)
+    # Allow updating unit association
+    unit_id: Optional[int] = Field(None, description="ID юнита")
 
 class TestResponse(TestBase):
     id: int

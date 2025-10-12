@@ -143,6 +143,9 @@ class TaskUpdate(TaskBase):
     auto_check_config: Optional[Dict[str, Any]] = None
     rubric: Optional[Dict[str, Any]] = None
     attachments: Optional[List[str]] = None
+    # Allow updating unit association
+    unit_id: Optional[int] = Field(None, description="ID юнита")
+    status: Optional[TaskStatus] = Field(None, description="Статус задания")
 
 class TaskInDB(TaskBase):
     id: int
