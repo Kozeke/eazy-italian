@@ -69,7 +69,6 @@ export default function AdminUnitCreatePage() {
   const [tests, setTests] = useState<ContentItem[]>([]);
   
   // Available content from API
-  const [availableVideos, setAvailableVideos] = useState<any[]>([]);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
   const [availableTests, setAvailableTests] = useState<any[]>([]);
   const [loadingContent, setLoadingContent] = useState(true);
@@ -263,7 +262,7 @@ export default function AdminUnitCreatePage() {
   };
 
   const handleAddExistingContent = (type: 'video' | 'task' | 'test', contentId: number) => {
-    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : availableTests;
+    const availableContent = type === 'task' ? availableTasks : availableTests;
     const content = availableContent.find(item => item.id === contentId);
     
     if (!content) return;
@@ -291,7 +290,7 @@ export default function AdminUnitCreatePage() {
     type: 'video' | 'task' | 'test',
     icon: React.ReactNode
   ) => {
-    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : availableTests;
+    const availableContent = type === 'task' ? availableTasks : type === 'test' ? availableTests : [];
     const unusedContent = availableContent.filter(content => 
       !items.some(item => item.id === content.id)
     );
