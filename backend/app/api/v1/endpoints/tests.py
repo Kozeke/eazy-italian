@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_teacher
 from app.models.user import User
@@ -570,7 +572,21 @@ def submit_test(
     max_score = 0
     results_detail = {}
     
-    submitted_answers = answers.get('answers', {})
+    # Debug: print the incoming answers
+    print(f"DEBUG: Incoming answers payload: {answers}")
+    
+    # Try to get answers from the payload
+    # Frontend sends {"answers": {"answers": {question_id: answer}}}
+    # Need to unwrap the double nesting
+    if isinstance(answers, dict):
+        submitted_answers = answers.get('answers', {})
+        # If there's another 'answers' key inside, unwrap it
+        if isinstance(submitted_answers, dict) and 'answers' in submitted_answers:
+            submitted_answers = submitted_answers['answers']
+    else:
+        submitted_answers = {}
+    
+    print(f"DEBUG: Extracted submitted_answers: {submitted_answers}")
     
     for tq in test_questions:
         q = tq.question
@@ -580,6 +596,11 @@ def submit_test(
         student_answer = submitted_answers.get(question_id)
         is_correct = False
         points_earned = 0
+        
+        # Debug logging
+        print(f"DEBUG Question {question_id}: type={q.type.value}, autograde={q.autograde}")
+        print(f"DEBUG Question {question_id}: correct_answer={q.correct_answer}")
+        print(f"DEBUG Question {question_id}: student_answer={student_answer}")
         
         if q.autograde:
             # Auto-grade based on question type

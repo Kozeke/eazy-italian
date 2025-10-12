@@ -73,6 +73,11 @@ export default function TestDetailPage() {
     );
   }
 
+  // Determine if student can start the test
+  const isTestAvailable = test.status === 'published';
+  const hasAttemptsRemaining = attemptsData?.attempts_remaining === null || attemptsData?.attempts_remaining > 0;
+  const canStartTest = isTestAvailable && hasAttemptsRemaining;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -136,13 +141,27 @@ export default function TestDetailPage() {
               )}
 
               <div className="flex items-center justify-center pt-4">
-                <button
-                  onClick={handleStartTest}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                  <Play className="h-5 w-5 mr-2" />
-                  Начать тест
-                </button>
+                {canStartTest ? (
+                  <button
+                    onClick={handleStartTest}
+                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  >
+                    <Play className="h-5 w-5 mr-2" />
+                    Начать тест
+                  </button>
+                ) : (
+                  <div className="text-center">
+                    <div className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-md">
+                      <XCircle className="h-5 w-5 mr-2" />
+                      {!isTestAvailable ? 'Тест не опубликован' : 'Попытки исчерпаны'}
+                    </div>
+                    {!hasAttemptsRemaining && attemptsData && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        Использовано попыток: {attempts.length} из {test.settings?.max_attempts || 'неограниченно'}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -180,7 +199,7 @@ export default function TestDetailPage() {
                     : 'Не начат'}
                 </span>
               </div>
-              {attemptsData?.attempts_remaining !== null && (
+              {attemptsData && attemptsData.attempts_remaining !== null && (
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-sm text-gray-600">Осталось попыток</span>
                   <span className="text-sm font-medium text-gray-900">
@@ -226,12 +245,12 @@ export default function TestDetailPage() {
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Настройки</h3>
               <div className="space-y-3 text-sm">
-                {test.settings.max_attempts && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Попытки</span>
-                    <span className="font-medium text-gray-900">{test.settings.max_attempts}</span>
-                  </div>
-                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Максимум попыток</span>
+                  <span className="font-medium text-gray-900">
+                    {test.settings.max_attempts ? test.settings.max_attempts : 'Неограничено'}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Перемешивать вопросы</span>
                   {test.settings.shuffle_questions ? (
