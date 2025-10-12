@@ -1,6 +1,5 @@
 
 import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { 
@@ -14,7 +13,8 @@ import {
   Calendar,
   FileText,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Users
 } from 'lucide-react';
 import { Task } from '../../types';
 import { tasksApi } from '../../services/api';
@@ -185,7 +185,7 @@ export default function AdminTasksPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {t('admin.nav.tasks')}
+            Задания
           </h1>
           <p className="text-gray-600">
             Управление заданиями
