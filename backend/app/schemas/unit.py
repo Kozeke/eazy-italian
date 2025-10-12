@@ -27,8 +27,12 @@ class UnitCreate(UnitBase):
     def validate_publish_at(cls, v, values):
         if values.get('status') == UnitStatus.SCHEDULED and not v:
             raise ValueError('Publish date is required when status is scheduled')
-        if v and v <= datetime.utcnow():
-            raise ValueError('Publish date must be in the future')
+        if v:
+            # Make both datetimes timezone-naive for comparison
+            now = datetime.utcnow()
+            v_naive = v.replace(tzinfo=None) if v.tzinfo else v
+            if v_naive <= now:
+                raise ValueError('Publish date must be in the future')
         return v
 
 class UnitUpdate(BaseModel):
@@ -49,8 +53,12 @@ class UnitUpdate(BaseModel):
     def validate_publish_at(cls, v, values):
         if values.get('status') == UnitStatus.SCHEDULED and not v:
             raise ValueError('Publish date is required when status is scheduled')
-        if v and v <= datetime.utcnow():
-            raise ValueError('Publish date must be in the future')
+        if v:
+            # Make both datetimes timezone-naive for comparison
+            now = datetime.utcnow()
+            v_naive = v.replace(tzinfo=None) if v.tzinfo else v
+            if v_naive <= now:
+                raise ValueError('Publish date must be in the future')
         return v
 
 class UnitResponse(UnitBase):
