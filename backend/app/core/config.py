@@ -27,12 +27,16 @@ class Settings(BaseSettings):
     MINIO_BUCKET_NAME: str = "eazy-italian"
     MINIO_SECURE: bool = False
     
-    # CORS
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://eazy-italian-frontend.onrender.com,https://*.onrender.com,https://eazy-italian-frontend.onrender.com/,https://eazy-italian-frontend.onrender.com"
+    # CORS - Frontend URLs that are allowed to access the API
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://eazy-italian-frontend.onrender.com"
     
     @property
     def cors_origins_list(self) -> List[str]:
-        # Always include the frontend domain regardless of environment variable
+        """
+        Returns list of allowed CORS origins for the API
+        Combines default local development origins with environment-configured origins
+        """
+        # Default local development origins
         default_origins = [
             "http://localhost:3000",
             "http://127.0.0.1:3000", 
@@ -40,12 +44,14 @@ class Settings(BaseSettings):
             "http://127.0.0.1:3001",
             "http://localhost:3002",
             "http://127.0.0.1:3002",
-            "https://eazy-italian-frontend.onrender.com",
-            "https://*.onrender.com"
         ]
         
-        # Parse environment variable origins
-        env_origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        # Parse environment variable origins and filter out wildcards
+        env_origins = [
+            origin.strip() 
+            for origin in self.CORS_ORIGINS.split(",") 
+            if origin.strip() and "*" not in origin
+        ]
         
         # Combine and deduplicate
         all_origins = list(set(default_origins + env_origins))
