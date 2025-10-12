@@ -324,7 +324,23 @@ export default function AdminUnitEditPage() {
       }, 1500);
     } catch (error: any) {
       console.error('Error saving unit:', error);
-      toast.error(error.response?.data?.detail || 'Ошибка при сохранении юнита');
+      // Handle validation errors (422)
+      if (error.response?.status === 422) {
+        const detail = error.response?.data?.detail;
+        if (Array.isArray(detail)) {
+          const errorMessages = detail.map((err: any) => err.msg || JSON.stringify(err)).join(', ');
+          toast.error(`Ошибка валидации: ${errorMessages}`);
+        } else if (typeof detail === 'string') {
+          toast.error(detail);
+        } else {
+          toast.error('Ошибка валидации данных');
+        }
+      } else {
+        const message = typeof error.response?.data?.detail === 'string' 
+          ? error.response.data.detail 
+          : 'Ошибка при сохранении юнита';
+        toast.error(message);
+      }
     } finally {
       setSaving(false);
     }
