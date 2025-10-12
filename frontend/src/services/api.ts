@@ -236,13 +236,18 @@ export const testsApi = {
     await api.delete(`/tests/${id}`);
   },
 
-  startTest: async (id: number): Promise<TestAttempt> => {
-    const response: AxiosResponse<TestAttempt> = await api.post(`/tests/${id}/start`);
+  startTest: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(`/tests/${id}/start`);
     return response.data;
   },
 
-  submitTest: async (id: number, answers: Record<string, any>): Promise<TestAttempt> => {
-    const response: AxiosResponse<TestAttempt> = await api.post(`/tests/${id}/submit`, { answers });
+  submitTest: async (id: number, answers: Record<string, any>): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(`/tests/${id}/submit`, { answers });
+    return response.data;
+  },
+  
+  getTestAttempts: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/tests/${id}/attempts`);
     return response.data;
   },
 

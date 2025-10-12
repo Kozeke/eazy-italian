@@ -11,6 +11,8 @@ import UnitDetailPage from './pages/UnitDetailPage';
 import TasksPage from './pages/TasksPage';
 import TestsPage from './pages/TestsPage';
 import TestDetailPage from './pages/TestDetailPage';
+import TestTakingPage from './pages/TestTakingPage';
+import TestResultsPage from './pages/TestResultsPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUnitsPage from './pages/admin/AdminUnitsPage';
@@ -72,6 +74,8 @@ function App() {
         <Route path="/tasks/:id" element={<TasksPage />} />
         <Route path="/tests" element={<TestsPage />} />
         <Route path="/tests/:id" element={<TestDetailPage />} />
+        <Route path="/tests/:id/take" element={<TestTakingPage />} />
+        <Route path="/tests/:id/results/:attemptId" element={<TestResultsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 

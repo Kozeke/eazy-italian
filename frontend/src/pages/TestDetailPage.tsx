@@ -10,6 +10,8 @@ export default function TestDetailPage() {
   const navigate = useNavigate();
   const [test, setTest] = useState<Test | null>(null);
   const [loading, setLoading] = useState(true);
+  const [attempts, setAttempts] = useState<any[]>([]);
+  const [attemptsData, setAttemptsData] = useState<any>(null);
 
   useEffect(() => {
     const fetchTest = async () => {
@@ -20,6 +22,17 @@ export default function TestDetailPage() {
         const testData = await testsApi.getTest(parseInt(id));
         setTest(testData);
         console.log('Loaded test:', testData);
+        
+        // Load attempt history
+        try {
+          const attemptsResponse = await testsApi.getTestAttempts(parseInt(id));
+          setAttempts(attemptsResponse.attempts || []);
+          setAttemptsData(attemptsResponse);
+          console.log('Loaded attempts:', attemptsResponse);
+        } catch (error) {
+          console.error('Error loading attempts:', error);
+          // Non-critical, continue
+        }
       } catch (error: any) {
         console.error('Error fetching test:', error);
         toast.error('Ошибка при загрузке теста');
@@ -32,15 +45,15 @@ export default function TestDetailPage() {
   }, [id]);
 
   const handleStartTest = async () => {
-    toast('Функция прохождения тестов находится в разработке', { 
-      icon: '🚧',
-      duration: 4000,
-    });
-    console.log('Test taking feature is under development');
-    // TODO: Implement test taking functionality
-    // 1. Create backend endpoint: POST /api/v1/tests/{id}/start
-    // 2. Create test taking page with timer and questions
-    // 3. Create submit endpoint: POST /api/v1/tests/{id}/submit
+    if (!id) return;
+    
+    try {
+      // Navigate to test taking page
+      navigate(`/tests/${id}/take`);
+    } catch (error: any) {
+      console.error('Error starting test:', error);
+      toast.error('Ошибка при начале теста');
+    }
   };
 
   if (loading) {
@@ -143,19 +156,69 @@ export default function TestDetailPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Ваши попытки</span>
-                <span className="text-sm font-medium text-gray-900">0</span>
+                <span className="text-sm font-medium text-gray-900">{attempts.length}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Лучший результат</span>
-                <span className="text-sm font-medium text-gray-900">—</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {attemptsData?.best_score ? `${attemptsData.best_score.toFixed(1)}%` : '—'}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Статус</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                  Не начат
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  attemptsData?.best_score >= test.passing_score 
+                    ? 'bg-green-100 text-green-800'
+                    : attempts.length > 0
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {attemptsData?.best_score >= test.passing_score 
+                    ? 'Пройден'
+                    : attempts.length > 0
+                    ? 'В процессе'
+                    : 'Не начат'}
                 </span>
               </div>
+              {attemptsData?.attempts_remaining !== null && (
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-sm text-gray-600">Осталось попыток</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {attemptsData.attempts_remaining}
+                  </span>
+                </div>
+              )}
             </div>
+            
+            {/* Attempt History */}
+            {attempts.length > 0 && (
+              <div className="mt-6 pt-6 border-t">
+                <h4 className="text-sm font-medium text-gray-900 mb-3">История попыток</h4>
+                <div className="space-y-2">
+                  {attempts.map((attempt, index) => (
+                    <div key={attempt.id} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Попытка {attempts.length - index}</span>
+                      <div className="flex items-center space-x-2">
+                        {attempt.score !== null ? (
+                          <>
+                            <span className={`font-medium ${
+                              attempt.passed ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {attempt.score.toFixed(1)}%
+                            </span>
+                            {attempt.passed && (
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-400">В процессе</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Settings */}

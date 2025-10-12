@@ -442,3 +442,254 @@ def publish_test_endpoint(
         "question_count": question_count,
         "message": "Test published successfully"
     }
+
+# Student Test Endpoints
+
+@router.post("/{test_id}/start")
+def start_test(
+    test_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Start a test attempt for a student"""
+    from app.models.test import TestAttempt, AttemptStatus, TestQuestion
+    
+    # Get test and verify it exists and is published
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    if test.status != TestStatus.PUBLISHED:
+        raise HTTPException(status_code=400, detail="Test is not published")
+    
+    # Check max attempts
+    if test.settings and test.settings.get('max_attempts'):
+        attempts_count = db.query(TestAttempt).filter(
+            and_(
+                TestAttempt.test_id == test_id,
+                TestAttempt.student_id == current_user.id
+            )
+        ).count()
+        
+        if attempts_count >= test.settings['max_attempts']:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Maximum attempts ({test.settings['max_attempts']}) reached"
+            )
+    
+    # Create new attempt
+    attempt = TestAttempt(
+        test_id=test_id,
+        student_id=current_user.id,
+        status=AttemptStatus.IN_PROGRESS
+    )
+    
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    
+    # Get questions for this test
+    test_questions = db.query(TestQuestion).options(
+        joinedload(TestQuestion.question)
+    ).filter(TestQuestion.test_id == test_id).order_by(TestQuestion.order_index).all()
+    
+    # Shuffle questions if needed
+    questions_list = test_questions
+    if test.settings and test.settings.get('shuffle_questions'):
+        import random
+        questions_list = random.sample(test_questions, len(test_questions))
+    
+    # Format questions for frontend
+    questions_data = []
+    for tq in questions_list:
+        q = tq.question
+        question_data = {
+            "id": q.id,
+            "type": q.type.value,
+            "prompt": q.prompt_rich,
+            "score": tq.points,
+        }
+        
+        if q.type.value == 'multiple_choice':
+            options = q.options or []
+            # Shuffle options if needed
+            if test.settings and test.settings.get('shuffle_options') and q.shuffle_options:
+                import random
+                options = random.sample(options, len(options))
+            question_data['options'] = options
+        elif q.type.value == 'cloze':
+            # Don't send answers, just the prompt with gaps
+            question_data['gaps_count'] = len(q.gaps_config or [])
+        
+        questions_data.append(question_data)
+    
+    return {
+        "attempt_id": attempt.id,
+        "test_id": test_id,
+        "test_title": test.title,
+        "time_limit_minutes": test.time_limit_minutes,
+        "started_at": attempt.started_at,
+        "questions": questions_data,
+        "total_points": sum(tq.points for tq in test_questions)
+    }
+
+@router.post("/{test_id}/submit")
+def submit_test(
+    test_id: int,
+    answers: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Submit test answers and calculate score"""
+    from app.models.test import TestAttempt, AttemptStatus, TestQuestion
+    
+    # Get the active attempt
+    attempt = db.query(TestAttempt).filter(
+        and_(
+            TestAttempt.test_id == test_id,
+            TestAttempt.student_id == current_user.id,
+            TestAttempt.status == AttemptStatus.IN_PROGRESS
+        )
+    ).order_by(TestAttempt.started_at.desc()).first()
+    
+    if not attempt:
+        raise HTTPException(status_code=404, detail="No active test attempt found")
+    
+    # Get test
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    # Get all questions with their correct answers
+    test_questions = db.query(TestQuestion).options(
+        joinedload(TestQuestion.question)
+    ).filter(TestQuestion.test_id == test_id).all()
+    
+    # Grade the test
+    total_score = 0
+    max_score = 0
+    results_detail = {}
+    
+    submitted_answers = answers.get('answers', {})
+    
+    for tq in test_questions:
+        q = tq.question
+        question_id = str(q.id)
+        max_score += tq.points
+        
+        student_answer = submitted_answers.get(question_id)
+        is_correct = False
+        points_earned = 0
+        
+        if q.autograde:
+            # Auto-grade based on question type
+            if q.type.value == 'multiple_choice':
+                correct_ids = q.correct_answer.get('correct_option_ids', [])
+                if student_answer == correct_ids or (isinstance(student_answer, list) and set(student_answer) == set(correct_ids)):
+                    is_correct = True
+                    points_earned = tq.points
+            
+            elif q.type.value == 'open_answer':
+                # Simple keyword matching for now
+                expected_config = q.expected_answer_config or {}
+                if expected_config.get('mode') == 'keywords':
+                    keywords = expected_config.get('keywords', [])
+                    if student_answer and isinstance(student_answer, str):
+                        answer_lower = student_answer.lower()
+                        matched = sum(1 for kw in keywords if kw.get('text', '').lower() in answer_lower)
+                        if matched >= len(keywords) * 0.6:  # 60% keyword match
+                            is_correct = True
+                            points_earned = tq.points
+            
+            elif q.type.value == 'cloze':
+                # Check gaps
+                gaps_config = q.gaps_config or []
+                if isinstance(student_answer, dict):
+                    correct_gaps = 0
+                    for gap in gaps_config:
+                        gap_id = gap.get('id')
+                        correct_answer = gap.get('answer', '').strip().lower()
+                        student_gap_answer = student_answer.get(gap_id, '').strip().lower()
+                        if correct_answer == student_gap_answer:
+                            correct_gaps += 1
+                    
+                    if correct_gaps == len(gaps_config):
+                        is_correct = True
+                        points_earned = tq.points
+                    elif gap.get('partial_credit') and correct_gaps > 0:
+                        points_earned = (correct_gaps / len(gaps_config)) * tq.points
+        
+        total_score += points_earned
+        
+        results_detail[question_id] = {
+            "question_id": q.id,
+            "student_answer": student_answer,
+            "is_correct": is_correct,
+            "points_earned": points_earned,
+            "points_possible": tq.points
+        }
+    
+    # Calculate percentage
+    percentage = (total_score / max_score * 100) if max_score > 0 else 0
+    
+    # Update attempt
+    attempt.submitted_at = datetime.utcnow()
+    attempt.score = percentage
+    attempt.detail = results_detail
+    attempt.status = AttemptStatus.COMPLETED
+    
+    db.commit()
+    db.refresh(attempt)
+    
+    # Check if passed
+    passed = percentage >= test.passing_score
+    
+    return {
+        "attempt_id": attempt.id,
+        "score": percentage,
+        "passed": passed,
+        "points_earned": total_score,
+        "points_possible": max_score,
+        "results": results_detail if test.settings.get('show_results_immediately', True) else None,
+        "submitted_at": attempt.submitted_at
+    }
+
+@router.get("/{test_id}/attempts")
+def get_test_attempts(
+    test_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all attempts for a test by the current student"""
+    from app.models.test import TestAttempt
+    
+    # Verify test exists
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    # Get attempts
+    attempts = db.query(TestAttempt).filter(
+        and_(
+            TestAttempt.test_id == test_id,
+            TestAttempt.student_id == current_user.id
+        )
+    ).order_by(TestAttempt.started_at.desc()).all()
+    
+    return {
+        "test_id": test_id,
+        "attempts": [
+            {
+                "id": attempt.id,
+                "started_at": attempt.started_at,
+                "submitted_at": attempt.submitted_at,
+                "score": attempt.score,
+                "status": attempt.status.value,
+                "duration_minutes": attempt.duration_minutes,
+                "passed": attempt.score >= test.passing_score if attempt.score is not None else None
+            }
+            for attempt in attempts
+        ],
+        "attempts_remaining": test.settings.get('max_attempts', 999) - len(attempts) if test.settings.get('max_attempts') else None,
+        "best_score": max((a.score for a in attempts if a.score is not None), default=None)
+    }
