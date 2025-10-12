@@ -435,6 +435,7 @@ const AdminTestEditPage: React.FC = () => {
                       </button>
                     </>
                   )}
+                </div>
               </div>
               
               {questions.length === 0 ? (
