@@ -286,6 +286,7 @@ export default function AdminUnitEditPage() {
     setSaving(true);
     
     try {
+      // Save unit data
       const unitData = {
         ...formData,
         status: publish ? 'published' : 'draft',
@@ -294,8 +295,30 @@ export default function AdminUnitEditPage() {
 
       await unitsApi.updateUnit(parseInt(id), unitData);
       
-      toast.success(publish ? 'Юнит опубликован!' : 'Юнит сохранен как черновик!');
-      navigate('/admin/units');
+      // Update tasks to associate with this unit
+      for (const task of tasks) {
+        try {
+          await tasksApi.updateTask(task.id, { unit_id: parseInt(id) } as any);
+        } catch (error) {
+          console.error(`Error updating task ${task.id}:`, error);
+        }
+      }
+      
+      // Update tests to associate with this unit
+      for (const test of tests) {
+        try {
+          await testsApi.updateTest(test.id, { unit_id: parseInt(id) } as any);
+        } catch (error) {
+          console.error(`Error updating test ${test.id}:`, error);
+        }
+      }
+      
+      toast.success(publish ? 'Юнит опубликован!' : 'Юнит сохранен!');
+      
+      // Reload the page to show saved content
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       console.error('Error saving unit:', error);
       toast.error(error.response?.data?.detail || 'Ошибка при сохранении юнита');
