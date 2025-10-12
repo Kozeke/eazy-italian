@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Award, Clock, Home, RotateCcw } from 'lucide-react';
-import { testsApi } from '../services/api';
 import toast from 'react-hot-toast';
 
 export default function TestResultsPage() {
