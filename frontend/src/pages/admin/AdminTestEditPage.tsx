@@ -410,32 +410,37 @@ const AdminTestEditPage: React.FC = () => {
                 <h2 className="text-lg font-semibold text-gray-900">
                   Вопросы теста ({questions.length})
                 </h2>
-                {status === 'draft' && (
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={addMCQQuestion}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                      title="Добавить вопрос с выбором ответа"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Выбор ответа
-                    </button>
-                    <button
-                      onClick={addOpenAnswerQuestion}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                      title="Добавить открытый вопрос"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Открытый ответ
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center space-x-2">
+                  {status === 'published' ? (
+                    <div className="text-sm text-gray-500 bg-gray-100 px-4 py-2 rounded-md">
+                      Опубликованный тест - только просмотр
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={addMCQQuestion}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                        title="Добавить вопрос с выбором ответа"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Выбор ответа
+                      </button>
+                      <button
+                        onClick={addOpenAnswerQuestion}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                        title="Добавить открытый вопрос"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Открытый ответ
+                      </button>
+                    </>
+                  )}
               </div>
               
               {questions.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
                   <p className="text-gray-500 mb-4">В этом тесте пока нет вопросов</p>
-                  {status === 'draft' && (
+                  {status !== 'published' ? (
                     <div className="flex items-center justify-center space-x-2">
                       <button
                         onClick={addMCQQuestion}
@@ -452,6 +457,8 @@ const AdminTestEditPage: React.FC = () => {
                         Открытый ответ
                       </button>
                     </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 mt-2">Опубликованный тест не может быть изменен</p>
                   )}
                 </div>
               ) : (
@@ -460,7 +467,7 @@ const AdminTestEditPage: React.FC = () => {
                     <div key={question.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center space-x-3">
-                          {status === 'draft' && (
+                          {status !== 'published' && (
                             <GripVertical className="w-5 h-5 text-gray-400 cursor-move" />
                           )}
                           <div className="flex items-center space-x-2">
@@ -473,7 +480,7 @@ const AdminTestEditPage: React.FC = () => {
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm text-gray-600">{question.score} баллов</span>
-                          {status === 'draft' && (
+                          {status !== 'published' && (
                             <button
                               onClick={() => handleRemoveQuestion(question.id)}
                               className="p-1 text-red-600 hover:text-red-800"
@@ -507,11 +514,19 @@ const AdminTestEditPage: React.FC = () => {
               )}
             </div>
             
-            {status === 'draft' && questions.length > 0 && (
+            {status !== 'published' && questions.length > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
                   💡 Используйте кнопки "Выбор ответа" или "Открытый ответ" выше, чтобы добавить новые вопросы.
                   Вопросы можно удалить, нажав на иконку корзины.
+                </p>
+              </div>
+            )}
+            
+            {status === 'published' && questions.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ Этот тест опубликован. Чтобы изменить вопросы, сначала переведите его в черновик.
                 </p>
               </div>
             )}
