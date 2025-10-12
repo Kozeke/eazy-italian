@@ -171,10 +171,15 @@ export default function AdminUnitEditPage() {
             const tasksResponse = await fetch(`http://localhost:8000/api/v1/tasks/admin/tasks?unit_id=${id}`, {
               headers
             });
+            console.log('Tasks response status:', tasksResponse.status);
             if (tasksResponse.ok) {
               const tasksData = await tasksResponse.json();
+              console.log('Loaded tasks for unit:', tasksData);
               const tasksList = Array.isArray(tasksData) ? tasksData : tasksData.items || [];
               setTasks(tasksList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'task' })));
+              console.log('Set tasks state:', tasksList.length);
+            } else {
+              console.error('Failed to load tasks:', tasksResponse.status, await tasksResponse.text());
             }
           } catch (error) {
             console.error('Error loading tasks:', error);
@@ -185,10 +190,15 @@ export default function AdminUnitEditPage() {
             const testsResponse = await fetch(`http://localhost:8000/api/v1/tests?unit_id=${id}`, {
               headers
             });
+            console.log('Tests response status:', testsResponse.status);
             if (testsResponse.ok) {
               const testsData = await testsResponse.json();
+              console.log('Loaded tests for unit:', testsData);
               const testsList = Array.isArray(testsData) ? testsData : testsData.items || [];
               setTests(testsList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'test' })));
+              console.log('Set tests state:', testsList.length);
+            } else {
+              console.error('Failed to load tests:', testsResponse.status, await testsResponse.text());
             }
           } catch (error) {
             console.error('Error loading tests:', error);
