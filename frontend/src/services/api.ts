@@ -120,6 +120,16 @@ export const videosApi = {
     return response.data;
   },
 
+  getAdminVideos: async (params?: any): Promise<Video[]> => {
+    const response: AxiosResponse<Video[]> = await api.get('/videos/admin/videos', { params });
+    return response.data;
+  },
+
+  getAdminVideo: async (id: number): Promise<Video> => {
+    const response: AxiosResponse<Video> = await api.get(`/videos/admin/videos/${id}`);
+    return response.data;
+  },
+
   createVideo: async (videoData: Partial<Video>): Promise<Video> => {
     const response: AxiosResponse<Video> = await api.post(`/videos/admin/videos`, videoData);
     return response.data;

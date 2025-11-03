@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -8,57 +8,13 @@ import {
   Edit, 
   Trash2, 
   Eye, 
-  Copy,
   Video,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Youtube
 } from 'lucide-react';
-
-// Mock data - replace with actual API calls
-const mockVideos = [
-  {
-    id: 1,
-    title: 'Основы итальянского произношения',
-    description: 'Видеоурок по правильному произношению итальянских звуков',
-    level: 'A1',
-    status: 'published',
-    duration: '15:30',
-    thumbnail: '/api/thumbnails/video1.jpg',
-    url: '/api/videos/video1.mp4',
-    views: 1250,
-    uploadDate: '2024-01-15T10:30:00Z',
-    lastUpdated: '2024-01-10T10:30:00Z',
-    orderIndex: 1
-  },
-  {
-    id: 2,
-    title: 'Грамматика: Артикли в итальянском',
-    description: 'Подробное объяснение использования артиклей',
-    level: 'A2',
-    status: 'draft',
-    duration: '22:15',
-    thumbnail: '/api/thumbnails/video2.jpg',
-    url: '/api/videos/video2.mp4',
-    views: 0,
-    uploadDate: null,
-    lastUpdated: '2024-01-12T14:20:00Z',
-    orderIndex: 2
-  },
-  {
-    id: 3,
-    title: 'Разговорная речь: В ресторане',
-    description: 'Диалоги и фразы для заказа в итальянском ресторане',
-    level: 'A2',
-    status: 'scheduled',
-    duration: '18:45',
-    thumbnail: '/api/thumbnails/video3.jpg',
-    url: '/api/videos/video3.mp4',
-    views: 0,
-    uploadDate: '2024-02-01T09:00:00Z',
-    lastUpdated: '2024-01-08T09:15:00Z',
-    orderIndex: 3
-  }
-];
+import { videosApi } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const statuses = ['draft', 'published', 'scheduled', 'archived'];
@@ -66,12 +22,33 @@ const statuses = ['draft', 'published', 'scheduled', 'archived'];
 export default function AdminVideosPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [videos, setVideos] = useState(mockVideos);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedVideos, setSelectedVideos] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Load videos on mount
+  useEffect(() => {
+    loadVideos();
+  }, []);
+  
+  const loadVideos = async () => {
+    try {
+      setLoading(true);
+      const videosData = await videosApi.getAdminVideos({ limit: 100 });
+      setVideos(videosData || []);
+      console.log('Loaded videos:', videosData?.length);
+    } catch (error) {
+      console.error('Error loading videos:', error);
+      toast.error('Ошибка при загрузке видео');
+      setVideos([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectVideo = (videoId: number) => {
     setSelectedVideos(prev => 
@@ -110,14 +87,6 @@ export default function AdminVideosPage() {
     );
   };
 
-  const getLevelBadge = (level: string) => {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-        {level}
-      </span>
-    );
-  };
-
   const filteredVideos = videos.filter(video => {
     const matchesSearch = video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          video.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -128,8 +97,8 @@ export default function AdminVideosPage() {
   });
 
   const sortedVideos = [...filteredVideos].sort((a, b) => {
-    const aValue = a.orderIndex;
-    const bValue = b.orderIndex;
+    const aValue = a.order_index || a.orderIndex || 0;
+    const bValue = b.order_index || b.orderIndex || 0;
     
     return aValue - bValue;
   });
@@ -154,6 +123,14 @@ export default function AdminVideosPage() {
           Добавить видео
         </button>
       </div>
+      
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center py-12">
+          <Video className="mx-auto h-12 w-12 text-gray-400 animate-pulse" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Загрузка видео...</h3>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow">
@@ -263,91 +240,97 @@ export default function AdminVideosPage() {
       )}
 
       {/* Videos Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sortedVideos.map((video) => (
-          <div key={video.id} className="bg-white rounded-lg shadow overflow-hidden">
-            {/* Thumbnail */}
-            <div className="relative h-48 bg-gray-200">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Video className="w-12 h-12 text-gray-400" />
+      {!loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sortedVideos.map((video) => (
+            <div key={video.id} className="bg-white rounded-lg shadow overflow-hidden">
+              {/* Thumbnail */}
+              <div className="relative h-48 bg-gray-200">
+                {video.source_type === 'url' && video.external_url ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-red-500 to-red-600">
+                    <Youtube className="w-16 h-16 text-white" />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Video className="w-12 h-12 text-gray-400" />
+                  </div>
+                )}
+                <div className="absolute top-2 right-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedVideos.includes(video.id)}
+                    onChange={() => handleSelectVideo(video.id)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                </div>
+                {video.duration_sec && (
+                  <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                    {Math.floor(video.duration_sec / 60)}:{(video.duration_sec % 60).toString().padStart(2, '0')}
+                  </div>
+                )}
               </div>
-              <div className="absolute top-2 right-2">
-                <input
-                  type="checkbox"
-                  checked={selectedVideos.includes(video.id)}
-                  onChange={() => handleSelectVideo(video.id)}
-                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-              </div>
-              <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                {video.duration}
+
+              {/* Content */}
+              <div className="p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="text-lg font-medium text-gray-900 truncate">
+                    {video.title}
+                  </h3>
+                </div>
+                
+                {video.description && (
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                    {video.description}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex space-x-2">
+                    {video.unit_title && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        {video.unit_title}
+                      </span>
+                    )}
+                    {getStatusBadge(video.status)}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                  <span>Создано: {new Date(video.created_at).toLocaleDateString('ru-RU')}</span>
+                  <span>Порядок: {video.order_index || 0}</span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => navigate(`/admin/videos/${video.id}`)}
+                      className="text-primary-600 hover:text-primary-900"
+                      title="Просмотр"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/admin/videos/${video.id}/edit`)}
+                      className="text-gray-600 hover:text-gray-900"
+                      title="Редактировать"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteVideo(video.id)}
+                    className="text-red-600 hover:text-red-900"
+                    title="Удалить"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-
-            {/* Content */}
-            <div className="p-4">
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="text-lg font-medium text-gray-900 truncate">
-                  {video.title}
-                </h3>
-              </div>
-              
-              <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                {video.description}
-              </p>
-
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex space-x-2">
-                  {getLevelBadge(video.level)}
-                  {getStatusBadge(video.status)}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {video.views} просмотров
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                <span>Загружено: {video.uploadDate ? new Date(video.uploadDate).toLocaleDateString('ru-RU') : 'Не загружено'}</span>
-                <span>Порядок: {video.orderIndex}</span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-between">
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => navigate(`/admin/videos/${video.id}`)}
-                    className="text-primary-600 hover:text-primary-900"
-                    title="Просмотр"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => navigate(`/admin/videos/${video.id}/edit`)}
-                    className="text-gray-600 hover:text-gray-900"
-                    title="Редактировать"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleBulkAction('duplicate')}
-                    className="text-gray-600 hover:text-gray-900"
-                    title="Дублировать"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-                <button
-                  onClick={() => handleDeleteVideo(video.id)}
-                  className="text-red-600 hover:text-red-900"
-                  title="Удалить"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Empty State */}
       {sortedVideos.length === 0 && (
