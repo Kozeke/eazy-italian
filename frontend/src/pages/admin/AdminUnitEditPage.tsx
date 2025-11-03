@@ -75,6 +75,7 @@ export default function AdminUnitEditPage() {
   const [tests, setTests] = useState<ContentItem[]>([]);
   
   // Available content from API
+  const [availableVideos, setAvailableVideos] = useState<any[]>([]);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
   const [availableTests, setAvailableTests] = useState<any[]>([]);
   const [loadingContent, setLoadingContent] = useState(true);
@@ -94,6 +95,14 @@ export default function AdminUnitEditPage() {
       try {
         setLoadingContent(true);
         
+        // Load all available videos
+        try {
+          const videosData = await videosApi.getAdminVideos({ limit: 100 });
+          setAvailableVideos(videosData || []);
+        } catch (error) {
+          console.error('Error loading available videos:', error);
+        }
+        
         // Load all available tasks
         const tasksData = await tasksApi.getAdminTasks({ limit: 100 });
         setAvailableTasks(tasksData || []);
@@ -104,6 +113,7 @@ export default function AdminUnitEditPage() {
         setAvailableTests(testsList);
         
         console.log('Loaded available content:', { 
+          videos: availableVideos?.length || 0,
           tasks: tasksData?.length || 0, 
           tests: testsList?.length || 0,
           tasksData,
@@ -231,7 +241,7 @@ export default function AdminUnitEditPage() {
   };
 
   const handleAddExistingContent = (type: 'video' | 'task' | 'test', contentId: number) => {
-    const availableContent = type === 'task' ? availableTasks : availableTests;
+    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : availableTests;
     const content = availableContent.find(item => item.id === contentId);
     
     if (!content) return;
@@ -316,8 +326,21 @@ export default function AdminUnitEditPage() {
         }
       }
       
-      console.log(`=== SAVE COMPLETE: ${tasksUpdated} tasks, ${testsUpdated} tests updated ===`);
-      toast.success(`Юнит сохранен! Обновлено: ${tasksUpdated} заданий, ${testsUpdated} тестов`);
+      // Update videos to associate with this unit
+      let videosUpdated = 0;
+      for (const video of videos) {
+        try {
+          console.log(`Updating video ${video.id} to unit ${id}...`);
+          await videosApi.updateVideo(video.id, { unit_id: parseInt(id) } as any);
+          videosUpdated++;
+          console.log(`✅ Video ${video.id} updated`);
+        } catch (error) {
+          console.error(`❌ Error updating video ${video.id}:`, error);
+        }
+      }
+      
+      console.log(`=== SAVE COMPLETE: ${tasksUpdated} tasks, ${testsUpdated} tests, ${videosUpdated} videos updated ===`);
+      toast.success(`Юнит сохранен! Обновлено: ${videosUpdated} видео, ${tasksUpdated} заданий, ${testsUpdated} тестов`);
       
       // Reload the page to show saved content
       setTimeout(() => {
@@ -371,7 +394,7 @@ export default function AdminUnitEditPage() {
     type: 'video' | 'task' | 'test',
     icon: React.ReactNode
   ) => {
-    const availableContent = type === 'task' ? availableTasks : type === 'test' ? availableTests : [];
+    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : type === 'test' ? availableTests : [];
     const unusedContent = availableContent.filter(content => 
       !items.some(item => item.id === content.id)
     );

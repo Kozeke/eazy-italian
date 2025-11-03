@@ -50,6 +50,7 @@ class VideoCreate(VideoBase):
         return v
 
 class VideoUpdate(BaseModel):
+    unit_id: Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None
     source_type: Optional[VideoSourceType] = None
