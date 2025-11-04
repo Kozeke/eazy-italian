@@ -111,7 +111,6 @@
     "roleStudent": "Student"
   },
   "admin": {
-    "dashboard": "Admin Dashboard",
     "students": "Students",
     "overview": "Overview",
     "manage": "Manage",
@@ -173,10 +172,18 @@
   },
   "landing": {
     "hero": {
+      "badge": "Italiano con piacere",
       "title": "Learn Italian easily and effectively",
       "subtitle": "Modern platform for learning Italian with personalized approach and interactive materials",
       "cta": "Start Learning",
-      "watchDemo": "Watch Demo"
+      "watchDemo": "Watch Demo",
+      "preview": "Video lessons + tasks + tests",
+      "cardTitle": "Complete Italian language course",
+      "cardSubtitle": "Combination of video lectures, interactive tasks and adaptive tests.",
+      "cardHours": "hours of video",
+      "cardLessons": "lessons",
+      "cardExam": "exam preparation",
+      "disclaimer": "Free access to the first unit. You can cancel your subscription at any time."
     },
     "benefits": {
       "title": "Why Choose Us",
