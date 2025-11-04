@@ -48,8 +48,9 @@ export interface Video {
   file_path?: string;
   external_url?: string;
   duration_sec?: number;
-  status?: string;
+  status?: 'draft' | 'published' | 'archived' | string;
   order_index?: number;
+  is_visible_to_students?: boolean;
   created_at: string;
   updated_at?: string;
 }

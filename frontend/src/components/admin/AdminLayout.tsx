@@ -26,7 +26,6 @@ import {
   FileText as AuditLog,
   Search,
   Bell,
-  User,
   LogOut,
   Menu,
   X,
