@@ -1,16 +1,17 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
-  Play, 
-  BookOpen, 
-  CheckCircle, 
-  Users, 
+import {
+  Play,
+  BookOpen,
+  CheckCircle,
+  Users,
   ArrowRight,
   Globe,
   Target,
   Star,
   Quote,
-  Languages
+  Languages,
+  Clock
 } from 'lucide-react';
 
 const LandingPage: React.FC = () => {
@@ -21,46 +22,46 @@ const LandingPage: React.FC = () => {
     {
       icon: <Play className="w-8 h-8 text-primary-600" />,
       title: t('landing.benefits.interactive'),
-      description: t('landing.benefits.interactiveDesc')
+      description: t('landing.benefits.interactiveDesc'),
     },
     {
       icon: <BookOpen className="w-8 h-8 text-primary-600" />,
       title: t('landing.benefits.personalized'),
-      description: t('landing.benefits.personalizedDesc')
+      description: t('landing.benefits.personalizedDesc'),
     },
     {
       icon: <Target className="w-8 h-8 text-primary-600" />,
       title: t('landing.benefits.progress'),
-      description: t('landing.benefits.progressDesc')
+      description: t('landing.benefits.progressDesc'),
     },
     {
       icon: <Users className="w-8 h-8 text-primary-600" />,
       title: t('landing.benefits.expert'),
-      description: t('landing.benefits.expertDesc')
-    }
+      description: t('landing.benefits.expertDesc'),
+    },
   ];
 
   const steps = [
     {
       number: '01',
       title: t('landing.howItWorks.step1'),
-      description: t('landing.howItWorks.step1Desc')
+      description: t('landing.howItWorks.step1Desc'),
     },
     {
       number: '02',
       title: t('landing.howItWorks.step2'),
-      description: t('landing.howItWorks.step2Desc')
+      description: t('landing.howItWorks.step2Desc'),
     },
     {
       number: '03',
       title: t('landing.howItWorks.step3'),
-      description: t('landing.howItWorks.step3Desc')
+      description: t('landing.howItWorks.step3Desc'),
     },
     {
       number: '04',
       title: t('landing.howItWorks.step4'),
-      description: t('landing.howItWorks.step4Desc')
-    }
+      description: t('landing.howItWorks.step4Desc'),
+    },
   ];
 
   const testimonialsData = {
@@ -70,43 +71,43 @@ const LandingPage: React.FC = () => {
         role: 'Студентка',
         image: '👩‍🎓',
         rating: 5,
-        text: 'Отличная платформа для изучения итальянского! За 3 месяца я прошла с нулевого уровня до A2. Уроки интересные, преподаватели отзывчивые, а интерфейс очень удобный.'
+        text: 'Отличная платформа для изучения итальянского! За 3 месяца я прошла с нулевого уровня до A2. Уроки интересные, преподаватели отзывчивые, а интерфейс очень удобный.',
       },
       {
         name: 'Дмитрий Петров',
         role: 'Бизнесмен',
         image: '👨‍💼',
         rating: 5,
-        text: 'Идеально для занятых людей! Могу учиться в любое время, уроки короткие и эффективные. Через полгода смог свободно общаться во время деловой поездки в Милан.'
+        text: 'Идеально для занятых людей! Могу учиться в любое время, уроки короткие и эффективные. Через полгода смог свободно общаться во время деловой поездки в Милан.',
       },
       {
         name: 'Елена Волкова',
         role: 'Переводчик',
         image: '👩‍💻',
         rating: 5,
-        text: 'Прекрасная методика! Особенно понравились видео с носителями языка и система отслеживания прогресса. Получила сертификат CELI B2 после года занятий на платформе.'
+        text: 'Прекрасная методика! Особенно понравились видео с носителями языка и система отслеживания прогресса. Получила сертификат CELI B2 после года занятий на платформе.',
       },
       {
         name: 'Михаил Иванов',
         role: 'Учитель',
         image: '👨‍🏫',
         rating: 5,
-        text: 'Я рекомендую Eazy Italian всем своим друзьям. Структурированная программа, живые диалоги и отличная поддержка от преподавателей. Это лучшая онлайн-школа итальянского!'
+        text: 'Я рекомендую Eazy Italian всем своим друзьям. Структурированная программа, живые диалоги и отличная поддержка от преподавателей. Это лучшая онлайн-школа итальянского!',
       },
       {
         name: 'Мария Кузнецова',
         role: 'Дизайнер',
         image: '👩‍🎨',
         rating: 5,
-        text: 'Наконец-то нашла платформу, которая действительно работает! Грамматика объясняется просто и понятно, много практики разговорной речи. Сейчас готовлюсь к переезду в Италию.'
+        text: 'Наконец-то нашла платформу, которая действительно работает! Грамматика объясняется просто и понятно, много практики разговорной речи. Сейчас готовлюсь к переезду в Италию.',
       },
       {
         name: 'Александр Соколов',
         role: 'Программист',
         image: '👨‍💻',
         rating: 5,
-        text: 'Технически отличная платформа с продуманным функционалом. Мобильное приложение позволяет учиться в дороге. За 4 месяца достиг уровня B1 и теперь смотрю итальянские фильмы без субтитров!'
-      }
+        text: 'Технически отличная платформа с продуманным функционалом. Мобильное приложение позволяет учиться в дороге. За 4 месяца достиг уровня B1 и теперь смотрю итальянские фильмы без субтитров!',
+      },
     ],
     en: [
       {
@@ -114,44 +115,44 @@ const LandingPage: React.FC = () => {
         role: 'Student',
         image: '👩‍🎓',
         rating: 5,
-        text: 'Excellent platform for learning Italian! In 3 months I went from zero level to A2. The lessons are interesting, the teachers are responsive, and the interface is very user-friendly.'
+        text: 'Excellent platform for learning Italian! In 3 months I went from zero level to A2. The lessons are interesting, the teachers are responsive, and the interface is very user-friendly.',
       },
       {
         name: 'Dmitry Petrov',
         role: 'Businessman',
         image: '👨‍💼',
         rating: 5,
-        text: 'Perfect for busy people! I can study anytime, lessons are short and effective. After six months, I was able to communicate freely during a business trip to Milan.'
+        text: 'Perfect for busy people! I can study anytime, lessons are short and effective. After six months, I was able to communicate freely during a business trip to Milan.',
       },
       {
         name: 'Elena Volkova',
         role: 'Translator',
         image: '👩‍💻',
         rating: 5,
-        text: 'Excellent methodology! I especially liked the videos with native speakers and the progress tracking system. I got my CELI B2 certificate after a year of studying on the platform.'
+        text: 'Excellent methodology! I especially liked the videos with native speakers and the progress tracking system. I got my CELI B2 certificate after a year of studying on the platform.',
       },
       {
         name: 'Michael Johnson',
         role: 'Teacher',
         image: '👨‍🏫',
         rating: 5,
-        text: 'I recommend Eazy Italian to all my friends. Structured program, live dialogues and excellent support from teachers. This is the best online Italian school!'
+        text: 'I recommend Eazy Italian to all my friends. Structured program, live dialogues and excellent support from teachers. This is the best online Italian school!',
       },
       {
         name: 'Maria Kuznetsova',
         role: 'Designer',
         image: '👩‍🎨',
         rating: 5,
-        text: 'Finally found a platform that really works! Grammar is explained simply and clearly, lots of speaking practice. Now I\'m preparing to move to Italy.'
+        text: "Finally found a platform that really works! Grammar is explained simply and clearly, lots of speaking practice. Now I'm preparing to move to Italy.",
       },
       {
         name: 'Alexander Sokolov',
         role: 'Programmer',
         image: '👨‍💻',
         rating: 5,
-        text: 'Technically excellent platform with well-thought-out functionality. The mobile app allows me to study on the go. In 4 months I reached B1 level and now I watch Italian movies without subtitles!'
-      }
-    ]
+        text: 'Technically excellent platform with well-thought-out functionality. The mobile app allows me to study on the go. In 4 months I reached B1 level and now I watch Italian movies without subtitles!',
+      },
+    ],
   };
 
   const testimonials = testimonialsData[currentLang as 'ru' | 'en'] || testimonialsData.ru;
@@ -164,10 +165,10 @@ const LandingPage: React.FC = () => {
       features: [
         t('landing.pricing.freeFeatures.feature1'),
         t('landing.pricing.freeFeatures.feature2'),
-        t('landing.pricing.freeFeatures.feature3')
+        t('landing.pricing.freeFeatures.feature3'),
       ],
       buttonText: t('landing.pricing.chooseFree'),
-      popular: false
+      popular: false,
     },
     {
       name: t('landing.pricing.premium'),
@@ -178,10 +179,10 @@ const LandingPage: React.FC = () => {
         t('landing.pricing.premiumFeatures.feature2'),
         t('landing.pricing.premiumFeatures.feature3'),
         t('landing.pricing.premiumFeatures.feature4'),
-        t('landing.pricing.premiumFeatures.feature5')
+        t('landing.pricing.premiumFeatures.feature5'),
       ],
       buttonText: t('landing.pricing.choosePremium'),
-      popular: true
+      popular: true,
     },
     {
       name: t('landing.pricing.pro'),
@@ -192,46 +193,51 @@ const LandingPage: React.FC = () => {
         t('landing.pricing.proFeatures.feature2'),
         t('landing.pricing.proFeatures.feature3'),
         t('landing.pricing.proFeatures.feature4'),
-        t('landing.pricing.proFeatures.feature5')
+        t('landing.pricing.proFeatures.feature5'),
       ],
       buttonText: t('landing.pricing.choosePro'),
-      popular: false
-    }
+      popular: false,
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <Globe className="w-8 h-8 text-primary-600" />
-              <span className="ml-2 text-2xl font-bold text-gray-900">Eazy Italian</span>
-            </div>
+          <div className="flex justify-between items-center py-4">
+            <button
+              onClick={() => i18n.changeLanguage(currentLang === 'ru' ? 'en' : 'ru')}
+              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
+              title={currentLang === 'ru' ? 'Switch to English' : 'Переключиться на русский'}
+            >
+              <Globe className="w-6 h-6 text-primary-600" />
+              <span className="hidden sm:inline text-lg font-bold text-gray-900">
+                Eazy Italian
+              </span>
+            </button>
+
             <div className="flex items-center space-x-4">
-              {/* Language Switcher */}
-              <button 
+              <button
                 onClick={() => {
                   const newLang = currentLang === 'ru' ? 'en' : 'ru';
                   i18n.changeLanguage(newLang);
                 }}
-                className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                title={currentLang === 'ru' ? 'Switch to English' : 'Переключиться на русский'}
+                className="hidden sm:flex items-center space-x-1 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 <Languages className="w-4 h-4" />
                 <span>{currentLang === 'ru' ? 'RU' : 'EN'}</span>
               </button>
-              
+
               <Link
                 to="/login"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
               >
                 {t('nav.login')}
               </Link>
               <Link
                 to="/register"
-                className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-700"
+                className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-primary-700"
               >
                 {t('nav.register')}
               </Link>
@@ -240,55 +246,140 @@ const LandingPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-primary-50 to-secondary-50 py-20">
+      {/* Hero Section - Udemy style */}
+      <section className="bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-              {t('landing.hero.title')}
-            </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              {t('landing.hero.subtitle')}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/register"
-                className="bg-primary-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-primary-700 transition-colors inline-flex items-center justify-center"
-              >
-                {t('landing.hero.cta')}
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Link>
-              <button className="border border-gray-300 text-gray-700 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors">
-                {t('landing.hero.watchDemo')}
-              </button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Left text */}
+            <div>
+              <p className="inline-flex items-center text-xs font-semibold uppercase tracking-wide text-primary-700 bg-primary-100 px-3 py-1 rounded-full mb-4">
+                <Star className="w-3 h-3 mr-1 fill-yellow-400 text-yellow-400" />
+                {t('landing.hero.badge') || 'Italiano con piacere'}
+              </p>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 leading-tight mb-4">
+                {t('landing.hero.title')}
+              </h1>
+              <p className="text-lg md:text-xl text-gray-600 mb-6 max-w-xl">
+                {t('landing.hero.subtitle')}
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <Link
+                  to="/register"
+                  className="bg-primary-600 text-white px-7 py-3 rounded-lg text-base font-semibold hover:bg-primary-700 transition-colors inline-flex items-center justify-center shadow-md shadow-primary-300/40"
+                >
+                  {t('landing.hero.cta')}
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Link>
+                <button className="border border-gray-300 text-gray-700 px-7 py-3 rounded-lg text-base font-semibold hover:bg-gray-50 transition-colors inline-flex items-center justify-center">
+                  <Play className="w-4 h-4 mr-2" />
+                  {t('landing.hero.watchDemo')}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                <div className="flex items-center space-x-1">
+                  <Users className="w-4 h-4 text-primary-600" />
+                  <span>5000+ {t('landing.stats.students')}</span>
+                </div>
+                <span className="hidden sm:inline">•</span>
+                <div className="flex items-center space-x-1">
+                  <BookOpen className="w-4 h-4 text-primary-600" />
+                  <span>200+ {t('landing.stats.lessons')}</span>
+                </div>
+                <span className="hidden sm:inline">•</span>
+                <div className="flex items-center space-x-1">
+                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                  <span>4.9 / 5</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right - course preview card */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-primary-600 to-primary-700 h-40 flex items-center justify-center text-white">
+                <div className="flex flex-col items-center">
+                  <Play className="w-10 h-10 mb-3" />
+                  <p className="text-sm font-medium uppercase tracking-wide">
+                    Eazy Italian • A1–B2
+                  </p>
+                  <p className="text-xs text-primary-100 mt-1">
+                    {t('landing.hero.preview') || 'Video-уроки + задания + тесты'}
+                  </p>
+                </div>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {t('landing.hero.cardTitle') || 'Полный курс итальянского языка'}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {t('landing.hero.cardSubtitle') ||
+                      'Комбинация видео-лекций, интерактивных заданий и адаптивных тестов.'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 text-xs text-gray-600">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-primary-600" />
+                    <div>
+                      <p className="font-semibold text-gray-900">40+ ч</p>
+                      <p>{t('landing.hero.cardHours') || 'видео-материала'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <BookOpen className="w-4 h-4 text-primary-600" />
+                    <div>
+                      <p className="font-semibold text-gray-900">200+</p>
+                      <p>{t('landing.hero.cardLessons') || 'уроков'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <div>
+                      <p className="font-semibold text-gray-900">CELI / CILS</p>
+                      <p>{t('landing.hero.cardExam') || 'подготовка к экзаменам'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <button className="w-full mt-1 bg-primary-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors inline-flex items-center justify-center">
+                  <Play className="w-4 h-4 mr-2" />
+                  {t('landing.hero.cta') || 'Начать сейчас'}
+                </button>
+
+                <p className="text-[11px] text-gray-400 text-center">
+                  {t('landing.hero.disclaimer') ||
+                    'Бесплатный доступ к первому юниту. Отменить подписку можно в любой момент.'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Benefits Section */}
-      <section className="py-20">
+      <section className="py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
               {t('landing.benefits.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
               {t('landing.benefits.subtitle')}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {benefits.map((benefit, index) => (
-              <div key={index} className="text-center">
-                <div className="flex justify-center mb-4">
-                  {benefit.icon}
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              <div
+                key={index}
+                className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-6 flex flex-col items-center text-center"
+              >
+                <div className="flex justify-center mb-4">{benefit.icon}</div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   {benefit.title}
                 </h3>
-                <p className="text-gray-600">
-                  {benefit.description}
-                </p>
+                <p className="text-sm text-gray-600">{benefit.description}</p>
               </div>
             ))}
           </div>
@@ -296,28 +387,29 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-16 md:py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
               {t('landing.howItWorks.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
               {t('landing.howItWorks.subtitle')}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {steps.map((step, index) => (
-              <div key={index} className="text-center">
-                <div className="bg-primary-600 text-white w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
+              <div
+                key={index}
+                className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 text-center"
+              >
+                <div className="bg-primary-600 text-white w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-4">
                   {step.number}
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   {step.title}
                 </h3>
-                <p className="text-gray-600">
-                  {step.description}
-                </p>
+                <p className="text-sm text-gray-600">{step.description}</p>
               </div>
             ))}
           </div>
@@ -325,37 +417,42 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-20">
+      <section className="py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
               {t('landing.testimonials.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
               {t('landing.testimonials.subtitle')}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
             {testimonials.map((testimonial, index) => (
               <div
                 key={index}
-                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow"
+                className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow p-6 flex flex-col h-full"
               >
                 <div className="flex items-center mb-4">
                   <div className="text-4xl mr-3">{testimonial.image}</div>
                   <div>
-                    <h4 className="font-semibold text-gray-900">{testimonial.name}</h4>
+                    <h4 className="font-semibold text-gray-900">
+                      {testimonial.name}
+                    </h4>
                     <p className="text-sm text-gray-600">{testimonial.role}</p>
                   </div>
                 </div>
                 <div className="flex mb-3">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                    <Star
+                      key={i}
+                      className="w-5 h-5 text-yellow-400 fill-yellow-400"
+                    />
                   ))}
                 </div>
-                <div className="relative">
+                <div className="relative mt-auto">
                   <Quote className="absolute -top-2 -left-2 w-8 h-8 text-primary-200" />
-                  <p className="text-gray-700 pl-6 italic">
+                  <p className="text-sm text-gray-700 pl-6 italic">
                     "{testimonial.text}"
                   </p>
                 </div>
@@ -366,13 +463,13 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-16 md:py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
               {t('landing.pricing.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
               {t('landing.pricing.subtitle')}
             </p>
           </div>
@@ -380,42 +477,51 @@ const LandingPage: React.FC = () => {
             {pricingPlans.map((plan, index) => (
               <div
                 key={index}
-                className={`relative bg-white rounded-lg shadow-lg p-8 ${
-                  plan.popular ? 'ring-2 ring-primary-600' : ''
+                className={`relative bg-white rounded-xl shadow-lg p-8 flex flex-col ${
+                  plan.popular ? 'ring-2 ring-primary-600 scale-[1.01]' : ''
                 }`}
               >
                 {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                    <span className="bg-primary-600 text-white px-4 py-1 rounded-full text-sm font-medium">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <span className="bg-primary-600 text-white px-4 py-1 rounded-full text-xs font-semibold">
                       {t('landing.pricing.popular')}
                     </span>
                   </div>
                 )}
-                <div className="text-center">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-                  <div className="mb-6">
-                    <span className="text-4xl font-bold text-gray-900">{plan.price}</span>
-                    <span className="text-gray-600">{plan.period}</span>
+                <div className="text-center mb-6">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    {plan.name}
+                  </h3>
+                  <div>
+                    <span className="text-4xl font-extrabold text-gray-900">
+                      {plan.price}
+                    </span>
+                    <span className="ml-1 text-gray-600 text-sm">
+                      {plan.period}
+                    </span>
                   </div>
-                  <ul className="space-y-3 mb-8">
-                    {plan.features.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-center">
-                        <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
-                        <span className="text-gray-600">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    to="/register"
-                    className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors ${
-                      plan.popular
-                        ? 'bg-primary-600 text-white hover:bg-primary-700'
-                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                    }`}
-                  >
-                    {plan.buttonText}
-                  </Link>
                 </div>
+                <ul className="space-y-3 mb-8 flex-1">
+                  {plan.features.map((feature, featureIndex) => (
+                    <li
+                      key={featureIndex}
+                      className="flex items-center text-sm text-gray-600"
+                    >
+                      <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to="/register"
+                  className={`w-full py-3 px-6 rounded-lg font-semibold text-sm text-center transition-colors ${
+                    plan.popular
+                      ? 'bg-primary-600 text-white hover:bg-primary-700'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                  }`}
+                >
+                  {plan.buttonText}
+                </Link>
               </div>
             ))}
           </div>
@@ -423,7 +529,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 bg-primary-600">
+      <section className="py-14 bg-primary-600">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div>
@@ -447,12 +553,12 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-primary-700">
+      <section className="py-16 bg-primary-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
             {t('landing.cta.title')}
           </h2>
-          <p className="text-xl text-primary-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-primary-100 mb-8 max-w-2xl mx-auto">
             {t('landing.cta.subtitle')}
           </p>
           <Link
@@ -466,7 +572,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
+      <footer className="bg-gray-900 text-white py-12 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
@@ -479,31 +585,73 @@ const LandingPage: React.FC = () => {
               </p>
             </div>
             <div>
-              <h3 className="text-lg font-semibold mb-4">{t('landing.footer.product')}</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">{t('landing.footer.lessons')}</a></li>
-                <li><a href="#" className="hover:text-white">{t('landing.footer.tests')}</a></li>
-                <li><a href="#" className="hover:text-white">{t('landing.footer.certificates')}</a></li>
+              <h3 className="text-lg font-semibold mb-4">
+                {t('landing.footer.product')}
+              </h3>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.lessons')}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.tests')}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.certificates')}
+                  </a>
+                </li>
               </ul>
             </div>
             <div>
-              <h3 className="text-lg font-semibold mb-4">{t('landing.footer.support')}</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">{t('landing.footer.help')}</a></li>
-                <li><a href="#" className="hover:text-white">{t('landing.footer.faq')}</a></li>
-                <li><a href="#" className="hover:text-white">{t('landing.footer.contact')}</a></li>
+              <h3 className="text-lg font-semibold mb-4">
+                {t('landing.footer.support')}
+              </h3>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.help')}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.faq')}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.contact')}
+                  </a>
+                </li>
               </ul>
             </div>
             <div>
-              <h3 className="text-lg font-semibold mb-4">{t('landing.footer.company')}</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">{t('landing.footer.about')}</a></li>
-                <li><a href="#" className="hover:text-white">{t('landing.footer.blog')}</a></li>
-                <li><a href="#" className="hover:text-white">{t('landing.footer.careers')}</a></li>
+              <h3 className="text-lg font-semibold mb-4">
+                {t('landing.footer.company')}
+              </h3>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.about')}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.blog')}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    {t('landing.footer.careers')}
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+          <div className="border-t border-gray-800 mt-8 pt-6 text-center text-gray-500 text-sm">
             <p>{t('landing.footer.copyright')}</p>
           </div>
         </div>

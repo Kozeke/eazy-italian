@@ -35,9 +35,24 @@
     "loginButton": "Login",
     "registerButton": "Register",
     "alreadyHaveAccount": "Already have an account?",
+    "alreadyHaveAccountQuestion": "Already have an account?",
     "dontHaveAccount": "Don't have an account?",
     "passwordsDoNotMatch": "Passwords do not match",
-    "invalidCredentials": "Invalid credentials"
+    "invalidCredentials": "Invalid credentials",
+    "or": "Or",
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot password?",
+    "role": "Role",
+    "chooseRole": "Choose role",
+    "roleStudent": "Student",
+    "roleTeacher": "Teacher",
+    "loginHeroTitle": "Learn Italian like on the best online platforms",
+    "loginHeroSubtitle": "Access to interactive lessons, tasks and tests in one convenient dashboard.",
+    "loginHeroRating": "Average student rating",
+    "loginHeroNote": "Teacher and student demo accounts available on the right — login and test the platform.",
+    "registerHeroTitle": "Create an account and start learning Italian today",
+    "registerHeroSubtitle": "Access to video lessons, interactive tasks, tests and progress tracking — all in one place.",
+    "registerHeroNote": "You can register as a student or teacher. The role can be changed by an administrator later."
   },
   "dashboard": {
     "welcome": "Welcome",
@@ -55,7 +70,16 @@
     "duration": "Duration",
     "start": "Start Lesson",
     "continue": "Continue",
-    "completed": "Completed"
+    "completed": "Completed",
+    "badge": "My Italian course",
+    "subtitle": "Learn Italian step by step: videos, tasks and tests, like on Udemy or Coursera.",
+    "searchLabel": "Search units",
+    "searchPlaceholder": "Find a unit by name or description",
+    "searchHint": "For example: \"Greetings\", \"Family\", \"Numbers\"",
+    "listTitle": "All course units",
+    "filteredLabel": "units match your search",
+    "emptyTitle": "No units available",
+    "emptySubtitle": "There are no published learning units yet. Once the instructor adds them, they will appear here."
   },
   "tasks": {
     "title": "Tasks",
@@ -81,6 +105,11 @@
     "settings": "Settings",
     "changePassword": "Change Password"
   },
+  "layout": {
+    "studentHint": "Follow your Italian course step by step: dashboard, units, tasks and tests.",
+    "studentArea": "Student area",
+    "roleStudent": "Student"
+  },
   "admin": {
     "dashboard": "Admin Dashboard",
     "students": "Students",
@@ -98,7 +127,8 @@
       "grades": "Grades",
       "progress": "Progress",
       "settings": "Settings",
-      "auditLog": "Audit Log"
+      "auditLog": "Audit Log",
+      "sectionMain": "Teaching tools"
     },
     "search": {
       "placeholder": "Search everything..."
@@ -135,6 +165,10 @@
       "published": "Published",
       "scheduled": "Scheduled",
       "archived": "Archived"
+    },
+    "role": "Instructor",
+    "footer": {
+      "hint": "Manage your content, students and analytics from this instructor panel."
     }
   },
   "landing": {

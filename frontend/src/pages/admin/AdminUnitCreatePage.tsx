@@ -490,288 +490,388 @@ export default function AdminUnitCreatePage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => navigate('/admin/units')}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Назад
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Создать новый юнит
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Создание нового учебного юнита
-            </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Top sticky bar – Udemy/Coursera style */}
+      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/admin/units')}
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Назад к юнитам
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                  Создать новый юнит
+                </h1>
+                {getStatusBadge(formData.status)}
+              </div>
+              <p className="text-xs md:text-sm text-gray-500 mt-1">
+                Настройте структуру юнита — как модули и лекции на Coursera/Udemy
+              </p>
+            </div>
           </div>
-        </div>
-        
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setShowPreview(!showPreview)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Eye className="h-4 w-4 mr-2" />
-            Предпросмотр
-          </button>
-          <button
-            onClick={() => handleSave(false)}
-            disabled={saving}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving ? 'Сохранение...' : 'Сохранить черновик'}
-          </button>
-          <button
-            onClick={() => handleSave(true)}
-            disabled={saving}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-          >
-            {saving ? 'Публикация...' : 'Опубликовать'}
-          </button>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowPreview(!showPreview)}
+              className="hidden sm:inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр'}
+            </button>
+
+            <button
+              onClick={() => handleSave(false)}
+              disabled={saving}
+              className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? 'Сохранение...' : 'Сохранить черновик'}
+            </button>
+
+            <button
+              onClick={() => handleSave(true)}
+              disabled={saving}
+              className="inline-flex items-center rounded-lg border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? 'Публикация...' : 'Сохранить и опубликовать'}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Form */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Basic Information */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Основная информация</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Название *
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => handleInputChange('title', e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Введите название юнита"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Уровень *
-                </label>
-                <select
-                  value={formData.level}
-                  onChange={(e) => handleInputChange('level', e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="A1">A1 - Начальный</option>
-                  <option value="A2">A2 - Элементарный</option>
-                  <option value="B1">B1 - Средний</option>
-                  <option value="B2">B2 - Выше среднего</option>
-                  <option value="C1">C1 - Продвинутый</option>
-                  <option value="C2">C2 - В совершенстве</option>
-                </select>
-              </div>
-            </div>
+      {/* Main content */}
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* MAIN COLUMN – form + content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Basic info */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Основная информация
+              </h2>
 
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Описание
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                rows={4}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                placeholder="Краткое описание юнита"
-              />
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ключевые цели обучения
-              </label>
-              <textarea
-                value={formData.goals}
-                onChange={(e) => handleInputChange('goals', e.target.value)}
-                rows={3}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                placeholder="Что студенты должны изучить в этом юните"
-              />
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Теги
-              </label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {formData.tags.map((tag, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
-                  >
-                    {tag}
-                    <button
-                      onClick={() => handleRemoveTag(tag)}
-                      className="ml-1 text-primary-600 hover:text-primary-800"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Добавить тег"
-                />
-                <button
-                  onClick={handleAddTag}
-                  className="px-3 py-2 bg-primary-600 text-white rounded-r-md hover:bg-primary-700"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Content Structure */}
-          <div className="space-y-6">
-            <h2 className="text-lg font-medium text-gray-900">Структура юнита</h2>
-            
-            {renderContentSection(
-              'Видео',
-              videos,
-              'video',
-              <div className="w-5 h-5 bg-blue-500 rounded flex items-center justify-center">
-                <span className="text-white text-xs">V</span>
-              </div>
-            )}
-            
-            {renderContentSection(
-              'Задания',
-              tasks,
-              'task',
-              <div className="w-5 h-5 bg-green-500 rounded flex items-center justify-center">
-                <span className="text-white text-xs">T</span>
-              </div>
-            )}
-            
-            {renderContentSection(
-              'Тесты',
-              tests,
-              'test',
-              <div className="w-5 h-5 bg-purple-500 rounded flex items-center justify-center">
-                <span className="text-white text-xs">Q</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Status and Settings */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Статус и настройки</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Статус
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleInputChange('status', e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="draft">Черновик</option>
-                  <option value="scheduled">Запланировано</option>
-                  <option value="published">Опубликовано</option>
-                  <option value="archived">Архив</option>
-                </select>
-              </div>
-
-              {formData.status === 'scheduled' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Название */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Дата публикации
+                    Название *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    placeholder="Например: Итальянский A1: Приветствия и базовые фразы"
+                  />
+                </div>
+
+                {/* Уровень */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Уровень
+                  </label>
+                  <select
+                    value={formData.level}
+                    onChange={(e) => handleInputChange('level', e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    <option value="A1">A1 – Начальный</option>
+                    <option value="A2">A2 – Элементарный</option>
+                    <option value="B1">B1 – Средний</option>
+                    <option value="B2">B2 – Выше среднего</option>
+                    <option value="C1">C1 – Продвинутый</option>
+                    <option value="C2">C2 – В совершенстве</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Описание */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Описание
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  rows={4}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  placeholder="Кратко опишите, что студенты будут изучать в этом юните"
+                />
+              </div>
+
+              {/* Цели */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ключевые цели обучения
+                </label>
+                <textarea
+                  value={formData.goals}
+                  onChange={(e) => handleInputChange('goals', e.target.value)}
+                  rows={3}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  placeholder="Например: уметь представиться, поприветствовать, задать базовые вопросы…"
+                />
+              </div>
+
+              {/* Теги */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Теги
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {formData.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-800"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="ml-1 text-primary-600 hover:text-primary-800"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    placeholder="Добавить тег (например: грамматика, A1, приветствия)"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTag}
+                    className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Добавить
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Content builder – like course curriculum */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Контент юнита
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Добавьте видео, задания и тесты — как лекции и квизы в онлайн-курсе
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {renderContentSection(
+                  'Видео-уроки',
+                  videos,
+                  'video',
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/10">
+                    <Eye className="h-4 w-4 text-red-500" />
+                  </div>
+                )}
+
+                {renderContentSection(
+                  'Задания',
+                  tasks,
+                  'task',
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/10">
+                    <Pencil className="h-4 w-4 text-blue-500" />
+                  </div>
+                )}
+
+                {renderContentSection(
+                  'Тесты',
+                  tests,
+                  'test',
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/10">
+                    <span className="text-xs font-semibold text-purple-600">Q</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Preview as a student */}
+            {showPreview && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                  Предпросмотр юнита (вид студента)
+                </h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  Небольшой обзор того, как юнит будет выглядеть в списке уроков.
+                </p>
+
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900">
+                        {formData.title || 'Без названия'}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                        {formData.description || 'Описание юнита пока не заполнено.'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
+                        {formData.level}
+                      </span>
+                    </div>
+                  </div>
+
+                  {formData.tags.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {formData.tags.map((tag, i) => (
+                        <span
+                          key={i}
+                          className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-600 border border-gray-200"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                    <span>{videos.length} видео</span>
+                    <span>{tasks.length} заданий</span>
+                    <span>{tests.length} тестов</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SIDEBAR – status, schedule, SEO */}
+          <div className="space-y-6">
+            {/* Status & visibility */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Статус и доступ
+              </h2>
+
+              <div className="space-y-4">
+                {/* Статус */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Статус
+                  </label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => handleInputChange('status', e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    <option value="draft">Черновик</option>
+                    <option value="scheduled">Запланировано</option>
+                    <option value="published">Опубликовано</option>
+                    <option value="archived">Архив</option>
+                  </select>
+                </div>
+
+                {/* Publish at */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Дата публикации (опционально)
                   </label>
                   <input
                     type="datetime-local"
                     value={formData.publish_at}
                     onChange={(e) => handleInputChange('publish_at', e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Если не указано, юнит будет опубликован сразу.
+                  </p>
+                </div>
+
+                {/* Order index */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Порядок в курсе
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.order_index}
+                    onChange={(e) => handleInputChange('order_index', Number(e.target.value))}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    placeholder="0"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Номер, по которому юнит будет отсортирован среди других.
+                  </p>
+                </div>
+
+                {/* Visibility */}
+                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      Видимость для студентов
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Если выключено, юнит не будет отображаться в списке уроков.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.is_visible_to_students}
+                    onChange={(e) =>
+                      handleInputChange('is_visible_to_students', e.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
                 </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Порядок
-                </label>
-                <input
-                  type="number"
-                  value={formData.order_index}
-                  onChange={(e) => handleInputChange('order_index', parseInt(e.target.value) || 0)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="visible_to_students"
-                  checked={formData.is_visible_to_students}
-                  onChange={(e) => handleInputChange('is_visible_to_students', e.target.checked)}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                />
-                <label htmlFor="visible_to_students" className="ml-2 block text-sm text-gray-900">
-                  Показывать студентам
-                </label>
               </div>
             </div>
-          </div>
 
-          {/* SEO Settings */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">SEO настройки</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Meta заголовок
-                </label>
-                <input
-                  type="text"
-                  value={formData.meta_title}
-                  onChange={(e) => handleInputChange('meta_title', e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="SEO заголовок"
-                />
-              </div>
+            {/* SEO */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                SEO настройки
+              </h2>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Meta описание
-                </label>
-                <textarea
-                  value={formData.meta_description}
-                  onChange={(e) => handleInputChange('meta_description', e.target.value)}
-                  rows={3}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="SEO описание"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Meta заголовок
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.meta_title}
+                    onChange={(e) => handleInputChange('meta_title', e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    placeholder="SEO заголовок"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Meta описание
+                  </label>
+                  <textarea
+                    value={formData.meta_description}
+                    onChange={(e) => handleInputChange('meta_description', e.target.value)}
+                    rows={3}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    placeholder="Краткое описание для поисковых систем"
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </div> 
     </div>
   );
 }

@@ -1,26 +1,27 @@
-
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, 
-  FileText, 
-  ClipboardList, 
-  Mail, 
-  TrendingUp, 
+import {
+  Users,
+  FileText,
+  ClipboardList,
+  Mail,
+  TrendingUp,
   AlertTriangle,
   Clock,
   CheckCircle,
   XCircle,
   BookOpen,
-  Activity
+  Activity,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 
-// Mock data - replace with actual API calls
+// Mock data - replace with real API later
 const mockKPIData = {
   activeStudents: { today: 45, thisWeek: 128, change: 12 },
   pendingSubmissions: { count: 23, urgent: 5 },
   testsInProgress: { active: 8, dueSoon: 3 },
-  emailCampaigns: { scheduled: 4, sent: 156, deliveryRate: 98.2 }
+  emailCampaigns: { scheduled: 4, sent: 156, deliveryRate: 98.2 },
 };
 
 const mockRecentActivity = [
@@ -29,29 +30,29 @@ const mockRecentActivity = [
     type: 'submission',
     message: 'Анна Петрова отправила задание "Грамматика A1"',
     time: '2 минуты назад',
-    status: 'pending'
+    status: 'pending',
   },
   {
     id: 2,
     type: 'grade',
     message: 'Иван Сидоров получил 85% за тест "Лексика A1"',
     time: '15 минут назад',
-    status: 'completed'
+    status: 'completed',
   },
   {
     id: 3,
     type: 'publish',
     message: 'Опубликован новый урок "Разговорная речь A2"',
     time: '1 час назад',
-    status: 'published'
+    status: 'published',
   },
   {
     id: 4,
     type: 'email',
     message: 'Отправлено напоминание о дедлайне для 15 студентов',
     time: '2 часа назад',
-    status: 'sent'
-  }
+    status: 'sent',
+  },
 ];
 
 const mockAlerts = [
@@ -59,20 +60,20 @@ const mockAlerts = [
     id: 1,
     type: 'warning',
     message: '5 заданий ожидают проверки более 24 часов',
-    action: 'Проверить'
+    action: 'Проверить',
   },
   {
     id: 2,
     type: 'error',
     message: 'Ошибка отправки email для кампании "Напоминание о тесте"',
-    action: 'Исправить'
+    action: 'Исправить',
   },
   {
     id: 3,
     type: 'info',
     message: 'Использовано 85% дискового пространства',
-    action: 'Просмотреть'
-  }
+    action: 'Просмотреть',
+  },
 ];
 
 export default function AdminDashboardPage() {
@@ -125,245 +126,167 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      {/* Hero header */}
+      <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-2xl text-white px-6 py-6 md:px-8 md:py-8 shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center bg-white/15 px-3 py-1 rounded-full text-xs font-medium mb-2">
+            <Sparkles className="w-4 h-4 mr-1" />
+            Панель преподавателя
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold leading-tight">
+            {t('admin.dashboard.title') || 'Админ-панель Eazy Italian'}
+          </h1>
+          <p className="mt-2 text-sm md:text-base text-primary-100 max-w-xl">
+            Управляйте уроками, заданиями, тестами и отслеживайте активность студентов в реальном времени.
+          </p>
+        </div>
+        <div className="text-sm text-primary-100">
+          {new Date().toLocaleDateString('ru-RU', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-all">
+          <div className="w-10 h-10 bg-blue-50 flex items-center justify-center rounded-full">
+            <Users className="w-5 h-5 text-blue-600" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {t('admin.dashboard.title')}
-            </h1>
-            <p className="text-gray-600">
-              Панель управления для преподавателей
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Активные студенты
+            </p>
+            <p className="text-2xl font-bold text-gray-900">{mockKPIData.activeStudents.today}</p>
+            <div className="flex items-center mt-1 text-sm text-green-600">
+              <TrendingUp className="w-4 h-4 mr-1" />+{mockKPIData.activeStudents.change}% за неделю
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-all">
+          <div className="w-10 h-10 bg-yellow-50 flex items-center justify-center rounded-full">
+            <FileText className="w-5 h-5 text-yellow-600" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Ожидают проверки
+            </p>
+            <p className="text-2xl font-bold text-gray-900">{mockKPIData.pendingSubmissions.count}</p>
+            <p className="text-xs text-red-600 font-medium mt-1">
+              {mockKPIData.pendingSubmissions.urgent} срочных
             </p>
           </div>
-          <div className="text-sm text-gray-500">
-            {new Date().toLocaleDateString('ru-RU', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-all">
+          <div className="w-10 h-10 bg-purple-50 flex items-center justify-center rounded-full">
+            <ClipboardList className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Активные тесты
+            </p>
+            <p className="text-2xl font-bold text-gray-900">{mockKPIData.testsInProgress.active}</p>
+            <p className="text-xs text-orange-600 font-medium mt-1">
+              {mockKPIData.testsInProgress.dueSoon} скоро истекают
+            </p>
           </div>
         </div>
 
-        {/* KPI Widgets */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Active Students */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  {t('admin.dashboard.kpi.activeStudents')}
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {mockKPIData.activeStudents.today}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm">
-              <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
-              <span className="text-green-600">+{mockKPIData.activeStudents.change}%</span>
-              <span className="text-gray-500 ml-1">за неделю</span>
-            </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-all">
+          <div className="w-10 h-10 bg-emerald-50 flex items-center justify-center rounded-full">
+            <Mail className="w-5 h-5 text-emerald-600" />
           </div>
-
-          {/* Pending Submissions */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <FileText className="w-6 h-6 text-yellow-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  {t('admin.dashboard.kpi.pendingSubmissions')}
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {mockKPIData.pendingSubmissions.count}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center text-sm">
-                <span className="text-red-600 font-medium">
-                  {mockKPIData.pendingSubmissions.urgent} срочных
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tests in Progress */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <ClipboardList className="w-6 h-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  {t('admin.dashboard.kpi.testsInProgress')}
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {mockKPIData.testsInProgress.active}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center text-sm">
-                <Clock className="w-4 h-4 text-orange-500 mr-1" />
-                <span className="text-orange-600">
-                  {mockKPIData.testsInProgress.dueSoon} скоро истекают
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Email Campaigns */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Mail className="w-6 h-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  {t('admin.dashboard.kpi.emailCampaigns')}
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {mockKPIData.emailCampaigns.sent}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center text-sm">
-                <span className="text-green-600 font-medium">
-                  {mockKPIData.emailCampaigns.deliveryRate}% доставлено
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Быстрые действия</h2>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <button
-                onClick={() => handleQuickAction('createUnit')}
-                className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
-              >
-                <BookOpen className="w-6 h-6 text-primary-600 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium text-gray-900">
-                    {t('admin.dashboard.quickActions.createUnit')}
-                  </p>
-                  <p className="text-sm text-gray-500">Создать новый урок</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => handleQuickAction('createTask')}
-                className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
-              >
-                <FileText className="w-6 h-6 text-primary-600 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium text-gray-900">
-                    {t('admin.dashboard.quickActions.createTask')}
-                  </p>
-                  <p className="text-sm text-gray-500">Создать задание</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => handleQuickAction('createTest')}
-                className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
-              >
-                <ClipboardList className="w-6 h-6 text-primary-600 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium text-gray-900">
-                    {t('admin.dashboard.quickActions.createTest')}
-                  </p>
-                  <p className="text-sm text-gray-500">Создать тест</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => handleQuickAction('newEmailCampaign')}
-                className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
-              >
-                <Mail className="w-6 h-6 text-primary-600 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium text-gray-900">
-                    {t('admin.dashboard.quickActions.newEmailCampaign')}
-                  </p>
-                  <p className="text-sm text-gray-500">Отправить email</p>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity & Alerts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Activity */}
-          <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">
-                {t('admin.dashboard.recentActivity')}
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {mockRecentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start space-x-3">
-                    {getActivityIcon(activity.type)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-900">{activity.message}</p>
-                      <p className="text-xs text-gray-500">{activity.time}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                  Просмотреть все
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Alerts */}
-          <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">
-                {t('admin.dashboard.alerts')}
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {mockAlerts.map((alert) => (
-                  <div key={alert.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                    {getAlertIcon(alert.type)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-900">{alert.message}</p>
-                      <button className="text-xs text-primary-600 hover:text-primary-700 font-medium mt-1">
-                        {alert.action}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                  Просмотреть все уведомления
-                </button>
-              </div>
-            </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Email кампании
+            </p>
+            <p className="text-2xl font-bold text-gray-900">{mockKPIData.emailCampaigns.sent}</p>
+            <p className="text-xs text-green-600 font-medium mt-1">
+              {mockKPIData.emailCampaigns.deliveryRate}% доставлено
+            </p>
           </div>
         </div>
       </div>
+
+      {/* Quick actions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Быстрые действия</h2>
+        </div>
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { icon: <BookOpen className="w-6 h-6 text-primary-600" />, label: 'Создать урок', action: 'createUnit' },
+            { icon: <FileText className="w-6 h-6 text-primary-600" />, label: 'Создать задание', action: 'createTask' },
+            { icon: <ClipboardList className="w-6 h-6 text-primary-600" />, label: 'Создать тест', action: 'createTest' },
+            { icon: <Mail className="w-6 h-6 text-primary-600" />, label: 'Email рассылка', action: 'newEmailCampaign' },
+          ].map((btn, i) => (
+            <button
+              key={i}
+              onClick={() => handleQuickAction(btn.action)}
+              className="flex items-center justify-start p-4 border border-gray-100 rounded-lg hover:bg-primary-50 hover:border-primary-200 transition-all"
+            >
+              <div className="mr-3">{btn.icon}</div>
+              <div className="text-left">
+                <p className="font-semibold text-gray-900 text-sm">{btn.label}</p>
+                <p className="text-xs text-gray-500">1 клик для создания</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Activity and Alerts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Activity */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Последняя активность</h3>
+            <button className="text-xs font-medium text-primary-600 hover:text-primary-700 flex items-center">
+              Все <ArrowRight className="w-3 h-3 ml-1" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            {mockRecentActivity.map((a) => (
+              <div key={a.id} className="flex items-start gap-3">
+                <div>{getActivityIcon(a.type)}</div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-900">{a.message}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{a.time}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Alerts */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Уведомления</h3>
+          </div>
+          <div className="p-6 space-y-4">
+            {mockAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                className="flex items-start gap-3 bg-gray-50 border border-gray-100 rounded-lg p-3 hover:bg-gray-100 transition-all"
+              >
+                <div>{getAlertIcon(alert.type)}</div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-800">{alert.message}</p>
+                  <button className="mt-1 text-xs font-medium text-primary-600 hover:text-primary-700">
+                    {alert.action}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

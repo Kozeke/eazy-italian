@@ -267,286 +267,302 @@ export default function AdminUnitsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {t('admin.nav.units')}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Управление учебными юнитами
-          </p>
-        </div>
-        <Link
-          to="/admin/units/new"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-        >
-                          <Plus className="h-4 w-4 mr-2" />
-          Создать юнит
-        </Link>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Поиск по названию или описанию..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-              />
+    <div className="min-h-screen bg-gray-50">
+      {/* Sticky top bar – Coursera/Udemy style */}
+      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                {t('admin.nav.units')}
+              </h1>
+              {units.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  {units.length} юнитов
+                </span>
+              )}
             </div>
+            <p className="mt-1 text-xs md:text-sm text-gray-500">
+              Управляйте учебными юнитами — как списком курсов на Udemy/Coursera
+            </p>
           </div>
 
-          {/* Filter Toggle */}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          <Link
+            to="/admin/units/new"
+            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
           >
-            <Filter className="h-4 w-4 mr-2" />
-            Фильтры
-          </button>
+            <Plus className="h-4 w-4 mr-2" />
+            Создать юнит
+          </Link>
         </div>
-
-        {/* Filters Panel */}
-        {showFilters && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Уровень
-                </label>
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="">Все уровни</option>
-                  <option value="A1">A1</option>
-                  <option value="A2">A2</option>
-                  <option value="B1">B1</option>
-                  <option value="B2">B2</option>
-                  <option value="C1">C1</option>
-                  <option value="C2">C2</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Статус
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="">Все статусы</option>
-                  <option value="draft">Черновик</option>
-                  <option value="scheduled">Запланировано</option>
-                  <option value="published">Опубликовано</option>
-                  <option value="archived">Архив</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Bulk Actions */}
-      {selectedUnits.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-                              <Check className="h-5 w-5 text-blue-600 mr-2" />
-              <span className="text-sm font-medium text-blue-900">
-                Выбрано {selectedUnits.length} юнитов
-              </span>
+      {/* Main content */}
+      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
+        {/* Search & filters */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Поиск по названию или описанию"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 py-2 text-sm leading-5 placeholder-gray-500 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                />
+              </div>
             </div>
-            <div className="flex space-x-2">
+
+            {/* Filter toggle */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Фильтры
+            </button>
+          </div>
+
+          {/* Filters panel */}
+          {showFilters && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Level */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Уровень
+                  </label>
+                  <select
+                    value={selectedLevel}
+                    onChange={(e) => setSelectedLevel(e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    <option value="">Все уровни</option>
+                    <option value="A1">A1</option>
+                    <option value="A2">A2</option>
+                    <option value="B1">B1</option>
+                    <option value="B2">B2</option>
+                    <option value="C1">C1</option>
+                    <option value="C2">C2</option>
+                  </select>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Статус
+                  </label>
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    <option value="">Все статусы</option>
+                    <option value="draft">Черновик</option>
+                    <option value="scheduled">Запланировано</option>
+                    <option value="published">Опубликовано</option>
+                    <option value="archived">Архив</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bulk actions bar */}
+        {selectedUnits.length > 0 && (
+          <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                {selectedUnits.length}
+              </span>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  Выбрано юнитов: {selectedUnits.length}
+                </p>
+                <p className="text-xs text-gray-600">
+                  Примените массовое действие — как для курса на платформе.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => handleBulkAction('publish')}
-                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-white bg-green-600 hover:bg-green-700"
+                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700"
               >
+                <Check className="h-4 w-4 mr-1" />
                 Опубликовать
               </button>
               <button
-                onClick={() => handleBulkAction('unpublish')}
-                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-white bg-yellow-600 hover:bg-yellow-700"
+                onClick={() => handleBulkAction('archive')}
+                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-red-600 hover:bg-red-700"
               >
-                Снять с публикации
+                Архивировать
               </button>
-                             <button
-                 onClick={() => handleBulkAction('archive')}
-                 className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-white bg-red-600 hover:bg-red-700"
-               >
-                 Архивировать
-               </button>
-               <button
-                 onClick={() => handleBulkAction('delete')}
-                 className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-white bg-red-800 hover:bg-red-900"
-               >
-                 Удалить
-               </button>
+              <button
+                onClick={() => handleBulkAction('delete')}
+                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-red-800 hover:bg-red-900"
+              >
+                Удалить
+              </button>
               <button
                 onClick={() => setSelectedUnits([])}
-                className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                className="inline-flex items-center px-3 py-1 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4 mr-1" />
+                Снять выделение
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Units Table */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedUnits.length === units.length && units.length > 0}
-                    onChange={handleSelectAll}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Название
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Уровень
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статус
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дата публикации
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Контент
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Обновлено
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Действия
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUnits.map((unit) => (
-                <tr key={unit.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={selectedUnits.includes(unit.id)}
-                      onChange={() => handleSelectUnit(unit.id)}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                    />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {unit.title}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      Порядок: {unit.order_index}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getLevelBadge(unit.level)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(unit.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(unit.publish_at)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex space-x-2 text-xs">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800">
-                        {unit.content_count.videos} видео
-                      </span>
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800">
-                        {unit.content_count.tasks} заданий
-                      </span>
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-purple-100 text-purple-800">
-                        {unit.content_count.tests} тестов
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(unit.updated_at)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
-                      <Link
-                        to={`/admin/units/${unit.id}`}
-                        className="text-primary-600 hover:text-primary-900"
-                        title="Просмотр"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                      <Link
-                        to={`/admin/units/${unit.id}/edit`}
-                        className="text-gray-600 hover:text-gray-900"
-                        title="Редактировать"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Link>
-                      <button
-                        className="text-gray-600 hover:text-gray-900"
-                        title="Дублировать"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </button>
-                                             <button
-                         onClick={() => handleDeleteUnit(unit.id, unit.title)}
-                         className="text-red-600 hover:text-red-900"
-                         title="Удалить"
-                       >
-                         <Trash2 className="h-4 w-4" />
-                       </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Empty State */}
-        {filteredUnits.length === 0 && (
-          <div className="text-center py-12">
-                            <Archive className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">
-              {searchQuery || selectedLevel || selectedStatus ? 'Нет результатов' : 'Нет юнитов'}
+        {/* Units table / empty state */}
+        {filteredUnits.length > 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedUnits.length === units.length && units.length > 0}
+                        onChange={handleSelectAll}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Название
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Уровень
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Статус
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Публикация
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Контент
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Обновлено
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Действия
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredUnits.map((unit) => (
+                    <tr key={unit.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedUnits.includes(unit.id)}
+                          onChange={() => handleSelectUnit(unit.id)}
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {unit.title}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Порядок: {unit.order_index}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getLevelBadge(unit.level)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(unit.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(unit.publish_at)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-wrap gap-1 text-xs">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+                            {unit.content_count.videos} видео
+                          </span>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800">
+                            {unit.content_count.tasks} заданий
+                          </span>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-purple-100 text-purple-800">
+                            {unit.content_count.tests} тестов
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(unit.updated_at)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <Link
+                            to={`/admin/units/${unit.id}`}
+                            className="text-primary-600 hover:text-primary-900"
+                            title="Просмотр"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                          <Link
+                            to={`/admin/units/${unit.id}/edit`}
+                            className="text-gray-600 hover:text-gray-900"
+                            title="Редактировать"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Link>
+                          <button
+                            className="text-gray-600 hover:text-gray-900"
+                            title="Дублировать"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUnit(unit.id, unit.title)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Удалить"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-12 px-4 text-center">
+            <Archive className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-3 text-sm font-medium text-gray-900">
+              {searchQuery || selectedLevel || selectedStatus
+                ? 'Нет результатов'
+                : 'Нет юнитов'}
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || selectedLevel || selectedStatus 
+              {searchQuery || selectedLevel || selectedStatus
                 ? 'Попробуйте изменить параметры поиска или фильтры.'
-                : 'Начните с создания первого юнита.'
-              }
+                : 'Начните с создания первого юнита.'}
             </p>
             {!searchQuery && !selectedLevel && !selectedStatus && (
               <div className="mt-6">
                 <Link
                   to="/admin/units/new"
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+                  className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Создать юнит
@@ -555,7 +571,7 @@ export default function AdminUnitsPage() {
             )}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

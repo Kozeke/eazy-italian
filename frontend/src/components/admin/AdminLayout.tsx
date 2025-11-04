@@ -1,20 +1,28 @@
+/**
+ * Admin Layout Component
+ * 
+ * Instructor dashboard layout with sidebar navigation for admin/instructor pages.
+ * Provides consistent navigation structure with teaching tools, search functionality,
+ * and quick actions. Matches instructor dashboard style.
+ */
+
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useAuth } from '../../hooks/useAuth';
-import { 
-  LayoutDashboard, 
-  BookOpen, 
-  Video, 
-  FileText, 
-  ClipboardList, 
-  Database, 
-  Users, 
-  Mail, 
-  BarChart3, 
-  TrendingUp, 
-  Settings, 
+import {
+  LayoutDashboard,
+  BookOpen,
+  Video,
+  FileText,
+  ClipboardList,
+  Database,
+  Users,
+  Mail,
+  BarChart3,
+  TrendingUp,
+  Settings,
   FileText as AuditLog,
   Search,
   Bell,
@@ -22,11 +30,13 @@ import {
   LogOut,
   Menu,
   X,
-  Plus
+  Plus,
+  GraduationCap,
 } from 'lucide-react';
 
 interface AdminLayoutProps {}
 
+// Navigation items for instructor/admin panel
 const navigation = [
   { name: 'dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'units', href: '/admin/units', icon: BookOpen },
@@ -47,14 +57,18 @@ export default function AdminLayout({}: AdminLayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  // Sidebar open/close state for mobile
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Search query state for quick search functionality
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Handle user logout and redirect to login
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  // Handle quick search on Enter key press
   const handleQuickSearch = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
       // Implement quick search functionality
@@ -62,8 +76,8 @@ export default function AdminLayout({}: AdminLayoutProps) {
     }
   };
 
+  // Handle new item creation based on current route context
   const handleNewItem = () => {
-    // Implement new item creation based on current route
     const currentPath = location.pathname;
     if (currentPath.includes('/units')) {
       navigate('/admin/units/new');
@@ -74,149 +88,181 @@ export default function AdminLayout({}: AdminLayoutProps) {
     }
   };
 
+  // Check if navigation item is active based on current route
+  const isActive = (href: string) =>
+    location.pathname === href ||
+    (href !== '/admin' && location.pathname.startsWith(href));
+
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-slate-50 flex">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         >
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-75" />
+          <div className="fixed inset-0 bg-gray-900/40" />
         </div>
       )}
 
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:inset-0 flex flex-col ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      }`}>
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center">
-            <BookOpen className="w-8 h-8 text-primary-600" />
-            <span className="ml-2 text-xl font-bold text-gray-900">Eazy Italian</span>
+      {/* Sidebar – instructor panel style */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white/95 backdrop-blur shadow-lg ring-1 ring-slate-100 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:inset-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        <div className="flex h-16 flex-shrink-0 items-center justify-between border-b border-slate-200 px-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-600 to-primary-400 text-white shadow-sm">
+              <GraduationCap className="h-5 w-5" />
+            </div>
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-bold text-slate-900">Eazy Italian</span>
+              <span className="text-[11px] font-medium uppercase tracking-wide text-primary-500">
+                Instructor
+              </span>
+            </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1 rounded-md text-gray-400 hover:text-gray-600"
+            className="lg:hidden rounded-md p-1 text-slate-400 hover:text-slate-600"
           >
-            <X className="w-6 h-6" />
+            <X className="h-6 w-6" />
           </button>
         </div>
 
-        <nav className="flex-1 mt-6 px-3 overflow-y-auto">
+        <nav className="mt-4 flex-1 overflow-y-auto px-2 pb-4">
+          <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            {t('admin.nav.sectionMain') || 'Teaching tools'}
+          </p>
           <div className="space-y-1">
-            {navigation.map((item) => {
-              const isActive = location.pathname === item.href || 
-                (item.href !== '/admin' && location.pathname.startsWith(item.href));
-              
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`group flex items-center px-3 py-3 text-sm font-medium rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={`group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive(item.href)
+                    ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-200'
+                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <item.icon
+                  className={`mr-3 h-5 w-5 flex-shrink-0 ${
+                    isActive(item.href)
+                      ? 'text-primary-600'
+                      : 'text-slate-400 group-hover:text-slate-500'
                   }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <item.icon className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                    isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'
-                  }`} />
-                  <span className="truncate">{t(`admin.nav.${item.name}`)}</span>
-                </Link>
-              );
-            })}
+                />
+                <span className="truncate">{t(`admin.nav.${item.name}`)}</span>
+              </Link>
+            ))}
           </div>
         </nav>
-      </div>
+
+        {/* Sidebar bottom – small hint */}
+        <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-400">
+          {t('admin.footer.hint') ||
+            'Manage your content, students and analytics from this instructor panel.'}
+        </div>
+      </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <div className="sticky top-0 z-30 bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Top bar – like an instructor dashboard header */}
+        <header className="sticky top-0 z-30 flex flex-shrink-0 items-center border-b border-slate-200 bg-white/95 backdrop-blur shadow-sm">
+          <div className="flex w-full items-center justify-between px-4 sm:px-6 lg:px-8 h-14 sm:h-16">
             {/* Left side */}
-            <div className="flex items-center flex-1">
+            <div className="flex flex-1 items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 mr-2"
+                className="lg:hidden rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               >
-                <Menu className="w-6 h-6" />
+                <Menu className="h-5 w-5" />
               </button>
-              
-              {/* Search */}
+
+              {/* Quick search */}
               <div className="flex-1 max-w-lg">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     placeholder={t('admin.search.placeholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={handleQuickSearch}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full rounded-full border border-slate-200 bg-slate-50 px-9 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
                   />
                 </div>
               </div>
             </div>
 
             {/* Right side */}
-            <div className="flex items-center space-x-4">
+            <div className="ml-4 flex items-center gap-3">
               {/* Quick actions */}
               <button
                 onClick={handleNewItem}
-                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-primary-600 px-3 py-1.5 text-xs sm:text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="h-4 w-4" />
                 {t('admin.actions.new')}
               </button>
 
               {/* Notifications */}
-              <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md">
-                <Bell className="w-5 h-5" />
+              <button className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+                <Bell className="h-4 w-4" />
               </button>
 
               {/* Language Switcher */}
-              <div className="relative">
-                <button 
-                  onClick={() => {
-                    const currentLang = i18n.language;
-                    const newLang = currentLang === 'ru' ? 'en' : 'ru';
-                    i18n.changeLanguage(newLang);
-                  }}
-                  className="flex items-center space-x-2 p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                  title={i18n.language === 'ru' ? 'Switch to English' : 'Переключиться на русский'}
-                >
-                  <span className="text-sm font-medium">
-                    {i18n.language === 'ru' ? '🇷🇺 RU' : '🇺🇸 EN'}
-                  </span>
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  const currentLang = i18n.language;
+                  const newLang = currentLang === 'ru' ? 'en' : 'ru';
+                  i18n.changeLanguage(newLang);
+                }}
+                className="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                title={
+                  i18n.language === 'ru'
+                    ? 'Switch to English'
+                    : 'Переключиться на русский'
+                }
+              >
+                <span>{i18n.language === 'ru' ? '🇷🇺 RU' : '🇺🇸 EN'}</span>
+              </button>
 
-              {/* Profile dropdown */}
-              <div className="relative">
-                <button className="flex items-center space-x-2 p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md">
-                  <User className="w-5 h-5" />
-                  <span className="text-sm font-medium">{user?.first_name} {user?.last_name}</span>
-                </button>
+              {/* Profile bubble */}
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                  {user?.first_name?.[0]}
+                  {user?.last_name?.[0]}
+                </div>
+                <div className="hidden sm:flex flex-col leading-tight">
+                  <span className="text-xs font-medium text-slate-900">
+                    {user?.first_name} {user?.last_name}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {t('admin.role') || 'Instructor'}
+                  </span>
+                </div>
               </div>
 
               {/* Logout */}
               <button
                 onClick={handleLogout}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                 title={t('nav.logout')}
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="h-4 w-4" />
               </button>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
-          <Outlet />
+        {/* Page content – centered, like course management pages */}
+        <main className="flex-1 overflow-auto">
+          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
