@@ -8,6 +8,7 @@ from app.core.auth import get_current_user
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserLogin, Token, UserResponse
 from app.core.config import settings
+from app.models.subscription import Subscription, UserSubscription
 
 router = APIRouter()
 
@@ -35,6 +36,21 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    # 🔥 Attach FREE subscription
+    free_sub = db.query(Subscription).filter(
+        Subscription.name == "free"
+    ).first()
+
+    if not free_sub:
+        raise HTTPException(500, "Free subscription not found")
+
+    db.add(UserSubscription(
+        user_id=db_user.id,
+        subscription_id=free_sub.id,
+        is_active=True
+    ))
+
+    db.commit()
     
     return db_user
 

@@ -265,3 +265,38 @@ export interface TokenResponse {
   access_token: string;
   token_type: string;
 }
+
+export interface Student {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  is_active: boolean;
+}
+
+export interface GradeRow {
+  attempt_id: number;
+  student: string;
+  unit: string;
+  test: string;
+  score: number | null;
+  passing_score: number;
+  passed: boolean;
+  status: string;
+  submitted_at: string | null;
+}
+
+export interface GradeDetail {
+  attempt_id: number;
+  score: number | null;
+  detail: {
+    questions: Array<{
+      question_id: number;
+      prompt: string;
+      student_answer: any;
+      correct_answer: any;
+      is_correct: boolean;
+      points?: number;
+    }>;
+  };
+}

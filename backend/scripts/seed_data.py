@@ -17,38 +17,95 @@ from app.models.task import Task, TaskType, TaskStatus
 from app.models.test import Test, TestStatus
 from app.core.security import get_password_hash
 from datetime import datetime, timedelta
+from app.models.subscription import Subscription, SubscriptionLevel, UserSubscription
+
+
+def get_or_create_user(db, email, defaults):
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        return user
+    user = User(email=email, **defaults)
+    db.add(user)
+    db.flush()
+    return user
+
+def get_or_create_subscription(db, name, price):
+    sub = db.query(Subscription).filter(Subscription.name == name).first()
+    if sub:
+        return sub
+    sub = Subscription(name=name, price=price)
+    db.add(sub)
+    db.flush()
+    return sub
+
 
 def create_demo_data():
     db = SessionLocal()
     
     try:
+        # Create subscriptions
+        free = Subscription(name="free", price=0)
+        premium = Subscription(name="premium", price=19.99)
+        pro = Subscription(name="pro", price=29.99)
+
+        db.add_all([free, premium, pro])
+        db.flush()
+
+        levels = ["A1", "A2", "B1", "B2", "C1", "C2"]
+
+        # FREE → A1 only
+        db.add(SubscriptionLevel(subscription_id=free.id, level="A1"))
+
+        # PREMIUM & PRO → all levels
+        for lvl in levels:
+            db.add(SubscriptionLevel(subscription_id=premium.id, level=lvl))
+            db.add(SubscriptionLevel(subscription_id=pro.id, level=lvl))
+
         # Create demo teacher
-        teacher = User(
+        teacher = get_or_create_user(
+            db,
             email="teacher@eazyitalian.com",
-            first_name="Анна",
-            last_name="Иванова",
-            role=UserRole.TEACHER,
-            password_hash=get_password_hash("password123"),
-            email_verified_at=datetime.utcnow(),
-            locale="ru",
-            is_active=True
+            defaults=dict(
+                first_name="Анна",
+                last_name="Иванова",
+                role=UserRole.TEACHER,
+                password_hash=get_password_hash("password123"),
+                email_verified_at=datetime.utcnow(),
+                locale="ru",
+                is_active=True
+            )
         )
-        db.add(teacher)
-        db.flush()  # Get the ID
+
         
         # Create demo student
-        student = User(
+        
+        student = get_or_create_user(
+            db,
             email="student@eazyitalian.com",
-            first_name="Михаил",
-            last_name="Петров",
-            role=UserRole.STUDENT,
-            password_hash=get_password_hash("password123"),
-            email_verified_at=datetime.utcnow(),
-            locale="ru",
-            is_active=True
+            defaults=dict(
+                first_name="Михаил",
+                last_name="Петров",
+                role=UserRole.STUDENT,
+                password_hash=get_password_hash("password123"),
+                email_verified_at=datetime.utcnow(),
+                locale="ru",
+                is_active=True
+            )
         )
-        db.add(student)
-        db.flush()
+
+
+        existing = db.query(UserSubscription).filter(
+            UserSubscription.user_id == student.id
+        ).first()
+
+        if not existing:
+            db.add(UserSubscription(
+                user_id=student.id,
+                subscription_id=free.id,
+                is_active=True
+            ))
+
+
         
         # Create demo units
         units = [

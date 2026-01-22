@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -19,7 +19,7 @@ import {
   UserCheck,
   UserX
 } from 'lucide-react';
-
+import { progressApi, usersApi } from '../../services/api';
 // Mock data - replace with actual API calls
 const mockStudents = [
   {
@@ -74,7 +74,9 @@ const mockStudents = [
 
 const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const statuses = ['active', 'inactive', 'suspended', 'graduated'];
-const subscriptionTypes = ['basic', 'premium', 'enterprise'];
+const subscriptionTypes = ['free', 'premium', 'pro'];
+
+
 
 export default function AdminStudentsPage() {
   const { t } = useTranslation();
@@ -97,6 +99,53 @@ export default function AdminStudentsPage() {
       setSortDirection('asc');
     }
   };
+  useEffect(() => {
+    progressApi.getStudentsProgress()
+      .then((data) => {
+        const normalized = data.map((s: any) => ({
+          id: s.id,
+          firstName: s.first_name,
+          lastName: s.last_name,
+          email: s.email,
+          phone: '—',
+          level: '—',
+          status: s.is_active ? 'active' : 'inactive',
+          registrationDate: s.created_at,
+          lastLogin: null,
+  
+          // 🔥 REAL PROGRESS
+          completedUnits: s.passed_tests,
+          averageScore: s.progress_percent,
+          totalPoints: `${s.passed_tests}/${s.total_tests}`,
+  
+          subscriptionType: s.subscription,
+          subscriptionExpiry: s.subscription_ends_at ?? null,
+        }));
+  
+        setStudents(normalized);
+      })
+      .catch(console.error);
+  }, []);
+  
+  const changeSubscription = async (studentId: number, subscription: string) => {
+    try {
+      await usersApi.changeSubscription(studentId, subscription);
+  
+      // Optimistic UI update (optional but nice)
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === studentId
+            ? { ...s, subscriptionType: subscription }
+            : s
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось изменить подписку');
+    }
+  };
+  
+  
 
   const handleSelectAll = () => {
     if (selectedStudents.length === students.length) {
@@ -155,12 +204,13 @@ export default function AdminStudentsPage() {
 
   const getSubscriptionBadge = (type: string) => {
     const subscriptionConfig = {
-      basic: { color: 'bg-gray-100 text-gray-800', label: 'Базовый' },
+      free: { color: 'bg-gray-100 text-gray-800', label: 'Бесплатный' },
       premium: { color: 'bg-yellow-100 text-yellow-800', label: 'Премиум' },
-      enterprise: { color: 'bg-indigo-100 text-indigo-800', label: 'Корпоративный' }
+      pro: { color: 'bg-indigo-100 text-indigo-800', label: 'Pro' },
     };
     
-    const config = subscriptionConfig[type as keyof typeof subscriptionConfig] || subscriptionConfig.basic;
+    
+    const config = subscriptionConfig[type as keyof typeof subscriptionConfig] || subscriptionConfig.free;
     
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
@@ -296,8 +346,9 @@ export default function AdminStudentsPage() {
                     <option value="">Все типы</option>
                     {subscriptionTypes.map(type => (
                       <option key={type} value={type}>
-                        {type === 'basic' ? 'Базовый' :
-                         type === 'premium' ? 'Премиум' : 'Корпоративный'}
+                        {type === 'free' ? 'Бесплатный'
+                          : type === 'premium' ? 'Премиум'
+                          : 'Pro'}
                       </option>
                     ))}
                   </select>
@@ -427,7 +478,7 @@ export default function AdminStudentsPage() {
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
                           <span className="text-sm font-medium text-gray-700">
-                            {student.firstName[0]}{student.lastName[0]}
+                          {student.firstName?.[0] ?? '?'}{student.lastName?.[0] ?? '?'}
                           </span>
                         </div>
                       </div>
@@ -461,15 +512,23 @@ export default function AdminStudentsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {student.completedUnits} уроков
+                      Тесты: {student.totalPoints}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {student.averageScore}% | {student.totalPoints} баллов
+                      Прогресс: {student.averageScore}%
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      {getSubscriptionBadge(student.subscriptionType)}
+                    <select
+                        value={student.subscriptionType}
+                        onChange={(e) => changeSubscription(student.id, e.target.value)}
+                        className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+                      >
+                        <option value="free">Бесплатный</option>
+                        <option value="premium">Премиум</option>
+                        <option value="pro">Pro</option>
+                      </select>
                       <div className="text-xs text-gray-500 mt-1">
                         До: {new Date(student.subscriptionExpiry).toLocaleDateString('ru-RU')}
                       </div>

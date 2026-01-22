@@ -21,12 +21,3 @@ def update_current_user(
     user_service = UserService(db)
     return user_service.update_user(current_user.id, user_update)
 
-@router.get("/students", response_model=list[UserResponse])
-def get_students(
-    current_user: User = Depends(get_current_teacher),
-    db: Session = Depends(get_db),
-    skip: int = 0,
-    limit: int = 100
-):
-    user_service = UserService(db)
-    return user_service.get_students(skip=skip, limit=limit)

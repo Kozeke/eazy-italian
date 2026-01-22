@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Play, Clock, CheckCircle, Search } from 'lucide-react';
-import { unitsApi } from '../services/api';
+import { unitsApi, testsApi  } from '../services/api';
 import toast from 'react-hot-toast';
 
 export default function UnitsPage() {
@@ -20,6 +20,7 @@ export default function UnitsPage() {
   const [loading, setLoading] = useState(true);
   // Search term for filtering units by title or description
   const [searchTerm, setSearchTerm] = useState('');
+  const [unitProgress, setUnitProgress] = useState<Record<number, number>>({});
 
   // Fetch units from API on component mount
   useEffect(() => {
@@ -39,7 +40,55 @@ export default function UnitsPage() {
 
     fetchUnits();
   }, []);
-
+  useEffect(() => {
+    if (!units.length) return;
+  
+    const calculateProgress = async () => {
+      const progressMap: Record<number, number> = {};
+  
+      for (const unit of units) {
+        try {
+          // 1. Load tests for unit
+          const testsData = await testsApi.getTests({ unit_id: unit.id });
+          const tests = testsData?.items || testsData || [];
+  
+          if (!tests.length) {
+            progressMap[unit.id] = 0;
+            continue;
+          }
+  
+          // 2. Load attempts for each test
+          let passed = 0;
+  
+          const attempts = await Promise.all(
+            tests.map((test: any) =>
+              testsApi.getTestAttempts(test.id)
+            )
+          );
+  
+          attempts.forEach((res) => {
+            if (res.attempts?.some((a: any) => a.passed === true)) {
+              passed++;
+            }
+          });
+  
+          // 3. Calculate %
+          progressMap[unit.id] = Math.round(
+            (passed / tests.length) * 100
+          );
+        } catch (err) {
+          console.error('Progress error for unit', unit.id, err);
+          progressMap[unit.id] = 0;
+        }
+      }
+  
+      setUnitProgress(progressMap);
+    };
+  
+    calculateProgress();
+  }, [units]);
+  
+  
   // Get badge styling for language level (A1-C2)
   const getLevelBadge = (level: string) => {
     // Color mapping for different CEFR levels
@@ -192,7 +241,7 @@ export default function UnitsPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <CheckCircle className="w-4 h-4 text-emerald-500" />
-                      <span>0% завершено</span>
+                      <span>{unitProgress[unit.id] ?? 0}% завершено</span>
                     </div>
                   </div>
                 </div>

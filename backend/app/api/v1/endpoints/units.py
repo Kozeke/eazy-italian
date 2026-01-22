@@ -449,18 +449,39 @@ async def get_unit_summary(
     )
 
 # Keep existing endpoints for backward compatibility
-@router.get("/units", response_model=List[UnitResponse])
+from app.core.subscription_guard import user_can_access_unit
+
+@router.get("/units", response_model=List[UnitListResponse])
 def get_units(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     units = db.query(Unit).filter(
-        and_(
-            Unit.is_visible_to_students == True,
-            Unit.status == UnitStatus.PUBLISHED
-        )
+        Unit.is_visible_to_students == True,
+        Unit.status == UnitStatus.PUBLISHED
     ).order_by(Unit.order_index).all()
-    return units
+
+    result = []
+    for unit in units:
+        if not user_can_access_unit(db, current_user.id, unit):
+            continue
+
+        result.append(UnitListResponse(
+            id=unit.id,
+            title=unit.title,
+            level=unit.level,
+            status=unit.status,
+            publish_at=unit.publish_at,
+            order_index=unit.order_index,
+            created_by=unit.created_by,
+            created_at=unit.created_at,
+            updated_at=unit.updated_at,
+            content_count=unit.content_count
+        ))
+
+    return result
+
+
 
 @router.get("/units/{unit_id}", response_model=UnitResponse)
 def get_unit_detail(
@@ -469,12 +490,16 @@ def get_unit_detail(
     db: Session = Depends(get_db)
 ):
     unit = db.query(Unit).filter(
-        and_(
-            Unit.id == unit_id,
-            Unit.is_visible_to_students == True,
-            Unit.status == UnitStatus.PUBLISHED
-        )
+        Unit.id == unit_id,
+        Unit.is_visible_to_students == True,
+        Unit.status == UnitStatus.PUBLISHED
     ).first()
+
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
+
+    if not user_can_access_unit(db, current_user.id, unit):
+        raise HTTPException(status_code=403, detail="Subscription required")
+
     return unit
+

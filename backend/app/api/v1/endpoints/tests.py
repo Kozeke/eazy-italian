@@ -606,7 +606,17 @@ def submit_test(
             # Auto-grade based on question type
             if q.type.value == 'multiple_choice':
                 correct_ids = q.correct_answer.get('correct_option_ids', [])
-                if student_answer == correct_ids or (isinstance(student_answer, list) and set(student_answer) == set(correct_ids)):
+                # Normalize student_answer to a list for comparison
+                # Frontend sends single selection as a string, multiple as an array
+                if isinstance(student_answer, str):
+                    student_answer_list = [student_answer]
+                elif isinstance(student_answer, list):
+                    student_answer_list = student_answer
+                else:
+                    student_answer_list = []
+                
+                # Compare sets to handle order differences
+                if set(student_answer_list) == set(correct_ids):
                     is_correct = True
                     points_earned = tq.points
             

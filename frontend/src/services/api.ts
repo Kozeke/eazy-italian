@@ -12,8 +12,10 @@ import {
   LoginCredentials,
   RegisterData,
   TokenResponse,
-
-  PaginatedResponse
+  GradeRow, 
+  GradeDetail,
+  PaginatedResponse,
+  Student
 } from '../types';
 
 // Get API base URL from environment variables
@@ -202,7 +204,6 @@ export const tasksApi = {
     return response.data;
   },
 
-  // Student endpoints
   getTasks: async (params?: any): Promise<Task[]> => {
     const response: AxiosResponse<Task[]> = await api.get('/tasks', { params });
     return response.data;
@@ -219,6 +220,20 @@ export const tasksApi = {
   },
 };
 
+// Student endpoints
+export const usersApi = {
+  getStudents: async (): Promise<Student[]> => {
+    const response: AxiosResponse<Student[]> =
+      await api.get('/students/admin/students');
+  
+    return response.data;
+  },
+  changeSubscription: async (studentId: number, subscription: string) => {
+    await api.put(`/students/${studentId}/subscription`, {
+      subscription,
+    });
+  },
+};
 // Tests API
 export const testsApi = {
   getTests: async (params?: any): Promise<PaginatedResponse<Test>> => {
@@ -315,6 +330,11 @@ export const questionsApi = {
 
 // Progress API
 export const progressApi = {
+  getStudentsProgress: async () => {
+    const response = await api.get('/progress/students');
+    return response.data;
+  },
+  
   getProgress: async (): Promise<Progress[]> => {
     const response: AxiosResponse<Progress[]> = await api.get('/progress');
     return response.data;
@@ -357,6 +377,74 @@ export const emailCampaignsApi = {
     return response.data;
   },
 };
+
+// Grades API=
+
+export const gradesApi = {
+  getGrades: async (params: {
+    page?: number;
+    page_size?: number;
+    sort_by?: string;
+    sort_dir?: 'asc' | 'desc';
+  }) => {
+    const res = await api.get('grades/admin/grades', {
+      params, // 🔥 THIS WAS MISSING
+    });
+    return res.data;
+  },
+  
+  
+  getGradeDetail: async (attemptId: number): Promise<GradeDetail> => {
+    const response: AxiosResponse<GradeDetail> =
+      await api.get(`grades/admin/grades/${attemptId}`);
+  
+    return response.data;
+  },  
+};
+
+// Student Tests API
+export const studentTestsApi = {
+  // 1️⃣ List available tests for student
+  getTests: async (): Promise<Test[]> => {
+    const response: AxiosResponse<Test[]> =
+      await api.get('/student/tests');
+    return response.data;
+  },
+
+  // 2️⃣ Get single test details (student view)
+  getTest: async (id: number): Promise<Test> => {
+    const response: AxiosResponse<Test> =
+      await api.get(`/student/tests/${id}`);
+    return response.data;
+  },
+
+  // 6️⃣ Get attempt history
+  getTestAttempts: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> =
+      await api.get(`/student/tests/${id}/attempts`);
+    return response.data;
+  },
+
+  // 2️⃣ Start test attempt
+  startTest: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> =
+      await api.post(`/student/tests/${id}/start`);
+    return response.data;
+  },
+
+  // 4️⃣ Submit test
+  submitTest: async (
+    id: number,
+    answers: Record<string, any>
+  ): Promise<any> => {
+    const response: AxiosResponse<any> =
+      await api.post(`/student/tests/${id}/submit`, {
+        answers,
+      });
+    return response.data;
+  },
+};
+
 
 export default api;
 

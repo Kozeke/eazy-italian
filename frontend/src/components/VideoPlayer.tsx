@@ -30,14 +30,14 @@ export default function VideoPlayer({ video, width = "100%", height = "400px" }:
 
     return (
       <iframe
-        width={width}
-        height={height}
+        width="100%"
+        height="100%"
         src={`https://www.youtube.com/embed/${videoId}`}
         title={video.title}
         frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
-        className="rounded-lg"
+        className="w-full h-full"
       />
     );
   };
@@ -45,10 +45,10 @@ export default function VideoPlayer({ video, width = "100%", height = "400px" }:
   const renderFilePlayer = (filePath: string) => {
     return (
       <video
-        width={width}
-        height={height}
+        width="100%"
+        height="100%"
         controls
-        className="rounded-lg"
+        className="w-full h-full"
       >
         <source src={filePath} type="video/mp4" />
         <source src={filePath} type="video/webm" />
@@ -58,26 +58,18 @@ export default function VideoPlayer({ video, width = "100%", height = "400px" }:
     );
   };
 
+  // Render video player only (title/description are handled by parent component)
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">{video.title}</h3>
-        {video.description && (
-          <p className="text-sm text-gray-600 mb-4">{video.description}</p>
-        )}
-      </div>
-      
-      <div className="bg-black rounded-lg overflow-hidden">
-        {video.source_type === 'url' && video.external_url ? (
-          renderYouTubePlayer(video.external_url)
-        ) : video.source_type === 'file' && video.file_path ? (
-          renderFilePlayer(video.file_path)
-        ) : (
-          <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg" style={{ height }}>
-            <p className="text-gray-500">Видео недоступно</p>
-          </div>
-        )}
-      </div>
+    <div className="w-full h-full">
+      {video.source_type === 'url' && video.external_url ? (
+        renderYouTubePlayer(video.external_url)
+      ) : video.source_type === 'file' && video.file_path ? (
+        renderFilePlayer(video.file_path)
+      ) : (
+        <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg" style={{ height }}>
+          <p className="text-gray-500">Видео недоступно</p>
+        </div>
+      )}
     </div>
   );
 }

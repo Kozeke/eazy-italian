@@ -24,6 +24,34 @@ export default function UnitDetailPage() {
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
+  const [passedTests, setPassedTests] = useState(0);
+  useEffect(() => {
+    if (!tests.length) return;
+  
+    const fetchProgress = async () => {
+      try {
+        let passed = 0;
+  
+        const results = await Promise.all(
+          tests.map(test => testsApi.getTestAttempts(test.id))
+        );
+  
+        results.forEach(res => {
+          if (res.attempts?.some((a: any) => a.passed === true)) {
+            passed++;
+          }
+        });
+  
+        setPassedTests(passed);
+      } catch (err) {
+        console.error('Failed to load test progress', err);
+      }
+    };
+  
+    fetchProgress();
+  }, [tests]);
+  
+  
 
   useEffect(() => {
     const fetchUnit = async () => {
@@ -114,7 +142,10 @@ export default function UnitDetailPage() {
   const estimatedMinutes = Math.max(1, totalVideos) * 10; // как в UnitsPage
   const tasksCount = tasks.length;
   const testsCount = tests.length;
-
+  const progressPercent =
+  testsCount === 0
+    ? 0
+    : Math.round((passedTests / testsCount) * 100);
   return (
       <div className="space-y-6">
       {/* Back + mini header */}
@@ -210,20 +241,24 @@ export default function UnitDetailPage() {
           {/* Video player area */}
           <div className="bg-white rounded-xl shadow">
             {selectedVideo ? (
-              <div className="space-y-3">
-                <div className="aspect-video w-full bg-black rounded-t-xl overflow-hidden">
-                <VideoPlayer video={selectedVideo} />
-              </div>
-                <div className="p-4 md:p-5 border-t border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <div className="space-y-4">
+                {/* Video title OUTSIDE player */}
+                <div className="px-4 pt-4">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 flex items-center">
                     <Play className="w-4 h-4 mr-2 text-primary-600" />
                     {selectedVideo.title}
                   </h2>
+
                   {selectedVideo.description && (
                     <p className="mt-1 text-sm text-gray-600">
                       {selectedVideo.description}
                     </p>
                   )}
+                </div>
+
+                {/* Pure video frame */}
+                <div className="aspect-video w-full bg-black overflow-hidden rounded-b-xl">
+                  <VideoPlayer video={selectedVideo} />
                 </div>
               </div>
             ) : (
@@ -441,21 +476,25 @@ export default function UnitDetailPage() {
                   0 / {tasksCount}
                 </span>
                 </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Пройдено тестов</span>
-                <span className="font-medium text-gray-900">
-                  0 / {testsCount}
-                </span>
-                </div>
+                <div className="flex items-center justify-between text-sm">
+  <span className="text-gray-600">Пройдено тестов</span>
+  <span className="font-medium text-gray-900">
+    {passedTests} / {testsCount}
+  </span>
+</div>
 
-              <div className="mt-3">
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="h-2 rounded-full bg-primary-500" style={{ width: '0%' }} />
-                </div>
-                <p className="mt-1 text-xs text-gray-400">
-                  Позже сюда можно вывести реальный процент завершения.
-                </p>
-              </div>
+<div className="mt-3">
+  <div className="w-full bg-gray-200 rounded-full h-2">
+    <div
+      className="h-2 rounded-full bg-primary-500 transition-all"
+      style={{ width: `${progressPercent}%` }}
+    />
+  </div>
+  <p className="mt-1 text-xs text-gray-400">
+    Завершено на {progressPercent}%
+  </p>
+</div>
+
               </div>
             </div>
           </div>

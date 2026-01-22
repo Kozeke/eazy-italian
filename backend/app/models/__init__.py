@@ -5,6 +5,7 @@ from .task import Task, TaskSubmission
 from .test import Test, TestQuestion, TestAttempt, Question
 from .progress import Progress
 from .email import EmailCampaign, EmailLog
+from .subscription import Subscription, SubscriptionLevel, UserSubscription
 
 __all__ = [
     "User",
@@ -18,5 +19,8 @@ __all__ = [
     "Question",
     "Progress",
     "EmailCampaign",
-    "EmailLog"
+    "EmailLog",
+    "Subscription",
+    "SubscriptionLevel",
+    "UserSubscription",
 ]
