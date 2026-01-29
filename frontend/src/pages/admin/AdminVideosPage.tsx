@@ -7,17 +7,18 @@ import {
   Filter, 
   Edit, 
   Trash2, 
-  Eye, 
   Video,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Youtube
 } from 'lucide-react';
 import { videosApi } from '../../services/api';
 import toast from 'react-hot-toast';
+import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 
 const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-const statuses = ['draft', 'published', 'scheduled', 'archived'];
 
 export default function AdminVideosPage() {
   const { t } = useTranslation();
@@ -26,14 +27,20 @@ export default function AdminVideosPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedVideos, setSelectedVideos] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 9;
   
   // Load videos on mount
   useEffect(() => {
     loadVideos();
   }, []);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedLevel]);
   
   const loadVideos = async () => {
     try {
@@ -41,6 +48,16 @@ export default function AdminVideosPage() {
       const videosData = await videosApi.getAdminVideos({ limit: 100 });
       setVideos(videosData || []);
       console.log('Loaded videos:', videosData?.length);
+      // Debug: Log thumbnail paths
+      videosData?.forEach((video: any) => {
+        if (video.thumbnail_path) {
+          const thumbnailUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/${video.thumbnail_path}`;
+          console.log(`Video ${video.id} thumbnail:`, {
+            path: video.thumbnail_path,
+            fullUrl: thumbnailUrl
+          });
+        }
+      });
     } catch (error) {
       console.error('Error loading videos:', error);
       toast.error('Ошибка при загрузке видео');
@@ -66,29 +83,20 @@ export default function AdminVideosPage() {
     setSelectedVideos([]);
   };
 
-  const handleDeleteVideo = (videoId: number) => {
-    if (window.confirm('Вы уверены, что хотите удалить это видео?')) {
-      // TODO: call API for delete
-      setVideos(prev => prev.filter(video => video.id !== videoId));
-      toast.success('Видео удалено из списка');
+  const handleDeleteVideo = async (videoId: number) => {
+    if (!window.confirm('Вы уверены, что хотите удалить это видео? Это действие нельзя отменить.')) {
+      return;
     }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { color: 'bg-gray-100 text-gray-800', label: 'Черновик' },
-      published: { color: 'bg-green-100 text-green-800', label: 'Опубликовано' },
-      scheduled: { color: 'bg-blue-100 text-blue-800', label: 'Запланировано' },
-      archived: { color: 'bg-red-100 text-red-800', label: 'Архивировано' }
-    };
     
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
-      </span>
-    );
+    try {
+      await videosApi.deleteVideo(videoId);
+      // Remove from local state
+      setVideos(prev => prev.filter(video => video.id !== videoId));
+      toast.success('Видео успешно удалено');
+    } catch (error: any) {
+      console.error('Error deleting video:', error);
+      toast.error(error.response?.data?.detail || 'Ошибка при удалении видео');
+    }
   };
 
   const filteredVideos = videos.filter(video => {
@@ -98,9 +106,8 @@ export default function AdminVideosPage() {
 
     const matchesSearch = !query || title.includes(query) || description.includes(query);
     const matchesLevel = !selectedLevel || video.level === selectedLevel;
-    const matchesStatus = !selectedStatus || video.status === selectedStatus;
     
-    return matchesSearch && matchesLevel && matchesStatus;
+    return matchesSearch && matchesLevel;
   });
 
   const sortedVideos = [...filteredVideos].sort((a, b) => {
@@ -108,6 +115,13 @@ export default function AdminVideosPage() {
     const bValue = b.order_index || b.orderIndex || 0;
     return aValue - bValue;
   });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(sortedVideos.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedVideos = sortedVideos.slice(startIndex, endIndex);
+  const showPagination = sortedVideos.length > pageSize;
 
   if (loading) {
     return (
@@ -127,6 +141,7 @@ export default function AdminVideosPage() {
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
+              <Video className="h-6 w-6 text-primary-600" />
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
                 {t('admin.nav.videos') || 'Видео-уроки'}
               </h1>
@@ -154,88 +169,36 @@ export default function AdminVideosPage() {
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
         {/* Search & filters */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Поиск по названию или описанию"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 py-2 text-sm leading-5 placeholder-gray-500 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
+        <AdminSearchFilters
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Поиск по названию или описанию"
+          showFilters={showFilters}
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          filters={
+            <>
+              {/* Level */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Уровень
+                </label>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все уровни</option>
+                  {levels.map(level => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </div>
 
-            {/* Filter toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              Фильтры
-              {showFilters ? (
-                <ChevronUp className="h-4 w-4 ml-1" />
-              ) : (
-                <ChevronDown className="h-4 w-4 ml-1" />
-              )}
-            </button>
-          </div>
-
-          {/* Filters panel */}
-          {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Level */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Уровень
-                  </label>
-                  <select
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  >
-                    <option value="">Все уровни</option>
-                    {levels.map(level => (
-                      <option key={level} value={level}>
-                        {level}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Статус
-                  </label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  >
-                    <option value="">Все статусы</option>
-                    {statuses.map(status => (
-                      <option key={status} value={status}>
-                        {status === 'draft'
-                          ? 'Черновик'
-                          : status === 'published'
-                          ? 'Опубликовано'
-                          : status === 'scheduled'
-                          ? 'Запланировано'
-                          : 'Архивировано'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+            </>
+          }
+        />
 
         {/* Bulk actions bar */}
         {selectedVideos.length > 0 && (
@@ -278,47 +241,78 @@ export default function AdminVideosPage() {
 
         {/* Videos grid / empty state */}
         {sortedVideos.length > 0 ? (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sortedVideos.map((video) => (
+            {paginatedVideos.map((video) => (
               <div
                 key={video.id}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
                 {/* Thumbnail */}
-                <div className="relative h-44 bg-gray-200">
-                  {video.source_type === 'url' && video.external_url ? (
+                <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden group">
+                  {video.thumbnail_path ? (
+                    <img
+                      src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/${video.thumbnail_path}?t=${Date.now()}`}
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.error('Failed to load thumbnail:', {
+                          videoId: video.id,
+                          thumbnailPath: video.thumbnail_path,
+                          triedUrl: (e.target as HTMLImageElement).src
+                        });
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                      onLoad={() => {
+                        console.log('Thumbnail loaded successfully:', video.id, video.thumbnail_path);
+                      }}
+                    />
+                  ) : video.source_type === 'url' && video.external_url ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-red-500 to-red-600">
                       <Youtube className="w-14 h-14 text-white" />
                     </div>
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Video className="w-10 h-10 text-gray-400" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600">
+                      <Video className="w-12 h-12 text-white/80" />
                     </div>
                   )}
 
-                  <div className="absolute top-2 left-2">
+                  {/* Overlay gradient for better text visibility */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                  {/* Level badge */}
+                  <div className="absolute top-3 left-3 z-10">
                     {video.level && (
-                      <span className="inline-flex items-center rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
+                      <span className="inline-flex items-center rounded-lg bg-black/80 backdrop-blur-sm px-2.5 py-1 text-xs font-bold text-white shadow-lg">
                         {video.level}
                       </span>
                     )}
                   </div>
 
-                  <div className="absolute top-2 right-2 flex items-center gap-2">
+                  {/* Checkbox */}
+                  <div className="absolute top-3 right-3 z-10">
                     <input
                       type="checkbox"
                       checked={selectedVideos.includes(video.id)}
                       onChange={() => handleSelectVideo(video.id)}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 bg-white/90"
+                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 bg-white/95 shadow-md h-4 w-4"
                     />
                   </div>
 
+                  {/* Duration badge */}
                   {video.duration_sec && (
-                    <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded">
+                    <div className="absolute bottom-3 right-3 z-10 bg-black/90 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-lg shadow-lg">
                       {Math.floor(video.duration_sec / 60)}:
                       {(video.duration_sec % 60).toString().padStart(2, '0')}
                     </div>
                   )}
+
+                  {/* Play icon overlay on hover */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
+                      <Video className="w-8 h-8 text-white" />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Content */}
@@ -342,11 +336,10 @@ export default function AdminVideosPage() {
                           {video.unit_title}
                         </span>
                       )}
-                      {getStatusBadge(video.status)}
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800">
+                        Порядок: {video.order_index ?? 0}
+                      </span>
                     </div>
-                    <span className="text-gray-500">
-                      Порядок: {video.order_index || 0}
-                    </span>
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-gray-500">
@@ -364,14 +357,6 @@ export default function AdminVideosPage() {
                   {/* Actions */}
                   <div className="pt-2 flex items-center justify-between border-t border-gray-100">
                     <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => navigate(`/admin/videos/${video.id}`)}
-                        className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                        title="Просмотр"
-                      >
-                        <Eye className="w-3.5 h-3.5 mr-1" />
-                        Открыть
-                      </button>
                       <button
                         onClick={() => navigate(`/admin/videos/${video.id}/edit`)}
                         className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
@@ -393,20 +378,85 @@ export default function AdminVideosPage() {
               </div>
             ))}
           </div>
+
+          {/* Pagination */}
+          {showPagination && (
+            <div className="flex items-center justify-between px-4 py-4 bg-white rounded-2xl border border-gray-200">
+              <span className="text-sm text-gray-600">
+                Показано {startIndex + 1}–{Math.min(endIndex, sortedVideos.length)} из {sortedVideos.length}
+              </span>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Назад
+                </button>
+
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    // Show first page, last page, current page, and pages around current
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1)
+                    ) {
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                            currentPage === page
+                              ? 'bg-primary-600 text-white'
+                              : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    } else if (
+                      page === currentPage - 2 ||
+                      page === currentPage + 2
+                    ) {
+                      return (
+                        <span key={page} className="px-2 text-gray-500">
+                          ...
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Вперед
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-12 px-4 text-center">
             <Video className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-3 text-sm font-medium text-gray-900">
-              {searchQuery || selectedLevel || selectedStatus
+              {searchQuery || selectedLevel
                 ? 'Нет результатов'
                 : 'Нет видео'}
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || selectedLevel || selectedStatus
+              {searchQuery || selectedLevel
                 ? 'Попробуйте изменить параметры поиска или фильтры.'
                 : 'Начните с загрузки первого видео-урока.'}
             </p>
-            {!searchQuery && !selectedLevel && !selectedStatus && (
+            {!searchQuery && !selectedLevel && (
               <div className="mt-6">
                 <button
                   onClick={() => navigate('/admin/videos/new')}

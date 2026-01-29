@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { testsApi } from '../../services/api';
+import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 import { 
   Plus, 
   Search, 
@@ -15,7 +16,12 @@ import {
   Calendar,
   ClipboardList,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Clock,
+  Brain,
+  Percent,
+  Archive,
+  BookOpen
 } from 'lucide-react';
 
 // Mock data - replace with actual API calls
@@ -35,7 +41,10 @@ const mockTests = [
     averageScore: 78,
     dueDate: '2024-02-20T23:59:00Z',
     lastUpdated: '2024-01-10T10:30:00Z',
-    orderIndex: 1
+    createdAt: '2024-01-05T10:30:00Z',
+    orderIndex: 1,
+    course_id: 1,
+    course_title: 'Итальянский A1'
   },
   {
     id: 2,
@@ -52,7 +61,10 @@ const mockTests = [
     averageScore: 0,
     dueDate: null,
     lastUpdated: '2024-01-12T14:20:00Z',
-    orderIndex: 2
+    createdAt: '2024-01-12T14:20:00Z',
+    orderIndex: 2,
+    course_id: 1,
+    course_title: 'Итальянский A1'
   },
   {
     id: 3,
@@ -69,7 +81,10 @@ const mockTests = [
     averageScore: 0,
     dueDate: '2024-02-25T23:59:00Z',
     lastUpdated: '2024-01-08T09:15:00Z',
-    orderIndex: 3
+    createdAt: '2024-01-08T09:15:00Z',
+    orderIndex: 3,
+    course_id: 2,
+    course_title: 'Итальянский A2'
   }
 ];
 
@@ -86,9 +101,10 @@ export default function AdminTestsPage() {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [selectedTests, setSelectedTests] = useState<number[]>([]);
-  const [sortField, setSortField] = useState('orderIndex');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortField, setSortField] = useState('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   // Load tests from API
   useEffect(() => {
@@ -117,7 +133,10 @@ export default function AdminTestsPage() {
         averageScore: 0,
         dueDate: null,
         lastUpdated: test.updated_at || test.created_at,
+        createdAt: test.created_at || test.updated_at || new Date().toISOString(),
         orderIndex: test.order_index || 0,
+        course_id: test.course_id || null,
+        course_title: test.course_title || null,
       }));
       
       // If we have real tests from API, show them; otherwise show mock tests
@@ -166,9 +185,45 @@ export default function AdminTestsPage() {
     setSelectedTests([]);
   };
 
-  const handleDeleteTest = (testId: number) => {
-    if (window.confirm('Вы уверены, что хотите удалить этот тест?')) {
-      setTests(prev => prev.filter(test => test.id !== testId));
+  const handleDeleteTest = async (testId: number) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этот тест? Это действие нельзя отменить.')) {
+      return;
+    }
+
+    try {
+      await testsApi.deleteTest(testId);
+      toast.success('Тест успешно удален');
+      // Reload tests from API
+      await loadTests();
+    } catch (error: any) {
+      console.error('Error deleting test:', error);
+      toast.error(error.response?.data?.detail || 'Ошибка при удалении теста');
+    }
+  };
+
+  const toggleRow = (testId: number) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(testId)) {
+        newSet.delete(testId);
+      } else {
+        newSet.add(testId);
+      }
+      return newSet;
+    });
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Не указано';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('ru-RU', { 
+        day: 'numeric', 
+        month: 'short', 
+        year: 'numeric' 
+      });
+    } catch {
+      return 'Не указано';
     }
   };
 
@@ -251,6 +306,17 @@ export default function AdminTestsPage() {
     if (aValue === null) return 1;
     if (bValue === null) return -1;
     
+    // Special handling for date fields (createdAt, lastUpdated, dueDate)
+    if (sortField === 'createdAt' || sortField === 'lastUpdated' || sortField === 'dueDate') {
+      const aDate = new Date(aValue as string).getTime();
+      const bDate = new Date(bValue as string).getTime();
+      if (sortDirection === 'asc') {
+        return aDate - bDate;
+      } else {
+        return bDate - aDate;
+      }
+    }
+    
     if (sortDirection === 'asc') {
       return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
     } else {
@@ -259,128 +325,116 @@ export default function AdminTestsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {t('admin.nav.tests')}
-          </h1>
-          <p className="text-gray-600">
-            Управление тестами
-          </p>
-        </div>
-        <button
-          onClick={() => navigate('/admin/tests/new')}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Создать тест
-        </button>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Поиск по названию или описанию..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Sticky top bar */}
+      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-6 w-6 text-primary-600" />
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                {t('admin.nav.tests')}
+              </h1>
+              {tests.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  {tests.length} тестов
+                </span>
+              )}
             </div>
-
-            {/* Filter Toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              Фильтры
-              {showFilters ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
-            </button>
+            <p className="mt-1 text-xs md:text-sm text-gray-500">
+              Управляйте тестами и проверяйте знания студентов
+            </p>
           </div>
 
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Level Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Уровень
-                  </label>
-                  <select
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все уровни</option>
-                    {levels.map(level => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Status Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Статус
-                  </label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все статусы</option>
-                    {statuses.map(status => (
-                      <option key={status} value={status}>
-                        {status === 'draft' ? 'Черновик' : 
-                         status === 'published' ? 'Опубликовано' :
-                         status === 'scheduled' ? 'Запланировано' : 'Архивировано'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Type Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Тип
-                  </label>
-                  <select
-                    value={selectedType}
-                    onChange={(e) => setSelectedType(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все типы</option>
-                    {types.map(type => (
-                      <option key={type} value={type}>
-                        {type === 'grammar' ? 'Грамматика' :
-                         type === 'vocabulary' ? 'Лексика' :
-                         type === 'listening' ? 'Аудирование' :
-                         type === 'reading' ? 'Чтение' :
-                         type === 'writing' ? 'Письмо' : 'Говорение'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={() => navigate('/admin/tests/new')}
+            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Создать тест
+          </button>
         </div>
       </div>
 
-      {/* Bulk Actions */}
-      {selectedTests.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      {/* Main content */}
+      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
+
+        {/* Search and Filters */}
+        <AdminSearchFilters
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Поиск по названию или описанию..."
+          showFilters={showFilters}
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          filters={
+            <>
+              {/* Level Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Уровень
+                </label>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все уровни</option>
+                  {levels.map(level => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Статус
+                </label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все статусы</option>
+                  {statuses.map(status => (
+                    <option key={status} value={status}>
+                      {status === 'draft' ? 'Черновик' : 
+                       status === 'published' ? 'Опубликовано' :
+                       status === 'scheduled' ? 'Запланировано' : 'Архивировано'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Тип
+                </label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все типы</option>
+                  {types.map(type => (
+                    <option key={type} value={type}>
+                      {type === 'grammar' ? 'Грамматика' :
+                       type === 'vocabulary' ? 'Лексика' :
+                       type === 'listening' ? 'Аудирование' :
+                       type === 'reading' ? 'Чтение' :
+                       type === 'writing' ? 'Письмо' : 'Говорение'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          }
+        />
+
+        {/* Bulk Actions */}
+        {selectedTests.length > 0 && (
+          <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-blue-800">
               Выбрано {selectedTests.length} тестов
@@ -409,169 +463,205 @@ export default function AdminTestsPage() {
         </div>
       )}
 
-      {/* Tests Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedTests.length === tests.length}
-                    onChange={handleSelectAll}
-                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('title')}
-                >
-                  <div className="flex items-center">
-                    Название
-                    {sortField === 'title' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('level')}
-                >
-                  <div className="flex items-center">
-                    Уровень
-                    {sortField === 'level' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Сложность
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('status')}
-                >
-                  <div className="flex items-center">
-                    Статус
-                    {sortField === 'status' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статистика
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('dueDate')}
-                >
-                  <div className="flex items-center">
-                    Дедлайн
-                    {sortField === 'dueDate' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Действия
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedTests.map((test) => (
-                <tr key={test.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={selectedTests.includes(test.id)}
-                      onChange={() => handleSelectTest(test.id)}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {test.title}
+        {/* Tests List with Expandable Rows */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="divide-y divide-gray-200">
+            {sortedTests.map((test) => {
+              const isExpanded = expandedRows.has(test.id);
+              
+              return (
+                <div key={test.id} className="transition-colors hover:bg-gray-50">
+                  {/* Collapsed Row */}
+                  <div 
+                    className="flex items-center justify-between px-6 py-4 cursor-pointer"
+                    onClick={() => toggleRow(test.id)}
+                  >
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      {/* Checkbox */}
+                      <div 
+                        className="flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTests.includes(test.id)}
+                          onChange={() => handleSelectTest(test.id)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {test.description}
+
+                      {/* Chevron Icon */}
+                      <div className="flex-shrink-0">
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-400" />
+                        )}
                       </div>
-                      <div className="text-xs text-gray-400">
-                        {test.questionsCount} вопросов | {test.duration} мин | {test.passingScore}% для прохождения
+
+                      {/* Title */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-semibold text-gray-900 truncate">
+                          {test.title}
+                        </h3>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="flex-shrink-0">
+                        {getStatusBadge(test.status)}
+                      </div>
+
+                      {/* Metadata Icons */}
+                      <div className="flex items-center gap-4 flex-shrink-0 text-sm text-gray-600">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="w-4 h-4" />
+                          {test.duration} мин
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Brain className="w-4 h-4" />
+                          {test.questionsCount} Q
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Percent className="w-4 h-4" />
+                          {test.passingScore}%
+                        </span>
+                      </div>
+
+                      {/* Actions */}
+                      <div 
+                        className="flex items-center gap-2 flex-shrink-0 ml-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => navigate(`/admin/tests/${test.id}`)}
+                          className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Просмотр"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => navigate(`/admin/tests/${test.id}/edit`)}
+                          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Редактировать"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTest(test.id)}
+                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getLevelBadge(test.level)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getTypeBadge(test.type)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getDifficultyBadge(test.difficulty)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(test.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {test.attemptsCount} попыток
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {test.averageScore > 0 ? `${test.averageScore}%` : 'Нет данных'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {test.dueDate ? (
-                      <div className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        {new Date(test.dueDate).toLocaleDateString('ru-RU')}
+                  </div>
+
+                  {/* Expanded Row */}
+                  {isExpanded && (
+                    <div className="px-6 pb-4 pt-0 bg-gray-50 border-t border-gray-200">
+                      <div className="pl-9 space-y-4">
+                        {/* Description */}
+                        {test.description && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-1">Описание:</p>
+                            <p className="text-sm text-gray-600">{test.description}</p>
+                          </div>
+                        )}
+
+                        {/* Details Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Unit */}
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-1">Юнит:</p>
+                            <div className="flex items-center gap-2">
+                              <BookOpen className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm text-gray-600">
+                                {test.level ? `Уровень ${test.level}` : 'Не указан'}
+                              </span>
+                              {getTypeBadge(test.type)}
+                            </div>
+                          </div>
+
+                          {/* Created At */}
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-1">Создан:</p>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm text-gray-600">
+                                {formatDate(test.lastUpdated)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Attempts */}
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-1">Попытки:</p>
+                            <span className="text-sm text-gray-600">
+                              {test.attemptsCount || 0} попыток
+                            </span>
+                          </div>
+
+                          {/* Average Score */}
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-1">Средний балл:</p>
+                            <span className="text-sm text-gray-600">
+                              {test.averageScore > 0 ? `${test.averageScore}%` : 'Нет данных'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap items-center gap-2 pt-2">
+                          <button
+                            onClick={() => navigate(`/admin/tests/${test.id}`)}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            Просмотр
+                          </button>
+                          <button
+                            onClick={() => navigate(`/admin/tests/${test.id}/edit`)}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Редактировать
+                          </button>
+                          <button
+                            onClick={() => {
+                              // TODO: Implement duplicate functionality
+                              toast.info('Функция дублирования будет реализована');
+                            }}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <Copy className="w-4 h-4 mr-2" />
+                            Дублировать
+                          </button>
+                          <button
+                            onClick={() => {
+                              // TODO: Implement archive functionality
+                              toast.info('Функция архивирования будет реализована');
+                            }}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <Archive className="w-4 h-4 mr-2" />
+                            Архивировать
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTest(test.id)}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Удалить
+                          </button>
+                        </div>
                       </div>
-                    ) : (
-                      <span className="text-gray-400">Не установлен</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
-                      <button
-                        onClick={() => navigate(`/admin/tests/${test.id}`)}
-                        className="text-primary-600 hover:text-primary-900"
-                        title="Просмотр"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/tests/${test.id}/edit`)}
-                        className="text-gray-600 hover:text-gray-900"
-                        title="Редактировать"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleBulkAction('duplicate')}
-                        className="text-gray-600 hover:text-gray-900"
-                        title="Дублировать"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTest(test.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Удалить"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
         {/* Empty State */}
         {sortedTests.length === 0 && (
@@ -597,7 +687,8 @@ export default function AdminTestsPage() {
             )}
           </div>
         )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

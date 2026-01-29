@@ -9,58 +9,39 @@ import {
   Globe,
   Target,
   Star,
-  Quote,
-  Languages,
-  Clock
+  Award,
+  TrendingUp,
+  Clock,
+  Menu,
+  X
 } from 'lucide-react';
+import { useState } from 'react';
 
 const LandingPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const benefits = [
+  const features = [
     {
-      icon: <Play className="w-8 h-8 text-primary-600" />,
+      icon: <Play className="w-6 h-6 text-purple-600" />,
       title: t('landing.benefits.interactive'),
       description: t('landing.benefits.interactiveDesc'),
     },
     {
-      icon: <BookOpen className="w-8 h-8 text-primary-600" />,
-      title: t('landing.benefits.personalized'),
-      description: t('landing.benefits.personalizedDesc'),
+      icon: <Users className="w-6 h-6 text-purple-600" />,
+      title: t('landing.benefits.expert'),
+      description: t('landing.benefits.expertDesc'),
     },
     {
-      icon: <Target className="w-8 h-8 text-primary-600" />,
+      icon: <Award className="w-6 h-6 text-purple-600" />,
       title: t('landing.benefits.progress'),
       description: t('landing.benefits.progressDesc'),
     },
     {
-      icon: <Users className="w-8 h-8 text-primary-600" />,
-      title: t('landing.benefits.expert'),
-      description: t('landing.benefits.expertDesc'),
-    },
-  ];
-
-  const steps = [
-    {
-      number: '01',
-      title: t('landing.howItWorks.step1'),
-      description: t('landing.howItWorks.step1Desc'),
-    },
-    {
-      number: '02',
-      title: t('landing.howItWorks.step2'),
-      description: t('landing.howItWorks.step2Desc'),
-    },
-    {
-      number: '03',
-      title: t('landing.howItWorks.step3'),
-      description: t('landing.howItWorks.step3Desc'),
-    },
-    {
-      number: '04',
-      title: t('landing.howItWorks.step4'),
-      description: t('landing.howItWorks.step4Desc'),
+      icon: <Clock className="w-6 h-6 text-purple-600" />,
+      title: t('landing.benefits.personalized'),
+      description: t('landing.benefits.personalizedDesc'),
     },
   ];
 
@@ -69,347 +50,229 @@ const LandingPage: React.FC = () => {
       {
         name: 'Анна Смирнова',
         role: 'Студентка',
-        image: '👩‍🎓',
         rating: 5,
-        text: 'Отличная платформа для изучения итальянского! За 3 месяца я прошла с нулевого уровня до A2. Уроки интересные, преподаватели отзывчивые, а интерфейс очень удобный.',
+        text: 'Отличная платформа для изучения итальянского! За 3 месяца я прошла с нулевого уровня до A2.',
+        avatar: 'AS'
       },
       {
         name: 'Дмитрий Петров',
         role: 'Бизнесмен',
-        image: '👨‍💼',
         rating: 5,
-        text: 'Идеально для занятых людей! Могу учиться в любое время, уроки короткие и эффективные. Через полгода смог свободно общаться во время деловой поездки в Милан.',
+        text: 'Идеально для занятых людей! Могу учиться в любое время, уроки короткие и эффективные.',
+        avatar: 'ДП'
       },
       {
         name: 'Елена Волкова',
         role: 'Переводчик',
-        image: '👩‍💻',
         rating: 5,
-        text: 'Прекрасная методика! Особенно понравились видео с носителями языка и система отслеживания прогресса. Получила сертификат CELI B2 после года занятий на платформе.',
-      },
-      {
-        name: 'Михаил Иванов',
-        role: 'Учитель',
-        image: '👨‍🏫',
-        rating: 5,
-        text: 'Я рекомендую Eazy Italian всем своим друзьям. Структурированная программа, живые диалоги и отличная поддержка от преподавателей. Это лучшая онлайн-школа итальянского!',
-      },
-      {
-        name: 'Мария Кузнецова',
-        role: 'Дизайнер',
-        image: '👩‍🎨',
-        rating: 5,
-        text: 'Наконец-то нашла платформу, которая действительно работает! Грамматика объясняется просто и понятно, много практики разговорной речи. Сейчас готовлюсь к переезду в Италию.',
-      },
-      {
-        name: 'Александр Соколов',
-        role: 'Программист',
-        image: '👨‍💻',
-        rating: 5,
-        text: 'Технически отличная платформа с продуманным функционалом. Мобильное приложение позволяет учиться в дороге. За 4 месяца достиг уровня B1 и теперь смотрю итальянские фильмы без субтитров!',
+        text: 'Прекрасная методика! Особенно понравились видео с носителями языка.',
+        avatar: 'ЕВ'
       },
     ],
     en: [
       {
         name: 'Anna Smirnova',
         role: 'Student',
-        image: '👩‍🎓',
         rating: 5,
-        text: 'Excellent platform for learning Italian! In 3 months I went from zero level to A2. The lessons are interesting, the teachers are responsive, and the interface is very user-friendly.',
+        text: 'Excellent platform for learning Italian! In 3 months I went from zero level to A2.',
+        avatar: 'AS'
       },
       {
         name: 'Dmitry Petrov',
         role: 'Businessman',
-        image: '👨‍💼',
         rating: 5,
-        text: 'Perfect for busy people! I can study anytime, lessons are short and effective. After six months, I was able to communicate freely during a business trip to Milan.',
+        text: 'Perfect for busy people! I can study anytime, lessons are short and effective.',
+        avatar: 'DP'
       },
       {
         name: 'Elena Volkova',
         role: 'Translator',
-        image: '👩‍💻',
         rating: 5,
-        text: 'Excellent methodology! I especially liked the videos with native speakers and the progress tracking system. I got my CELI B2 certificate after a year of studying on the platform.',
-      },
-      {
-        name: 'Michael Johnson',
-        role: 'Teacher',
-        image: '👨‍🏫',
-        rating: 5,
-        text: 'I recommend Eazy Italian to all my friends. Structured program, live dialogues and excellent support from teachers. This is the best online Italian school!',
-      },
-      {
-        name: 'Maria Kuznetsova',
-        role: 'Designer',
-        image: '👩‍🎨',
-        rating: 5,
-        text: "Finally found a platform that really works! Grammar is explained simply and clearly, lots of speaking practice. Now I'm preparing to move to Italy.",
-      },
-      {
-        name: 'Alexander Sokolov',
-        role: 'Programmer',
-        image: '👨‍💻',
-        rating: 5,
-        text: 'Technically excellent platform with well-thought-out functionality. The mobile app allows me to study on the go. In 4 months I reached B1 level and now I watch Italian movies without subtitles!',
+        text: 'Excellent methodology! I especially liked the videos with native speakers.',
+        avatar: 'EV'
       },
     ],
   };
 
   const testimonials = testimonialsData[currentLang as 'ru' | 'en'] || testimonialsData.ru;
 
-  const pricingPlans = [
-    {
-      name: t('landing.pricing.free'),
-      price: currentLang === 'ru' ? '0₽' : '$0',
-      period: t('landing.pricing.perMonth'),
-      features: [
-        t('landing.pricing.freeFeatures.feature1'),
-        t('landing.pricing.freeFeatures.feature2'),
-        t('landing.pricing.freeFeatures.feature3'),
-      ],
-      buttonText: t('landing.pricing.chooseFree'),
-      popular: false,
-    },
-    {
-      name: t('landing.pricing.premium'),
-      price: currentLang === 'ru' ? '2990₽' : '$39',
-      period: t('landing.pricing.perMonth'),
-      features: [
-        t('landing.pricing.premiumFeatures.feature1'),
-        t('landing.pricing.premiumFeatures.feature2'),
-        t('landing.pricing.premiumFeatures.feature3'),
-        t('landing.pricing.premiumFeatures.feature4'),
-        t('landing.pricing.premiumFeatures.feature5'),
-      ],
-      buttonText: t('landing.pricing.choosePremium'),
-      popular: true,
-    },
-    {
-      name: t('landing.pricing.pro'),
-      price: currentLang === 'ru' ? '5990₽' : '$79',
-      period: t('landing.pricing.perMonth'),
-      features: [
-        t('landing.pricing.proFeatures.feature1'),
-        t('landing.pricing.proFeatures.feature2'),
-        t('landing.pricing.proFeatures.feature3'),
-        t('landing.pricing.proFeatures.feature4'),
-        t('landing.pricing.proFeatures.feature5'),
-      ],
-      buttonText: t('landing.pricing.choosePro'),
-      popular: false,
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-20">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <button
-              onClick={() => i18n.changeLanguage(currentLang === 'ru' ? 'en' : 'ru')}
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
-              title={currentLang === 'ru' ? 'Switch to English' : 'Переключиться на русский'}
-            >
-              <Globe className="w-6 h-6 text-primary-600" />
-              <span className="hidden sm:inline text-lg font-bold text-gray-900">
-                Eazy Italian
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <Globe className="w-8 h-8 text-purple-600" />
+              <span className="ml-2 text-xl font-bold text-gray-900">
+                EZ Italian
               </span>
-            </button>
+            </div>
 
-            <div className="flex items-center space-x-4">
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center space-x-8">
+              <a href="#features" className="text-sm text-gray-700 hover:text-gray-900">
+                {t('landing.nav.features') || 'Features'}
+              </a>
+              <a href="#pricing" className="text-sm text-gray-700 hover:text-gray-900">
+                {t('landing.nav.pricing') || 'Pricing'}
+              </a>
               <button
-                onClick={() => {
-                  const newLang = currentLang === 'ru' ? 'en' : 'ru';
-                  i18n.changeLanguage(newLang);
-                }}
-                className="hidden sm:flex items-center space-x-1 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                onClick={() => i18n.changeLanguage(currentLang === 'ru' ? 'en' : 'ru')}
+                className="text-sm text-gray-700 hover:text-gray-900"
               >
-                <Languages className="w-4 h-4" />
-                <span>{currentLang === 'ru' ? 'RU' : 'EN'}</span>
+                {currentLang === 'ru' ? 'EN' : 'RU'}
               </button>
+            </nav>
 
+            <div className="hidden md:flex items-center space-x-4">
               <Link
                 to="/login"
-                className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                className="text-sm font-medium text-gray-700 hover:text-gray-900"
               >
-                {t('nav.login')}
+                {t('auth.login')}
               </Link>
               <Link
                 to="/register"
-                className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-primary-700"
+                className="bg-purple-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-purple-700 transition-colors"
               >
-                {t('nav.register')}
+                {t('auth.register')}
               </Link>
             </div>
+
+            {/* Mobile menu button */}
+            <button
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6 text-gray-700" />
+              ) : (
+                <Menu className="w-6 h-6 text-gray-700" />
+              )}
+            </button>
           </div>
+
+          {/* Mobile menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden py-4 border-t border-gray-200">
+              <div className="flex flex-col space-y-3">
+                <a href="#features" className="text-sm text-gray-700 hover:text-gray-900">
+                  {t('landing.nav.features') || 'Features'}
+                </a>
+                <a href="#pricing" className="text-sm text-gray-700 hover:text-gray-900">
+                  {t('landing.nav.pricing') || 'Pricing'}
+                </a>
+                <button
+                  onClick={() => i18n.changeLanguage(currentLang === 'ru' ? 'en' : 'ru')}
+                  className="text-sm text-gray-700 hover:text-gray-900 text-left"
+                >
+                  {currentLang === 'ru' ? 'English' : 'Русский'}
+                </button>
+                <Link
+                  to="/login"
+                  className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                >
+                  {t('auth.login')}
+                </Link>
+                <Link
+                  to="/register"
+                  className="bg-purple-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-purple-700 transition-colors text-center"
+                >
+                  {t('auth.register')}
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Hero Section - Udemy style */}
-      <section className="bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-16 md:py-20">
+      {/* Hero Section */}
+      <section className="bg-gray-50 py-16 md:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Left text */}
             <div>
-              <p className="inline-flex items-center text-xs font-semibold uppercase tracking-wide text-primary-700 bg-primary-100 px-3 py-1 rounded-full mb-4">
-                <Star className="w-3 h-3 mr-1 fill-yellow-400 text-yellow-400" />
-                {t('landing.hero.badge') || 'Italiano con piacere'}
-              </p>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 leading-tight mb-4">
-                {t('landing.hero.title')}
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
+                {t('landing.hero.title') || 'Learn Italian Online'}
               </h1>
-              <p className="text-lg md:text-xl text-gray-600 mb-6 max-w-xl">
-                {t('landing.hero.subtitle')}
+              <p className="text-lg md:text-xl text-gray-600 mb-8">
+                {t('landing.hero.subtitle') ||
+                  'Master Italian with interactive video lessons, exercises, and tests. Learn at your own pace.'}
               </p>
-
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   to="/register"
-                  className="bg-primary-600 text-white px-7 py-3 rounded-lg text-base font-semibold hover:bg-primary-700 transition-colors inline-flex items-center justify-center shadow-md shadow-primary-300/40"
+                  className="bg-purple-600 text-white px-8 py-4 rounded font-semibold hover:bg-purple-700 transition-colors text-center"
                 >
-                  {t('landing.hero.cta')}
-                  <ArrowRight className="ml-2 w-5 h-5" />
+                  {t('landing.hero.cta') || 'Get Started'}
                 </Link>
-                <button className="border border-gray-300 text-gray-700 px-7 py-3 rounded-lg text-base font-semibold hover:bg-gray-50 transition-colors inline-flex items-center justify-center">
-                  <Play className="w-4 h-4 mr-2" />
-                  {t('landing.hero.watchDemo')}
-                </button>
+                <Link
+                  to="/login"
+                  className="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded font-semibold hover:border-gray-400 transition-colors text-center"
+                >
+                  {t('landing.hero.secondaryCta') || 'Sign In'}
+                </Link>
               </div>
-
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                <div className="flex items-center space-x-1">
-                  <Users className="w-4 h-4 text-primary-600" />
-                  <span>5000+ {t('landing.stats.students')}</span>
-                </div>
-                <span className="hidden sm:inline">•</span>
-                <div className="flex items-center space-x-1">
-                  <BookOpen className="w-4 h-4 text-primary-600" />
-                  <span>200+ {t('landing.stats.lessons')}</span>
-                </div>
-                <span className="hidden sm:inline">•</span>
-                <div className="flex items-center space-x-1">
-                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                  <span>4.9 / 5</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right - course preview card */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-primary-600 to-primary-700 h-40 flex items-center justify-center text-white">
-                <div className="flex flex-col items-center">
-                  <Play className="w-10 h-10 mb-3" />
-                  <p className="text-sm font-medium uppercase tracking-wide">
-                    Eazy Italian • A1–B2
-                  </p>
-                  <p className="text-xs text-primary-100 mt-1">
-                    {t('landing.hero.preview') || 'Video-уроки + задания + тесты'}
-                  </p>
-                </div>
-              </div>
-              <div className="p-5 space-y-4">
+              <div className="mt-8 flex items-center gap-8 text-sm text-gray-600">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    {t('landing.hero.cardTitle') || 'Полный курс итальянского языка'}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    {t('landing.hero.cardSubtitle') ||
-                      'Комбинация видео-лекций, интерактивных заданий и адаптивных тестов.'}
-                  </p>
+                  <div className="font-bold text-2xl text-gray-900">5,000+</div>
+                  <div>{t('landing.stats.students') || 'Students'}</div>
                 </div>
-
-                <div className="grid grid-cols-3 gap-3 text-xs text-gray-600">
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-primary-600" />
-                    <div>
-                      <p className="font-semibold text-gray-900">40+ ч</p>
-                      <p>{t('landing.hero.cardHours') || 'видео-материала'}</p>
+                <div>
+                  <div className="font-bold text-2xl text-gray-900">200+</div>
+                  <div>{t('landing.stats.lessons') || 'Lessons'}</div>
+                </div>
+                <div>
+                  <div className="font-bold text-2xl text-gray-900">4.9/5</div>
+                  <div>{t('landing.stats.rating') || 'Rating'}</div>
+                </div>
+              </div>
+            </div>
+            <div className="relative">
+              <div className="bg-white rounded-lg shadow-xl p-8 border border-gray-200">
+                <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+                  <Play className="w-16 h-16 text-purple-600" />
+                </div>
+                <div className="space-y-3">
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  <div className="flex items-center gap-2 pt-2">
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                      ))}
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <BookOpen className="w-4 h-4 text-primary-600" />
-                    <div>
-                      <p className="font-semibold text-gray-900">200+</p>
-                      <p>{t('landing.hero.cardLessons') || 'уроков'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <div>
-                      <p className="font-semibold text-gray-900">CELI / CILS</p>
-                      <p>{t('landing.hero.cardExam') || 'подготовка к экзаменам'}</p>
-                    </div>
+                    <span className="text-sm text-gray-600">4.9 (1,200 reviews)</span>
                   </div>
                 </div>
-
-                <button className="w-full mt-1 bg-primary-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors inline-flex items-center justify-center">
-                  <Play className="w-4 h-4 mr-2" />
-                  {t('landing.hero.cta') || 'Начать сейчас'}
-                </button>
-
-                <p className="text-[11px] text-gray-400 text-center">
-                  {t('landing.hero.disclaimer') ||
-                    'Бесплатный доступ к первому юниту. Отменить подписку можно в любой момент.'}
-                </p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="py-16 md:py-20">
+      {/* Features Section */}
+      <section id="features" className="py-16 md:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-              {t('landing.benefits.title')}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              {t('landing.features.title') || 'Why Learn With Us'}
             </h2>
-            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
-              {t('landing.benefits.subtitle')}
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              {t('landing.features.subtitle') ||
+                'Everything you need to master Italian in one place'}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {benefits.map((benefit, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-6 flex flex-col items-center text-center"
-              >
-                <div className="flex justify-center mb-4">{benefit.icon}</div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {benefit.title}
-                </h3>
-                <p className="text-sm text-gray-600">{benefit.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section className="py-16 md:py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-              {t('landing.howItWorks.title')}
-            </h2>
-            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
-              {t('landing.howItWorks.subtitle')}
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {steps.map((step, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 text-center"
-              >
-                <div className="bg-primary-600 text-white w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-4">
-                  {step.number}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {features.map((feature, index) => (
+              <div key={index} className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mb-4">
+                  {feature.icon}
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {step.title}
+                  {feature.title}
                 </h3>
-                <p className="text-sm text-gray-600">{step.description}</p>
+                <p className="text-gray-600 text-sm">{feature.description}</p>
               </div>
             ))}
           </div>
@@ -417,45 +280,39 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-16 md:py-20">
+      <section className="py-16 md:py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-              {t('landing.testimonials.title')}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              {t('landing.testimonials.title') || 'What Students Say'}
             </h2>
-            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
-              {t('landing.testimonials.subtitle')}
-            </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
               <div
                 key={index}
-                className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow p-6 flex flex-col h-full"
+                className="bg-white p-6 rounded-lg border border-gray-200"
               >
                 <div className="flex items-center mb-4">
-                  <div className="text-4xl mr-3">{testimonial.image}</div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">
+                  <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                    {testimonial.avatar}
+                  </div>
+                  <div className="ml-3">
+                    <div className="font-semibold text-gray-900">
                       {testimonial.name}
-                    </h4>
-                    <p className="text-sm text-gray-600">{testimonial.role}</p>
+                    </div>
+                    <div className="text-sm text-gray-600">{testimonial.role}</div>
                   </div>
                 </div>
                 <div className="flex mb-3">
-                  {[...Array(testimonial.rating)].map((_, i) => (
+                  {[1, 2, 3, 4, 5].map((i) => (
                     <Star
                       key={i}
-                      className="w-5 h-5 text-yellow-400 fill-yellow-400"
+                      className="w-4 h-4 fill-yellow-400 text-yellow-400"
                     />
                   ))}
                 </div>
-                <div className="relative mt-auto">
-                  <Quote className="absolute -top-2 -left-2 w-8 h-8 text-primary-200" />
-                  <p className="text-sm text-gray-700 pl-6 italic">
-                    "{testimonial.text}"
-                  </p>
-                </div>
+                <p className="text-gray-700 text-sm">{testimonial.text}</p>
               </div>
             ))}
           </div>
@@ -463,196 +320,249 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-16 md:py-20 bg-gray-50">
+      <section id="pricing" className="py-16 md:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-              {t('landing.pricing.title')}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              {t('landing.pricing.title') || 'Choose Your Plan'}
             </h2>
-          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
-              {t('landing.pricing.subtitle')}
+            <p className="text-lg text-gray-600">
+              {t('landing.pricing.subtitle') || 'Start learning today'}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {pricingPlans.map((plan, index) => (
-              <div
-                key={index}
-                className={`relative bg-white rounded-xl shadow-lg p-8 flex flex-col ${
-                  plan.popular ? 'ring-2 ring-primary-600 scale-[1.01]' : ''
-                }`}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="bg-primary-600 text-white px-4 py-1 rounded-full text-xs font-semibold">
-                      {t('landing.pricing.popular')}
-                    </span>
-                  </div>
-                )}
-                <div className="text-center mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    {plan.name}
-                  </h3>
-                  <div>
-                    <span className="text-4xl font-extrabold text-gray-900">
-                      {plan.price}
-                    </span>
-                    <span className="ml-1 text-gray-600 text-sm">
-                      {plan.period}
-                    </span>
-                  </div>
-                </div>
-                <ul className="space-y-3 mb-8 flex-1">
-                  {plan.features.map((feature, featureIndex) => (
-                    <li
-                      key={featureIndex}
-                      className="flex items-center text-sm text-gray-600"
-                    >
-                      <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/register"
-                  className={`w-full py-3 px-6 rounded-lg font-semibold text-sm text-center transition-colors ${
-                    plan.popular
-                      ? 'bg-primary-600 text-white hover:bg-primary-700'
-                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                  }`}
-                >
-                  {plan.buttonText}
-                </Link>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {/* Free Plan */}
+            <div className="border-2 border-gray-200 rounded-lg p-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                {t('landing.pricing.free') || 'Free'}
+              </h3>
+              <div className="mb-6">
+                <span className="text-4xl font-bold text-gray-900">
+                  {currentLang === 'ru' ? '0₽' : '$0'}
+                </span>
+                <span className="text-gray-600 ml-2">
+                  {t('landing.pricing.perMonth') || '/month'}
+                </span>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.freeFeatures.feature1') || '10 basic lessons'}</span>
+                </li>
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.freeFeatures.feature2') || 'Basic exercises'}</span>
+                </li>
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.freeFeatures.feature3') || 'Community access'}</span>
+                </li>
+              </ul>
+              <Link
+                to="/register"
+                className="block w-full text-center py-3 px-6 border-2 border-gray-300 rounded font-semibold text-gray-700 hover:border-gray-400 transition-colors"
+              >
+                {t('landing.pricing.chooseFree') || 'Get Started'}
+              </Link>
+            </div>
 
-      {/* Stats Section */}
-      <section className="py-14 bg-primary-600">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">5000+</div>
-              <div className="text-primary-100">{t('landing.stats.students')}</div>
+            {/* Premium Plan */}
+            <div className="border-2 border-purple-600 rounded-lg p-8 relative shadow-lg">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                <span className="bg-purple-600 text-white px-4 py-1 rounded-full text-xs font-semibold">
+                  {t('landing.pricing.popular') || 'Most Popular'}
+                </span>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                {t('landing.pricing.premium') || 'Premium'}
+              </h3>
+              <div className="mb-6">
+                <span className="text-4xl font-bold text-gray-900">
+                  {currentLang === 'ru' ? '2,990₽' : '$39'}
+                </span>
+                <span className="text-gray-600 ml-2">
+                  {t('landing.pricing.perMonth') || '/month'}
+                </span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.premiumFeatures.feature1') || 'All lessons'}</span>
+                </li>
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.premiumFeatures.feature2') || 'Interactive exercises'}</span>
+                </li>
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.premiumFeatures.feature3') || 'Progress tracking'}</span>
+                </li>
+                {/* <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.premiumFeatures.feature4') || 'Certificates'}</span>
+                </li> */}
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.premiumFeatures.feature5') || 'Priority support'}</span>
+                </li>
+              </ul>
+              <Link
+                to="/register"
+                className="block w-full text-center py-3 px-6 bg-purple-600 text-white rounded font-semibold hover:bg-purple-700 transition-colors"
+              >
+                {t('landing.pricing.choosePremium') || 'Get Started'}
+              </Link>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">200+</div>
-              <div className="text-primary-100">{t('landing.stats.lessons')}</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">98%</div>
-              <div className="text-primary-100">{t('landing.stats.satisfaction')}</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">15+</div>
-              <div className="text-primary-100">{t('landing.stats.teachers')}</div>
+
+            {/* Pro Plan */}
+            <div className="border-2 border-gray-200 rounded-lg p-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                {t('landing.pricing.pro') || 'Pro'}
+              </h3>
+              <div className="mb-6">
+                <span className="text-4xl font-bold text-gray-900">
+                  {currentLang === 'ru' ? '5,990₽' : '$79'}
+                </span>
+                <span className="text-gray-600 ml-2">
+                  {t('landing.pricing.perMonth') || '/month'}
+                </span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.proFeatures.feature1') || 'Everything in Premium'}</span>
+                </li>
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.proFeatures.feature2') || '1-on-1 tutoring'}</span>
+                </li>
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.proFeatures.feature3') || 'Custom learning path'}</span>
+                </li>
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.proFeatures.feature4') || 'Exam preparation'}</span>
+                </li>
+                <li className="flex items-start text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>{t('landing.pricing.proFeatures.feature5') || 'Lifetime access'}</span>
+                </li>
+              </ul>
+              <Link
+                to="/register"
+                className="block w-full text-center py-3 px-6 border-2 border-gray-300 rounded font-semibold text-gray-700 hover:border-gray-400 transition-colors"
+              >
+                {t('landing.pricing.choosePro') || 'Get Started'}
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 bg-primary-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <section className="py-16 bg-purple-600">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            {t('landing.cta.title')}
+            {t('landing.cta.title') || 'Ready to Start Learning?'}
           </h2>
-          <p className="text-lg md:text-xl text-primary-100 mb-8 max-w-2xl mx-auto">
-            {t('landing.cta.subtitle')}
+          <p className="text-lg text-purple-100 mb-8">
+            {t('landing.cta.subtitle') ||
+              'Join thousands of students learning Italian online'}
           </p>
           <Link
             to="/register"
-            className="bg-white text-primary-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transition-colors inline-flex items-center"
+            className="inline-flex items-center bg-white text-purple-600 px-8 py-4 rounded font-semibold hover:bg-gray-100 transition-colors"
           >
-            {t('landing.cta.button')}
+            {t('landing.cta.button') || 'Get Started for Free'}
             <ArrowRight className="ml-2 w-5 h-5" />
           </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 mt-auto">
+      <footer className="bg-gray-900 text-gray-300 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <h3 className="text-white font-semibold mb-4">
+                {t('landing.footer.product') || 'Product'}
+              </h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.lessons') || 'Lessons'}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.tests') || 'Tests'}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.certificates') || 'Certificates'}
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-white font-semibold mb-4">
+                {t('landing.footer.support') || 'Support'}
+              </h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.help') || 'Help Center'}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.faq') || 'FAQ'}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.contact') || 'Contact'}
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-white font-semibold mb-4">
+                {t('landing.footer.company') || 'Company'}
+              </h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.about') || 'About'}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.blog') || 'Blog'}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    {t('landing.footer.careers') || 'Careers'}
+                  </a>
+                </li>
+              </ul>
+            </div>
             <div>
               <div className="flex items-center mb-4">
-                <Globe className="w-8 h-8 text-primary-400" />
-                <span className="ml-2 text-xl font-bold">Eazy Italian</span>
+                <Globe className="w-6 h-6 text-purple-400" />
+                <span className="ml-2 text-white font-bold">Eazy Italian</span>
               </div>
-              <p className="text-gray-400">
-                {t('landing.footer.description')}
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold mb-4">
-                {t('landing.footer.product')}
-              </h3>
-              <ul className="space-y-2 text-gray-400 text-sm">
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.lessons')}
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.tests')}
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.certificates')}
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold mb-4">
-                {t('landing.footer.support')}
-              </h3>
-              <ul className="space-y-2 text-gray-400 text-sm">
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.help')}
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.faq')}
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.contact')}
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold mb-4">
-                {t('landing.footer.company')}
-              </h3>
-              <ul className="space-y-2 text-gray-400 text-sm">
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.about')}
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.blog')}
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    {t('landing.footer.careers')}
-                  </a>
-                </li>
-              </ul>
+              <p className="text-sm">{t('landing.footer.description')}</p>
             </div>
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-6 text-center text-gray-500 text-sm">
-            <p>{t('landing.footer.copyright')}</p>
+          <div className="border-t border-gray-800 pt-8 text-center text-sm">
+            <p>
+              © {new Date().getFullYear()} Eazy Italian.{' '}
+              {t('landing.footer.copyright') || 'All rights reserved.'}
+            </p>
           </div>
         </div>
       </footer>

@@ -12,10 +12,12 @@ import {
   Archive,
   Trash2,
   Check,
-  X
+  X,
+  Layers
 } from 'lucide-react';
 import { unitsApi } from '../../services/api';
 import toast from 'react-hot-toast';
+import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 
 interface Unit {
   id: number;
@@ -27,6 +29,8 @@ interface Unit {
   created_by: number;
   created_at: string;
   updated_at: string | null;
+  course_id: number | null;
+  course_title: string | null;
   content_count: {
     videos: number;
     tasks: number;
@@ -59,6 +63,8 @@ export default function AdminUnitsPage() {
       created_by: 1,
       created_at: '2024-01-10T10:00:00Z',
       updated_at: '2024-01-15T10:00:00Z',
+      course_id: 1,
+      course_title: 'Итальянский A1',
       content_count: {
         videos: 2,
         tasks: 3,
@@ -78,6 +84,8 @@ export default function AdminUnitsPage() {
       created_by: 1,
       created_at: '2024-01-12T10:00:00Z',
       updated_at: '2024-01-12T10:00:00Z',
+      course_id: 1,
+      course_title: 'Итальянский A1',
       content_count: {
         videos: 1,
         tasks: 2,
@@ -97,6 +105,8 @@ export default function AdminUnitsPage() {
       created_by: 1,
       created_at: '2024-01-14T10:00:00Z',
       updated_at: '2024-01-14T10:00:00Z',
+      course_id: 2,
+      course_title: 'Итальянский A2',
       content_count: {
         videos: 3,
         tasks: 4,
@@ -280,6 +290,7 @@ export default function AdminUnitsPage() {
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
+              <Layers className="h-6 w-6 text-primary-600" />
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
                 {t('admin.nav.units')}
               </h1>
@@ -307,77 +318,54 @@ export default function AdminUnitsPage() {
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
         {/* Search & filters */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Поиск по названию или описанию"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 py-2 text-sm leading-5 placeholder-gray-500 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
+        <AdminSearchFilters
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Поиск по названию или описанию"
+          showFilters={showFilters}
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          filters={
+            <>
+              {/* Level */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Уровень
+                </label>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все уровни</option>
+                  <option value="A1">A1</option>
+                  <option value="A2">A2</option>
+                  <option value="B1">B1</option>
+                  <option value="B2">B2</option>
+                  <option value="C1">C1</option>
+                  <option value="C2">C2</option>
+                </select>
               </div>
-            </div>
 
-            {/* Filter toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              Фильтры
-            </button>
-          </div>
-
-          {/* Filters panel */}
-          {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Level */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Уровень
-                  </label>
-                  <select
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  >
-                    <option value="">Все уровни</option>
-                    <option value="A1">A1</option>
-                    <option value="A2">A2</option>
-                    <option value="B1">B1</option>
-                    <option value="B2">B2</option>
-                    <option value="C1">C1</option>
-                    <option value="C2">C2</option>
-                  </select>
-                </div>
-
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Статус
-                  </label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  >
-                    <option value="">Все статусы</option>
-                    <option value="draft">Черновик</option>
-                    <option value="scheduled">Запланировано</option>
-                    <option value="published">Опубликовано</option>
-                    <option value="archived">Архив</option>
-                  </select>
-                </div>
+              {/* Status */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Статус
+                </label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все статусы</option>
+                  <option value="draft">Черновик</option>
+                  <option value="scheduled">Запланировано</option>
+                  <option value="published">Опубликовано</option>
+                  <option value="archived">Архив</option>
+                </select>
               </div>
-            </div>
-          )}
-        </div>
+            </>
+          }
+        />
 
         {/* Bulk actions bar */}
         {selectedUnits.length > 0 && (
@@ -442,6 +430,9 @@ export default function AdminUnitsPage() {
                       />
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Курс
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Название
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -451,7 +442,7 @@ export default function AdminUnitsPage() {
                       Статус
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Публикация
+                      Порядок
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Контент
@@ -459,7 +450,7 @@ export default function AdminUnitsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Обновлено
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200">
                       Действия
                     </th>
                   </tr>
@@ -475,12 +466,18 @@ export default function AdminUnitsPage() {
                           className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                         />
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4">
+                        {unit.course_title ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 break-words">
+                            {unit.course_title}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900 break-words max-w-xs">
                           {unit.title}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Порядок: {unit.order_index}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -490,7 +487,7 @@ export default function AdminUnitsPage() {
                         {getStatusBadge(unit.status)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(unit.publish_at)}
+                        {unit.order_index}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-wrap gap-1 text-xs">
@@ -508,15 +505,8 @@ export default function AdminUnitsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(unit.updated_at)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
                         <div className="flex items-center justify-end space-x-2">
-                          <Link
-                            to={`/admin/units/${unit.id}`}
-                            className="text-primary-600 hover:text-primary-900"
-                            title="Просмотр"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Link>
                           <Link
                             to={`/admin/units/${unit.id}/edit`}
                             className="text-gray-600 hover:text-gray-900"
@@ -524,12 +514,6 @@ export default function AdminUnitsPage() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Link>
-                          <button
-                            className="text-gray-600 hover:text-gray-900"
-                            title="Дублировать"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
                           <button
                             onClick={() => handleDeleteUnit(unit.id, unit.title)}
                             className="text-red-600 hover:text-red-900"

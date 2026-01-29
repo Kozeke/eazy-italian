@@ -46,6 +46,7 @@ class Video(Base):
     unit = relationship("Unit", back_populates="videos")
     created_by_user = relationship("User", foreign_keys=[created_by], back_populates="created_videos")
     updated_by_user = relationship("User", foreign_keys=[updated_by])
+    user_progress = relationship("VideoProgress", back_populates="video", cascade="all, delete-orphan")
 
     @property
     def is_external(self) -> bool:

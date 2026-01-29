@@ -90,6 +90,8 @@ class VideoListResponse(BaseModel):
     status: VideoStatus
     publish_at: Optional[datetime] = None
     thumbnail_path: Optional[str] = None
+    is_visible_to_students: bool = True
+    order_index: int = 0
     created_at: datetime
     updated_at: Optional[datetime] = None
 

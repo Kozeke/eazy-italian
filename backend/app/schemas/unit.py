@@ -17,6 +17,7 @@ class UnitBase(BaseModel):
     status: UnitStatus = UnitStatus.DRAFT
     publish_at: Optional[datetime] = None
     order_index: int = 0
+    course_id: Optional[int] = None
     attachments: Optional[List[AttachmentSchema]] = None
     is_visible_to_students: bool = False
     meta_title: Optional[str] = None
@@ -44,6 +45,7 @@ class UnitUpdate(BaseModel):
     status: Optional[UnitStatus] = None
     publish_at: Optional[datetime] = None
     order_index: Optional[int] = None
+    course_id: Optional[int] = None
     attachments: Optional[List[AttachmentSchema]] = None
     is_visible_to_students: Optional[bool] = None
     meta_title: Optional[str] = None
@@ -86,6 +88,8 @@ class UnitListResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     content_count: Dict[str, int]
+    course_id: Optional[int] = None
+    course_title: Optional[str] = None
 
     class Config:
         from_attributes = True

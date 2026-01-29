@@ -1,11 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { gradesApi } from '../../services/api';
-import { Eye, Users, ChevronUp, ChevronDown } from 'lucide-react';
+import { Eye, Users, ChevronUp, ChevronDown, GraduationCap } from 'lucide-react';
+import i18n from '../../i18n';
+import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 
 type GradeRow = {
   attempt_id: number;
   student: string;
+  course: string;
   unit: string;
   test: string;
   score: number;
@@ -17,10 +20,14 @@ type GradeRow = {
 export default function AdminGradesPage() {
   const { t } = useTranslation();
   const [grades, setGrades] = useState<GradeRow[]>([]);
+  const [allGrades, setAllGrades] = useState<GradeRow[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 10;
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState('');
 
   const [selectedAttempt, setSelectedAttempt] = useState<number | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
@@ -37,48 +44,142 @@ export default function AdminGradesPage() {
   useEffect(() => {
     gradesApi.getGrades({
       page,
-      page_size: pageSize,
+      page_size: 1000, // Get all for filtering
       sort_by: 'submitted_at',
       sort_dir: sortDir,
     }).then((res) => {
-      setGrades(res.items);
+      setAllGrades(res.items);
       setTotal(res.total);
     });
-  }, [page, sortDir]);
+  }, [sortDir]);
+
+  // Filter grades based on search and filters
+  useEffect(() => {
+    let filtered = [...allGrades];
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((g) =>
+        g.student.toLowerCase().includes(query) ||
+        g.course.toLowerCase().includes(query) ||
+        g.unit.toLowerCase().includes(query) ||
+        g.test.toLowerCase().includes(query)
+      );
+    }
+
+    // Status filter
+    if (selectedStatus) {
+      filtered = filtered.filter((g) => {
+        if (selectedStatus === 'passed') return g.passed;
+        if (selectedStatus === 'failed') return !g.passed;
+        return true;
+      });
+    }
+
+    // Apply pagination
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setGrades(filtered.slice(startIndex, endIndex));
+    setTotal(filtered.length);
+  }, [allGrades, searchQuery, selectedStatus, page]);
   
   
+  // Returns a badge component showing whether a test was passed or failed
   const getResultBadge = (passed: boolean) => {
     return passed ? (
       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-        Сдан
+        {t('admin.grades.passed')}
       </span>
     ) : (
       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-        Не сдан
+        {t('admin.grades.failed')}
       </span>
     );
   };
   
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="min-h-screen bg-gray-50">
+      {/* Sticky top bar */}
+      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-6 w-6 text-primary-600" />
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                {t('admin.nav.grades')}
+              </h1>
+              {grades.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  {total} оценок
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-xs md:text-sm text-gray-500">
+              Просматривайте результаты тестов и оценки студентов
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
+        {/* Search & filters */}
+        <AdminSearchFilters
+          searchQuery={searchQuery}
+          onSearchChange={(value) => {
+            setSearchQuery(value);
+            setPage(1); // Reset to first page when search changes
+          }}
+          searchPlaceholder="Поиск по студенту, курсу, юниту или тесту..."
+          showFilters={showFilters}
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          filters={
+            <>
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Результат
+                </label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => {
+                    setSelectedStatus(e.target.value);
+                    setPage(1); // Reset to first page when filter changes
+                  }}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все результаты</option>
+                  <option value="passed">Пройдено</option>
+                  <option value="failed">Не пройдено</option>
+                </select>
+              </div>
+            </>
+          }
+        />
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
   <div className="overflow-x-auto">
     <table className="min-w-full divide-y divide-gray-200">
       <thead className="bg-gray-50">
         <tr>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Студент
+            {t('admin.grades.student')}
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Юнит
+            {t('admin.grades.course')}
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Тест
+            {t('admin.grades.unit')}
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Оценка
+            {t('admin.grades.test')}
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Результат
+            {t('admin.grades.score')}
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {t('admin.grades.result')}
           </th>
           <th
             onClick={() =>
@@ -87,7 +188,7 @@ export default function AdminGradesPage() {
             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
           >
             <div className="flex items-center">
-              Дата
+              {t('admin.grades.date')}
               {sortDir === 'asc' ? (
                 <ChevronUp className="w-4 h-4 ml-1" />
               ) : (
@@ -96,7 +197,7 @@ export default function AdminGradesPage() {
             </div>
           </th>
           <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Действия
+            {t('admin.grades.actions')}
           </th>
           
         </tr>
@@ -108,6 +209,12 @@ export default function AdminGradesPage() {
             <td className="px-6 py-4 whitespace-nowrap">
               <div className="text-sm font-medium text-gray-900">
                 {g.student}
+              </div>
+            </td>
+
+            <td className="px-6 py-4 whitespace-nowrap">
+              <div className="text-sm font-semibold text-gray-900">
+                {g.course}
               </div>
             </td>
 
@@ -131,15 +238,15 @@ export default function AdminGradesPage() {
 
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               {g.submitted_at
-                ? new Date(g.submitted_at).toLocaleDateString('ru-RU')
-                : '—'}
+                ? new Date(g.submitted_at).toLocaleDateString(i18n.language === 'ru' ? 'ru-RU' : 'en-US')
+                : t('admin.grades.emptyAnswer')}
             </td>
 
             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
               <button
                 onClick={() => setSelectedAttempt(g.attempt_id)}
                 className="text-primary-600 hover:text-primary-900"
-                title="Посмотреть ошибки"
+                title={t('admin.grades.viewErrors')}
               >
                 <Eye className="w-4 h-4" />
               </button>
@@ -150,8 +257,11 @@ export default function AdminGradesPage() {
     </table>
     <div className="flex items-center justify-between px-6 py-4 border-t">
   <span className="text-sm text-gray-600">
-    Показано {(page - 1) * pageSize + 1}–
-    {Math.min(page * pageSize, total)} из {total}
+    {t('admin.grades.showing', {
+      start: grades.length > 0 ? (page - 1) * pageSize + 1 : 0,
+      end: Math.min(page * pageSize, total),
+      total: total
+    })}
   </span>
 
   <div className="flex space-x-2">
@@ -164,7 +274,7 @@ export default function AdminGradesPage() {
     </button>
 
     <button
-      disabled={page * pageSize >= total}
+      disabled={page * pageSize >= total || grades.length === 0}
       onClick={() => setPage(page + 1)}
       className="px-3 py-1 border rounded disabled:opacity-50"
     >
@@ -180,10 +290,10 @@ export default function AdminGradesPage() {
     <div className="text-center py-12">
       <Users className="mx-auto h-12 w-12 text-gray-400" />
       <h3 className="mt-2 text-sm font-medium text-gray-900">
-        Нет оценок
+        {t('admin.grades.noGrades')}
       </h3>
       <p className="mt-1 text-sm text-gray-500">
-        Тесты ещё не были сданы студентами.
+        {t('admin.grades.noGradesDescription')}
       </p>
     </div>
   )}
@@ -194,7 +304,7 @@ export default function AdminGradesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-gray-900">
-          Детали теста
+          {t('admin.grades.testDetails')}
         </h2>
         <button
           onClick={closeModal}
@@ -210,16 +320,16 @@ export default function AdminGradesPage() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                Вопрос
+                {t('admin.grades.question')}
               </th>
               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                Ответ студента
+                {t('admin.grades.studentAnswer')}
               </th>
               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                Правильный ответ
+                {t('admin.grades.correctAnswer')}
               </th>
               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                Результат
+                {t('admin.grades.result')}
               </th>
             </tr>
           </thead>
@@ -228,15 +338,15 @@ export default function AdminGradesPage() {
             {Object.values(detail.detail || {}).map((q: any) => (
               <tr key={q.question_id}>
                 <td className="px-4 py-2 text-sm text-gray-900">
-                  Вопрос #{q.question_id}
+                  {t('admin.grades.questionNumber', { id: q.question_id })}
                 </td>
 
                 <td className="px-4 py-2 text-sm text-gray-900">
-                  {String(q.student_answer ?? '—')}
+                  {String(q.student_answer ?? t('admin.grades.emptyAnswer'))}
                 </td>
 
                 <td className="px-4 py-2 text-sm text-gray-900">
-                  {q.is_correct ? '—' : 'Ошибка'}
+                  {q.is_correct ? t('admin.grades.emptyAnswer') : t('admin.grades.error')}
                 </td>
 
                 <td className="px-4 py-2">
@@ -258,15 +368,14 @@ export default function AdminGradesPage() {
           onClick={closeModal}
           className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
         >
-          Закрыть
+          {t('common.close')}
         </button>
       </div>
     </div>
   </div>
 )}
-
-</div>
-
-  
+        </div>
+      </main>
+    </div>
   );
 }

@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import { useAuth } from '../hooks/useAuth';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -18,6 +19,7 @@ import {
   Menu,
   GraduationCap,
   LogOut,
+  BookMarked,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -34,8 +36,9 @@ export default function Layout({ children }: LayoutProps) {
   // Navigation items for student area
   const navigation = [
     { name: t('nav.dashboard'), href: '/dashboard', icon: Home },
-    { name: t('nav.units'), href: '/units', icon: BookOpen },
-    { name: t('nav.tasks'), href: '/tasks', icon: ClipboardList },
+    { name: t('nav.courses'), href: '/courses', icon: BookMarked },
+    { name: t('nav.myCourses') || 'My Courses', href: '/my-courses', icon: BookOpen },
+    // { name: t('nav.tasks'), href: '/tasks', icon: ClipboardList },
     { name: t('nav.tests'), href: '/tests', icon: FileText },
     { name: t('nav.profile'), href: '/profile', icon: User },
   ];
@@ -69,7 +72,7 @@ export default function Layout({ children }: LayoutProps) {
               <GraduationCap className="h-5 w-5" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold text-slate-900">Eazy Italian</span>
+              <span className="text-sm font-bold text-slate-900">EZ Italian</span>
               <span className="text-[11px] font-medium uppercase tracking-wide text-primary-500">
                 Student
               </span>
@@ -129,39 +132,58 @@ export default function Layout({ children }: LayoutProps) {
               </span>
             </div>
 
-            {/* Right: user + logout */}
-            {user && (
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+            {/* Right: language switcher + user + logout */}
+            <div className="flex items-center gap-3">
+              {/* Language Switcher */}
+              <button
+                onClick={() => {
+                  const currentLang = i18n.language;
+                  const newLang = currentLang === 'ru' ? 'en' : 'ru';
+                  i18n.changeLanguage(newLang);
+                }}
+                className="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                title={
+                  i18n.language === 'ru'
+                    ? 'Switch to English'
+                    : 'Переключиться на русский'
+                }
+              >
+                <span>{i18n.language === 'ru' ? '🇷🇺 RU' : '🇺🇸 EN'}</span>
+              </button>
+
+              {user && (
+                <>
+                  <div className="hidden sm:flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                      {user.first_name?.[0]}
+                      {user.last_name?.[0]}
+                    </div>
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-xs font-medium text-slate-900">
+                        {user.first_name} {user.last_name}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        {t('layout.roleStudent') || 'Student'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Mobile initials only */}
+                  <div className="sm:hidden flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
                     {user.first_name?.[0]}
                     {user.last_name?.[0]}
                   </div>
-                  <div className="flex flex-col leading-tight">
-                    <span className="text-xs font-medium text-slate-900">
-                      {user.first_name} {user.last_name}
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      {t('layout.roleStudent') || 'Student'}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Mobile initials only */}
-                <div className="sm:hidden flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
-                  {user.first_name?.[0]}
-                  {user.last_name?.[0]}
-                </div>
-
-                <button
-                  onClick={logout}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                  title={t('nav.logout')}
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+                  <button
+                    onClick={logout}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    title={t('nav.logout')}
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </header>
 

@@ -23,7 +23,6 @@ export default function TestDetailPage() {
         setTest(testData);
         console.log('Loaded test:', testData);
         
-        // Load attempt history
         try {
           const attemptsResponse = await testsApi.getTestAttempts(parseInt(id));
           setAttempts(attemptsResponse.attempts || []);
@@ -31,7 +30,6 @@ export default function TestDetailPage() {
           console.log('Loaded attempts:', attemptsResponse);
         } catch (error) {
           console.error('Error loading attempts:', error);
-          // Non-critical, continue
         }
       } catch (error: any) {
         console.error('Error fetching test:', error);
@@ -48,7 +46,6 @@ export default function TestDetailPage() {
     if (!id) return;
     
     try {
-      // Navigate to test taking page
       navigate(`/tests/${id}/take`);
     } catch (error: any) {
       console.error('Error starting test:', error);
@@ -59,32 +56,31 @@ export default function TestDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent"></div>
       </div>
     );
   }
 
   if (!test) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-medium text-gray-900">Тест не найден</h2>
-        <p className="text-gray-500 mt-2">Запрашиваемый тест не существует или недоступен.</p>
+      <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+        <h2 className="text-lg font-medium text-gray-900">Тест не найден</h2>
+        <p className="text-sm text-gray-500 mt-1">Запрашиваемый тест не существует или недоступен.</p>
       </div>
     );
   }
 
-  // Determine if student can start the test
   const isTestAvailable = test.status === 'published';
   const hasAttemptsRemaining = attemptsData?.attempts_remaining === null || attemptsData?.attempts_remaining > 0;
   const canStartTest = isTestAvailable && hasAttemptsRemaining;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center space-x-4">
+    <div className="max-w-6xl mx-auto">
+      {/* Back Button */}
+      <div className="mb-6">
         <button
           onClick={() => window.history.back()}
-          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Назад
@@ -93,70 +89,70 @@ export default function TestDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Test Info Card */}
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-8 text-white">
-              <h1 className="text-3xl font-bold mb-2">{test.title}</h1>
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {/* Header */}
+            <div className="bg-indigo-600 px-6 py-6 text-white">
+              <h1 className="text-2xl font-bold mb-1">{test.title}</h1>
               {test.description && (
-                <p className="text-primary-100">{test.description}</p>
+                <p className="text-indigo-100 text-sm">{test.description}</p>
               )}
             </div>
             
+            {/* Body */}
             <div className="p-6">
+              {/* Stats */}
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Clock className="h-6 w-6 text-blue-600" />
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Clock className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Время</p>
-                    <p className="text-lg font-semibold text-gray-900">{test.time_limit_minutes} минут</p>
+                    <p className="text-xs text-gray-500">Время</p>
+                    <p className="text-sm font-semibold text-gray-900">{test.time_limit_minutes} минут</p>
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <Award className="h-6 w-6 text-green-600" />
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Award className="h-5 w-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Проходной балл</p>
-                    <p className="text-lg font-semibold text-gray-900">{test.passing_score}%</p>
+                    <p className="text-xs text-gray-500">Проходной балл</p>
+                    <p className="text-sm font-semibold text-gray-900">{test.passing_score}%</p>
                   </div>
                 </div>
               </div>
 
+              {/* Instructions */}
               {test.instructions && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Инструкции</h3>
+                <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                  <h3 className="text-sm font-medium text-indigo-900 mb-2">Инструкции</h3>
                   <div 
-                    className="prose max-w-none text-gray-700"
+                    className="prose prose-sm max-w-none text-indigo-800"
                     dangerouslySetInnerHTML={{ __html: test.instructions }}
                   />
                 </div>
               )}
 
-              <div className="flex items-center justify-center pt-4">
+              {/* Start Button */}
+              <div className="pt-4 border-t border-gray-200">
                 {canStartTest ? (
                   <button
                     onClick={handleStartTest}
-                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
                   >
-                    <Play className="h-5 w-5 mr-2" />
+                    <Play className="h-4 w-4 mr-2" />
                     Начать тест
                   </button>
                 ) : (
                   <div className="text-center">
-                    <div className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-md">
-                      <XCircle className="h-5 w-5 mr-2" />
+                    <div className="inline-flex items-center px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm">
+                      <XCircle className="h-4 w-4 mr-2" />
                       {!isTestAvailable ? 'Тест не опубликован' : 'Попытки исчерпаны'}
                     </div>
                     {!hasAttemptsRemaining && attemptsData && (
-                      <p className="mt-2 text-sm text-gray-600">
+                      <p className="mt-2 text-xs text-gray-500">
                         Использовано попыток: {attempts.length} из {test.settings?.max_attempts || 'неограниченно'}
                       </p>
                     )}
@@ -169,55 +165,45 @@ export default function TestDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Test Stats */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Статистика</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Ваши попытки</span>
-                <span className="text-sm font-medium text-gray-900">{attempts.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Лучший результат</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {attemptsData?.best_score ? `${attemptsData.best_score.toFixed(1)}%` : '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Статус</span>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  attemptsData?.best_score !== null && attemptsData?.best_score >= (test.passing_score ?? 70)
-                    ? 'bg-green-100 text-green-800'
-                    : attempts.length > 0
-                    ? 'bg-yellow-100 text-yellow-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {attemptsData?.best_score !== null && attemptsData?.best_score >= (test.passing_score ?? 70)
-                    ? 'Пройден'
-                    : attempts.length > 0
-                    ? 'В процессе'
-                    : 'Не начат'}
-                </span>
-              </div>
-              {attemptsData && attemptsData.attempts_remaining !== null && (
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <span className="text-sm text-gray-600">Осталось попыток</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {attemptsData.attempts_remaining}
+          {/* Progress */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-sm font-medium text-gray-900">Ваш прогресс</h3>
+            </div>
+            <div className="p-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Попытки</span>
+                  <span className="font-medium text-gray-900">{attempts.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Лучший результат</span>
+                  <span className="font-medium text-gray-900">
+                    {attemptsData?.best_score ? `${attemptsData.best_score.toFixed(1)}%` : '—'}
                   </span>
                 </div>
-              )}
+                {attemptsData && attemptsData.attempts_remaining !== null && (
+                  <div className="flex items-center justify-between text-sm pt-3 border-t border-gray-200">
+                    <span className="text-gray-600">Осталось попыток</span>
+                    <span className="font-medium text-indigo-600">{attemptsData.attempts_remaining}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            
-            {/* Attempt History */}
-            {attempts.length > 0 && (
-              <div className="mt-6 pt-6 border-t">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">История попыток</h4>
+          </div>
+
+          {/* Attempt History */}
+          {attempts.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-4 border-b border-gray-200">
+                <h3 className="text-sm font-medium text-gray-900">История попыток</h3>
+              </div>
+              <div className="p-4">
                 <div className="space-y-2">
                   {attempts.map((attempt, index) => (
-                    <div key={attempt.id} className="flex items-center justify-between text-sm">
+                    <div key={attempt.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 text-sm">
                       <span className="text-gray-600">Попытка {attempts.length - index}</span>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center gap-2">
                         {attempt.score !== null ? (
                           <>
                             <span className={`font-medium ${
@@ -226,55 +212,24 @@ export default function TestDetailPage() {
                               {attempt.score.toFixed(1)}%
                             </span>
                             {attempt.passed && (
-                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <CheckCircle className="h-4 w-4 text-green-500" />
                             )}
                           </>
                         ) : (
-                          <span className="text-gray-400">В процессе</span>
+                          <span className="text-gray-400 text-xs">В процессе</span>
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* Settings */}
-          {test.settings && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Настройки</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Максимум попыток</span>
-                  <span className="font-medium text-gray-900">
-                    {test.settings.max_attempts ? test.settings.max_attempts : 'Неограничено'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Перемешивать вопросы</span>
-                  {test.settings.shuffle_questions ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-gray-400" />
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Показать результаты</span>
-                  {test.settings.show_results_immediately ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-gray-400" />
-                  )}
-                </div>
-              </div>
             </div>
           )}
 
           {/* Tips */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">💡 Советы</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
+          <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-4">
+            <h4 className="text-sm font-medium text-indigo-900 mb-2">💡 Советы</h4>
+            <ul className="text-xs text-indigo-700 space-y-1">
               <li>• Внимательно читайте вопросы</li>
               <li>• Следите за временем</li>
               <li>• Проверьте ответы перед отправкой</li>
@@ -285,4 +240,3 @@ export default function TestDetailPage() {
     </div>
   );
 }
-

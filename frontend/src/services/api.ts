@@ -15,7 +15,9 @@ import {
   GradeRow, 
   GradeDetail,
   PaginatedResponse,
-  Student
+  Student,
+  VideoProgressUpdate,
+  VideoProgress   
 } from '../types';
 
 // Get API base URL from environment variables
@@ -78,6 +80,87 @@ export const authApi = {
   },
 };
 
+// Courses API
+export const coursesApi = {
+  // Admin endpoints
+  getDashboardStatistics: async (): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get('/admin/dashboard/statistics');
+    return response.data;
+  },
+
+  getAdminCourses: async (params?: any): Promise<any[]> => {
+    const response: AxiosResponse<any[]> = await api.get('/admin/courses', { params });
+    return response.data;
+  },
+
+  getAdminCourse: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/admin/courses/${id}`);
+    return response.data;
+  },
+
+  createCourse: async (courseData: Partial<any>): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post('/admin/courses', courseData);
+    return response.data;
+  },
+
+  updateCourse: async (id: number, courseData: Partial<any>): Promise<any> => {
+    const response: AxiosResponse<any> = await api.put(`/admin/courses/${id}`, courseData);
+    return response.data;
+  },
+
+  deleteCourse: async (id: number): Promise<void> => {
+    await api.delete(`/admin/courses/${id}`);
+  },
+
+  generateThumbnail: async (id: number): Promise<{ thumbnail_path: string }> => {
+    const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
+      `/admin/courses/${id}/generate-thumbnail`
+    );
+    return response.data;
+  },
+
+  publishCourse: async (id: number, publishData?: { publish_at?: string }): Promise<any> => {
+    const response: AxiosResponse<any> = await api.patch(`/admin/courses/${id}/publish`, publishData || {});
+    return response.data;
+  },
+
+  reorderCourses: async (courseIds: number[]): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post('/admin/courses/reorder', { course_ids: courseIds });
+    return response.data;
+  },
+
+  // Student endpoints
+  getCourses: async (params?: any): Promise<any[]> => {
+    const response: AxiosResponse<any[]> = await api.get('/courses', { params });
+    return response.data;
+  },
+
+  getCourse: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/courses/${id}`);
+    return response.data;
+  },
+
+  enrollInCourse: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(`/courses/${id}/enroll`);
+    return response.data;
+  },
+
+  getEnrolledCourses: async (): Promise<any[]> => {
+    const response: AxiosResponse<any[]> = await api.get('/me/courses');
+    return response.data;
+  },
+  
+  getCourseUnits: async (courseId: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/courses/${courseId}/units`);
+    return response.data;
+  },
+
+  getStudentDashboard: async (): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get('/student/dashboard');
+    return response.data;
+  },
+};
+
 // Units API
 export const unitsApi = {
   getUnits: async (params?: any): Promise<Unit[]> => {
@@ -91,7 +174,7 @@ export const unitsApi = {
   },
 
   getUnit: async (id: number): Promise<Unit> => {
-    const response: AxiosResponse<Unit> = await api.get(`/units/units/${id}`);
+    const response: AxiosResponse<Unit> = await api.get(`/units/${id}`);
     return response.data;
   },
 
@@ -144,6 +227,71 @@ export const videosApi = {
 
   deleteVideo: async (id: number): Promise<void> => {
     await api.delete(`/videos/admin/videos/${id}`);
+  },
+
+  uploadThumbnail: async (id: number, file: File): Promise<{ thumbnail_path: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
+      `/videos/admin/videos/${id}/thumbnail`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  generateThumbnail: async (id: number): Promise<{ thumbnail_path: string }> => {
+    const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
+      `/videos/admin/videos/${id}/generate-thumbnail`
+    );
+    return response.data;
+  },
+
+  uploadVideoFile: async (file: File): Promise<{ file_path: string; filename: string; size: number }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response: AxiosResponse<{ file_path: string; filename: string; size: number }> = await api.post(
+      `/videos/admin/videos/upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+  // Video Progress endpoints
+  getVideoProgress: async (videoId: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/videos/${videoId}/progress`);
+    return response.data;
+  },
+
+  updateVideoProgress: async (videoId: number, progressData: { watched_percentage: number; last_position_sec: number; completed: boolean }): Promise<any> => {
+    const formData = new FormData();
+    formData.append('last_position_sec', progressData.last_position_sec.toString());
+    formData.append('watched_percentage', progressData.watched_percentage.toString());
+    formData.append('completed', progressData.completed.toString());
+    
+    const response: AxiosResponse<any> = await api.post(
+      `/videos/${videoId}/progress`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  resetVideoProgress: async (videoId: number): Promise<{ message: string }> => {
+    const response: AxiosResponse<{ message: string }> = await api.delete(`/videos/${videoId}/progress`);
+    return response.data;
   },
 };
 
@@ -347,6 +495,37 @@ export const progressApi = {
 
   updateProgress: async (unitId: number, progressData: Partial<Progress>): Promise<Progress> => {
     const response: AxiosResponse<Progress> = await api.put(`/progress/${unitId}`, progressData);
+    return response.data;
+  },
+};
+
+// Video Progress API
+export const videoProgressApi = {
+  updateVideoProgress: async (
+    videoId: number,
+    lastPositionSec: number,
+    watchedPercentage: number,
+    completed: boolean
+  ): Promise<any> => {
+    const formData = new FormData();
+    formData.append('last_position_sec', lastPositionSec.toString());
+    formData.append('watched_percentage', watchedPercentage.toString());
+    formData.append('completed', completed.toString());
+    
+    const response: AxiosResponse<any> = await api.post(
+      `/videos/${videoId}/progress`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  getVideoProgress: async (videoId: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/videos/${videoId}/progress`);
     return response.data;
   },
 };

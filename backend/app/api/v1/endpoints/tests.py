@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_teacher
+from app.core.enrollment_guard import check_unit_access
 from app.models.user import User
 from app.models.test import Test, TestStatus
 from app.models.unit import Unit
@@ -23,13 +24,39 @@ def get_tests(
     limit: int = 100
 ):
     """Get tests, optionally filtered by unit_id"""
-    query = db.query(Test)
+    query = db.query(Test).options(
+        joinedload(Test.unit).joinedload(Unit.course)
+    )
     
     if unit_id is not None:
         query = query.filter(Test.unit_id == unit_id)
     
     tests = query.offset(skip).limit(limit).all()
-    return tests
+    
+    # Convert to response format with course information
+    result = []
+    for test in tests:
+        test_dict = {
+            "id": test.id,
+            "title": test.title,
+            "description": test.description,
+            "instructions": test.instructions,
+            "time_limit_minutes": test.time_limit_minutes,
+            "passing_score": test.passing_score,
+            "status": test.status,
+            "publish_at": test.publish_at,
+            "order_index": test.order_index,
+            "settings": test.settings,
+            "unit_id": test.unit_id,
+            "created_by": test.created_by,
+            "created_at": test.created_at,
+            "updated_at": test.updated_at,
+            "course_id": test.unit.course_id if test.unit and test.unit.course else None,
+            "course_title": test.unit.course.title if test.unit and test.unit.course else None
+        }
+        result.append(TestResponse(**test_dict))
+    
+    return result
 
 @router.post("/", response_model=TestResponse, status_code=status.HTTP_201_CREATED)
 def create_test(
@@ -64,11 +91,37 @@ def get_test(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get a specific test"""
-    test = db.query(Test).filter(Test.id == test_id).first()
+    """Get a specific test - requires enrollment if test belongs to a course"""
+    test = db.query(Test).options(
+        joinedload(Test.unit).joinedload(Unit.course)
+    ).filter(Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
-    return test
+    
+    # Check enrollment if test belongs to a unit with a course
+    if test.unit_id:
+        check_unit_access(db, current_user, test.unit_id)
+    
+    # Convert to response format with course information
+    test_dict = {
+        "id": test.id,
+        "title": test.title,
+        "description": test.description,
+        "instructions": test.instructions,
+        "time_limit_minutes": test.time_limit_minutes,
+        "passing_score": test.passing_score,
+        "status": test.status,
+        "publish_at": test.publish_at,
+        "order_index": test.order_index,
+        "settings": test.settings,
+        "unit_id": test.unit_id,
+        "created_by": test.created_by,
+        "created_at": test.created_at,
+        "updated_at": test.updated_at,
+        "course_id": test.unit.course_id if test.unit and test.unit.course else None,
+        "course_title": test.unit.course.title if test.unit and test.unit.course else None
+    }
+    return TestResponse(**test_dict)
 
 @router.put("/{test_id}", response_model=TestResponse)
 def update_test(
@@ -100,13 +153,15 @@ def delete_test(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Delete a test"""
+    """Delete a test - any teacher can delete any test in admin panel"""
     test = db.query(Test).filter(Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
     
-    if test.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this test")
+    # Allow any teacher to delete any test (admin panel behavior)
+    # If you want to restrict to creator only, uncomment the line below:
+    # if test.created_by != current_user.id:
+    #     raise HTTPException(status_code=403, detail="Not authorized to delete this test")
     
     db.delete(test)
     db.commit()
@@ -453,7 +508,7 @@ def start_test(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Start a test attempt for a student"""
+    """Start a test attempt for a student - requires enrollment if test belongs to a course"""
     from app.models.test import TestAttempt, AttemptStatus, TestQuestion
     
     # Get test and verify it exists and is published
@@ -463,6 +518,10 @@ def start_test(
     
     if test.status != TestStatus.PUBLISHED:
         raise HTTPException(status_code=400, detail="Test is not published")
+    
+    # Check enrollment if test belongs to a unit with a course
+    if test.unit_id:
+        check_unit_access(db, current_user, test.unit_id)
     
     # Check max attempts
     if test.settings and test.settings.get('max_attempts'):
@@ -542,8 +601,17 @@ def submit_test(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Submit test answers and calculate score"""
+    """Submit test answers and calculate score - requires enrollment if test belongs to a course"""
     from app.models.test import TestAttempt, AttemptStatus, TestQuestion
+    
+    # Get test to check enrollment
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    # Check enrollment if test belongs to a unit with a course
+    if test.unit_id:
+        check_unit_access(db, current_user, test.unit_id)
     
     # Get the active attempt
     attempt = db.query(TestAttempt).filter(

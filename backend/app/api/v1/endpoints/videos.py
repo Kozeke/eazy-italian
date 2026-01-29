@@ -13,8 +13,10 @@ import mimetypes
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_teacher
+from app.core.enrollment_guard import check_unit_access
 from app.models.user import User
 from app.models.video import Video, VideoSourceType, VideoStatus
+from app.models.video_progress import VideoProgress
 from app.models.unit import Unit
 from app.schemas.video import (
     VideoResponse, VideoCreate, VideoUpdate, VideoListResponse,
@@ -26,6 +28,25 @@ router = APIRouter()
 
 # In-memory storage for upload sessions (in production, use Redis)
 upload_sessions = {}
+
+def get_uploads_path():
+    """Get the uploads directory path - same logic as main.py"""
+    # __file__ is backend/app/api/v1/endpoints/videos.py
+    # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
+    current_file = os.path.abspath(__file__)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
+    
+    # Check if we're in Docker
+    is_docker = (os.name != 'nt' and
+                 os.path.exists("/app") and 
+                 os.getcwd() == "/app" and 
+                 backend_dir == "/app")
+    
+    if is_docker:
+        return "/app/uploads"
+    else:
+        # Local development - uploads is at project root (parent of backend directory)
+        return os.path.join(os.path.dirname(backend_dir), "uploads")
 
 def validate_youtube_url(url: str) -> bool:
     """Validate YouTube URL format"""
@@ -163,6 +184,8 @@ async def get_admin_videos(
             status=video.status,
             publish_at=video.publish_at,
             thumbnail_path=video.thumbnail_path,
+            is_visible_to_students=video.is_visible_to_students,
+            order_index=video.order_index or 0,
             created_at=video.created_at,
             updated_at=video.updated_at
         ))
@@ -190,16 +213,63 @@ async def create_video(
         if not (validate_youtube_url(video_data.external_url) or validate_vimeo_url(video_data.external_url)):
             raise HTTPException(status_code=400, detail="Invalid YouTube or Vimeo URL")
     
+    # Generate unique slug
+    base_slug = video_data.title.lower().replace(' ', '-')
+    # Remove special characters and keep only alphanumeric, hyphens, and Cyrillic
+    base_slug = re.sub(r'[^\w\-а-яё]', '', base_slug, flags=re.IGNORECASE)
+    slug = base_slug
+    
+    # Check if slug exists and make it unique
+    counter = 1
+    while db.query(Video).filter(Video.slug == slug).first():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+        # Safety check to prevent infinite loop
+        if counter > 1000:
+            # Fallback to UUID if too many duplicates
+            slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
+            break
+    
     # Create video
+    video_dict = video_data.dict()
     video = Video(
-        **video_data.dict(),
+        **video_dict,
         created_by=current_user.id,
-        slug=video_data.title.lower().replace(' ', '-')  # Simple slug generation
+        slug=slug
     )
     
-    db.add(video)
-    db.commit()
-    db.refresh(video)
+    try:
+        db.add(video)
+        db.commit()
+        db.refresh(video)
+    except Exception as e:
+        db.rollback()
+        # Check if it's a duplicate slug error
+        if 'unique' in str(e).lower() or 'duplicate' in str(e).lower() or 'slug' in str(e).lower():
+            # Try one more time with UUID fallback
+            slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
+            video.slug = slug
+            db.add(video)
+            db.commit()
+            db.refresh(video)
+        else:
+            raise HTTPException(status_code=500, detail=f"Error creating video: {str(e)}")
+    
+    # Generate default thumbnail if not provided
+    if not video.thumbnail_path and unit.level:
+        try:
+            from app.utils.thumbnail_generator import generate_default_thumbnail, get_thumbnail_path
+            thumbnail_path = get_thumbnail_path(video.id, unit.level)
+            # Use the same get_uploads_path helper to ensure consistency
+            uploads_path = get_uploads_path()
+            full_path = os.path.join(uploads_path, thumbnail_path)
+            generate_default_thumbnail(unit.level, full_path, title=video.title)
+            video.thumbnail_path = thumbnail_path
+            db.commit()
+            db.refresh(video)
+        except Exception as e:
+            print(f"Error generating default thumbnail: {e}")
+            # Continue without thumbnail
     
     return video
 
@@ -247,6 +317,158 @@ async def update_video(
     db.refresh(video)
     
     return video
+
+@router.post("/admin/videos/{video_id}/thumbnail")
+async def upload_thumbnail(
+    video_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db)
+):
+    """Upload a thumbnail for a video"""
+    
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Get uploads path using helper function
+    uploads_path = get_uploads_path()
+    upload_dir = os.path.join(uploads_path, "thumbnails")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Generate filename
+    file_ext = os.path.splitext(file.filename or '')[1] or '.jpg'
+    filename = f"video_{video_id}_{uuid.uuid4().hex[:8]}{file_ext}"
+    file_path = os.path.join(upload_dir, filename)
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Update video thumbnail path
+        video.thumbnail_path = f"thumbnails/{filename}"
+        video.updated_by = current_user.id
+        video.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(video)
+        
+        return {
+            "message": "Thumbnail uploaded successfully",
+            "thumbnail_path": video.thumbnail_path
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading thumbnail: {str(e)}")
+
+@router.post("/admin/videos/upload")
+async def upload_video_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_teacher)
+):
+    """Upload a video file directly"""
+    
+    # Allowed video MIME types
+    allowed_mime_types = [
+        'video/mp4',
+        'video/webm',
+        'video/quicktime',  # mov
+        'video/x-msvideo',  # avi
+        'video/x-matroska',  # mkv
+        'video/ogg',
+        'video/x-flv',
+        'video/3gpp',
+        'video/x-ms-wmv'
+    ]
+    
+    # Allowed file extensions
+    allowed_extensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.ogv', '.flv', '.3gp', '.wmv']
+    
+    # Validate file type
+    if not file.content_type:
+        # Try to determine from filename
+        if file.filename:
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            if file_ext not in allowed_extensions:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Invalid file type. Allowed formats: {', '.join(allowed_extensions)}"
+                )
+        else:
+            raise HTTPException(status_code=400, detail="File type could not be determined")
+    elif file.content_type not in allowed_mime_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid file type. Allowed formats: MP4, WebM, MOV, AVI, MKV, OGV, FLV, 3GP, WMV"
+        )
+    
+    # Get uploads path using helper function
+    uploads_path = get_uploads_path()
+    videos_dir = os.path.join(uploads_path, "videos", str(current_user.id))
+    os.makedirs(videos_dir, exist_ok=True)
+    
+    # Generate filename
+    file_ext = os.path.splitext(file.filename or 'video.mp4')[1] or '.mp4'
+    filename = f"{uuid.uuid4().hex[:16]}{file_ext}"
+    file_path = os.path.join(videos_dir, filename)
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Return relative path (relative to uploads directory)
+        relative_path = f"videos/{current_user.id}/{filename}"
+        
+        return {
+            "message": "Video uploaded successfully",
+            "file_path": relative_path,
+            "filename": filename,
+            "size": len(content)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+
+@router.post("/admin/videos/{video_id}/generate-thumbnail")
+async def generate_thumbnail(
+    video_id: int,
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db)
+):
+    """Generate a default thumbnail for a video based on unit level"""
+    
+    video = db.query(Video).join(Unit).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    if not video.unit or not video.unit.level:
+        raise HTTPException(status_code=400, detail="Video must be associated with a unit that has a level")
+    
+    try:
+        from app.utils.thumbnail_generator import generate_default_thumbnail, get_thumbnail_path
+        thumbnail_path = get_thumbnail_path(video.id, video.unit.level)
+        # Use the same get_uploads_path helper to ensure consistency
+        uploads_path = get_uploads_path()
+        full_path = os.path.join(uploads_path, thumbnail_path)
+        generate_default_thumbnail(video.unit.level, full_path, title=video.title)
+        
+        video.thumbnail_path = thumbnail_path
+        video.updated_by = current_user.id
+        video.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(video)
+        
+        return {
+            "message": "Thumbnail generated successfully",
+            "thumbnail_path": video.thumbnail_path
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating thumbnail: {str(e)}")
 
 @router.delete("/admin/videos/{video_id}")
 async def delete_video(
@@ -400,12 +622,281 @@ async def complete_upload(
         "thumbnail": None  # Would be generated from video file
     }
 
-# Keep existing endpoints for backward compatibility
+# Student endpoints with enrollment authorization
 @router.get("/units/{unit_id}/videos", response_model=List[VideoResponse])
 def get_unit_videos(
     unit_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    videos = db.query(Video).filter(Video.unit_id == unit_id).all()
+    """Get videos for a unit - requires enrollment if unit belongs to a course"""
+    # Check enrollment authorization
+    check_unit_access(db, current_user, unit_id)
+    
+    videos = db.query(Video).filter(
+        Video.unit_id == unit_id,
+        Video.is_visible_to_students == True,
+        Video.status == VideoStatus.PUBLISHED
+    ).all()
     return videos
+
+@router.post("/{video_id}/progress")
+async def update_video_progress(
+    video_id: int,
+    last_position_sec: float = Form(0.0),
+    watched_percentage: float = Form(0.0),
+    completed: bool = Form(False),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update video watch progress for a student"""
+    # Check if video exists and is accessible
+    video = db.query(Video).filter(
+        Video.id == video_id,
+        Video.is_visible_to_students == True,
+        Video.status == VideoStatus.PUBLISHED
+    ).first()
+    
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Check enrollment if video belongs to a unit in a course
+    if video.unit_id:
+        check_unit_access(db, current_user, video.unit_id)
+    
+    # Get or create video progress
+    video_progress = db.query(VideoProgress).filter(
+        VideoProgress.user_id == current_user.id,
+        VideoProgress.video_id == video_id
+    ).first()
+    
+    if not video_progress:
+        # For new progress, watch_time_sec is the same as last_position_sec initially
+        video_progress = VideoProgress(
+            user_id=current_user.id,
+            video_id=video_id,
+            last_position_sec=last_position_sec,
+            watched_percentage=watched_percentage,
+            progress_percent=watched_percentage,  # Set to same value as watched_percentage
+            watch_time_sec=last_position_sec,  # Set initial watch time
+            completed=completed,
+            is_completed=completed  # Set to same value as completed
+        )
+        if completed:
+            video_progress.completed_at = datetime.utcnow()
+        db.add(video_progress)
+    else:
+        # Calculate incremental watch time (difference from last position)
+        # If user seeks backward, don't add negative time
+        time_diff = max(0, last_position_sec - video_progress.last_position_sec)
+        video_progress.watch_time_sec += time_diff
+        
+        video_progress.last_position_sec = last_position_sec
+        video_progress.watched_percentage = watched_percentage
+        video_progress.progress_percent = watched_percentage  # Keep in sync with watched_percentage
+        video_progress.completed = completed
+        video_progress.is_completed = completed  # Keep in sync with completed
+        if completed and not video_progress.completed_at:
+            video_progress.completed_at = datetime.utcnow()
+        elif not completed:
+            video_progress.completed_at = None
+    
+    db.commit()
+    db.refresh(video_progress)
+    
+    return {
+        "video_id": video_id,
+        "last_position_sec": video_progress.last_position_sec,
+        "watched_percentage": video_progress.watched_percentage,
+        "completed": video_progress.completed,
+        "completed_at": video_progress.completed_at.isoformat() if video_progress.completed_at else None
+    }
+
+# Add these endpoints to your videos.py file
+
+from pydantic import BaseModel
+from datetime import datetime
+
+# Add this schema class
+class VideoProgressUpdate(BaseModel):
+    watched_percentage: float
+    last_position_sec: float
+    completed: bool = False
+
+class VideoProgressResponse(BaseModel):
+    video_id: int
+    watched_percentage: float
+    last_position_sec: float
+    completed: bool
+    last_watched_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Add these endpoints to your router
+
+@router.get("/{video_id}/progress")
+async def get_video_progress_alt(
+    video_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's progress on a video"""
+    from app.models.video_progress import VideoProgress
+    
+    # Check if video exists and user has access
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Check enrollment if video is in a unit that's part of a course
+    if video.unit_id:
+        check_unit_access(db, current_user, video.unit_id)
+    
+    # Get progress record
+    progress = db.query(VideoProgress).filter(
+        VideoProgress.user_id == current_user.id,
+        VideoProgress.video_id == video_id
+    ).first()
+    
+    if not progress:
+        return {
+            "video_id": video_id,
+            "last_position_sec": 0.0,
+            "watched_percentage": 0.0,
+            "completed": False,
+            "completed_at": None
+        }
+    
+    return {
+        "video_id": video_id,
+        "last_position_sec": progress.last_position_sec,
+        "watched_percentage": progress.watched_percentage,
+        "completed": progress.completed,
+        "completed_at": progress.completed_at.isoformat() if progress.completed_at else None
+    }
+
+# Duplicate endpoint removed - using the Form-based one above
+
+@router.delete("/{video_id}/progress")
+async def reset_video_progress(
+    video_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reset user's progress on a video"""
+    from app.models.video_progress import VideoProgress
+    
+    progress = db.query(VideoProgress).filter(
+        VideoProgress.user_id == current_user.id,
+        VideoProgress.video_id == video_id
+    ).first()
+    
+    if progress:
+        db.delete(progress)
+        db.commit()
+    
+    return {"message": "Progress reset successfully"}
+
+@router.get("/static/thumbnails/{filename}")
+async def get_thumbnail(
+    filename: str
+):
+    """Serve thumbnail files - no auth required for static assets"""
+    from fastapi.responses import FileResponse
+    import os
+    
+    # Get uploads path using helper function
+    uploads_path = get_uploads_path()
+    
+    file_path = os.path.join(uploads_path, "thumbnails", filename)
+    
+    print(f"[DEBUG] Thumbnail request: filename={filename}")
+    print(f"[DEBUG] Uploads path: {uploads_path}")
+    print(f"[DEBUG] File path: {file_path}")
+    print(f"[DEBUG] File exists: {os.path.exists(file_path)}")
+    
+    if os.path.exists(file_path):
+        # Detect media type based on file extension
+        if filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg'):
+            media_type = "image/jpeg"
+        elif filename.lower().endswith('.png'):
+            media_type = "image/png"
+        else:
+            media_type = "image/jpeg"  # Default
+        return FileResponse(file_path, media_type=media_type)
+    else:
+        # List files in thumbnails directory for debugging
+        thumbnails_dir = os.path.join(uploads_path, "thumbnails")
+        if os.path.exists(thumbnails_dir):
+            files = os.listdir(thumbnails_dir)
+            print(f"[DEBUG] Files in thumbnails directory: {files}")
+        raise HTTPException(status_code=404, detail=f"Thumbnail not found: {file_path}")
+
+@router.get("/stream/{video_id}")
+async def stream_video(
+    video_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Stream video file with range request support for proper seeking"""
+    from fastapi.responses import StreamingResponse
+    from fastapi import Request
+    import os
+    
+    # Get video from database
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Check if video is accessible
+    if not video.is_visible_to_students or video.status != VideoStatus.PUBLISHED:
+        raise HTTPException(status_code=403, detail="Video not accessible")
+    
+    # Check enrollment if video belongs to a unit in a course
+    if video.unit_id:
+        check_unit_access(db, current_user, video.unit_id)
+    
+    # Only stream file-based videos
+    if video.source_type != VideoSourceType.FILE or not video.file_path:
+        raise HTTPException(status_code=400, detail="Video is not a file-based video")
+    
+    # Get uploads path using helper function
+    uploads_path = get_uploads_path()
+    
+    file_path = os.path.join(uploads_path, video.file_path)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Video file not found: {file_path}")
+    
+    # Determine content type
+    ext = os.path.splitext(file_path)[1].lower()
+    content_type_map = {
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.ogg': 'video/ogg',
+        '.ogv': 'video/ogg',
+        '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo',
+        '.mkv': 'video/x-matroska',
+        '.flv': 'video/x-flv',
+        '.3gp': 'video/3gpp',
+        '.wmv': 'video/x-ms-wmv'
+    }
+    content_type = content_type_map.get(ext, 'video/mp4')
+    
+    # Support range requests for video seeking
+    file_size = os.path.getsize(file_path)
+    
+    def generate():
+        with open(file_path, "rb") as video_file:
+            yield from video_file
+    
+    return StreamingResponse(
+        generate(),
+        media_type=content_type,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+        }
+    )

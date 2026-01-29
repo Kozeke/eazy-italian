@@ -9,9 +9,13 @@ from app.core.auth import get_current_user, get_current_teacher
 from app.models.user import User
 from app.models.unit import Unit, UnitLevel, UnitStatus
 from app.models.video import Video, VideoStatus
-from app.models.task import Task, TaskStatus
-from app.models.test import Test, TestStatus
+from app.models.task import Task, TaskStatus, TaskSubmission, SubmissionStatus
+from app.models.test import Test, TestStatus, TestAttempt, AttemptStatus
+from app.models.video_progress import VideoProgress
 from app.models.progress import Progress
+from app.models.course import Course
+from app.models.task import TaskSubmission, SubmissionStatus
+from app.models.test import TestAttempt, AttemptStatus
 from app.schemas.unit import (
     UnitResponse, UnitCreate, UnitUpdate, UnitListResponse,
     UnitDetailResponse, UnitReorderRequest, UnitPublishRequest,
@@ -38,7 +42,8 @@ async def get_admin_units(
     
     # Build query
     query_builder = db.query(Unit).options(
-        joinedload(Unit.created_by_user)
+        joinedload(Unit.created_by_user),
+        joinedload(Unit.course)
     )
     
     # Apply filters
@@ -84,7 +89,9 @@ async def get_admin_units(
             created_by=unit.created_by,
             created_at=unit.created_at,
             updated_at=unit.updated_at,
-            content_count=content_count
+            content_count=content_count,
+            course_id=unit.course_id,
+            course_title=unit.course.title if unit.course else None
         ))
     
     return result
@@ -96,6 +103,21 @@ async def create_unit(
     db: Session = Depends(get_db)
 ):
     """Create a new unit"""
+    
+    # Validate course_id if provided
+    if unit_data.course_id is not None:
+        course = db.query(Course).filter(Course.id == unit_data.course_id).first()
+        if not course:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Course with id {unit_data.course_id} not found"
+            )
+        # Optional: Verify course belongs to current user (teacher)
+        if course.created_by != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="You can only add units to courses you created"
+            )
     
     # Generate slug
     slug = unit_data.title.lower().replace(' ', '-')
@@ -193,6 +215,21 @@ async def update_unit(
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
+    
+    # Validate course_id if provided
+    if unit_data.course_id is not None:
+        course = db.query(Course).filter(Course.id == unit_data.course_id).first()
+        if not course:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Course with id {unit_data.course_id} not found"
+            )
+        # Optional: Verify course belongs to current user (teacher)
+        if course.created_by != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="You can only add units to courses you created"
+            )
     
     # Update fields
     update_data = unit_data.dict(exclude_unset=True)
@@ -448,47 +485,16 @@ async def get_unit_summary(
         completion_rate=completion_rate
     )
 
-# Keep existing endpoints for backward compatibility
-from app.core.subscription_guard import user_can_access_unit
+# Student endpoints with enrollment authorization
+from app.core.enrollment_guard import check_unit_access
 
-@router.get("/units", response_model=List[UnitListResponse])
-def get_units(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    units = db.query(Unit).filter(
-        Unit.is_visible_to_students == True,
-        Unit.status == UnitStatus.PUBLISHED
-    ).order_by(Unit.order_index).all()
-
-    result = []
-    for unit in units:
-        if not user_can_access_unit(db, current_user.id, unit):
-            continue
-
-        result.append(UnitListResponse(
-            id=unit.id,
-            title=unit.title,
-            level=unit.level,
-            status=unit.status,
-            publish_at=unit.publish_at,
-            order_index=unit.order_index,
-            created_by=unit.created_by,
-            created_at=unit.created_at,
-            updated_at=unit.updated_at,
-            content_count=unit.content_count
-        ))
-
-    return result
-
-
-
-@router.get("/units/{unit_id}", response_model=UnitResponse)
+@router.get("/{unit_id}", response_model=UnitDetailResponse)  # Changed to UnitDetailResponse
 def get_unit_detail(
     unit_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """Get unit detail - requires enrollment if unit belongs to a course"""
     unit = db.query(Unit).filter(
         Unit.id == unit_id,
         Unit.is_visible_to_students == True,
@@ -498,8 +504,123 @@ def get_unit_detail(
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
 
-    if not user_can_access_unit(db, current_user.id, unit):
-        raise HTTPException(status_code=403, detail="Subscription required")
+    # Check enrollment authorization
+    check_unit_access(db, current_user, unit_id)
 
-    return unit
+    # Get content items - ONLY published and visible ones for students
+    videos = db.query(Video).filter(
+        Video.unit_id == unit_id,
+        Video.is_visible_to_students == True,
+        Video.status == VideoStatus.PUBLISHED
+    ).order_by(Video.order_index).all()
+    
+    tasks = db.query(Task).filter(
+        Task.unit_id == unit_id,
+        Task.status == TaskStatus.PUBLISHED
+    ).order_by(Task.order_index).all()
+    
+    tests = db.query(Test).filter(
+        Test.unit_id == unit_id,
+        Test.status == TestStatus.PUBLISHED
+    ).order_by(Test.order_index).all()
+
+    # Convert to response format
+    video_data = [
+        {
+            "id": video.id,
+            "title": video.title,
+            "description": video.description,
+            "status": video.status.value if video.status else None,
+            "order_index": video.order_index,
+            "duration_sec": video.duration_sec,
+            "thumbnail_path": video.thumbnail_path,
+            "source_type": video.source_type.value if video.source_type else None,
+            "external_url": video.external_url,
+            "file_path": video.file_path,
+            "attachments": video.attachments if video.attachments else []
+        }
+        for video in videos
+    ]
+    
+    task_data = [
+        {
+            "id": task.id,
+            "title": task.title,
+            "status": task.status.value if task.status else None,
+            "order_index": task.order_index,
+            "type": task.type.value if task.type else None
+        }
+        for task in tasks
+    ]
+    
+    test_data = [
+        {
+            "id": test.id,
+            "title": test.title,
+            "status": test.status.value if test.status else None,
+            "order_index": test.order_index,
+            "time_limit_minutes": test.time_limit_minutes
+        }
+        for test in tests
+    ]
+    
+    # Get progress data for current student
+    student_id = current_user.id
+    
+    # Get completed videos (using VideoProgress table)
+    completed_video_ids = set()
+    if videos:
+        video_progress_records = db.query(VideoProgress).filter(
+            VideoProgress.user_id == student_id,
+            VideoProgress.video_id.in_([video.id for video in videos]),
+            VideoProgress.completed == True
+        ).all()
+        completed_video_ids = {vp.video_id for vp in video_progress_records}
+    
+    unit_progress = db.query(Progress).filter(
+        Progress.student_id == student_id,
+        Progress.unit_id == unit_id
+    ).first()
+    
+    # Get completed tasks (submitted tasks)
+    completed_task_ids = set()
+    if tasks:
+        task_submissions = db.query(TaskSubmission).filter(
+            TaskSubmission.student_id == student_id,
+            TaskSubmission.task_id.in_([task.id for task in tasks]),
+            TaskSubmission.status == SubmissionStatus.SUBMITTED
+        ).all()
+        completed_task_ids = {sub.task_id for sub in task_submissions}
+    
+    # Get passed tests (tests with passing score)
+    passed_test_ids = set()
+    if tests:
+        test_attempts = db.query(TestAttempt).filter(
+            TestAttempt.student_id == student_id,
+            TestAttempt.test_id.in_([test.id for test in tests]),
+            TestAttempt.status == AttemptStatus.COMPLETED,
+            TestAttempt.score.isnot(None)
+        ).all()
+        for attempt in test_attempts:
+            test = next((t for t in tests if t.id == attempt.test_id), None)
+            if test and attempt.score is not None and attempt.score >= test.passing_score:
+                passed_test_ids.add(attempt.test_id)
+    
+    # Mark videos, tasks, and tests with completion status
+    for video in video_data:
+        video["completed"] = video["id"] in completed_video_ids
+    
+    for task in task_data:
+        task["completed"] = task["id"] in completed_task_ids
+    
+    for test in test_data:
+        test["passed"] = test["id"] in passed_test_ids
+    
+    return UnitDetailResponse(
+        **unit.__dict__,
+        content_count=unit.content_count,
+        videos=video_data,
+        tasks=task_data,
+        tests=test_data
+    )
 

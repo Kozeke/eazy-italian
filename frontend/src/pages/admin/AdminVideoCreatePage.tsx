@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Eye, Youtube } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Youtube, Upload, X, Check, Settings as SettingsIcon } from 'lucide-react';
 import { videosApi, unitsApi } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -14,12 +14,16 @@ interface VideoFormData {
   status: 'draft' | 'published' | 'archived';
   order_index: number;
   is_visible_to_students: boolean;
+  publish_at: string;
+  meta_title: string;
+  meta_description: string;
 }
 
 export default function AdminVideoCreatePage() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   // Form state for video creation
   const [formData, setFormData] = useState<VideoFormData>({
@@ -30,12 +34,21 @@ export default function AdminVideoCreatePage() {
     external_url: '',
     status: 'draft',
     order_index: 0,
-    is_visible_to_students: false
+    is_visible_to_students: false,
+    publish_at: '',
+    meta_title: '',
+    meta_description: ''
   });
   
   // Available units dropdown
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(true);
+  
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   
   // Load available units on mount
   useEffect(() => {
@@ -105,8 +118,76 @@ export default function AdminVideoCreatePage() {
     return match ? match[1] : null;
   };
   
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/ogg', 'video/x-flv', 'video/3gpp', 'video/x-ms-wmv'];
+    const allowedExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.ogv', '.flv', '.3gp', '.wmv'];
+    const fileExt = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExt)) {
+      toast.error('Неподдерживаемый формат файла. Разрешены: MP4, WebM, MOV, AVI, MKV, OGV, FLV, 3GP, WMV');
+      return;
+    }
+    
+    // Check file size (max 2GB)
+    const maxSize = 2 * 1024 * 1024 * 1024; // 2GB
+    if (file.size > maxSize) {
+      toast.error('Файл слишком большой. Максимальный размер: 2GB');
+      return;
+    }
+    
+    setSelectedFile(file);
+    setUploadedFilePath(null);
+  };
+  
+  // Handle file upload
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+    
+    try {
+      setUploading(true);
+      setUploadProgress(0);
+      
+      const result = await videosApi.uploadVideoFile(selectedFile);
+      
+      setUploadedFilePath(result.file_path);
+      setFormData(prev => ({ ...prev, file_path: result.file_path }));
+      setUploadProgress(100);
+      
+      toast.success('Видео успешно загружено!');
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      toast.error(error.response?.data?.detail || 'Ошибка при загрузке видео');
+      setSelectedFile(null);
+      setUploadProgress(0);
+    } finally {
+      setUploading(false);
+    }
+  };
+  
+  // Remove selected file
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    setUploadedFilePath(null);
+    setFormData(prev => ({ ...prev, file_path: undefined }));
+    setUploadProgress(0);
+  };
+  
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+  
   // Handle form submission
-  const handleSave = async () => {
+  const handleSave = async (publish: boolean = false) => {
     try {
       // Validate required fields
       if (!formData.title) {
@@ -135,7 +216,16 @@ export default function AdminVideoCreatePage() {
         }
       }
       
+      if (formData.source_type === 'file' && !formData.file_path) {
+        toast.error('Пожалуйста, загрузите видео файл');
+        return;
+      }
+      
       setSaving(true);
+      
+      // Smart defaults: status and visibility derived from publish action
+      const status = publish ? 'published' : 'draft';
+      const is_visible_to_students = publish; // Always true when published
       
       // Prepare data for submission
       const submitData: any = {
@@ -143,16 +233,23 @@ export default function AdminVideoCreatePage() {
         description: formData.description || null,
         unit_id: formData.unit_id,
         source_type: formData.source_type,
-        status: formData.status,
-        order_index: formData.order_index,
-        is_visible_to_students: formData.is_visible_to_students
+        status: status,
+        order_index: 0, // Backend should auto-calculate
+        is_visible_to_students: is_visible_to_students,
+        publish_at: formData.publish_at || undefined,
+        meta_title: formData.meta_title || undefined,
+        meta_description: formData.meta_description || undefined
       };
       
       // Add source-specific fields
       if (formData.source_type === 'url') {
         submitData.external_url = formData.external_url;
       } else {
-        submitData.file_path = formData.file_path || 'placeholder.mp4'; // Temporary placeholder
+        if (!formData.file_path) {
+          toast.error('Пожалуйста, загрузите видео файл');
+          return;
+        }
+        submitData.file_path = formData.file_path;
       }
       
       console.log('Sending video data:', submitData);
@@ -160,7 +257,11 @@ export default function AdminVideoCreatePage() {
       const createdVideo = await videosApi.createVideo(submitData);
       
       console.log('✅ Video created:', createdVideo);
-      toast.success('Видео успешно создано!');
+      toast.success(
+        publish 
+          ? 'Видео успешно опубликовано!' 
+          : 'Видео успешно сохранено!'
+      );
       
       // Navigate back to videos page
       navigate('/admin/videos');
@@ -176,7 +277,23 @@ export default function AdminVideoCreatePage() {
         } else {
           toast.error('Ошибка валидации данных');
         }
+      } else if (error.response?.status === 400) {
+        // Bad request - show the error message
+        const errorMessage = error.response?.data?.detail || 'Неверные данные';
+        toast.error(`Ошибка: ${errorMessage}`);
+      } else if (error.response?.status === 404) {
+        // Not found
+        toast.error('Юнит не найден. Пожалуйста, выберите другой юнит.');
+      } else if (error.response?.status === 500) {
+        // Server error - check for specific error types
+        const errorDetail = error.response?.data?.detail || '';
+        if (errorDetail.includes('duplicate') || errorDetail.includes('unique') || errorDetail.includes('slug')) {
+          toast.error('Видео с таким названием уже существует. Пожалуйста, измените название.');
+        } else {
+          toast.error('Ошибка сервера. Пожалуйста, попробуйте еще раз.');
+        }
       } else {
+        // Generic error
         toast.error(error.response?.data?.detail || 'Ошибка при создании видео');
       }
     } finally {
@@ -198,18 +315,9 @@ export default function AdminVideoCreatePage() {
               Назад к видео
             </button>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                  Создание нового видео
-                </h1>
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-                  {formData.status === 'published'
-                    ? 'Опубликовано'
-                    : formData.status === 'draft'
-                    ? 'Черновик'
-                    : 'Архивировано'}
-                </span>
-              </div>
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                Создание нового видео
+              </h1>
               <p className="mt-1 text-xs md:text-sm text-gray-500">
                 Добавьте новый видео-урок в юнит — как лекцию в онлайн-курсе.
               </p>
@@ -217,30 +325,27 @@ export default function AdminVideoCreatePage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
+            {/* <button
               onClick={() => setShowPreview(!showPreview)}
               className="hidden sm:inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <Eye className="h-4 w-4 mr-2" />
               {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр'}
-            </button>
+            </button> */}
             <button
-              onClick={handleSave}
+              onClick={() => handleSave(true)}
               disabled={saving}
               className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Сохранение...' : 'Сохранить видео'}
+              {saving ? 'Публикация...' : 'Опубликовать'}
             </button>
           </div>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* MAIN COLUMN – basic info + source */}
-          <div className="lg:col-span-2 space-y-6">
+      <div className="max-w-4xl mx-auto px-4 lg:px-8 py-8">
+        <div className="space-y-6">
             {/* Basic info */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -319,9 +424,11 @@ export default function AdminVideoCreatePage() {
                   <div className="grid grid-cols-2 gap-4">
                     <button
                       type="button"
-                      onClick={() =>
-                        setFormData(prev => ({ ...prev, source_type: 'url' }))
-                      }
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, source_type: 'url' }));
+                        setSelectedFile(null);
+                        setUploadedFilePath(null);
+                      }}
                       className={`flex flex-col items-center justify-center p-4 border-2 rounded-lg transition-colors ${
                         formData.source_type === 'url'
                           ? 'border-primary-500 bg-primary-50'
@@ -339,9 +446,11 @@ export default function AdminVideoCreatePage() {
                     
                     <button
                       type="button"
-                      onClick={() =>
-                        setFormData(prev => ({ ...prev, source_type: 'file' }))
-                      }
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, source_type: 'file', external_url: undefined }));
+                        setSelectedFile(null);
+                        setUploadedFilePath(null);
+                      }}
                       className={`flex flex-col items-center justify-center p-4 border-2 rounded-lg transition-colors ${
                         formData.source_type === 'file'
                           ? 'border-primary-500 bg-primary-50'
@@ -391,189 +500,247 @@ export default function AdminVideoCreatePage() {
                   </div>
                 )}
                 
-                {/* File Upload (placeholder) */}
+                {/* File Upload */}
                 {formData.source_type === 'file' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Загрузка файла
+                      Загрузка видео файла *
                     </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
-                      <svg
-                        className="mx-auto h-12 w-12 text-gray-400"
-                        stroke="currentColor"
-                        fill="none"
-                        viewBox="0 0 48 48"
-                      >
-                        <path
-                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                    
+                    {!selectedFile && !uploadedFilePath ? (
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <input
+                          type="file"
+                          id="video-upload"
+                          accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/ogg,video/x-flv,video/3gpp,video/x-ms-wmv,.mp4,.webm,.mov,.avi,.mkv,.ogv,.flv,.3gp,.wmv"
+                          onChange={handleFileSelect}
+                          className="hidden"
                         />
-                      </svg>
-                      <p className="mt-2 text-sm text-gray-600">
-                        <span className="font-medium">Загрузка файлов</span> будет доступна позже
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Пока используйте ссылки YouTube/Vimeo.
-                      </p>
-                    </div>
+                        <label
+                          htmlFor="video-upload"
+                          className="cursor-pointer flex flex-col items-center"
+                        >
+                          <Upload className="h-12 w-12 text-gray-400 mb-3" />
+                          <p className="mt-2 text-sm text-gray-600">
+                            <span className="font-medium text-primary-600 hover:text-primary-700">
+                              Нажмите для выбора файла
+                            </span>{' '}
+                            или перетащите файл сюда
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Поддерживаемые форматы: MP4, WebM, MOV, AVI, MKV, OGV, FLV, 3GP, WMV
+                          </p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            Максимальный размер: 2GB
+                          </p>
+                        </label>
+                      </div>
+                    ) : selectedFile && !uploadedFilePath ? (
+                      <div className="border-2 border-gray-300 rounded-lg p-4 bg-white">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="flex-shrink-0">
+                              <svg className="h-10 w-10 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {selectedFile.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatFileSize(selectedFile.size)}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveFile}
+                            className="ml-2 flex-shrink-0 text-gray-400 hover:text-red-600"
+                            disabled={uploading}
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
+                        
+                        {uploading && (
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                              <span>Загрузка...</span>
+                              <span>{uploadProgress}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {!uploading && (
+                          <button
+                            type="button"
+                            onClick={handleFileUpload}
+                            className="w-full mt-3 inline-flex items-center justify-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Загрузить видео
+                          </button>
+                        )}
+                      </div>
+                    ) : uploadedFilePath ? (
+                      <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="flex-shrink-0">
+                              <Check className="h-10 w-10 text-green-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {selectedFile?.name || 'Видео загружено'}
+                              </p>
+                              <p className="text-xs text-green-600">
+                                Файл успешно загружен
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveFile}
+                            className="ml-2 flex-shrink-0 text-gray-400 hover:text-red-600"
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
             </div>
-          </div>
 
-          {/* SIDEBAR – settings + preview */}
-          <div className="space-y-6">
-            {/* Settings Section */}
+            {/* Advanced Settings */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Настройки
-              </h2>
-              
-              <div className="space-y-4">
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Статус
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="draft">Черновик</option>
-                    <option value="published">Опубликовано</option>
-                    <option value="archived">Архивировано</option>
-                  </select>
-                </div>
-                
-                {/* Order Index */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Порядок
-                  </label>
-                  <input
-                    type="number"
-                    name="order_index"
-                    value={formData.order_index}
-                    onChange={handleChange}
-                    min={0}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Определяет порядок видео среди других материалов юнита.
-                  </p>
-                </div>
-                
-                {/* Visibility */}
-                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <SettingsIcon className="h-5 w-5 mr-2 text-primary-600" />
+                  Расширенные настройки
+                </h2>
+                <span className="text-sm text-gray-500">
+                  {showAdvanced ? 'Скрыть' : 'Показать'}
+                </span>
+              </button>
+
+              {showAdvanced && (
+                <div className="mt-6 space-y-6">
+                  {/* Order index */}
                   <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      Видимость для студентов
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Если выключено, видео не будет показано в интерфейсе студента.
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Порядок
+                    </label>
+                    <input
+                      type="number"
+                      name="order_index"
+                      value={formData.order_index}
+                      onChange={handleChange}
+                      min={0}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Определяет порядок видео среди других материалов в юните.
                     </p>
                   </div>
-                  <input
-                    type="checkbox"
-                    id="is_visible_to_students"
-                    checked={formData.is_visible_to_students}
-                    onChange={(e) =>
-                      handleCheckboxChange('is_visible_to_students', e.target.checked)
-                    }
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
+
+                  {/* Visibility */}
+                  <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Видимость для студентов
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Если выключено, видео будет скрыто в интерфейсе студента.
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={formData.is_visible_to_students}
+                      onChange={(e) =>
+                        handleCheckboxChange('is_visible_to_students', e.target.checked)
+                      }
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                  </div>
+
+                  {/* Publish at */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Запланировать публикацию (опционально)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      name="publish_at"
+                      value={formData.publish_at}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Если указано, видео будет опубликовано в указанное время. Если не указано, публикация произойдет сразу.
+                    </p>
+                  </div>
+
+                  {/* SEO */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                      SEO настройки
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Meta заголовок
+                        </label>
+                        <input
+                          type="text"
+                          name="meta_title"
+                          value={formData.meta_title}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="SEO заголовок"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Meta описание
+                        </label>
+                        <textarea
+                          name="meta_description"
+                          value={formData.meta_description}
+                          onChange={handleChange}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="Краткое описание для поисковых систем"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            {/* Preview Section */}
-            {showPreview && (
+            {/* Preview Section - commented out */}
+            {/* {showPreview && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                   Предпросмотр видео
                 </h2>
-                
-                {/* Video player preview */}
-                {formData.source_type === 'url' && formData.external_url && (
-                  <div className="mb-4">
-                    {validateYouTubeUrl(formData.external_url) && (
-                      <div className="relative pb-[56.25%] h-0 overflow-hidden rounded-lg">
-                        <iframe
-                          className="absolute top-0 left-0 w-full h-full"
-                          src={`https://www.youtube.com/embed/${extractYouTubeVideoId(
-                            formData.external_url
-                          )}`}
-                          frameBorder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      </div>
-                    )}
-                    
-                    {validateVimeoUrl(formData.external_url) && (
-                      <div className="relative pb-[56.25%] h-0 overflow-hidden rounded-lg">
-                        <iframe
-                          className="absolute top-0 left-0 w-full h-full"
-                          src={`https://player.vimeo.com/video/${extractVimeoVideoId(
-                            formData.external_url
-                          )}`}
-                          frameBorder="0"
-                          allow="autoplay; fullscreen"
-                          allowFullScreen
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {formData.source_type === 'file' && (
-                  <div className="text-center py-8 text-gray-500">
-                    Предпросмотр загруженных файлов недоступен.
-                  </div>
-                )}
-                
-                {!formData.external_url &&
-                  formData.source_type === 'url' && (
-                    <div className="text-center py-8 text-gray-500">
-                      Введите URL для предпросмотра.
-                    </div>
-                  )}
-                
-                {/* Video info card */}
-                <div className="mt-2 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-medium text-gray-900 mb-1">
-                    {formData.title || 'Без названия'}
-                  </h3>
-                  <p className="text-sm text-gray-600 line-clamp-3">
-                    {formData.description ||
-                      'Описание видео еще не заполнено.'}
-                  </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                    <span>
-                      Статус:{' '}
-                      {formData.status === 'published'
-                        ? 'Опубликовано'
-                        : formData.status === 'draft'
-                        ? 'Черновик'
-                        : 'Архивировано'}
-                    </span>
-                    <span>Порядок: {formData.order_index}</span>
-                    <span>
-                      Видимость:{' '}
-                      {formData.is_visible_to_students
-                        ? 'видно студентам'
-                        : 'скрыто от студентов'}
-                    </span>
-                  </div>
-                </div>
+                ...
               </div>
-            )}
-          </div>
+            )} */}
         </div>
       </div>
     </div>

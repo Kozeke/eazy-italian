@@ -31,6 +31,7 @@ import {
   X,
   Plus,
   GraduationCap,
+  BookMarked,
 } from 'lucide-react';
 
 interface AdminLayoutProps {}
@@ -38,17 +39,18 @@ interface AdminLayoutProps {}
 // Navigation items for instructor/admin panel
 const navigation = [
   { name: 'dashboard', href: '/admin', icon: LayoutDashboard },
+  { name: 'courses', href: '/admin/courses', icon: BookMarked },
   { name: 'units', href: '/admin/units', icon: BookOpen },
   { name: 'videos', href: '/admin/videos', icon: Video },
-  { name: 'tasks', href: '/admin/tasks', icon: FileText },
+  // { name: 'tasks', href: '/admin/tasks', icon: FileText },
   { name: 'tests', href: '/admin/tests', icon: ClipboardList },
-  { name: 'questionBank', href: '/admin/questions', icon: Database },
+  // { name: 'questionBank', href: '/admin/questions', icon: Database },
   { name: 'students', href: '/admin/students', icon: Users },
-  { name: 'emailCampaigns', href: '/admin/email-campaigns', icon: Mail },
+  // { name: 'emailCampaigns', href: '/admin/email-campaigns', icon: Mail },
   { name: 'grades', href: '/admin/grades', icon: BarChart3 },
-  { name: 'progress', href: '/admin/progress', icon: TrendingUp },
-  { name: 'settings', href: '/admin/settings', icon: Settings },
-  { name: 'auditLog', href: '/admin/audit-log', icon: AuditLog },
+  // { name: 'progress', href: '/admin/progress', icon: TrendingUp },
+  // { name: 'settings', href: '/admin/settings', icon: Settings },
+  // { name: 'auditLog', href: '/admin/audit-log', icon: AuditLog },
 ];
 
 export default function AdminLayout({}: AdminLayoutProps) {
@@ -78,10 +80,12 @@ export default function AdminLayout({}: AdminLayoutProps) {
   // Handle new item creation based on current route context
   const handleNewItem = () => {
     const currentPath = location.pathname;
-    if (currentPath.includes('/units')) {
+    if (currentPath.includes('/courses')) {
+      navigate('/admin/courses/new');
+    } else if (currentPath.includes('/units')) {
       navigate('/admin/units/new');
-    } else if (currentPath.includes('/tasks')) {
-      navigate('/admin/tasks/new');
+    // } else if (currentPath.includes('/tasks')) {
+    //   navigate('/admin/tasks/new');
     } else if (currentPath.includes('/tests')) {
       navigate('/admin/tests/new');
     }
@@ -116,7 +120,7 @@ export default function AdminLayout({}: AdminLayoutProps) {
               <GraduationCap className="h-5 w-5" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold text-slate-900">Eazy Italian</span>
+              <span className="text-sm font-bold text-slate-900">EZ Italian</span>
               <span className="text-[11px] font-medium uppercase tracking-wide text-primary-500">
                 Instructor
               </span>

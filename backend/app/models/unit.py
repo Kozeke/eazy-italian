@@ -36,12 +36,14 @@ class Unit(Base):
     slug = Column(String(255), nullable=True, unique=True)
     meta_title = Column(String(255), nullable=True)
     meta_description = Column(Text, nullable=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)  # Course this unit belongs to
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
+    course = relationship("Course", back_populates="units")
     created_by_user = relationship("User", foreign_keys=[created_by], back_populates="created_units")
     updated_by_user = relationship("User", foreign_keys=[updated_by])
     videos = relationship("Video", back_populates="unit", cascade="all, delete-orphan")

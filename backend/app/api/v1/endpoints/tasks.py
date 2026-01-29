@@ -632,15 +632,9 @@ def get_student_tasks(
     
     tasks = query.all()
     
-    # Add computed properties
-    for task in tasks:
-        task.assigned_student_count = task.assigned_student_count
-        task.submission_stats = task.submission_stats
-        task.average_score = task.average_score
-        task.is_available = task.is_available
-        task.is_overdue = task.is_overdue
-        if task.unit:
-            task.unit_title = task.unit.title
+    # Properties are computed automatically, no need to set them
+    # Just access them when needed - they're read-only properties
+    # If unit_title is needed, it can be accessed via task.unit.title
     
     return tasks
 
@@ -650,13 +644,19 @@ def get_student_task(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get task details for student"""
+    """Get task details for student - requires enrollment if task belongs to a course"""
+    from app.core.enrollment_guard import check_unit_access
+    
     task = get_task_with_relations(db, task_id)
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Задание не найдено"
         )
+    
+    # Check enrollment if task belongs to a unit with a course
+    if task.unit_id:
+        check_unit_access(db, current_user, task.unit_id)
     
     # Check if student is assigned to this task
     if not task.assign_to_all and current_user.id not in (task.assigned_students or []):
@@ -674,13 +674,19 @@ def submit_task(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Submit a task"""
+    """Submit a task - requires enrollment if task belongs to a course"""
+    from app.core.enrollment_guard import check_unit_access
+    
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Задание не найдено"
         )
+    
+    # Check enrollment if task belongs to a unit with a course
+    if task.unit_id:
+        check_unit_access(db, current_user, task.unit_id)
     
     # Check if student is assigned to this task
     if not task.assign_to_all and current_user.id not in (task.assigned_students or []):

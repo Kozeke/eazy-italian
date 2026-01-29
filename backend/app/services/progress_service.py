@@ -27,8 +27,10 @@ def calculate_progress_for_students(
             User.last_name,
             User.is_active,
             User.created_at,
+            User.last_login,
 
             Subscription.name.label("subscription"),  # ✅
+            UserSubscription.ends_at.label("subscription_ends_at"),  # ✅
 
             func.count(Test.id).label("total_tests"),
             func.sum(
@@ -57,7 +59,9 @@ def calculate_progress_for_students(
             User.last_name,
             User.is_active,
             User.created_at,
-            Subscription.name
+            User.last_login,
+            Subscription.name,
+            UserSubscription.ends_at
         )
         .all()
     )
@@ -75,8 +79,10 @@ def calculate_progress_for_students(
             "last_name": r.last_name,
             "is_active": r.is_active,
             "created_at": r.created_at,
+            "last_login": r.last_login,  # ✅ NOW INCLUDED
 
             "subscription": r.subscription,  # ✅ NOW INCLUDED
+            "subscription_ends_at": r.subscription_ends_at,  # ✅ NOW INCLUDED
 
             "total_tests": total,
             "passed_tests": passed,

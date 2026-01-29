@@ -5,6 +5,7 @@ from app.core.auth import get_current_teacher
 from app.models.test import TestAttempt, Test
 from app.models.user import User
 from app.models.unit import Unit
+from app.models.course import Course
 
 router = APIRouter()
 
@@ -34,6 +35,7 @@ def get_grades(
             TestAttempt.id.label("attempt_id"),
             User.first_name,
             User.last_name,
+            Course.title.label("course"),
             Test.title.label("test"),
             Unit.title.label("unit"),
             TestAttempt.score,
@@ -44,6 +46,7 @@ def get_grades(
         .join(User, User.id == TestAttempt.student_id)
         .join(Test, Test.id == TestAttempt.test_id)
         .join(Unit, Unit.id == Test.unit_id)
+        .outerjoin(Course, Course.id == Unit.course_id)
     )
 
     total = base_query.count()
@@ -61,6 +64,7 @@ def get_grades(
             {
                 "attempt_id": r.attempt_id,
                 "student": f"{r.first_name} {r.last_name}",
+                "course": r.course or "—",  # Show "—" if course is None
                 "test": r.test,
                 "unit": r.unit,
                 "score": r.score,

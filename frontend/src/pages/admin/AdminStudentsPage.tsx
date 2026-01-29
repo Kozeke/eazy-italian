@@ -20,6 +20,7 @@ import {
   UserX
 } from 'lucide-react';
 import { progressApi, usersApi } from '../../services/api';
+import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 // Mock data - replace with actual API calls
 const mockStudents = [
   {
@@ -111,7 +112,7 @@ export default function AdminStudentsPage() {
           level: '—',
           status: s.is_active ? 'active' : 'inactive',
           registrationDate: s.created_at,
-          lastLogin: null,
+          lastLogin: s.last_login ?? null,
   
           // 🔥 REAL PROGRESS
           completedUnits: s.passed_tests,
@@ -242,126 +243,114 @@ export default function AdminStudentsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {t('admin.nav.students')}
-          </h1>
-          <p className="text-gray-600">
-            Управление студентами
-          </p>
-        </div>
-        <button
-          onClick={() => navigate('/admin/students/new')}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Добавить студента
-        </button>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Поиск по имени, фамилии или email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Sticky top bar */}
+      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Users className="h-6 w-6 text-primary-600" />
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                {t('admin.nav.students')}
+              </h1>
+              {students.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  {students.length} студентов
+                </span>
+              )}
             </div>
-
-            {/* Filter Toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              Фильтры
-              {showFilters ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
-            </button>
+            <p className="mt-1 text-xs md:text-sm text-gray-500">
+              Управляйте студентами и отслеживайте их прогресс
+            </p>
           </div>
 
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Level Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Уровень
-                  </label>
-                  <select
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все уровни</option>
-                    {levels.map(level => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Status Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Статус
-                  </label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все статусы</option>
-                    {statuses.map(status => (
-                      <option key={status} value={status}>
-                        {status === 'active' ? 'Активен' : 
-                         status === 'inactive' ? 'Неактивен' :
-                         status === 'suspended' ? 'Приостановлен' : 'Выпускник'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Subscription Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Подписка
-                  </label>
-                  <select
-                    value={selectedSubscription}
-                    onChange={(e) => setSelectedSubscription(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все типы</option>
-                    {subscriptionTypes.map(type => (
-                      <option key={type} value={type}>
-                        {type === 'free' ? 'Бесплатный'
-                          : type === 'premium' ? 'Премиум'
-                          : 'Pro'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={() => navigate('/admin/students/new')}
+            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Добавить студента
+          </button>
         </div>
       </div>
 
-      {/* Bulk Actions */}
-      {selectedStudents.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      {/* Main content */}
+      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
+
+        {/* Search and Filters */}
+        <AdminSearchFilters
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Поиск по имени, фамилии или email..."
+          showFilters={showFilters}
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          filters={
+            <>
+              {/* Level Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Уровень
+                </label>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все уровни</option>
+                  {levels.map(level => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Статус
+                </label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все статусы</option>
+                  {statuses.map(status => (
+                    <option key={status} value={status}>
+                      {status === 'active' ? 'Активен' : 
+                       status === 'inactive' ? 'Неактивен' :
+                       status === 'suspended' ? 'Приостановлен' : 'Выпускник'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subscription Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Подписка
+                </label>
+                <select
+                  value={selectedSubscription}
+                  onChange={(e) => setSelectedSubscription(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все типы</option>
+                  {subscriptionTypes.map(type => (
+                    <option key={type} value={type}>
+                      {type === 'free' ? 'Бесплатный'
+                        : type === 'premium' ? 'Премиум'
+                        : 'Pro'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          }
+        />
+
+        {/* Bulk Actions */}
+        {selectedStudents.length > 0 && (
+          <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-blue-800">
               Выбрано {selectedStudents.length} студентов
@@ -390,8 +379,8 @@ export default function AdminStudentsPage() {
         </div>
       )}
 
-      {/* Students Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+        {/* Students Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -403,6 +392,9 @@ export default function AdminStudentsPage() {
                     onChange={handleSelectAll}
                     className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Курс
                 </th>
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -457,7 +449,7 @@ export default function AdminStudentsPage() {
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200">
                   Действия
                 </th>
               </tr>
@@ -473,7 +465,16 @@ export default function AdminStudentsPage() {
                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4">
+                    {(student as any).course_title ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 break-words">
+                        {(student as any).course_title}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
@@ -483,7 +484,7 @@ export default function AdminStudentsPage() {
                         </div>
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-gray-900 break-words max-w-xs">
                           {student.firstName} {student.lastName}
                         </div>
                         <div className="text-sm text-gray-500">
@@ -492,14 +493,14 @@ export default function AdminStudentsPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4">
                     <div className="text-sm text-gray-900">
-                      <div className="flex items-center">
-                        <Mail className="w-4 h-4 mr-1 text-gray-400" />
-                        {student.email}
+                      <div className="flex items-center break-words max-w-xs">
+                        <Mail className="w-4 h-4 mr-1 text-gray-400 flex-shrink-0" />
+                        <span className="break-words">{student.email}</span>
                       </div>
                       <div className="flex items-center mt-1">
-                        <Phone className="w-4 h-4 mr-1 text-gray-400" />
+                        <Phone className="w-4 h-4 mr-1 text-gray-400 flex-shrink-0" />
                         {student.phone}
                       </div>
                     </div>
@@ -530,7 +531,9 @@ export default function AdminStudentsPage() {
                         <option value="pro">Pro</option>
                       </select>
                       <div className="text-xs text-gray-500 mt-1">
-                        До: {new Date(student.subscriptionExpiry).toLocaleDateString('ru-RU')}
+                        До: {student.subscriptionExpiry 
+                          ? new Date(student.subscriptionExpiry).toLocaleDateString('ru-RU')
+                          : '—'}
                       </div>
                     </div>
                   </td>
@@ -540,10 +543,12 @@ export default function AdminStudentsPage() {
                       {new Date(student.registrationDate).toLocaleDateString('ru-RU')}
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
-                      Последний вход: {new Date(student.lastLogin).toLocaleDateString('ru-RU')}
+                      Последний вход: {student.lastLogin 
+                        ? new Date(student.lastLogin).toLocaleDateString('ru-RU')
+                        : 'Никогда'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
                     <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => navigate(`/admin/students/${student.id}`)}
@@ -605,7 +610,8 @@ export default function AdminStudentsPage() {
             )}
           </div>
         )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

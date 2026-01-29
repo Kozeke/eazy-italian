@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Award, Clock, Home, RotateCcw } from 'lucide-react';
+import { CheckCircle, XCircle, Award, Clock, Home, RotateCcw, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { testsApi } from '../services/api';
 
 export default function TestResultsPage() {
   const { id, attemptId } = useParams<{ id: string; attemptId: string }>();
@@ -9,24 +10,48 @@ export default function TestResultsPage() {
   
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<any>(null);
+  const [unitId, setUnitId] = useState<number | null>(null);
 
   useEffect(() => {
-    // For now, we'll fetch from localStorage where we saved it
-    // In future, create GET /api/v1/tests/{id}/attempts/{attemptId} endpoint
-    const savedResult = sessionStorage.getItem(`test_result_${attemptId}`);
-    if (savedResult) {
-      setResult(JSON.parse(savedResult));
-      setLoading(false);
-    } else {
-      toast.error('Результаты не найдены');
-      navigate(`/tests/${id}`);
-    }
+    const loadData = async () => {
+      if (!id) return;
+      
+      try {
+        const testData = await testsApi.getTest(parseInt(id));
+        if (testData.unit_id) {
+          setUnitId(testData.unit_id);
+        }
+        
+        const savedResult = sessionStorage.getItem(`test_result_${attemptId}`);
+        if (savedResult) {
+          setResult(JSON.parse(savedResult));
+        } else {
+          toast.error('Результаты не найдены');
+          navigate(`/tests/${id}`);
+          return;
+        }
+      } catch (error: any) {
+        console.error('Error loading test data:', error);
+        const savedResult = sessionStorage.getItem(`test_result_${attemptId}`);
+        if (savedResult) {
+          setResult(JSON.parse(savedResult));
+        } else {
+          toast.error('Результаты не найдены');
+          navigate(`/tests/${id}`);
+          return;
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
   }, [id, attemptId, navigate]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent"></div>
       </div>
     );
   }
@@ -39,58 +64,55 @@ export default function TestResultsPage() {
   const percentage = result.score;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Results Card */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          {/* Header with result */}
-          <div className={`px-6 py-12 text-center ${
-            passed 
-              ? 'bg-gradient-to-r from-green-500 to-green-600' 
-              : 'bg-gradient-to-r from-red-500 to-red-600'
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Header */}
+          <div className={`px-8 py-10 text-center ${
+            passed ? 'bg-green-600' : 'bg-red-600'
           } text-white`}>
-            <div className="mx-auto w-20 h-20 mb-4">
+            <div className="mx-auto w-16 h-16 mb-3">
               {passed ? (
                 <CheckCircle className="w-full h-full" />
               ) : (
                 <XCircle className="w-full h-full" />
               )}
             </div>
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="text-2xl font-bold mb-1">
               {passed ? 'Тест пройден!' : 'Тест не пройден'}
             </h1>
-            <p className="text-xl opacity-90">
-              Ваш результат: {percentage.toFixed(1)}%
+            <p className="text-lg opacity-90">
+              {percentage.toFixed(1)}%
             </p>
           </div>
 
-          {/* Scores */}
+          {/* Stats */}
           <div className="p-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-2">
-                  <Award className="h-6 w-6 text-blue-600" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg mb-2">
+                  <Award className="h-5 w-5 text-blue-600" />
                 </div>
-                <p className="text-sm text-gray-500">Набрано баллов</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xs text-blue-600 font-medium mb-1">Баллы</p>
+                <p className="text-lg font-bold text-blue-900">
                   {result.points_earned?.toFixed(1)} / {result.points_possible}
                 </p>
               </div>
 
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full mb-2">
-                  <CheckCircle className="h-6 w-6 text-purple-600" />
+              <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-100">
+                <div className="inline-flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg mb-2">
+                  <CheckCircle className="h-5 w-5 text-purple-600" />
                 </div>
-                <p className="text-sm text-gray-500">Процент</p>
-                <p className="text-2xl font-bold text-gray-900">{percentage.toFixed(1)}%</p>
+                <p className="text-xs text-purple-600 font-medium mb-1">Процент</p>
+                <p className="text-lg font-bold text-purple-900">{percentage.toFixed(1)}%</p>
               </div>
 
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-2">
-                  <Clock className="h-6 w-6 text-green-600" />
+              <div className="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                <div className="inline-flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg mb-2">
+                  <Clock className="h-5 w-5 text-green-600" />
                 </div>
-                <p className="text-sm text-gray-500">Время</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xs text-green-600 font-medium mb-1">Время</p>
+                <p className="text-lg font-bold text-green-900">
                   {result.duration_minutes || 'N/A'} мин
                 </p>
               </div>
@@ -98,33 +120,33 @@ export default function TestResultsPage() {
 
             {/* Detailed Results */}
             {result.results && (
-              <div className="border-t border-gray-200 pt-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Детальные результаты</h2>
-                <div className="space-y-3">
+              <div className="border-t border-gray-200 pt-6 mb-6">
+                <h2 className="text-sm font-semibold text-gray-900 mb-4">Детальные результаты</h2>
+                <div className="space-y-2">
                   {Object.entries(result.results).map(([questionId, details]: [string, any], index) => (
                     <div 
                       key={questionId}
-                      className={`p-4 rounded-lg border ${
+                      className={`p-3 rounded-lg border ${
                         details.is_correct 
                           ? 'border-green-200 bg-green-50' 
                           : 'border-red-200 bg-red-50'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                           {details.is_correct ? (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <CheckCircle className="h-4 w-4 text-green-600" />
                           ) : (
-                            <XCircle className="h-5 w-5 text-red-600" />
+                            <XCircle className="h-4 w-4 text-red-600" />
                           )}
-                          <span className="font-medium text-gray-900">
+                          <span className="text-sm font-medium text-gray-900">
                             Вопрос {index + 1}
                           </span>
                         </div>
-                        <span className={`text-sm font-medium ${
+                        <span className={`text-xs font-medium ${
                           details.is_correct ? 'text-green-700' : 'text-red-700'
                         }`}>
-                          {details.points_earned?.toFixed(1)} / {details.points_possible} баллов
+                          {details.points_earned?.toFixed(1)} / {details.points_possible}
                         </span>
                       </div>
                     </div>
@@ -134,37 +156,50 @@ export default function TestResultsPage() {
             )}
 
             {/* Actions */}
-            <div className="mt-8 flex items-center justify-center space-x-4">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              >
-                <Home className="h-5 w-5 mr-2" />
-                На главную
-              </button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 border-t border-gray-200 pt-6">
+              {unitId ? (
+                <button
+                  onClick={() => navigate(`/units/${unitId}`)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Вернуться к юниту
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                >
+                  <Home className="h-4 w-4 mr-2" />
+                  На главную
+                </button>
+              )}
               
               {!passed && result.attempts_remaining > 0 && (
                 <button
                   onClick={() => navigate(`/tests/${id}`)}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
                 >
-                  <RotateCcw className="h-5 w-5 mr-2" />
+                  <RotateCcw className="h-4 w-4 mr-2" />
                   Попробовать снова
                 </button>
               )}
             </div>
 
-            {/* Feedback message */}
+            {/* Feedback */}
             <div className="mt-6 text-center">
               {passed ? (
-                <p className="text-green-700 font-medium">
-                  🎉 Поздравляем! Вы успешно прошли тест!
-                </p>
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg border border-green-200">
+                  <span className="text-lg">🎉</span>
+                  <p className="text-sm text-green-700 font-medium">
+                    Поздравляем! Тест успешно пройден
+                  </p>
+                </div>
               ) : (
-                <p className="text-red-700">
+                <p className="text-sm text-gray-600">
                   {result.attempts_remaining > 0 
-                    ? `Попробуйте еще раз. Осталось попыток: ${result.attempts_remaining}`
-                    : 'К сожалению, попытки закончились.'}
+                    ? `Осталось попыток: ${result.attempts_remaining}`
+                    : 'Попытки исчерпаны'}
                 </p>
               )}
             </div>
@@ -174,4 +209,3 @@ export default function TestResultsPage() {
     </div>
   );
 }
-

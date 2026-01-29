@@ -23,6 +23,8 @@ export interface Unit {
   release_at?: string;
   status: 'draft' | 'published' | 'archived';
   order_index: number;
+  course_id?: number | null;
+  course_title?: string | null;
   is_visible_to_students?: boolean;
   meta_title?: string;
   meta_description?: string;
@@ -265,6 +267,21 @@ export interface TokenResponse {
   access_token: string;
   token_type: string;
 }
+
+interface VideoProgressUpdate {
+  watched_percentage: number;
+  last_position_sec: number;
+  completed?: boolean;
+}
+
+interface VideoProgress {
+  video_id: number;
+  watched_percentage: number;
+  last_position_sec: number;
+  completed: boolean;
+  last_watched_at: string;
+}
+
 
 export interface Student {
   id: number;

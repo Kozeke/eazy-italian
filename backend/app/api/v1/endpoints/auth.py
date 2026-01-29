@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_password, get_password_hash
 from app.core.auth import get_current_user
@@ -70,6 +70,10 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             detail="Inactive user"
         )
     
+    # Update last_login timestamp
+    user.last_login = datetime.now(timezone.utc)
+    db.commit()
+    
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
@@ -92,6 +96,10 @@ def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
         )
+    
+    # Update last_login timestamp
+    user.last_login = datetime.now(timezone.utc)
+    db.commit()
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(

@@ -28,11 +28,7 @@ interface Question {
   type: 'multiple_choice' | 'open_answer' | 'cloze';
   prompt: string;
   score: number;
-  autograde: boolean;
-  question_metadata: {
-    difficulty?: string;
-    tags?: string[];
-  };
+  question_metadata: Record<string, any>; // Simplified - no specific fields
   // MCQ specific
   options?: QuestionOption[];
   correct_option_ids?: string[];
@@ -43,19 +39,14 @@ interface Question {
     keywords?: Array<{ text: string; weight: number }>;
     pattern?: string;
     case_insensitive?: boolean;
-    normalize_accents?: boolean;
     allow_typos?: number;
   };
-  manual_review_if_below?: number;
   // Cloze specific
   gaps?: Array<{
     id: string;
     answer: string;
-    variants?: string[];
     case_insensitive?: boolean;
-    trim?: boolean;
-    partial_credit?: boolean;
-    score: number;
+    score: number; // Auto-calculated proportionally
   }>;
 }
 
@@ -66,6 +57,7 @@ interface TestSettings {
   shuffle_options: boolean;
   show_results_immediately: boolean;
   allow_review: boolean;
+  deadline?: string;
   availability_from?: string;
   availability_to?: string;
 }
@@ -86,6 +78,14 @@ const AdminTestCreatePage: React.FC = () => {
   const [instructions] = useState('');
   const [status, setStatus] = useState<TestStatus>('draft');
   const [questions, setQuestions] = useState<Question[]>([]);
+  // Calculate deadline: 1 week from now
+  const getDefaultDeadline = () => {
+    const oneWeekFromNow = new Date();
+    oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+    // Format as datetime-local string (YYYY-MM-DDTHH:mm)
+    return oneWeekFromNow.toISOString().slice(0, 16);
+  };
+
   const [settings, setSettings] = useState<TestSettings>({
     passing_score: 70,
     max_attempts: 1,
@@ -93,7 +93,9 @@ const AdminTestCreatePage: React.FC = () => {
     shuffle_options: true,
     show_results_immediately: true,
     allow_review: true,
+    deadline: getDefaultDeadline(),
   });
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -127,8 +129,7 @@ const AdminTestCreatePage: React.FC = () => {
       type: 'multiple_choice',
       prompt: '',
       score: 1,
-      autograde: true,
-      question_metadata: { difficulty: 'medium', tags: [] },
+      question_metadata: {},
       options: [
         { id: 'A', text: '' },
         { id: 'B', text: '' },
@@ -145,16 +146,13 @@ const AdminTestCreatePage: React.FC = () => {
       type: 'open_answer',
       prompt: '',
       score: 2,
-      autograde: true,
-      question_metadata: { difficulty: 'medium', tags: [] },
+      question_metadata: {},
       expected: {
         mode: 'keywords',
         keywords: [{ text: '', weight: 1.0 }],
         case_insensitive: true,
-        normalize_accents: true,
         allow_typos: 0,
       },
-      manual_review_if_below: 0.6,
     };
     setQuestions([...questions, newQuestion]);
   };
@@ -165,10 +163,9 @@ const AdminTestCreatePage: React.FC = () => {
       type: 'cloze',
       prompt: '',
       score: 1,
-      autograde: true,
-      question_metadata: { difficulty: 'medium', tags: [] },
+      question_metadata: {},
       gaps: [
-        { id: 'gap_1', answer: '', variants: [], case_insensitive: true, trim: true, partial_credit: false, score: 0.5 },
+        { id: 'gap_1', answer: '', case_insensitive: true, score: 0.5 },
       ],
     };
     setQuestions([...questions, newQuestion]);
@@ -263,6 +260,7 @@ const AdminTestCreatePage: React.FC = () => {
           shuffle_options: settings.shuffle_options,
           show_results_immediately: settings.show_results_immediately,
           allow_review: settings.allow_review,
+          deadline: settings.deadline,
           availability_from: settings.availability_from,
           availability_to: settings.availability_to,
         },
@@ -276,8 +274,7 @@ const AdminTestCreatePage: React.FC = () => {
           type: question.type,
           prompt: question.prompt,
           score: question.score,
-          autograde: question.autograde,
-          metadata: question.question_metadata,
+      metadata: question.question_metadata || {},
         };
 
         if (question.type === 'multiple_choice') {
@@ -286,7 +283,6 @@ const AdminTestCreatePage: React.FC = () => {
           questionPayload.shuffle_options = question.shuffle_options;
         } else if (question.type === 'open_answer') {
           questionPayload.expected = question.expected;
-          questionPayload.manual_review_if_below = question.manual_review_if_below;
         } else if (question.type === 'cloze') {
           questionPayload.gaps = question.gaps;
         }
@@ -348,6 +344,7 @@ const AdminTestCreatePage: React.FC = () => {
           shuffle_options: settings.shuffle_options,
           show_results_immediately: settings.show_results_immediately,
           allow_review: settings.allow_review,
+          deadline: settings.deadline,
           availability_from: settings.availability_from,
           availability_to: settings.availability_to,
         },
@@ -361,8 +358,7 @@ const AdminTestCreatePage: React.FC = () => {
           type: question.type,
           prompt: question.prompt,
           score: question.score,
-          autograde: question.autograde,
-          metadata: question.question_metadata,
+      metadata: question.question_metadata || {},
         };
 
         if (question.type === 'multiple_choice') {
@@ -371,7 +367,6 @@ const AdminTestCreatePage: React.FC = () => {
           questionPayload.shuffle_options = question.shuffle_options;
         } else if (question.type === 'open_answer') {
           questionPayload.expected = question.expected;
-          questionPayload.manual_review_if_below = question.manual_review_if_below;
         } else if (question.type === 'cloze') {
           questionPayload.gaps = question.gaps;
         }
@@ -556,7 +551,12 @@ const AdminTestCreatePage: React.FC = () => {
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
-          <SettingsTab settings={settings} onUpdate={setSettings} />
+          <SettingsTab 
+            settings={settings} 
+            onUpdate={setSettings}
+            showAdvanced={showAdvancedSettings}
+            onToggleAdvanced={() => setShowAdvancedSettings(!showAdvancedSettings)}
+          />
         )}
 
         {/* Preview Tab */}
@@ -631,76 +631,139 @@ interface QuestionCardProps {
 }
 
 const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, onRemove }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   const getQuestionTypeLabel = (type: string) => {
     switch (type) {
-      case 'multiple_choice': return 'Выбор ответа';
-      case 'open_answer': return 'Открытый ответ';
-      case 'cloze': return 'Пропуски';
+      case 'multiple_choice': return 'Multiple Choice';
+      case 'open_answer': return 'Open Answer';
+      case 'cloze': return 'Cloze';
       default: return type;
     }
   };
 
+  const getPreviewText = () => {
+    if (question.type === 'multiple_choice' && question.options && question.options.length > 0) {
+      const preview = question.options.slice(0, 3).map((opt, idx) => {
+        const isCorrect = question.correct_option_ids?.includes(opt.id);
+        return `${opt.id}. ${opt.text || '...'}${isCorrect ? ' ✅' : ''}`;
+      }).join(' | ');
+      return preview + (question.options.length > 3 ? '...' : '');
+    }
+    if (question.type === 'open_answer') {
+      return question.expected?.mode === 'keywords' 
+        ? `Keywords: ${question.expected.keywords?.map(k => k.text).join(', ') || '...'}`
+        : `Regex: ${question.expected?.pattern || '...'}`;
+    }
+    if (question.type === 'cloze' && question.gaps && question.gaps.length > 0) {
+      return `${question.gaps.length} gap(s)`;
+    }
+    return '...';
+  };
+
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <GripVertical className="w-5 h-5 text-gray-400 cursor-move" />
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-900">Вопрос {index + 1}</span>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                {getQuestionTypeLabel(question.type)}
-              </span>
+    <div className="bg-white rounded-lg border border-gray-200">
+      {/* Collapsed Header */}
+      <div className="p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3 flex-1">
+            <GripVertical className="w-5 h-5 text-gray-400 cursor-move" />
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-1">
+                <span className="text-sm font-medium text-gray-900">Question {index + 1}</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                  {getQuestionTypeLabel(question.type)}
+                </span>
+                <span className="text-xs text-gray-500">{question.score} pts</span>
+              </div>
+              <div className="text-sm text-gray-700 line-clamp-1">
+                {question.prompt || 'No question text'}
+              </div>
+              {(question.type === 'multiple_choice' || question.type === 'open_answer' || question.type === 'cloze') && (
+                <div className="text-xs text-gray-500 mt-1">
+                  {getPreviewText()}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          <input
-            type="number"
-            value={question.score}
-            onChange={(e) => onUpdate({ score: parseFloat(e.target.value) || 0 })}
-            className="w-16 rounded-md border-gray-300 text-sm"
-            placeholder="Баллы"
-            step="0.5"
-            min="0"
-          />
-          <span className="text-sm text-gray-500">баллов</span>
-          <button
-            onClick={onRemove}
-            className="p-1 text-red-600 hover:text-red-800"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-xs text-gray-600 hover:text-gray-900"
+            >
+              {isExpanded ? 'Collapse' : 'Expand'}
+            </button>
+            <button
+              onClick={onRemove}
+              className="p-1 text-red-600 hover:text-red-800"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Question Prompt */}
-      <div className="mb-4">
-        <textarea
-          value={question.prompt}
-          onChange={(e) => onUpdate({ prompt: e.target.value })}
-          placeholder="Текст вопроса..."
-          rows={3}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-        />
-      </div>
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="p-4 space-y-4">
+          {/* Question Prompt */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Question text</label>
+            <textarea
+              value={question.prompt}
+              onChange={(e) => onUpdate({ prompt: e.target.value })}
+              placeholder="Enter question text..."
+              rows={3}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+            />
+          </div>
 
-      {/* Type-specific fields */}
-      {question.type === 'multiple_choice' && (
-        <MCQFields question={question} onUpdate={onUpdate} />
-      )}
-      {question.type === 'open_answer' && (
-        <OpenAnswerFields question={question} onUpdate={onUpdate} />
-      )}
-      {question.type === 'cloze' && (
-        <ClozeFields question={question} onUpdate={onUpdate} />
+          {/* Points */}
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-gray-700">Points:</label>
+            <input
+              type="number"
+              value={question.score}
+              onChange={(e) => {
+                const newScore = parseFloat(e.target.value) || 0;
+                // Update gap scores proportionally for cloze questions
+                if (question.type === 'cloze' && question.gaps && question.gaps.length > 0) {
+                  const scorePerGap = newScore / question.gaps.length;
+                  const updatedGaps = question.gaps.map(gap => ({
+                    ...gap,
+                    score: scorePerGap
+                  }));
+                  onUpdate({ score: newScore, gaps: updatedGaps });
+                } else {
+                  onUpdate({ score: newScore });
+                }
+              }}
+              className="w-20 rounded-md border-gray-300 text-sm"
+              step="0.5"
+              min="0"
+            />
+          </div>
+
+          {/* Type-specific fields */}
+          {question.type === 'multiple_choice' && (
+            <MCQFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
+          )}
+          {question.type === 'open_answer' && (
+            <OpenAnswerFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
+          )}
+          {question.type === 'cloze' && (
+            <ClozeFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
+          )}
+        </div>
       )}
     </div>
   );
 };
 
 // MCQ Fields Component
-const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void }> = ({ question, onUpdate }) => {
+const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced }) => {
+
   const addOption = () => {
     const newId = String.fromCharCode(65 + (question.options?.length || 0));
     const newOptions = [...(question.options || []), { id: newId, text: '' }];
@@ -751,21 +814,39 @@ const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Ques
           />
         </div>
       ))}
-      <div className="flex items-center mt-4">
-        <input
-          type="checkbox"
-          checked={question.shuffle_options}
-          onChange={(e) => onUpdate({ shuffle_options: e.target.checked })}
-          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-        />
-        <label className="ml-2 text-sm text-gray-700">Перемешивать варианты</label>
+
+      {/* Advanced Question Settings */}
+      <div className="pt-3 border-t">
+        <button
+          type="button"
+          onClick={onToggleAdvanced}
+          className="flex items-center justify-between w-full text-left text-xs font-medium text-gray-600 hover:text-gray-900"
+        >
+          <span>⚙ Advanced grading options</span>
+          <span className="text-gray-400">{showAdvanced ? '▼' : '▶'}</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-3 space-y-2 pt-3 border-t">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={question.shuffle_options ?? true}
+                onChange={(e) => onUpdate({ shuffle_options: e.target.checked })}
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label className="ml-2 text-xs text-gray-700">Shuffle options</label>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 // Open Answer Fields Component
-const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void }> = ({ question, onUpdate }) => {
+const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced }) => {
+
   return (
     <div className="space-y-4">
       <div>
@@ -817,45 +898,129 @@ const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Parti
           />
         </div>
       )}
+
+      {/* Advanced Question Settings */}
+      <div className="pt-3 border-t">
+        <button
+          type="button"
+          onClick={onToggleAdvanced}
+          className="flex items-center justify-between w-full text-left text-xs font-medium text-gray-600 hover:text-gray-900"
+        >
+          <span>⚙ Advanced grading options</span>
+          <span className="text-gray-400">{showAdvanced ? '▼' : '▶'}</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-3 space-y-2 pt-3 border-t">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={question.expected?.case_insensitive ?? true}
+                onChange={(e) => onUpdate({
+                  expected: { ...question.expected!, case_insensitive: e.target.checked }
+                })}
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label className="ml-2 text-xs text-gray-700">Case insensitive</label>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Allow typos</label>
+              <input
+                type="number"
+                value={question.expected?.allow_typos ?? 0}
+                onChange={(e) => onUpdate({
+                  expected: { ...question.expected!, allow_typos: parseInt(e.target.value) || 0 }
+                })}
+                min="0"
+                max="5"
+                className="block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
 // Cloze Fields Component
-const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void }> = ({ question, onUpdate }) => {
+const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced }) => {
+  // Calculate proportional score per gap (total question score / number of gaps)
+  const scorePerGap = question.gaps && question.gaps.length > 0 
+    ? question.score / question.gaps.length 
+    : 0;
+
   return (
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Пропуски (используйте {"{{gap_1}}"}, {"{{gap_2}}"} и т.д.)
+          Gaps (use {"{{gap_1}}"}, {"{{gap_2}}"} etc. in question text)
         </label>
         {question.gaps?.map((gap, index) => (
-          <div key={gap.id} className="flex items-center space-x-2 mb-2 p-3 bg-gray-50 rounded">
-            <span className="text-sm font-mono text-gray-600">{`{{${gap.id}}}`}</span>
+          <div key={gap.id} className="flex items-center space-x-2 mb-2 p-2 bg-gray-50 rounded">
+            <span className="text-xs font-mono text-gray-600">{`{{${gap.id}}}`}</span>
             <input
               type="text"
               value={gap.answer}
               onChange={(e) => {
                 const newGaps = [...(question.gaps || [])];
-                newGaps[index] = { ...gap, answer: e.target.value };
+                newGaps[index] = { ...gap, answer: e.target.value, score: scorePerGap };
                 onUpdate({ gaps: newGaps });
               }}
-              placeholder="Правильный ответ..."
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              placeholder="Correct answer..."
+              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
             />
           </div>
         ))}
+      </div>
+
+      {/* Advanced Question Settings */}
+      <div className="pt-3 border-t">
+        <button
+          type="button"
+          onClick={onToggleAdvanced}
+          className="flex items-center justify-between w-full text-left text-xs font-medium text-gray-600 hover:text-gray-900"
+        >
+          <span>⚙ Advanced grading options</span>
+          <span className="text-gray-400">{showAdvanced ? '▼' : '▶'}</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-3 space-y-2 pt-3 border-t">
+            {question.gaps?.map((gap, index) => (
+              <div key={gap.id} className="p-2 bg-gray-50 rounded space-y-2">
+                <div className="text-xs font-medium text-gray-700">{`{{${gap.id}}}`}</div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={gap.case_insensitive ?? true}
+                    onChange={(e) => {
+                      const newGaps = [...(question.gaps || [])];
+                      newGaps[index] = { ...gap, case_insensitive: e.target.checked };
+                      onUpdate({ gaps: newGaps });
+                    }}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <label className="ml-2 text-xs text-gray-700">Case insensitive</label>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 // Settings Tab Component
-const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestSettings) => void }> = ({ settings, onUpdate }) => {
+const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestSettings) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ settings, onUpdate, showAdvanced, onToggleAdvanced }) => {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
       <h2 className="text-lg font-semibold text-gray-900">Настройки теста</h2>
 
+      {/* Simple Settings */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -873,84 +1038,112 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Максимум попыток
+            Дедлайн
           </label>
           <input
-            type="number"
-            value={settings.max_attempts}
-            onChange={(e) => onUpdate({ ...settings, max_attempts: parseInt(e.target.value) || 0 })}
-            min="1"
+            type="datetime-local"
+            value={settings.deadline || ''}
+            onChange={(e) => onUpdate({ ...settings, deadline: e.target.value })}
             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
           />
         </div>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            checked={settings.shuffle_questions}
-            onChange={(e) => onUpdate({ ...settings, shuffle_questions: e.target.checked })}
-            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-          <label className="ml-2 text-sm text-gray-700">Перемешивать вопросы</label>
-        </div>
+      {/* Advanced Settings Toggle */}
+      <div className="pt-6 border-t">
+        <button
+          type="button"
+          onClick={onToggleAdvanced}
+          className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 hover:text-gray-900"
+        >
+          <span>Advanced test behavior</span>
+          <span className="text-gray-400">{showAdvanced ? '▼' : '▶'}</span>
+        </button>
 
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            checked={settings.shuffle_options}
-            onChange={(e) => onUpdate({ ...settings, shuffle_options: e.target.checked })}
-            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-          <label className="ml-2 text-sm text-gray-700">Перемешивать варианты ответов</label>
-        </div>
+        {showAdvanced && (
+          <div className="mt-4 space-y-6 pt-4 border-t">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Максимум попыток
+              </label>
+              <input
+                type="number"
+                value={settings.max_attempts}
+                onChange={(e) => onUpdate({ ...settings, max_attempts: parseInt(e.target.value) || 0 })}
+                min="1"
+                className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              />
+            </div>
 
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            checked={settings.show_results_immediately}
-            onChange={(e) => onUpdate({ ...settings, show_results_immediately: e.target.checked })}
-            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-          <label className="ml-2 text-sm text-gray-700">Показывать результаты сразу</label>
-        </div>
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={settings.shuffle_questions}
+                  onChange={(e) => onUpdate({ ...settings, shuffle_questions: e.target.checked })}
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <label className="ml-2 text-sm text-gray-700">Перемешивать вопросы</label>
+              </div>
 
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            checked={settings.allow_review}
-            onChange={(e) => onUpdate({ ...settings, allow_review: e.target.checked })}
-            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-          <label className="ml-2 text-sm text-gray-700">Разрешить просмотр ответов</label>
-        </div>
-      </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={settings.shuffle_options}
+                  onChange={(e) => onUpdate({ ...settings, shuffle_options: e.target.checked })}
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <label className="ml-2 text-sm text-gray-700">Перемешивать варианты ответов (глобально)</label>
+              </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Доступен с
-          </label>
-          <input
-            type="datetime-local"
-            value={settings.availability_from || ''}
-            onChange={(e) => onUpdate({ ...settings, availability_from: e.target.value })}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-          />
-        </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={settings.show_results_immediately}
+                  onChange={(e) => onUpdate({ ...settings, show_results_immediately: e.target.checked })}
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <label className="ml-2 text-sm text-gray-700">Показывать результаты сразу</label>
+              </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Доступен до
-          </label>
-          <input
-            type="datetime-local"
-            value={settings.availability_to || ''}
-            onChange={(e) => onUpdate({ ...settings, availability_to: e.target.value })}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-          />
-        </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={settings.allow_review}
+                  onChange={(e) => onUpdate({ ...settings, allow_review: e.target.checked })}
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <label className="ml-2 text-sm text-gray-700">Разрешить просмотр ответов</label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Доступен с
+                </label>
+                <input
+                  type="datetime-local"
+                  value={settings.availability_from || ''}
+                  onChange={(e) => onUpdate({ ...settings, availability_from: e.target.value })}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Доступен до
+                </label>
+                <input
+                  type="datetime-local"
+                  value={settings.availability_to || ''}
+                  onChange={(e) => onUpdate({ ...settings, availability_to: e.target.value })}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

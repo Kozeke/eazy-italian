@@ -9,8 +9,9 @@ import {
   Trash2,
   ExternalLink
 } from 'lucide-react';
-import { unitsApi, videosApi, tasksApi, testsApi } from '../../services/api';
+import { unitsApi, videosApi, tasksApi, testsApi, coursesApi } from '../../services/api';
 import toast from 'react-hot-toast';
+import { BookMarked } from 'lucide-react';
 
 interface UnitFormData {
   title: string;
@@ -21,6 +22,7 @@ interface UnitFormData {
   status: string;
   publish_at: string;
   order_index: number;
+  course_id: number | null;
   is_visible_to_students: boolean;
   meta_title: string;
   meta_description: string;
@@ -47,6 +49,7 @@ export default function AdminUnitCreatePage() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [newTag, setNewTag] = useState('');
 
   const [formData, setFormData] = useState<UnitFormData>({
@@ -58,6 +61,7 @@ export default function AdminUnitCreatePage() {
     status: 'draft',
     publish_at: '',
     order_index: 0,
+    course_id: null,
     is_visible_to_students: false,
     meta_title: '',
     meta_description: ''
@@ -69,8 +73,10 @@ export default function AdminUnitCreatePage() {
   const [tests, setTests] = useState<ContentItem[]>([]);
   
   // Available content from API
+  const [availableVideos, setAvailableVideos] = useState<any[]>([]);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
   const [availableTests, setAvailableTests] = useState<any[]>([]);
+  const [availableCourses, setAvailableCourses] = useState<any[]>([]);
   const [loadingContent, setLoadingContent] = useState(true);
 
   // Load available content on mount
@@ -78,6 +84,19 @@ export default function AdminUnitCreatePage() {
     const loadAvailableContent = async () => {
       try {
         setLoadingContent(true);
+        
+        // Load all available courses
+        const coursesData = await coursesApi.getAdminCourses({ limit: 100 });
+        setAvailableCourses(coursesData || []);
+        
+        // Load all available videos
+        try {
+          const videosData = await videosApi.getAdminVideos({ limit: 100 });
+          setAvailableVideos(videosData || []);
+          console.log('Loaded available videos:', videosData?.length || 0);
+        } catch (error) {
+          console.error('Error loading available videos:', error);
+        }
         
         // Load all available tasks
         const tasksData = await tasksApi.getAdminTasks({ limit: 100 });
@@ -87,7 +106,12 @@ export default function AdminUnitCreatePage() {
         const testsData = await testsApi.getTests({ limit: 100 });
         setAvailableTests(testsData.items || testsData || []);
         
-        console.log('Loaded available content:', { tasks: tasksData?.length, tests: testsData?.items?.length });
+        console.log('Loaded available content:', { 
+          courses: coursesData?.length, 
+          videos: availableVideos?.length || 0,
+          tasks: tasksData?.length, 
+          tests: testsData?.items?.length || testsData?.length || 0
+        });
       } catch (error) {
         console.error('Error loading available content:', error);
         toast.error('Ошибка при загрузке доступного контента');
@@ -155,6 +179,13 @@ export default function AdminUnitCreatePage() {
     setSaving(true);
     
     try {
+      // Smart defaults: status and visibility derived from publish action
+      const status = publish ? 'published' : 'draft';
+      const is_visible_to_students = publish; // Always true when published
+      
+      // Auto-calculate order_index (backend should handle this, but we can set a default)
+      // For now, let backend handle it by not sending it or sending 0
+      
       // Prepare unit data for API
       const unitData = {
         title: formData.title,
@@ -162,10 +193,11 @@ export default function AdminUnitCreatePage() {
         description: formData.description,
         goals: formData.goals,
         tags: formData.tags,
-        status: (publish ? 'published' : formData.status) as 'draft' | 'published' | 'archived',
+        status: status as 'draft' | 'published' | 'archived',
         publish_at: formData.publish_at || undefined,
-        order_index: formData.order_index,
-        is_visible_to_students: formData.is_visible_to_students,
+        order_index: 0, // Backend should auto-calculate, but we send 0 as default
+        course_id: formData.course_id || undefined,
+        is_visible_to_students: is_visible_to_students,
         meta_title: formData.meta_title,
         meta_description: formData.meta_description
       };
@@ -262,25 +294,40 @@ export default function AdminUnitCreatePage() {
   };
 
   const handleAddExistingContent = (type: 'video' | 'task' | 'test', contentId: number) => {
-    const availableContent = type === 'task' ? availableTasks : availableTests;
+    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : availableTests;
     const content = availableContent.find(item => item.id === contentId);
     
     if (!content) return;
     
-    const newItem: ContentItem = {
-      id: content.id,
-      title: content.title,
-      status: content.status || 'draft',
-      order_index: type === 'video' ? videos.length : type === 'task' ? tasks.length : tests.length,
-      type
-    };
-    
     if (type === 'video') {
-      setVideos(prev => [...prev, newItem as VideoItem]);
-    } else if (type === 'task') {
-      setTasks(prev => [...prev, newItem]);
+      const newVideoItem: VideoItem = {
+        id: content.id,
+        title: content.title,
+        status: content.status || 'draft',
+        order_index: videos.length,
+        type: 'video',
+        source_type: content.source_type || 'url',
+        external_url: content.external_url,
+        file_path: content.file_path,
+        description: content.description,
+        duration_sec: content.duration_sec,
+        thumbnail_path: content.thumbnail_path
+      };
+      setVideos(prev => [...prev, newVideoItem]);
     } else {
-      setTests(prev => [...prev, newItem]);
+      const newItem: ContentItem = {
+        id: content.id,
+        title: content.title,
+        status: content.status || 'draft',
+        order_index: type === 'task' ? tasks.length : tests.length,
+        type
+      };
+      
+      if (type === 'task') {
+        setTasks(prev => [...prev, newItem]);
+      } else {
+        setTests(prev => [...prev, newItem]);
+      }
     }
   };
 
@@ -290,7 +337,7 @@ export default function AdminUnitCreatePage() {
     type: 'video' | 'task' | 'test',
     icon: React.ReactNode
   ) => {
-    const availableContent = type === 'task' ? availableTasks : type === 'test' ? availableTests : [];
+    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : type === 'test' ? availableTests : [];
     const unusedContent = availableContent.filter(content => 
       !items.some(item => item.id === content.id)
     );
@@ -507,7 +554,6 @@ export default function AdminUnitCreatePage() {
                 <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
                   Создать новый юнит
                 </h1>
-                {getStatusBadge(formData.status)}
               </div>
               <p className="text-xs md:text-sm text-gray-500 mt-1">
                 Настройте структуру юнита — как модули и лекции на Coursera/Udemy
@@ -528,27 +574,25 @@ export default function AdminUnitCreatePage() {
             <button
               onClick={() => handleSave(false)}
               disabled={saving}
-              className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? 'Сохранение...' : 'Сохранить черновик'}
+              {saving ? 'Сохранение...' : 'Сохранить'}
             </button>
 
             <button
               onClick={() => handleSave(true)}
               disabled={saving}
-              className="inline-flex items-center rounded-lg border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? 'Публикация...' : 'Сохранить и опубликовать'}
+              {saving ? 'Публикация...' : 'Опубликовать'}
             </button>
           </div>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* MAIN COLUMN – form + content */}
-          <div className="lg:col-span-2 space-y-6">
+      <div className="max-w-4xl mx-auto px-4 lg:px-8 py-8">
+        <div className="space-y-6">
             {/* Basic info */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -617,48 +661,6 @@ export default function AdminUnitCreatePage() {
                   placeholder="Например: уметь представиться, поприветствовать, задать базовые вопросы…"
                 />
               </div>
-
-              {/* Теги */}
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Теги
-                </label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {formData.tags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className="inline-flex items-center rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-800"
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(tag)}
-                        className="ml-1 text-primary-600 hover:text-primary-800"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    placeholder="Добавить тег (например: грамматика, A1, приветствия)"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddTag}
-                    className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Добавить
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Content builder – like course curriculum */}
@@ -702,6 +704,152 @@ export default function AdminUnitCreatePage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Advanced Settings */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Расширенные настройки
+                </h2>
+                <span className="text-sm text-gray-600 hover:text-primary-600">
+                  {showAdvanced ? 'Скрыть' : 'Показать'}
+                </span>
+              </button>
+
+              {showAdvanced && (
+                <div className="mt-6 space-y-6">
+                  {/* Course Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                      <BookMarked className="h-4 w-4 mr-1 text-gray-400" />
+                      Курс (опционально)
+                    </label>
+                    <select
+                      value={formData.course_id || ''}
+                      onChange={(e) => handleInputChange('course_id', e.target.value ? parseInt(e.target.value) : null)}
+                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    >
+                      <option value="">Без курса (автономный юнит)</option>
+                      {availableCourses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.title} {course.level && `(${course.level})`}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Выберите курс, к которому будет принадлежать этот юнит. Если не выбран, юнит будет автономным.
+                    </p>
+                    {availableCourses.length === 0 && !loadingContent && (
+                      <p className="mt-2 text-xs text-amber-600">
+                        Нет доступных курсов. <button 
+                          type="button"
+                          onClick={() => navigate('/admin/courses/new')}
+                          className="text-primary-600 hover:text-primary-700 underline"
+                        >
+                          Создать курс
+                        </button>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Tags */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Теги
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {formData.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-800"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTag(tag)}
+                            className="ml-1 text-primary-600 hover:text-primary-800"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        placeholder="Добавить тег (например: грамматика, A1, приветствия)"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddTag}
+                        className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Добавить
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Publish at */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Запланировать публикацию (опционально)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.publish_at}
+                      onChange={(e) => handleInputChange('publish_at', e.target.value)}
+                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Если указано, юнит будет опубликован в указанное время. Если не указано, публикация произойдет сразу.
+                    </p>
+                  </div>
+
+                  {/* SEO */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                      SEO настройки
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Meta заголовок
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.meta_title}
+                          onChange={(e) => handleInputChange('meta_title', e.target.value)}
+                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          placeholder="SEO заголовок"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Meta описание
+                        </label>
+                        <textarea
+                          value={formData.meta_description}
+                          onChange={(e) => handleInputChange('meta_description', e.target.value)}
+                          rows={3}
+                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          placeholder="Краткое описание для поисковых систем"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Preview as a student */}
@@ -749,129 +897,11 @@ export default function AdminUnitCreatePage() {
                     <span>{tasks.length} заданий</span>
                     <span>{tests.length} тестов</span>
                   </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* SIDEBAR – status, schedule, SEO */}
-          <div className="space-y-6">
-            {/* Status & visibility */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Статус и доступ
-              </h2>
-
-              <div className="space-y-4">
-                {/* Статус */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Статус
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => handleInputChange('status', e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  >
-                    <option value="draft">Черновик</option>
-                    <option value="scheduled">Запланировано</option>
-                    <option value="published">Опубликовано</option>
-                    <option value="archived">Архив</option>
-                  </select>
-                </div>
-
-                {/* Publish at */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Дата публикации (опционально)
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.publish_at}
-                    onChange={(e) => handleInputChange('publish_at', e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Если не указано, юнит будет опубликован сразу.
-                  </p>
-                </div>
-
-                {/* Order index */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Порядок в курсе
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.order_index}
-                    onChange={(e) => handleInputChange('order_index', Number(e.target.value))}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    placeholder="0"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Номер, по которому юнит будет отсортирован среди других.
-                  </p>
-                </div>
-
-                {/* Visibility */}
-                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      Видимость для студентов
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Если выключено, юнит не будет отображаться в списке уроков.
-                    </p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={formData.is_visible_to_students}
-                    onChange={(e) =>
-                      handleInputChange('is_visible_to_students', e.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
                 </div>
-              </div>
-            </div>
-
-            {/* SEO */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                SEO настройки
-              </h2>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Meta заголовок
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.meta_title}
-                    onChange={(e) => handleInputChange('meta_title', e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    placeholder="SEO заголовок"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Meta описание
-                  </label>
-                  <textarea
-                    value={formData.meta_description}
-                    onChange={(e) => handleInputChange('meta_description', e.target.value)}
-                    rows={3}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    placeholder="Краткое описание для поисковых систем"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+              )}
         </div>
-      </div> 
+      </div>
     </div>
   );
 }
