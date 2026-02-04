@@ -7,8 +7,6 @@ import { testsApi } from '../../services/api';
 import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 import { 
   Plus, 
-  Search, 
-  Filter, 
   Edit, 
   Trash2, 
   Eye, 
@@ -154,22 +152,6 @@ export default function AdminTestsPage() {
     }
   };
 
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const handleSelectAll = () => {
-    if (selectedTests.length === tests.length) {
-      setSelectedTests([]);
-    } else {
-      setSelectedTests(tests.map(test => test.id));
-    }
-  };
 
   const handleSelectTest = (testId: number) => {
     setSelectedTests(prev => 
@@ -244,14 +226,6 @@ export default function AdminTestsPage() {
     );
   };
 
-  const getLevelBadge = (level: string) => {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-        {level}
-      </span>
-    );
-  };
-
   const getTypeBadge = (type: string) => {
     const typeConfig = {
       grammar: { color: 'bg-blue-100 text-blue-800', label: 'Грамматика' },
@@ -271,21 +245,6 @@ export default function AdminTestsPage() {
     );
   };
 
-  const getDifficultyBadge = (difficulty: string) => {
-    const difficultyConfig = {
-      easy: { color: 'bg-green-100 text-green-800', label: 'Легко' },
-      medium: { color: 'bg-yellow-100 text-yellow-800', label: 'Средне' },
-      hard: { color: 'bg-red-100 text-red-800', label: 'Сложно' }
-    };
-    
-    const config = difficultyConfig[difficulty as keyof typeof difficultyConfig] || difficultyConfig.easy;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
 
   const filteredTests = tests.filter(test => {
     const matchesSearch = test.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -630,7 +589,7 @@ export default function AdminTestsPage() {
                           <button
                             onClick={() => {
                               // TODO: Implement duplicate functionality
-                              toast.info('Функция дублирования будет реализована');
+                              toast('Функция дублирования будет реализована', { icon: 'ℹ️' });
                             }}
                             className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
                           >
@@ -640,7 +599,7 @@ export default function AdminTestsPage() {
                           <button
                             onClick={() => {
                               // TODO: Implement archive functionality
-                              toast.info('Функция архивирования будет реализована');
+                              toast('Функция архивирования будет реализована', { icon: 'ℹ️' });
                             }}
                             className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
                           >

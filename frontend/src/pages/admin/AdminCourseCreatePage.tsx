@@ -4,8 +4,6 @@ import {
   ArrowLeft,
   Plus,
   X,
-  Eye,
-  Save,
   Upload,
   BookMarked,
   Clock,
@@ -41,10 +39,8 @@ interface CourseFormData {
 export default function AdminCourseCreatePage() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newTag, setNewTag] = useState('');
-  const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
 
   const [formData, setFormData] = useState<CourseFormData>({

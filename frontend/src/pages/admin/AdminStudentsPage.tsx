@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
-  Search, 
-  Filter, 
   Edit, 
   Trash2, 
   Eye, 
@@ -203,22 +201,6 @@ export default function AdminStudentsPage() {
     );
   };
 
-  const getSubscriptionBadge = (type: string) => {
-    const subscriptionConfig = {
-      free: { color: 'bg-gray-100 text-gray-800', label: 'Бесплатный' },
-      premium: { color: 'bg-yellow-100 text-yellow-800', label: 'Премиум' },
-      pro: { color: 'bg-indigo-100 text-indigo-800', label: 'Pro' },
-    };
-    
-    
-    const config = subscriptionConfig[type as keyof typeof subscriptionConfig] || subscriptionConfig.free;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
 
   const filteredStudents = students.filter(student => {
     const fullName = `${student.firstName} ${student.lastName}`.toLowerCase();

@@ -110,7 +110,7 @@ export default function AdminUnitCreatePage() {
           courses: coursesData?.length, 
           videos: availableVideos?.length || 0,
           tasks: tasksData?.length, 
-          tests: testsData?.items?.length || testsData?.length || 0
+          tests: testsData?.items?.length || 0
         });
       } catch (error) {
         console.error('Error loading available content:', error);

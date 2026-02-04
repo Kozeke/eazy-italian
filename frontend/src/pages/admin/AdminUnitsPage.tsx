@@ -4,11 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { 
   Plus, 
-  Search, 
-  Filter,
-  Eye,
   Pencil,
-  Copy,
   Archive,
   Trash2,
   Check,

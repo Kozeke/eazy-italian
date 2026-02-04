@@ -13,7 +13,6 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
   BookOpen,
-  ClipboardList,
   FileText,
   User,
   Menu,

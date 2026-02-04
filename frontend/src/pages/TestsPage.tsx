@@ -27,8 +27,8 @@ interface Test {
   id: number;
   title: string;
   description?: string;
-  time_limit_minutes: number;
-  passing_score: number;
+  time_limit_minutes?: number;
+  passing_score?: number;
   unit_id?: number;
   unit?: {
     id: number;
@@ -55,7 +55,7 @@ export default function TestsPage() {
       try {
         setLoading(true);
         const data = await studentTestsApi.getTests();
-        const testsData = Array.isArray(data) ? data : [];
+        const testsData: Test[] = Array.isArray(data) ? data : [];
         setTests(testsData);
       } catch (error) {
         console.error(error);
@@ -229,14 +229,18 @@ export default function TestsPage() {
                       
                       {/* Metadata */}
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {test.time_limit_minutes} {t('tests.minutes') || 'мин'}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Percent className="w-3.5 h-3.5" />
-                          {t('tests.passingScore') || 'Проходной балл'} {test.passing_score}%
-                        </span>
+                        {test.time_limit_minutes && (
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            {test.time_limit_minutes} {t('tests.minutes') || 'мин'}
+                          </span>
+                        )}
+                        {test.passing_score && (
+                          <span className="inline-flex items-center gap-1">
+                            <Percent className="w-3.5 h-3.5" />
+                            {t('tests.passingScore') || 'Проходной балл'} {test.passing_score}%
+                          </span>
+                        )}
                         {test.unit?.title && (
                           <span className="inline-flex items-center gap-1">
                             <BookOpen className="w-3.5 h-3.5" />

@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Eye, Youtube, Upload, Image as ImageIcon, Sparkles, Settings as SettingsIcon, Trash2, X, Check } from 'lucide-react';
+import { ArrowLeft, Save, Youtube, Upload, Image as ImageIcon, Sparkles, Settings as SettingsIcon, Trash2, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { videosApi, unitsApi } from '../../services/api';
 
@@ -36,8 +36,6 @@ export default function AdminVideoEditPage() {
   const [loading, setLoading] = useState(true);
   // Saving state to prevent duplicate submissions
   const [saving, setSaving] = useState(false);
-  // Preview toggle state
-  const [showPreview, setShowPreview] = useState(false);
   // Advanced settings toggle
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -223,19 +221,6 @@ export default function AdminVideoEditPage() {
     return patterns.some(pattern => pattern.test(url));
   };
 
-  // Extract YouTube video ID for embed preview
-  const extractYouTubeVideoId = (url: string): string | null => {
-    const regex =
-      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-  };
-
-  // Extract Vimeo video ID for embed preview
-  const extractVimeoVideoId = (url: string): string | null => {
-    const match = url.match(/vimeo\.com\/(\d+)/);
-    return match ? match[1] : null;
-  };
 
   // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

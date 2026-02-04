@@ -76,7 +76,6 @@ interface DashboardStats {
 }
 
 export default function AdminDashboardPage() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);

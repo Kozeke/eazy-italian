@@ -4,8 +4,6 @@ import {
   ArrowLeft,
   Plus,
   X,
-  Eye,
-  Save,
   Upload,
   BookMarked,
   Clock,
@@ -43,7 +41,6 @@ export default function AdminCourseEditPage() {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [thumbnail, setThumbnail] = useState<string | null>(null);

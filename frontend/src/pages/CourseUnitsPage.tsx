@@ -143,7 +143,7 @@ export default function CourseUnitsPage() {
           const contentMap: Record<number, UnitContent> = {};
           
           // Fetch all units in parallel for better performance
-          const unitPromises = fetchedUnits.map(async (unit) => {
+          const unitPromises = fetchedUnits.map(async (unit: Unit) => {
             try {
               const unitDetail = await unitsApi.getUnit(unit.id);
               return {

@@ -645,7 +645,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
 
   const getPreviewText = () => {
     if (question.type === 'multiple_choice' && question.options && question.options.length > 0) {
-      const preview = question.options.slice(0, 3).map((opt, idx) => {
+      const preview = question.options.slice(0, 3).map((opt) => {
         const isCorrect = question.correct_option_ids?.includes(opt.id);
         return `${opt.id}. ${opt.text || '...'}${isCorrect ? ' ✅' : ''}`;
       }).join(' | ');

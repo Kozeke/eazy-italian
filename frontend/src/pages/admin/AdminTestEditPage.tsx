@@ -11,7 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { testsApi } from '../../services/api';
+import { testsApi, questionsApi } from '../../services/api';
 
 interface Unit {
   id: number;
@@ -331,7 +331,7 @@ const AdminTestEditPage: React.FC = () => {
       }
 
       // Update question via API
-      await testsApi.updateQuestion(typeof questionId === 'string' ? parseInt(questionId) : questionId, questionPayload);
+      await questionsApi.updateQuestion(typeof questionId === 'string' ? parseInt(questionId) : questionId, questionPayload);
     } catch (error: any) {
       console.error('Error updating question:', error);
       toast.error('Ошибка при обновлении вопроса');
@@ -786,7 +786,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
 
   const getPreviewText = () => {
     if (question.type === 'multiple_choice' && question.options && question.options.length > 0) {
-      const preview = question.options.slice(0, 3).map((opt, idx) => {
+      const preview = question.options.slice(0, 3).map((opt) => {
         const isCorrect = question.correct_option_ids?.includes(opt.id);
         return `${opt.id}. ${opt.text || '...'}${isCorrect ? ' ✅' : ''}`;
       }).join(' | ');

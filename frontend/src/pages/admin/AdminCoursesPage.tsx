@@ -3,12 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus, 
-  Search, 
-  Filter,
   Eye,
   Pencil,
-  Copy,
-  Archive,
   Trash2,
   Check,
   X,
@@ -99,18 +95,6 @@ export default function AdminCoursesPage() {
     );
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('ru-RU');
-  };
-
-  const handleSelectAll = () => {
-    if (selectedCourses.length === courses.length) {
-      setSelectedCourses([]);
-    } else {
-      setSelectedCourses(courses.map(course => course.id));
-    }
-  };
 
   const handleSelectCourse = (courseId: number) => {
     setSelectedCourses(prev => 

@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Play, ArrowRight, Clock } from 'lucide-react';
+import { BookOpen, ArrowRight } from 'lucide-react';
 import { coursesApi } from '../services/api';
 import toast from 'react-hot-toast';
 

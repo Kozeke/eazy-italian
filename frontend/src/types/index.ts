@@ -268,13 +268,13 @@ export interface TokenResponse {
   token_type: string;
 }
 
-interface VideoProgressUpdate {
+export interface VideoProgressUpdate {
   watched_percentage: number;
   last_position_sec: number;
   completed?: boolean;
 }
 
-interface VideoProgress {
+export interface VideoProgress {
   video_id: number;
   watched_percentage: number;
   last_position_sec: number;

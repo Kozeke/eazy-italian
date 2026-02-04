@@ -3,13 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
-  Search, 
-  Filter, 
   Edit, 
   Trash2, 
   Video,
-  ChevronDown,
-  ChevronUp,
   ChevronLeft,
   ChevronRight,
   Youtube

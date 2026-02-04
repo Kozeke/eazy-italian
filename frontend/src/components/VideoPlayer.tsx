@@ -18,7 +18,6 @@ interface VideoPlayerProps {
 
 export default function VideoPlayer({ 
   video, 
-  width = "100%", 
   height = "400px",
   onProgressUpdate 
 }: VideoPlayerProps) {
@@ -26,7 +25,7 @@ export default function VideoPlayer({
   const [hasStarted, setHasStarted] = useState(false);
   const [lastSavedProgress, setLastSavedProgress] = useState(0);
   const [showTestControls, setShowTestControls] = useState(false);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<number | null>(null);
   
   // Check if we're in development mode
   const isDevelopment = import.meta.env.DEV;

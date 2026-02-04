@@ -12,12 +12,9 @@ import {
   LoginCredentials,
   RegisterData,
   TokenResponse,
-  GradeRow, 
   GradeDetail,
   PaginatedResponse,
-  Student,
-  VideoProgressUpdate,
-  VideoProgress   
+  Student
 } from '../types';
 
 // Get API base URL from environment variables

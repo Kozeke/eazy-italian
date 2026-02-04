@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Eye, Youtube, Upload, X, Check, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Youtube, Upload, X, Check, Settings as SettingsIcon } from 'lucide-react';
 import { videosApi, unitsApi } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -22,7 +22,6 @@ interface VideoFormData {
 export default function AdminVideoCreatePage() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   
   // Form state for video creation
@@ -105,18 +104,6 @@ export default function AdminVideoCreatePage() {
     return patterns.some(pattern => pattern.test(url));
   };
   
-  // Extract YouTube video ID for preview
-  const extractYouTubeVideoId = (url: string): string | null => {
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-  };
-  
-  // Extract Vimeo video ID for preview
-  const extractVimeoVideoId = (url: string): string | null => {
-    const match = url.match(/vimeo\.com\/(\d+)/);
-    return match ? match[1] : null;
-  };
   
   // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -2,15 +2,12 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Play,
-  BookOpen,
   CheckCircle,
   Users,
   ArrowRight,
   Globe,
-  Target,
   Star,
   Award,
-  TrendingUp,
   Clock,
   Menu,
   X
