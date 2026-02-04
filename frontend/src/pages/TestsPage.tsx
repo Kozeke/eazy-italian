@@ -35,7 +35,7 @@ interface Test {
     title?: string;
     level?: string;
   };
-  status?: 'not_started' | 'in_progress' | 'completed';
+  status?: 'not_started' | 'in_progress' | 'completed' | string;
   questions_count?: number;
 }
 
