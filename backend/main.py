@@ -97,6 +97,23 @@ async def startup_event():
         print("⚠️  WARNING: No admin routes found! This may indicate a registration issue.")
     print("=== End Route Check ===\n")
     
+    # Create migration tracking table for one-time migrations
+    # This allows us to skip migrations that have already been applied
+    try:
+        with engine.connect() as conn:
+            # Create migration_tracking table if it doesn't exist
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS migration_tracking (
+                    id SERIAL PRIMARY KEY,
+                    migration_name VARCHAR(255) UNIQUE NOT NULL,
+                    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    applied_by VARCHAR(100) DEFAULT 'system'
+                )
+            """))
+            conn.commit()
+    except Exception as e:
+        print(f"⚠️  Could not create migration_tracking table: {e}")
+    
     # Create database tables with retry logic
     import time
     from sqlalchemy.exc import OperationalError
@@ -110,7 +127,13 @@ async def startup_event():
             Base.metadata.create_all(bind=engine)
             print("Database tables created successfully")
             
-            # Run migrations for missing columns and tables (idempotent - safe to run multiple times)
+            # Run migrations for missing columns and tables
+            # NOTE: These migrations run on EVERY server restart, but they're idempotent:
+            # - They check if columns/tables exist BEFORE adding them
+            # - Safe to run multiple times (won't duplicate or break anything)
+            # - Fast execution (just database checks, no actual changes if already migrated)
+            # - Ensures database schema is always in sync with code
+            # If you want one-time migrations, we can add a migration_tracking table
             try:
                 with engine.connect() as conn:
                     # Add missing columns to questions table if they don't exist
@@ -142,14 +165,49 @@ async def startup_event():
                             conn.commit()
                             print(f"✅ Added missing column: questions.{column_name}")
                     
-                    # Create SubscriptionType enum if it doesn't exist
+                    # Handle SubscriptionType enum - check if it exists and what values it has
                     check_subscription_enum = text("""
                         SELECT EXISTS (
                             SELECT 1 FROM pg_type WHERE typname = 'subscriptiontype'
                         );
                     """)
                     enum_exists = conn.execute(check_subscription_enum).scalar()
-                    if not enum_exists:
+                    
+                    enum_free_value = 'free'
+                    enum_premium_value = 'premium'
+                    
+                    if enum_exists:
+                        # Check what enum values exist
+                        enum_values_result = conn.execute(text("""
+                            SELECT enumlabel FROM pg_enum 
+                            WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'subscriptiontype')
+                            ORDER BY enumsortorder
+                        """))
+                        enum_labels = [row[0] for row in enum_values_result.fetchall()]
+                        print(f"SubscriptionType enum exists with values: {enum_labels}")
+                        
+                        # Determine if we have uppercase or lowercase values
+                        has_lowercase = 'free' in enum_labels or 'premium' in enum_labels
+                        has_uppercase = 'FREE' in enum_labels or 'PREMIUM' in enum_labels
+                        
+                        if has_uppercase and not has_lowercase:
+                            # Use uppercase values
+                            enum_free_value = 'FREE'
+                            enum_premium_value = 'PREMIUM'
+                            print("Using uppercase enum values: FREE, PREMIUM")
+                        elif has_lowercase:
+                            # Use lowercase values
+                            enum_free_value = 'free'
+                            enum_premium_value = 'premium'
+                            print("Using lowercase enum values: free, premium")
+                        else:
+                            # No values found, recreate enum with lowercase
+                            print("Recreating enum with lowercase values...")
+                            conn.execute(text("DROP TYPE IF EXISTS subscriptiontype CASCADE"))
+                            conn.execute(text("CREATE TYPE subscriptiontype AS ENUM ('free', 'premium')"))
+                            conn.commit()
+                    else:
+                        # Create enum type with lowercase values
                         print("Creating SubscriptionType enum...")
                         create_enum = text("""
                             DO $$ BEGIN
@@ -163,57 +221,76 @@ async def startup_event():
                         print("✅ Created SubscriptionType enum")
                     
                     # Add missing columns to users table
-                    user_migrations = [
-                        ("last_login", "TIMESTAMP WITH TIME ZONE"),
-                        ("subscription_type", "subscriptiontype DEFAULT 'free'"),
-                    ]
-                    
-                    for column_name, column_def in user_migrations:
-                        # Check if column exists
-                        check_query = text("""
-                            SELECT column_name 
-                            FROM information_schema.columns 
-                            WHERE table_name = 'users' 
-                            AND column_name = :column_name
-                        """)
-                        result = conn.execute(check_query, {"column_name": column_name})
-                        if result.fetchone() is None:
-                            # Column doesn't exist, add it
-                            migration_sql = text(f"""
-                                ALTER TABLE users 
-                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
-                            """)
-                            conn.execute(migration_sql)
-                            conn.commit()
-                            print(f"✅ Added missing column: users.{column_name}")
-                            
-                            # For subscription_type, set default for existing NULL rows and add NOT NULL constraint
-                            if column_name == "subscription_type":
-                                # Set default value for any NULL rows
-                                update_null = text("""
-                                    UPDATE users 
-                                    SET subscription_type = 'free'::subscriptiontype 
-                                    WHERE subscription_type IS NULL
-                                """)
-                                conn.execute(update_null)
-                                
-                                # Add NOT NULL constraint
-                                set_not_null = text("""
-                                    ALTER TABLE users 
-                                    ALTER COLUMN subscription_type SET NOT NULL
-                                """)
-                                conn.execute(set_not_null)
-                                conn.commit()
-                                print(f"✅ Set default values and NOT NULL constraint for users.{column_name}")
-                    
-                    # Create courses table if it doesn't exist
-                    check_courses_table = text("""
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_name = 'courses'
+                    # Handle last_login first (simple)
+                    check_last_login = text("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'users' 
+                        AND column_name = 'last_login'
                     """)
-                    result = conn.execute(check_courses_table)
+                    result = conn.execute(check_last_login)
                     if result.fetchone() is None:
+                        migration_sql = text("""
+                            ALTER TABLE users 
+                            ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE
+                        """)
+                        conn.execute(migration_sql)
+                        conn.commit()
+                        print("✅ Added missing column: users.last_login")
+                    
+                    # Handle subscription_type (more complex due to enum)
+                    check_subscription_type = text("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'users' 
+                        AND column_name = 'subscription_type'
+                    """)
+                    result = conn.execute(check_subscription_type)
+                    if result.fetchone() is None:
+                        # Add column without default first (to avoid enum value issues)
+                        print("Adding subscription_type column...")
+                        add_column_sql = text("""
+                            ALTER TABLE users 
+                            ADD COLUMN subscription_type subscriptiontype
+                        """)
+                        conn.execute(add_column_sql)
+                        conn.commit()
+                        
+                        # Set default value for existing NULL rows using the correct enum value
+                        # Use string formatting for enum value since it's a literal, not a parameter
+                        update_null = text(f"""
+                            UPDATE users 
+                            SET subscription_type = '{enum_free_value}'::subscriptiontype
+                            WHERE subscription_type IS NULL
+                        """)
+                        conn.execute(update_null)
+                        conn.commit()
+                        
+                        # Set NOT NULL and DEFAULT constraints
+                        # Use string formatting for enum value in DEFAULT clause
+                        set_not_null = text("""
+                            ALTER TABLE users 
+                            ALTER COLUMN subscription_type SET NOT NULL
+                        """)
+                        conn.execute(set_not_null)
+                        
+                        set_default = text(f"""
+                            ALTER TABLE users 
+                            ALTER COLUMN subscription_type SET DEFAULT '{enum_free_value}'::subscriptiontype
+                        """)
+                        conn.execute(set_default)
+                        conn.commit()
+                        print(f"✅ Added subscription_type column with default value '{enum_free_value}'")
+                    
+                    # Create courses table if it doesn't exist (one-time migration)
+                    if not is_migration_applied("courses_table_v1"):
+                        check_courses_table = text("""
+                            SELECT table_name 
+                            FROM information_schema.tables 
+                            WHERE table_name = 'courses'
+                        """)
+                        result = conn.execute(check_courses_table)
+                        if result.fetchone() is None:
                         print("Creating courses table...")
                         
                         # Create ENUM types for course level and status if they don't exist
