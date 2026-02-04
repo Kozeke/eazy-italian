@@ -99,6 +99,10 @@ async def startup_event():
     
     # Create migration tracking table for one-time migrations
     # This allows us to skip migrations that have already been applied
+    import time
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy import text
+    
     try:
         with engine.connect() as conn:
             # Create migration_tracking table if it doesn't exist
@@ -113,11 +117,6 @@ async def startup_event():
             conn.commit()
     except Exception as e:
         print(f"⚠️  Could not create migration_tracking table: {e}")
-    
-    # Create database tables with retry logic
-    import time
-    from sqlalchemy.exc import OperationalError
-    from sqlalchemy import text
     
     max_retries = 5
     retry_delay = 2
@@ -282,15 +281,14 @@ async def startup_event():
                         conn.commit()
                         print(f"✅ Added subscription_type column with default value '{enum_free_value}'")
                     
-                    # Create courses table if it doesn't exist (one-time migration)
-                    if not is_migration_applied("courses_table_v1"):
-                        check_courses_table = text("""
-                            SELECT table_name 
-                            FROM information_schema.tables 
-                            WHERE table_name = 'courses'
-                        """)
-                        result = conn.execute(check_courses_table)
-                        if result.fetchone() is None:
+                    # Create courses table if it doesn't exist
+                    check_courses_table = text("""
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_name = 'courses'
+                    """)
+                    result = conn.execute(check_courses_table)
+                    if result.fetchone() is None:
                         print("Creating courses table...")
                         
                         # Create ENUM types for course level and status if they don't exist
@@ -712,14 +710,14 @@ async def startup_event():
                                 conn.execute(text(f"""
                                     UPDATE users u
                                     SET subscription_type = CASE 
-                                        WHEN {when_clause} THEN 'premium'::subscriptiontype
-                                        ELSE 'free'::subscriptiontype
+                                        WHEN {when_clause} THEN '{enum_premium_value}'::subscriptiontype
+                                        ELSE '{enum_free_value}'::subscriptiontype
                                     END
                                     FROM user_subscriptions us
                                     JOIN subscriptions s ON s.id = us.subscription_id
                                     WHERE u.id = us.user_id
                                     AND us.is_active = true
-                                    AND u.subscription_type = 'free'::subscriptiontype
+                                    AND u.subscription_type = '{enum_free_value}'::subscriptiontype
                                 """))
                                 conn.commit()
                                 print("✅ Migrated subscription types from UserSubscription")
