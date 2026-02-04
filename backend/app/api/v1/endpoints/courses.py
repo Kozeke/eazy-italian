@@ -33,6 +33,12 @@ from app.schemas.course import (
 
 router = APIRouter()
 
+# Test endpoint to verify router is working
+@router.get("/admin/test")
+async def test_admin_route():
+    """Test endpoint to verify admin routes are registered"""
+    return {"message": "Admin routes are working!", "status": "ok"}
+
 @router.get("/admin/courses", response_model=List[CourseListResponse])
 async def get_admin_courses(
     query: Optional[str] = Query(None, description="Search by title or description"),

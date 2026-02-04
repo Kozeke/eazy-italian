@@ -81,8 +81,22 @@ except Exception as e:
 # Include API router AFTER static mount
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+
 @app.on_event("startup")
 async def startup_event():
+    # Debug: Check if admin routes are registered
+    print("\n=== Checking Admin Routes ===")
+    admin_routes = [r for r in app.routes if hasattr(r, 'path') and '/admin' in str(r.path)]
+    if admin_routes:
+        print(f"✅ Found {len(admin_routes)} admin routes")
+        for route in admin_routes[:5]:  # Print first 5
+            methods = getattr(route, 'methods', set())
+            path = getattr(route, 'path', 'N/A')
+            print(f"  {', '.join(methods)} {path}")
+    else:
+        print("⚠️  WARNING: No admin routes found! This may indicate a registration issue.")
+    print("=== End Route Check ===\n")
+    
     # Create database tables with retry logic
     import time
     from sqlalchemy.exc import OperationalError
