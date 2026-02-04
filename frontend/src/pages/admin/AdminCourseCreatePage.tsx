@@ -358,9 +358,9 @@ export default function AdminCourseCreatePage() {
                     Обложка курса
                   </label>
                   
-                  {(thumbnail || formData.thumbnail_url) ? (
+                  {formData.thumbnail_url ? (
                     <img
-                      src={thumbnail || formData.thumbnail_url || ''}
+                      src={formData.thumbnail_url || ''}
                       alt="Course thumbnail"
                       className="w-full max-w-md rounded-xl shadow border mb-3"
                       onError={(e) => {

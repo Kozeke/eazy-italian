@@ -29,7 +29,7 @@ interface Test {
   description?: string;
   time_limit_minutes?: number;
   passing_score?: number;
-  unit_id?: number;
+  unit_id?: number | null;
   unit?: {
     id: number;
     title?: string;
