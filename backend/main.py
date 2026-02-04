@@ -142,9 +142,30 @@ async def startup_event():
                             conn.commit()
                             print(f"✅ Added missing column: questions.{column_name}")
                     
+                    # Create SubscriptionType enum if it doesn't exist
+                    check_subscription_enum = text("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM pg_type WHERE typname = 'subscriptiontype'
+                        );
+                    """)
+                    enum_exists = conn.execute(check_subscription_enum).scalar()
+                    if not enum_exists:
+                        print("Creating SubscriptionType enum...")
+                        create_enum = text("""
+                            DO $$ BEGIN
+                                CREATE TYPE subscriptiontype AS ENUM ('free', 'premium');
+                            EXCEPTION
+                                WHEN duplicate_object THEN null;
+                            END $$;
+                        """)
+                        conn.execute(create_enum)
+                        conn.commit()
+                        print("✅ Created SubscriptionType enum")
+                    
                     # Add missing columns to users table
                     user_migrations = [
                         ("last_login", "TIMESTAMP WITH TIME ZONE"),
+                        ("subscription_type", "subscriptiontype DEFAULT 'free'"),
                     ]
                     
                     for column_name, column_def in user_migrations:
@@ -165,6 +186,25 @@ async def startup_event():
                             conn.execute(migration_sql)
                             conn.commit()
                             print(f"✅ Added missing column: users.{column_name}")
+                            
+                            # For subscription_type, set default for existing NULL rows and add NOT NULL constraint
+                            if column_name == "subscription_type":
+                                # Set default value for any NULL rows
+                                update_null = text("""
+                                    UPDATE users 
+                                    SET subscription_type = 'free'::subscriptiontype 
+                                    WHERE subscription_type IS NULL
+                                """)
+                                conn.execute(update_null)
+                                
+                                # Add NOT NULL constraint
+                                set_not_null = text("""
+                                    ALTER TABLE users 
+                                    ALTER COLUMN subscription_type SET NOT NULL
+                                """)
+                                conn.execute(set_not_null)
+                                conn.commit()
+                                print(f"✅ Set default values and NOT NULL constraint for users.{column_name}")
                     
                     # Create courses table if it doesn't exist
                     check_courses_table = text("""
@@ -404,6 +444,210 @@ async def startup_event():
                                 print("✅ Added unique constraint to video_progress table")
                             except Exception as e:
                                 print(f"⚠️  Constraint may already exist: {e}")
+                    
+                    # Create course_enrollments table if it doesn't exist
+                    check_enrollments_table = text("""
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_name = 'course_enrollments'
+                    """)
+                    result = conn.execute(check_enrollments_table)
+                    if result.fetchone() is None:
+                        print("Creating course_enrollments table...")
+                        create_enrollments_table = text("""
+                            CREATE TABLE course_enrollments (
+                                id SERIAL PRIMARY KEY,
+                                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                UNIQUE(user_id, course_id)
+                            )
+                        """)
+                        conn.execute(create_enrollments_table)
+                        conn.commit()
+                        
+                        # Create indexes
+                        conn.execute(text("""
+                            CREATE INDEX IF NOT EXISTS idx_course_enrollments_user_id 
+                            ON course_enrollments(user_id)
+                        """))
+                        conn.execute(text("""
+                            CREATE INDEX IF NOT EXISTS idx_course_enrollments_course_id 
+                            ON course_enrollments(course_id)
+                        """))
+                        conn.commit()
+                        print("✅ Created course_enrollments table")
+                        
+                        # Migrate existing enrollments from progress/tasks/tests
+                        try:
+                            # From progress
+                            conn.execute(text("""
+                                INSERT INTO course_enrollments (user_id, course_id, created_at)
+                                SELECT DISTINCT 
+                                    p.student_id as user_id,
+                                    u.course_id,
+                                    MIN(p.started_at) as created_at
+                                FROM progress p
+                                JOIN units u ON u.id = p.unit_id
+                                WHERE u.course_id IS NOT NULL
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM course_enrollments ce 
+                                    WHERE ce.user_id = p.student_id 
+                                    AND ce.course_id = u.course_id
+                                )
+                                GROUP BY p.student_id, u.course_id
+                            """))
+                            
+                            # From task submissions
+                            conn.execute(text("""
+                                INSERT INTO course_enrollments (user_id, course_id, created_at)
+                                SELECT DISTINCT 
+                                    ts.student_id as user_id,
+                                    u.course_id,
+                                    MIN(ts.submitted_at) as created_at
+                                FROM task_submissions ts
+                                JOIN tasks t ON t.id = ts.task_id
+                                JOIN units u ON u.id = t.unit_id
+                                WHERE u.course_id IS NOT NULL
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM course_enrollments ce 
+                                    WHERE ce.user_id = ts.student_id 
+                                    AND ce.course_id = u.course_id
+                                )
+                                GROUP BY ts.student_id, u.course_id
+                            """))
+                            
+                            # From test attempts
+                            conn.execute(text("""
+                                INSERT INTO course_enrollments (user_id, course_id, created_at)
+                                SELECT DISTINCT 
+                                    ta.student_id as user_id,
+                                    u.course_id,
+                                    MIN(ta.started_at) as created_at
+                                FROM test_attempts ta
+                                JOIN tests t ON t.id = ta.test_id
+                                JOIN units u ON u.id = t.unit_id
+                                WHERE u.course_id IS NOT NULL
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM course_enrollments ce 
+                                    WHERE ce.user_id = ta.student_id 
+                                    AND ce.course_id = u.course_id
+                                )
+                                GROUP BY ta.student_id, u.course_id
+                            """))
+                            conn.commit()
+                            print("✅ Migrated existing enrollments")
+                        except Exception as e:
+                            print(f"⚠️  Enrollment migration note: {e}")
+                    
+                    # Add missing columns to task_submissions table
+                    task_submission_migrations = [
+                        ("attempt_number", "INTEGER DEFAULT 1"),
+                        ("time_spent_minutes", "INTEGER DEFAULT 0"),
+                    ]
+                    
+                    for column_name, column_def in task_submission_migrations:
+                        check_query = text("""
+                            SELECT column_name 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'task_submissions' 
+                            AND column_name = :column_name
+                        """)
+                        result = conn.execute(check_query, {"column_name": column_name})
+                        if result.fetchone() is None:
+                            migration_sql = text(f"""
+                                ALTER TABLE task_submissions 
+                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
+                            """)
+                            conn.execute(migration_sql)
+                            conn.commit()
+                            print(f"✅ Added missing column: task_submissions.{column_name}")
+                    
+                    # Add missing columns to tasks table
+                    task_migrations = [
+                        ("instructions", "TEXT"),
+                        ("auto_task_type", "VARCHAR(50)"),
+                        ("allow_late_submissions", "BOOLEAN DEFAULT FALSE"),
+                        ("late_penalty_percent", "INTEGER DEFAULT 0"),
+                        ("max_attempts", "INTEGER DEFAULT 1"),
+                        ("assigned_cohorts", "JSON DEFAULT '[]'"),
+                        ("assigned_students", "JSON DEFAULT '[]'"),
+                        ("assign_to_all", "BOOLEAN DEFAULT FALSE"),
+                        ("send_assignment_email", "BOOLEAN DEFAULT FALSE"),
+                        ("reminder_days_before", "INTEGER DEFAULT 1"),
+                        ("send_results_email", "BOOLEAN DEFAULT FALSE"),
+                        ("send_teacher_copy", "BOOLEAN DEFAULT FALSE"),
+                        ("notify_on_assignment", "BOOLEAN DEFAULT FALSE"),
+                        ("notify_reminder_days", "INTEGER DEFAULT 1"),
+                        ("notify_on_submit", "BOOLEAN DEFAULT FALSE"),
+                        ("notify_on_grade", "BOOLEAN DEFAULT FALSE"),
+                    ]
+                    
+                    for column_name, column_def in task_migrations:
+                        check_query = text("""
+                            SELECT column_name 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'tasks' 
+                            AND column_name = :column_name
+                        """)
+                        result = conn.execute(check_query, {"column_name": column_name})
+                        if result.fetchone() is None:
+                            migration_sql = text(f"""
+                                ALTER TABLE tasks 
+                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
+                            """)
+                            conn.execute(migration_sql)
+                            conn.commit()
+                            print(f"✅ Added missing column: tasks.{column_name}")
+                    
+                    # Migrate subscription_type from UserSubscription table (if subscription_type is still 'free' for users with premium subscriptions)
+                    try:
+                        # Check if subscription_name enum exists
+                        check_sub_name_enum = text("""
+                            SELECT EXISTS (
+                                SELECT 1 FROM pg_type WHERE typname = 'subscriptionname'
+                            )
+                        """)
+                        sub_name_enum_exists = conn.execute(check_sub_name_enum).scalar()
+                        
+                        if sub_name_enum_exists:
+                            # Get enum values
+                            sub_name_result = conn.execute(text("""
+                                SELECT enumlabel FROM pg_enum 
+                                WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'subscriptionname')
+                                ORDER BY enumsortorder
+                            """))
+                            sub_name_labels = [row[0] for row in sub_name_result.fetchall()]
+                            
+                            # Build conditions for premium subscriptions
+                            premium_conditions = []
+                            if 'PREMIUM' in sub_name_labels:
+                                premium_conditions.append("s.name = 'PREMIUM'")
+                            if 'premium' in sub_name_labels:
+                                premium_conditions.append("s.name = 'premium'")
+                            if 'PRO' in sub_name_labels:
+                                premium_conditions.append("s.name = 'PRO'")
+                            if 'pro' in sub_name_labels:
+                                premium_conditions.append("s.name = 'pro'")
+                            
+                            if premium_conditions:
+                                when_clause = " OR ".join(premium_conditions)
+                                conn.execute(text(f"""
+                                    UPDATE users u
+                                    SET subscription_type = CASE 
+                                        WHEN {when_clause} THEN 'premium'::subscriptiontype
+                                        ELSE 'free'::subscriptiontype
+                                    END
+                                    FROM user_subscriptions us
+                                    JOIN subscriptions s ON s.id = us.subscription_id
+                                    WHERE u.id = us.user_id
+                                    AND us.is_active = true
+                                    AND u.subscription_type = 'free'::subscriptiontype
+                                """))
+                                conn.commit()
+                                print("✅ Migrated subscription types from UserSubscription")
+                    except Exception as e:
+                        print(f"⚠️  Subscription migration note: {e}")
             except Exception as migration_error:
                 # Don't fail startup if migrations fail - log and continue
                 print(f"⚠️  Migration check failed (non-critical): {migration_error}")
