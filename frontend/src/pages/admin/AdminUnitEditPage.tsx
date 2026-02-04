@@ -732,6 +732,24 @@ export default function AdminUnitEditPage() {
                       )}
                     </div>
 
+                    {/* Order Index */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Порядок отображения
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.order_index}
+                        onChange={(e) => handleInputChange('order_index', parseInt(e.target.value) || 0)}
+                        min="0"
+                        className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        placeholder="0"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Порядок отображения юнита в списке. Меньшие значения отображаются первыми.
+                      </p>
+                    </div>
+
                     {/* Tags */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
