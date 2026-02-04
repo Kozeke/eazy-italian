@@ -142,6 +142,30 @@ async def startup_event():
                             conn.commit()
                             print(f"✅ Added missing column: questions.{column_name}")
                     
+                    # Add missing columns to users table
+                    user_migrations = [
+                        ("last_login", "TIMESTAMP WITH TIME ZONE"),
+                    ]
+                    
+                    for column_name, column_def in user_migrations:
+                        # Check if column exists
+                        check_query = text("""
+                            SELECT column_name 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'users' 
+                            AND column_name = :column_name
+                        """)
+                        result = conn.execute(check_query, {"column_name": column_name})
+                        if result.fetchone() is None:
+                            # Column doesn't exist, add it
+                            migration_sql = text(f"""
+                                ALTER TABLE users 
+                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
+                            """)
+                            conn.execute(migration_sql)
+                            conn.commit()
+                            print(f"✅ Added missing column: users.{column_name}")
+                    
                     # Create courses table if it doesn't exist
                     check_courses_table = text("""
                         SELECT table_name 
