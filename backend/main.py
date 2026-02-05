@@ -292,6 +292,61 @@ async def startup_event():
                         conn.commit()
                         print(f"✅ Added subscription_type column with default value '{enum_free_value}'")
                     
+                    # Handle QuestionType enum - ensure all values exist
+                    from app.models.test import QuestionType
+                    check_questiontype_enum = text("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM pg_type WHERE typname = 'questiontype'
+                        );
+                    """)
+                    questiontype_exists = conn.execute(check_questiontype_enum).scalar()
+                    
+                    if questiontype_exists:
+                        # Check what enum values exist
+                        enum_values_result = conn.execute(text("""
+                            SELECT enumlabel FROM pg_enum 
+                            WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'questiontype')
+                            ORDER BY enumsortorder
+                        """))
+                        existing_values = [row[0] for row in enum_values_result.fetchall()]
+                        print(f"QuestionType enum exists with values: {existing_values}")
+                        
+                        # Get all required enum values from Python enum
+                        required_values = [e.value for e in QuestionType]
+                        
+                        # Add missing values
+                        for value in required_values:
+                            if value not in existing_values:
+                                print(f"Adding missing enum value: {value}")
+                                try:
+                                    conn.execute(text(f"ALTER TYPE questiontype ADD VALUE IF NOT EXISTS '{value}'"))
+                                    conn.commit()
+                                    print(f"✅ Added enum value: {value}")
+                                except Exception as e:
+                                    # IF NOT EXISTS might not be supported in all PostgreSQL versions
+                                    # Try without it
+                                    try:
+                                        conn.execute(text(f"ALTER TYPE questiontype ADD VALUE '{value}'"))
+                                        conn.commit()
+                                        print(f"✅ Added enum value: {value}")
+                                    except Exception as e2:
+                                        print(f"⚠️  Could not add enum value {value}: {e2}")
+                    else:
+                        # Create enum type with all values
+                        print("Creating QuestionType enum...")
+                        required_values = [e.value for e in QuestionType]
+                        values_str = "', '".join(required_values)
+                        create_enum = text(f"""
+                            DO $$ BEGIN
+                                CREATE TYPE questiontype AS ENUM ('{values_str}');
+                            EXCEPTION
+                                WHEN duplicate_object THEN null;
+                            END $$;
+                        """)
+                        conn.execute(create_enum)
+                        conn.commit()
+                        print(f"✅ Created QuestionType enum with values: {required_values}")
+                    
                     # Create courses table if it doesn't exist
                     check_courses_table = text("""
                         SELECT table_name 

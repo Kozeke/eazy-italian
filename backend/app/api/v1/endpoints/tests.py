@@ -403,8 +403,33 @@ def add_question_to_test(
     
     # Create question
     question_type = question_data.get('type')
+    # Normalize question type to lowercase to match enum values
+    if isinstance(question_type, str):
+        question_type = question_type.lower()
+    
+    # Map common variations to enum values
+    type_mapping = {
+        'open_answer': 'open_answer',
+        'openanswer': 'open_answer',
+        'OPEN_ANSWER': 'open_answer',
+        'multiple_choice': 'multiple_choice',
+        'multiplechoice': 'multiple_choice',
+        'MULTIPLE_CHOICE': 'multiple_choice',
+        'cloze': 'cloze',
+        'CLOZE': 'cloze',
+    }
+    question_type = type_mapping.get(question_type, question_type)
+    
+    try:
+        question_type_enum = QuestionType(question_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid question type: {question_type}. Valid types: {[e.value for e in QuestionType]}"
+        )
+    
     question = Question(
-        type=QuestionType(question_type),
+        type=question_type_enum,
         prompt_rich=question_data.get('prompt', ''),
         points=question_data.get('score', 1.0),
         autograde=question_data.get('autograde', True),
