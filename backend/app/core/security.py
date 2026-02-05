@@ -21,7 +21,11 @@ def verify_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
+    except jwt.ExpiredSignatureError:
+        # Token has expired
+        return None
     except JWTError:
+        # Other JWT errors (invalid token, etc.)
         return None
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
