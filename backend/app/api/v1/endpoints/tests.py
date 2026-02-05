@@ -15,6 +15,7 @@ from app.schemas.test import TestResponse, TestCreate, TestUpdate
 
 router = APIRouter()
 
+@router.get("", response_model=List[TestResponse])
 @router.get("/", response_model=List[TestResponse])
 def get_tests(
     unit_id: Optional[int] = None,
