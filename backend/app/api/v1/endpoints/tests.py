@@ -402,34 +402,54 @@ def add_question_to_test(
         )
     
     # Create question
-    question_type = question_data.get('type')
+    question_type_input = question_data.get('type')
+    
     # Normalize question type to lowercase to match enum values
-    if isinstance(question_type, str):
-        question_type = question_type.lower()
+    if isinstance(question_type_input, str):
+        # Convert to lowercase and handle underscores
+        question_type_normalized = question_type_input.lower().strip()
+    else:
+        question_type_normalized = str(question_type_input).lower().strip()
     
     # Map common variations to enum values
     type_mapping = {
         'open_answer': 'open_answer',
         'openanswer': 'open_answer',
-        'OPEN_ANSWER': 'open_answer',
         'multiple_choice': 'multiple_choice',
         'multiplechoice': 'multiple_choice',
-        'MULTIPLE_CHOICE': 'multiple_choice',
         'cloze': 'cloze',
-        'CLOZE': 'cloze',
     }
-    question_type = type_mapping.get(question_type, question_type)
+    question_type_normalized = type_mapping.get(question_type_normalized, question_type_normalized)
     
+    # Get enum by value - this ensures we use the lowercase value
     try:
-        question_type_enum = QuestionType(question_type)
+        question_type_enum = QuestionType(question_type_normalized)
     except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid question type: {question_type}. Valid types: {[e.value for e in QuestionType]}"
-        )
+        # If that fails, try by name (for backwards compatibility)
+        try:
+            if isinstance(question_type_input, str):
+                question_type_enum = QuestionType[question_type_input.upper()]
+            else:
+                raise ValueError("Invalid question type")
+        except (KeyError, AttributeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid question type: {question_type_input}. Valid types: {[e.value for e in QuestionType]}"
+            )
     
+    # Get the enum value (should be lowercase like 'open_answer')
+    question_type_value = question_type_enum.value
+    
+    # Debug: Verify we have the correct value
+    if question_type_value != question_type_normalized:
+        print(f"[WARNING] Enum value mismatch: normalized={question_type_normalized}, enum.value={question_type_value}")
+    
+    # Explicitly set the type using the enum value to ensure SQLAlchemy uses lowercase
+    # SQLAlchemy should handle this automatically, but we're being explicit to avoid issues
+    # Create question with enum object - SQLAlchemy should use .value for str enums
+    # But we ensure normalization happened first
     question = Question(
-        type=question_type_enum,
+        type=question_type_enum,  # Pass enum object - SQLAlchemy will use .value for str enums
         prompt_rich=question_data.get('prompt', ''),
         points=question_data.get('score', 1.0),
         autograde=question_data.get('autograde', True),
@@ -438,16 +458,16 @@ def add_question_to_test(
         created_by=current_user.id
     )
     
-    # Type-specific configuration
-    if question_type == 'multiple_choice':
+    # Type-specific configuration - use normalized value
+    if question_type_value == 'multiple_choice':
         question.options = question_data.get('options', [])
         question.correct_answer = {"correct_option_ids": question_data.get('correct_option_ids', [])}
         question.shuffle_options = question_data.get('shuffle_options', True)
-    elif question_type == 'open_answer':
+    elif question_type_value == 'open_answer':
         question.expected_answer_config = question_data.get('expected', {})
         question.correct_answer = {"expected": question_data.get('expected', {})}
         question.manual_review_threshold = question_data.get('manual_review_if_below')
-    elif question_type == 'cloze':
+    elif question_type_value == 'cloze':
         question.gaps_config = question_data.get('gaps', [])
         question.correct_answer = {"gaps": question_data.get('gaps', [])}
     
