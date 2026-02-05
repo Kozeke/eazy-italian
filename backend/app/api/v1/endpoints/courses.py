@@ -308,9 +308,12 @@ async def generate_course_thumbnail(
         
         thumbnail_path = get_course_thumbnail_path(course.id, level)
         
-        # Get project root (parent of backend directory)
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        full_path = os.path.join(project_root, "uploads", thumbnail_path)
+        # Get backend directory and use backend/uploads
+        # __file__ is backend/app/api/v1/endpoints/courses.py
+        # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
+        current_file = os.path.abspath(__file__)
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
+        full_path = os.path.join(backend_dir, "uploads", thumbnail_path)
         
         # Generate subtitle from description if available
         subtitle = course.description[:50] if course.description else ""

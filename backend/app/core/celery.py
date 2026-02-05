@@ -5,7 +5,7 @@ celery_app = Celery(
     "eazy_italian",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.tasks.email", "app.tasks.file_processing"]
+    # include=["app.tasks.email", "app.tasks.file_processing"]  # Commented out - tasks modules don't exist yet
 )
 
 celery_app.conf.update(

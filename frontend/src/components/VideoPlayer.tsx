@@ -199,8 +199,12 @@ export default function VideoPlayer({
   const renderFilePlayer = (filePath: string) => {
     // Construct the full URL for the video file
     // Static files are served at /api/v1/static/{file_path}
+    // file_path should be like "videos/1/filename.mp4"
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
-    const videoUrl = `${API_BASE_URL}/static/${filePath}`;
+    
+    // Ensure file_path doesn't start with a slash
+    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    const videoUrl = `${API_BASE_URL}/static/${cleanPath}`;
     
     // Determine video type from file extension
     const getVideoType = (path: string): string => {

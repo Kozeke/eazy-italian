@@ -45,8 +45,8 @@ def get_uploads_path():
     if is_docker:
         return "/app/uploads"
     else:
-        # Local development - uploads is at project root (parent of backend directory)
-        return os.path.join(os.path.dirname(backend_dir), "uploads")
+        # Local development - uploads is inside backend directory
+        return os.path.join(backend_dir, "uploads")
 
 def validate_youtube_url(url: str) -> bool:
     """Validate YouTube URL format"""
@@ -832,6 +832,81 @@ async def get_thumbnail(
             files = os.listdir(thumbnails_dir)
             print(f"[DEBUG] Files in thumbnails directory: {files}")
         raise HTTPException(status_code=404, detail=f"Thumbnail not found: {file_path}")
+
+@router.get("/{video_id}/{filename}")
+async def serve_video_file(
+    video_id: int,
+    filename: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Serve video file by video_id and filename - handles direct file access like /videos/1/file.mp4"""
+    from fastapi.responses import FileResponse
+    import os
+    
+    # Only match if filename has a video extension (to avoid conflicts with other routes)
+    video_extensions = ['.mp4', '.webm', '.ogg', '.ogv', '.mov', '.avi', '.mkv', '.flv', '.3gp', '.wmv']
+    if not any(filename.lower().endswith(ext) for ext in video_extensions):
+        raise HTTPException(status_code=404, detail="Not a video file")
+    
+    # Get video from database
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Check if video is accessible
+    if not video.is_visible_to_students or video.status != VideoStatus.PUBLISHED:
+        raise HTTPException(status_code=403, detail="Video not accessible")
+    
+    # Check enrollment if video belongs to a unit in a course
+    if video.unit_id:
+        check_unit_access(db, current_user, video.unit_id)
+    
+    # Only serve file-based videos
+    if video.source_type != VideoSourceType.FILE or not video.file_path:
+        raise HTTPException(status_code=400, detail="Video is not a file-based video")
+    
+    # Get uploads path using helper function
+    uploads_path = get_uploads_path()
+    
+    # Try multiple possible file locations
+    possible_paths = [
+        os.path.join(uploads_path, video.file_path),  # Full path from database
+        os.path.join(uploads_path, "videos", str(video.id), filename),  # videos/{id}/{filename}
+        os.path.join(uploads_path, "videos", filename),  # videos/{filename}
+    ]
+    
+    file_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            file_path = path
+            break
+    
+    if not file_path:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Video file not found. Tried: {', '.join(possible_paths)}"
+        )
+    
+    # Determine content type
+    ext = os.path.splitext(file_path)[1].lower()
+    content_type_map = {
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.ogg': 'video/ogg',
+        '.ogv': 'video/ogg',
+        '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo',
+        '.mkv': 'video/x-matroska',
+        '.flv': 'video/x-flv',
+        '.3gp': 'video/3gpp',
+        '.wmv': 'video/x-ms-wmv'
+    }
+    content_type = content_type_map.get(ext, 'video/mp4')
+    
+    return FileResponse(file_path, media_type=content_type, headers={
+        "Accept-Ranges": "bytes",
+    })
 
 @router.get("/stream/{video_id}")
 async def stream_video(

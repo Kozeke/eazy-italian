@@ -47,23 +47,34 @@ if is_docker:
     # Docker environment - use /app/uploads
     uploads_path = "/app/uploads"
 else:
-    # Local development - uploads should be at project root (parent of backend)
-    uploads_path = os.path.join(os.path.dirname(backend_dir), "uploads")
+    # Local development - uploads should be inside backend directory
+    uploads_path = os.path.join(backend_dir, "uploads")
 
 print(f"[DEBUG] Backend dir: {backend_dir}")
 print(f"[DEBUG] Uploads path: {uploads_path}")
 print(f"[DEBUG] Uploads path exists: {os.path.exists(uploads_path)}")
+print(f"[DEBUG] Is Docker: {is_docker}")
+print(f"[DEBUG] Current working directory: {os.getcwd()}")
 
 # Create uploads directory if it doesn't exist and mount static files
 try:
     os.makedirs(uploads_path, exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "thumbnails"), exist_ok=True)
+    os.makedirs(os.path.join(uploads_path, "videos"), exist_ok=True)
+    
     if os.path.exists(uploads_path):
-        # Verify a test file exists
-        test_file = os.path.join(uploads_path, "thumbnails", "video_5_A1.png")
-        print(f"[DEBUG] Test file exists: {os.path.exists(test_file)}")
-        if os.path.exists(test_file):
-            print(f"[DEBUG] Test file path: {test_file}")
+        # List directories for debugging
+        if os.path.exists(os.path.join(uploads_path, "videos")):
+            videos_dir = os.path.join(uploads_path, "videos")
+            print(f"[DEBUG] Videos directory exists: {videos_dir}")
+            if os.path.exists(videos_dir):
+                subdirs = [d for d in os.listdir(videos_dir) if os.path.isdir(os.path.join(videos_dir, d))]
+                print(f"[DEBUG] Video subdirectories: {subdirs}")
+                if subdirs:
+                    # Check first subdirectory for files
+                    first_subdir = os.path.join(videos_dir, subdirs[0])
+                    files = os.listdir(first_subdir) if os.path.exists(first_subdir) else []
+                    print(f"[DEBUG] Files in {first_subdir}: {files[:5]}")  # Show first 5 files
         
         # Mount static files BEFORE API router
         app.mount("/api/v1/static", StaticFiles(directory=uploads_path), name="uploads")

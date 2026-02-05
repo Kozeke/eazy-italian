@@ -185,3 +185,7 @@ dump.rdb
 
 # PostgreSQL data
 postgres_data/
+
+# Uploads directory (user-uploaded files)
+backend/uploads/
+uploads/

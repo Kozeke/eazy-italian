@@ -18,8 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create uploads directory and set permissions
-RUN mkdir -p /app/uploads/thumbnails && chmod -R 755 /app/uploads
+# Create uploads directory structure and set permissions
+RUN mkdir -p /app/uploads/thumbnails /app/uploads/videos && chmod -R 755 /app/uploads
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
