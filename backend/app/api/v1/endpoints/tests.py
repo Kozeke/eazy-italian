@@ -370,6 +370,23 @@ def add_question_to_test(
     if test.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to modify this test")
     
+    # Determine level for the question
+    # Priority: 1) from question_data, 2) from test's unit
+    # Level is required by database, so we must have a value
+    level = question_data.get('level')
+    if not level and test.unit_id:
+        # Get unit to extract level
+        unit = db.query(Unit).filter(Unit.id == test.unit_id).first()
+        if unit and unit.level:
+            level = unit.level.value  # Convert enum to string value
+    
+    # If level is still not set, raise an error
+    if not level:
+        raise HTTPException(
+            status_code=400,
+            detail="Question level is required. Provide 'level' in request or ensure test has a unit with a level."
+        )
+    
     # Create question
     question_type = question_data.get('type')
     question = Question(
@@ -378,6 +395,7 @@ def add_question_to_test(
         points=question_data.get('score', 1.0),
         autograde=question_data.get('autograde', True),
         question_metadata=question_data.get('metadata', {}),
+        level=level,  # Set level field
         created_by=current_user.id
     )
     
