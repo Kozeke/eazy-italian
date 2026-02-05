@@ -6,7 +6,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_teacher
 from app.core.enrollment_guard import check_unit_access
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.test import Test, TestStatus
 from app.models.unit import Unit
 from app.models.video import Video
@@ -92,7 +92,7 @@ def get_test(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get a specific test - requires enrollment if test belongs to a course"""
+    """Get a specific test - requires enrollment if test belongs to a course (teachers bypass this check)"""
     test = db.query(Test).options(
         joinedload(Test.unit).joinedload(Unit.course)
     ).filter(Test.id == test_id).first()
@@ -100,7 +100,8 @@ def get_test(
         raise HTTPException(status_code=404, detail="Test not found")
     
     # Check enrollment if test belongs to a unit with a course
-    if test.unit_id:
+    # Teachers can access any test for editing purposes
+    if test.unit_id and current_user.role != UserRole.TEACHER:
         check_unit_access(db, current_user, test.unit_id)
     
     # Convert to response format with course information
@@ -131,13 +132,25 @@ def update_test(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Update a test"""
+    """Update a test - allows changing status (draft, published, archived, etc.)"""
     test = db.query(Test).filter(Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
     
     if test.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to modify this test")
+    
+    # Check if status is being changed to PUBLISHED
+    update_dict = test_data.dict(exclude_unset=True)
+    new_status = update_dict.get('status')
+    if new_status == TestStatus.PUBLISHED:
+        from app.models.test import TestQuestion
+        question_count = db.query(TestQuestion).filter(TestQuestion.test_id == test_id).count()
+        if question_count == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot publish test without questions. Please add at least one question first."
+            )
     
     # Update fields
     for field, value in test_data.dict(exclude_unset=True).items():

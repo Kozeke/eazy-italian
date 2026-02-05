@@ -63,7 +63,7 @@ interface TestSettings {
   availability_to?: string;
 }
 
-type TestStatus = 'draft' | 'ready' | 'published' | 'archived';
+type TestStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 
 const AdminTestEditPage: React.FC = () => {
   const navigate = useNavigate();
@@ -412,6 +412,7 @@ const AdminTestEditPage: React.FC = () => {
         unit_id: selectedUnitId,
         time_limit_minutes: timeLimit,
         passing_score: settings.passing_score,
+        status: status, // Include status in update
         settings: {
           max_attempts: settings.max_attempts,
           shuffle_questions: settings.shuffle_questions,
@@ -441,7 +442,7 @@ const AdminTestEditPage: React.FC = () => {
     
     if (errors.length === 0) {
       toast.success('Валидация пройдена! Тест готов к публикации');
-      setStatus('ready');
+      // Don't change status automatically - let user choose when to publish
     } else {
       toast.error(`Найдено ошибок: ${errors.length}`);
       setActiveTab('review');
@@ -464,7 +465,7 @@ const AdminTestEditPage: React.FC = () => {
 
     setSaving(true);
     try {
-      // First save the test settings
+      // First save the test settings with status
       const testData = {
         title: testTitle,
         description,
@@ -472,6 +473,7 @@ const AdminTestEditPage: React.FC = () => {
         unit_id: selectedUnitId,
         time_limit_minutes: timeLimit,
         passing_score: settings.passing_score,
+        status: 'published', // Set status to published when using publish button
         settings: {
           max_attempts: settings.max_attempts,
           shuffle_questions: settings.shuffle_questions,
@@ -486,8 +488,13 @@ const AdminTestEditPage: React.FC = () => {
 
       await testsApi.updateTest(parseInt(id!), testData);
       
-      // Then publish
-      await testsApi.publishTest(parseInt(id!));
+      // Also call publish endpoint for backward compatibility (optional)
+      try {
+        await testsApi.publishTest(parseInt(id!));
+      } catch (publishError) {
+        // If publish endpoint fails but update succeeded, that's okay
+        console.log('Publish endpoint call failed, but status was updated via updateTest');
+      }
 
       toast.success('Тест опубликован!');
       navigate('/admin/tests');
@@ -502,18 +509,20 @@ const AdminTestEditPage: React.FC = () => {
   const getStatusColor = (status: TestStatus) => {
     switch (status) {
       case 'draft': return 'bg-gray-100 text-gray-800';
-      case 'ready': return 'bg-blue-100 text-blue-800';
+      case 'scheduled': return 'bg-blue-100 text-blue-800';
       case 'published': return 'bg-green-100 text-green-800';
       case 'archived': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getStatusText = (status: TestStatus) => {
     switch (status) {
       case 'draft': return 'Черновик';
-      case 'ready': return 'Готов';
+      case 'scheduled': return 'Запланирован';
       case 'published': return 'Опубликован';
       case 'archived': return 'Архивирован';
+      default: return 'Черновик';
     }
   };
 
@@ -558,9 +567,19 @@ const AdminTestEditPage: React.FC = () => {
                     ))}
                   </select>
 
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(status)}`}>
-                    {getStatusText(status)}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Статус:</label>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as TestStatus)}
+                      className={`block rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm ${getStatusColor(status)} px-3 py-1 font-medium`}
+                    >
+                      <option value="draft">Черновик</option>
+                      <option value="scheduled">Запланирован</option>
+                      <option value="published">Опубликован</option>
+                      <option value="archived">Архивирован</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -728,7 +747,7 @@ const AdminTestEditPage: React.FC = () => {
             <div className="flex space-x-3">
               <button
                 onClick={handleSave}
-                disabled={saving || loading || status === 'published'}
+                disabled={saving || loading}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
                 <Save className="w-4 h-4 mr-2" />
@@ -746,7 +765,7 @@ const AdminTestEditPage: React.FC = () => {
                   </button>
                   <button
                     onClick={handlePublish}
-                    disabled={saving || loading || status !== 'ready'}
+                    disabled={saving || loading || questions.length === 0}
                     className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send className="w-4 h-4 mr-2" />
