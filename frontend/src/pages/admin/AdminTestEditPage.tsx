@@ -516,15 +516,6 @@ const AdminTestEditPage: React.FC = () => {
     }
   };
 
-  const getStatusText = (status: TestStatus) => {
-    switch (status) {
-      case 'draft': return 'Черновик';
-      case 'scheduled': return 'Запланирован';
-      case 'published': return 'Опубликован';
-      case 'archived': return 'Архивирован';
-      default: return 'Черновик';
-    }
-  };
 
   if (loading) {
     return (
