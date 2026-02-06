@@ -221,6 +221,27 @@ export default function CourseUnitsPage() {
     return allVideosCompleted && allTasksCompleted && allTestsPassed;
   };
 
+  // Check if previous unit's test is passed (required to unlock current unit's videos/tests)
+  const isPreviousUnitTestPassed = (unitIndex: number): boolean => {
+    // First unit is always unlocked
+    if (unitIndex === 0) return true;
+    
+    // Check previous unit
+    const previousUnit = units[unitIndex - 1];
+    if (!previousUnit) return true;
+    
+    const previousContent = unitContent[previousUnit.id];
+    if (!previousContent) return true;
+    
+    const { tests } = previousContent;
+    
+    // If previous unit has no tests, consider it passed (unlock next unit)
+    if (tests.length === 0) return true;
+    
+    // Check if at least one test in previous unit is passed
+    return tests.some((t: any) => t.passed === true);
+  };
+
   // Find the next incomplete unit
   const findNextIncompleteUnit = (): number | null => {
     for (const unit of units) {
@@ -242,17 +263,28 @@ export default function CourseUnitsPage() {
 
       // Check videos first (they usually come first in order)
       if (videos.length > 0) {
+        // Helper function to check if a video is a YouTube link
+        const isYouTubeVideo = (v: any): boolean => {
+          if (!v || v.source_type !== 'url' || !v.external_url) {
+            return false;
+          }
+          const url = v.external_url.toLowerCase();
+          return url.includes('youtube.com') || url.includes('youtu.be');
+        };
+        
         // Sort videos by order_index
         const sortedVideos = [...videos].sort((a: any, b: any) => 
           (a.order_index || 0) - (b.order_index || 0)
         );
         
         for (const video of sortedVideos) {
-          // Check if all previous videos are completed
+          // Check if all previous non-YouTube videos are completed
+          // YouTube videos don't block next videos
           const videoIndex = sortedVideos.indexOf(video);
           const previousVideos = sortedVideos.slice(0, videoIndex);
-          const allPreviousCompleted = previousVideos.length === 0 || 
-            previousVideos.every((v: any) => v.completed === true);
+          const previousNonYouTubeVideos = previousVideos.filter((v: any) => !isYouTubeVideo(v));
+          const allPreviousCompleted = previousNonYouTubeVideos.length === 0 || 
+            previousNonYouTubeVideos.every((v: any) => v.completed === true);
           
           if (!video.completed && allPreviousCompleted) {
             return { type: 'video', unit, activity: video, unitIndex: i };
@@ -619,6 +651,15 @@ export default function CourseUnitsPage() {
                         <div className="p-5 space-y-1">
                           {/* Videos */}
                           {content.videos.length > 0 && (() => {
+                            // Helper function to check if a video is a YouTube link
+                            const isYouTubeVideo = (v: any): boolean => {
+                              if (!v || v.source_type !== 'url' || !v.external_url) {
+                                return false;
+                              }
+                              const url = v.external_url.toLowerCase();
+                              return url.includes('youtube.com') || url.includes('youtu.be');
+                            };
+                            
                             // Sort videos by order_index to ensure correct sequence
                             const sortedVideos = [...content.videos].sort((a: any, b: any) => 
                               (a.order_index || 0) - (b.order_index || 0)
@@ -628,9 +669,15 @@ export default function CourseUnitsPage() {
                               <>
                                 {sortedVideos.map((video: any, videoIndex: number) => {
                                   // Check if all previous videos are completed
+                                  // Skip YouTube videos when checking completion (they don't block next videos)
                                   const previousVideos = sortedVideos.slice(0, videoIndex);
-                                  const allPreviousCompleted = previousVideos.length === 0 || previousVideos.every((v: any) => v.completed === true);
-                                  const isLocked = videoIndex > 0 && !allPreviousCompleted;
+                                  const previousNonYouTubeVideos = previousVideos.filter((v: any) => !isYouTubeVideo(v));
+                                  const allPreviousCompleted = previousNonYouTubeVideos.length === 0 || previousNonYouTubeVideos.every((v: any) => v.completed === true);
+                                  
+                                  // Also check if previous unit's test is passed (required to unlock videos)
+                                  const previousUnitTestPassed = isPreviousUnitTestPassed(index);
+                                  
+                                  const isLocked = (videoIndex > 0 && !allPreviousCompleted) || !previousUnitTestPassed;
                                   
                                   const videoContent = (
                                     <div className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors group ${
@@ -666,7 +713,10 @@ export default function CourseUnitsPage() {
                                         )}
                                         {isLocked && (
                                           <p className="text-xs text-amber-600 mt-1">
-                                            Сначала просмотрите предыдущие видео
+                                            {!previousUnitTestPassed 
+                                              ? 'Сначала пройдите тест предыдущего юнита'
+                                              : 'Сначала просмотрите предыдущие видео'
+                                            }
                                           </p>
                                         )}
                                       </div>
@@ -725,38 +775,83 @@ export default function CourseUnitsPage() {
                           )}
 
                           {/* Tests */}
-                          {content.tests.length > 0 && (
-                            <>
-                              {content.tests.map((test: any) => (
-                                <Link
-                                  key={test.id}
-                                  to={`/tests/${test.id}`}
-                                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white transition-colors group"
-                                >
-                                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-purple-100 text-purple-600">
-                                    {test.passed ? (
-                                      <CheckCircle className="w-4 h-4 text-green-600" />
-                                    ) : (
-                                      <ClipboardCheck className="w-4 h-4" />
-                                    )}
-                                  </div>
-                                  <div className="flex-1 text-left">
-                                    <p className="text-sm font-medium text-gray-900">{test.title}</p>
-                                    {test.time_limit_minutes && (
-                                      <p className="text-xs text-gray-500 flex items-center gap-1">
-                                        <Clock className="w-3 h-3" />
-                                        {test.time_limit_minutes} минут
-                                      </p>
-                                    )}
-                                  </div>
-                                  {test.passed && (
-                                    <span className="text-xs text-green-600 font-medium">Пройдено</span>
-                                  )}
-                                  <ChevronRight className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </Link>
-                              ))}
-                            </>
-                          )}
+                          {content.tests.length > 0 && (() => {
+                            // Check if previous unit's test is passed (required to unlock tests)
+                            const previousUnitTestPassed = isPreviousUnitTestPassed(index);
+                            
+                            return (
+                              <>
+                                {content.tests.map((test: any) => {
+                                  const isTestLocked = !previousUnitTestPassed;
+                                  
+                                  const testContent = (
+                                    <div className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors group ${
+                                      isTestLocked 
+                                        ? 'opacity-60 cursor-not-allowed' 
+                                        : 'hover:bg-white cursor-pointer'
+                                    }`}>
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                        isTestLocked 
+                                          ? 'bg-gray-100 text-gray-400' 
+                                          : 'bg-purple-100 text-purple-600'
+                                      }`}>
+                                        {isTestLocked ? (
+                                          <Lock className="w-4 h-4" />
+                                        ) : test.passed ? (
+                                          <CheckCircle className="w-4 h-4 text-green-600" />
+                                        ) : (
+                                          <ClipboardCheck className="w-4 h-4" />
+                                        )}
+                                      </div>
+                                      <div className="flex-1 text-left">
+                                        <p className={`text-sm font-medium ${
+                                          isTestLocked ? 'text-gray-500' : 'text-gray-900'
+                                        }`}>
+                                          {test.title}
+                                        </p>
+                                        {test.time_limit_minutes && (
+                                          <p className={`text-xs flex items-center gap-1 ${
+                                            isTestLocked ? 'text-gray-400' : 'text-gray-500'
+                                          }`}>
+                                            <Clock className="w-3 h-3" />
+                                            {test.time_limit_minutes} минут
+                                          </p>
+                                        )}
+                                        {isTestLocked && (
+                                          <p className="text-xs text-amber-600 mt-1">
+                                            Сначала пройдите тест предыдущего юнита
+                                          </p>
+                                        )}
+                                      </div>
+                                      {test.passed && !isTestLocked && (
+                                        <span className="text-xs text-green-600 font-medium">Пройдено</span>
+                                      )}
+                                      {!isTestLocked && (
+                                        <ChevronRight className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      )}
+                                    </div>
+                                  );
+                                  
+                                  if (isTestLocked) {
+                                    return (
+                                      <div key={test.id} title="Сначала пройдите тест предыдущего юнита">
+                                        {testContent}
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  return (
+                                    <Link
+                                      key={test.id}
+                                      to={`/tests/${test.id}`}
+                                    >
+                                      {testContent}
+                                    </Link>
+                                  );
+                                })}
+                              </>
+                            );
+                          })()}
                           
                           {totalItems === 0 && (
                             <p className="text-sm text-gray-500 text-center py-4">Нет контента</p>

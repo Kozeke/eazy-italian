@@ -247,6 +247,59 @@ export default function UnitDetailPage() {
     }
   }, [searchParams, unit]);
 
+  // Check if previous unit's test is passed (required to unlock current unit's videos/tests)
+  const [previousUnitTestPassed, setPreviousUnitTestPassed] = useState<boolean>(true);
+  
+  useEffect(() => {
+    const checkPreviousUnitTest = async () => {
+      if (!unit || !unit.course_id || courseUnits.length === 0) {
+        setPreviousUnitTestPassed(true); // If no course or units, unlock by default
+        return;
+      }
+      
+      // Find current unit index
+      const sortedUnits = [...courseUnits].sort((a: any, b: any) => 
+        (a.order_index || 0) - (b.order_index || 0) || a.id - b.id
+      );
+      const currentUnitIndex = sortedUnits.findIndex((u: any) => u.id === unit.id);
+      
+      // First unit is always unlocked
+      if (currentUnitIndex === 0) {
+        setPreviousUnitTestPassed(true);
+        return;
+      }
+      
+      // Get previous unit
+      const previousUnit = sortedUnits[currentUnitIndex - 1];
+      if (!previousUnit) {
+        setPreviousUnitTestPassed(true);
+        return;
+      }
+      
+      // Fetch previous unit to check test status
+      try {
+        const previousUnitData = await unitsApi.getUnit(previousUnit.id);
+        const previousTests = previousUnitData.tests || [];
+        
+        // If previous unit has no tests, consider it passed (unlock next unit)
+        if (previousTests.length === 0) {
+          setPreviousUnitTestPassed(true);
+          return;
+        }
+        
+        // Check if at least one test in previous unit is passed
+        const hasPassedTest = previousTests.some((t: any) => t.passed === true);
+        setPreviousUnitTestPassed(hasPassedTest);
+      } catch (error) {
+        console.error('Error checking previous unit test:', error);
+        // On error, unlock by default to not block user
+        setPreviousUnitTestPassed(true);
+      }
+    };
+    
+    checkPreviousUnitTest();
+  }, [unit, courseUnits]);
+
   // Calculate progress
   const completedVideos = unit?.videos.filter(v => v.completed).length || 0;
   const completedTasks = unit?.tasks.filter(t => t.completed).length || 0;
@@ -566,8 +619,24 @@ export default function UnitDetailPage() {
                       <p className="text-sm text-gray-500 text-center py-4">Нет видео</p>
                     ) : (
                       unit.videos.map((video: Video, index: number) => {
-                        // Check if previous video is completed (first video is always unlocked)
-                        const isUnlocked = index === 0 || (index > 0 && unit.videos[index - 1].completed);
+                        // Helper function to check if a video is a YouTube link
+                        const isYouTubeVideo = (v: Video): boolean => {
+                          if (!v || v.source_type !== 'url' || !v.external_url) {
+                            return false;
+                          }
+                          const url = v.external_url.toLowerCase();
+                          return url.includes('youtube.com') || url.includes('youtu.be');
+                        };
+                        
+                        // Check if all previous non-YouTube videos are completed
+                        // YouTube videos don't block next videos
+                        const previousVideos = unit.videos.slice(0, index);
+                        const previousNonYouTubeVideos = previousVideos.filter((v: Video) => !isYouTubeVideo(v));
+                        const videosUnlocked = index === 0 || previousNonYouTubeVideos.length === 0 || previousNonYouTubeVideos.every((v: Video) => v.completed === true);
+                        
+                        // Also check if previous unit's test is passed (required to unlock videos)
+                        const isUnlocked = videosUnlocked && previousUnitTestPassed;
+                        const lockedByPreviousTest = !previousUnitTestPassed;
                         
                         return (
                           <button
@@ -611,6 +680,11 @@ export default function UnitDetailPage() {
                                 }`}>
                                   {video.duration || '0:00'}
                                 </p>
+                                {!isUnlocked && lockedByPreviousTest && (
+                                  <p className="text-xs text-amber-600 mt-1">
+                                    Сначала пройдите тест предыдущего юнита
+                                  </p>
+                                )}
                               </div>
                               {isUnlocked && (
                                 <ChevronRight className="w-4 h-4 text-gray-400" />
@@ -663,31 +737,63 @@ export default function UnitDetailPage() {
                     {unit.tests.length === 0 ? (
                       <p className="text-sm text-gray-500 text-center py-4">Нет тестов</p>
                     ) : (
-                      unit.tests.map((test: Test, index: number) => (
-                        <button
-                          key={test.id}
-                          onClick={() => navigate(`/tests/${test.id}`)}
-                          className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-indigo-200 hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                              <span className="text-sm font-semibold text-purple-600">
-                                {index + 1}
-                              </span>
+                      unit.tests.map((test: Test, index: number) => {
+                        // Check if previous unit's test is passed (required to unlock tests)
+                        const isTestLocked = !previousUnitTestPassed;
+                        
+                        return (
+                          <button
+                            key={test.id}
+                            onClick={() => {
+                              if (isTestLocked) return; // Prevent click if locked
+                              navigate(`/tests/${test.id}`);
+                            }}
+                            disabled={isTestLocked}
+                            className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                              isTestLocked
+                                ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                                : 'border-gray-200 hover:border-indigo-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                                isTestLocked 
+                                  ? 'bg-gray-100' 
+                                  : 'bg-purple-100'
+                              }`}>
+                                {isTestLocked ? (
+                                  <Lock className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                  <span className="text-sm font-semibold text-purple-600">
+                                    {index + 1}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${
+                                  isTestLocked ? 'text-gray-400' : 'text-gray-900'
+                                }`}>
+                                  {test.title}
+                                </p>
+                                <p className={`text-xs ${
+                                  isTestLocked ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  {test.timeLimit || test.time_limit_minutes || 0} минут
+                                  {test.passingScore && ` • Проходной балл: ${test.passingScore}%`}
+                                </p>
+                                {isTestLocked && (
+                                  <p className="text-xs text-amber-600 mt-1">
+                                    Сначала пройдите тест предыдущего юнита
+                                  </p>
+                                )}
+                              </div>
+                              {test.passed && !isTestLocked && (
+                                <CheckCircle className="w-5 h-5 text-green-500" />
+                              )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900">{test.title}</p>
-                              <p className="text-xs text-gray-500">
-                                {test.timeLimit || test.time_limit_minutes || 0} минут
-                                {test.passingScore && ` • Проходной балл: ${test.passingScore}%`}
-                              </p>
-                            </div>
-                            {test.passed && (
-                              <CheckCircle className="w-5 h-5 text-green-500" />
-                            )}
-                          </div>
-                        </button>
-                      ))
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 )}
