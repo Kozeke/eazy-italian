@@ -39,6 +39,73 @@ async def test_admin_route():
     """Test endpoint to verify admin routes are registered"""
     return {"message": "Admin routes are working!", "status": "ok"}
 
+# Questions endpoint (moved here because courses router is mounted at root)
+@router.put("/admin/questions/{question_id}")
+async def update_question(
+    question_id: int,
+    question_data: Dict[str, Any],
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db)
+):
+    """Update a question"""
+    from app.models.test import Question, TestQuestion
+    
+    # Get question
+    question = db.query(Question).filter(Question.id == question_id).first()
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    
+    # Verify user owns the question (through test)
+    test_question = db.query(TestQuestion).filter(TestQuestion.question_id == question_id).first()
+    if test_question:
+        test = db.query(Test).filter(Test.id == test_question.test_id).first()
+        if test and test.created_by != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this question")
+    
+    # Update question fields
+    if 'prompt' in question_data:
+        question.prompt_rich = question_data.get('prompt', '')
+    if 'score' in question_data or 'points' in question_data:
+        question.points = question_data.get('score') or question_data.get('points', question.points)
+    if 'metadata' in question_data:
+        question.question_metadata = question_data.get('metadata', {})
+    
+    # Type-specific updates
+    question_type = question.type.value if hasattr(question.type, 'value') else str(question.type)
+    
+    if question_type == 'multiple_choice':
+        if 'options' in question_data:
+            question.options = question_data.get('options', [])
+        if 'correct_option_ids' in question_data:
+            question.correct_answer = {"correct_option_ids": question_data.get('correct_option_ids', [])}
+        if 'shuffle_options' in question_data:
+            question.shuffle_options = question_data.get('shuffle_options', True)
+    elif question_type == 'open_answer':
+        if 'expected' in question_data:
+            question.expected_answer_config = question_data.get('expected', {})
+            question.correct_answer = {"expected": question_data.get('expected', {})}
+    elif question_type == 'cloze':
+        if 'gaps' in question_data:
+            question.gaps_config = question_data.get('gaps', [])
+            question.correct_answer = {"gaps": question_data.get('gaps', [])}
+    
+    # Update TestQuestion points if score changed
+    if 'score' in question_data or 'points' in question_data:
+        new_score = question_data.get('score') or question_data.get('points')
+        if test_question and new_score:
+            test_question.points = new_score
+    
+    db.commit()
+    db.refresh(question)
+    
+    return {
+        "id": question.id,
+        "type": question.type.value,
+        "prompt_rich": question.prompt_rich,
+        "points": question.points,
+        "message": "Question updated successfully"
+    }
+
 @router.get("/admin/courses", response_model=List[CourseListResponse])
 async def get_admin_courses(
     query: Optional[str] = Query(None, description="Search by title or description"),

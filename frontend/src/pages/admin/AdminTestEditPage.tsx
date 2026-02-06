@@ -291,9 +291,7 @@ const AdminTestEditPage: React.FC = () => {
     }
   };
 
-  const updateQuestion = async (questionId: string | number, updates: Partial<Question>) => {
-    if (!id) return;
-    
+  const updateQuestion = (questionId: string | number, updates: Partial<Question>) => {
     const question = questions.find(q => q.id === questionId);
     if (!question) return;
 
@@ -308,36 +306,8 @@ const AdminTestEditPage: React.FC = () => {
       }));
     }
 
-    // Update local state immediately for better UX
+    // Update local state only - don't make API call yet
     setQuestions(questions.map(q => q.id === questionId ? updatedQuestion : q));
-
-    try {
-      // Prepare question payload
-      const questionPayload: any = {
-        type: updatedQuestion.type,
-        prompt: updatedQuestion.prompt,
-        score: updatedQuestion.score,
-        metadata: updatedQuestion.question_metadata || {},
-      };
-
-      if (updatedQuestion.type === 'multiple_choice') {
-        questionPayload.options = updatedQuestion.options;
-        questionPayload.correct_option_ids = updatedQuestion.correct_option_ids;
-        questionPayload.shuffle_options = updatedQuestion.shuffle_options;
-      } else if (updatedQuestion.type === 'open_answer') {
-        questionPayload.expected = updatedQuestion.expected;
-      } else if (updatedQuestion.type === 'cloze') {
-        questionPayload.gaps = updatedQuestion.gaps;
-      }
-
-      // Update question via API
-      await questionsApi.updateQuestion(typeof questionId === 'string' ? parseInt(questionId) : questionId, questionPayload);
-    } catch (error: any) {
-      console.error('Error updating question:', error);
-      toast.error('Ошибка при обновлении вопроса');
-      // Revert on error
-      await loadTestData();
-    }
   };
 
   // Validation
@@ -405,6 +375,38 @@ const AdminTestEditPage: React.FC = () => {
 
     setSaving(true);
     try {
+      // First, save all question updates
+      const questionUpdatePromises = questions.map(async (question) => {
+        try {
+          const questionPayload: any = {
+            type: question.type,
+            prompt: question.prompt,
+            score: question.score,
+            metadata: question.question_metadata || {},
+          };
+
+          if (question.type === 'multiple_choice') {
+            questionPayload.options = question.options;
+            questionPayload.correct_option_ids = question.correct_option_ids;
+            questionPayload.shuffle_options = question.shuffle_options;
+          } else if (question.type === 'open_answer') {
+            questionPayload.expected = question.expected;
+          } else if (question.type === 'cloze') {
+            questionPayload.gaps = question.gaps;
+          }
+
+          // Update question via API
+          await questionsApi.updateQuestion(typeof question.id === 'string' ? parseInt(question.id) : question.id, questionPayload);
+        } catch (error: any) {
+          console.error(`Error updating question ${question.id}:`, error);
+          throw error;
+        }
+      });
+
+      // Wait for all question updates to complete
+      await Promise.all(questionUpdatePromises);
+
+      // Then save test data
       const testData = {
         title: testTitle,
         description,
@@ -431,6 +433,8 @@ const AdminTestEditPage: React.FC = () => {
     } catch (error: any) {
       console.error('Error saving test:', error);
       toast.error(error.response?.data?.detail || 'Ошибка сохранения теста');
+      // Reload data on error to revert changes
+      await loadTestData();
     } finally {
       setSaving(false);
     }
@@ -548,7 +552,6 @@ const AdminTestEditPage: React.FC = () => {
                     value={selectedUnitId || ''}
                     onChange={(e) => setSelectedUnitId(e.target.value ? parseInt(e.target.value) : null)}
                     className="block w-64 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                    disabled={status === 'published'}
                   >
                     <option value="">Без юнита</option>
                     {units.map(unit => (
@@ -585,7 +588,6 @@ const AdminTestEditPage: React.FC = () => {
                 onChange={(e) => setTestTitle(e.target.value)}
                 placeholder="Название теста"
                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-lg"
-                disabled={status === 'published'}
               />
             </div>
             <div>
@@ -597,7 +599,6 @@ const AdminTestEditPage: React.FC = () => {
                   onChange={(e) => setTimeLimit(parseInt(e.target.value) || 0)}
                   min="1"
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                  disabled={status === 'published'}
                 />
                 <span className="text-sm text-gray-500">мин</span>
               </div>
@@ -686,7 +687,6 @@ const AdminTestEditPage: React.FC = () => {
                     index={index}
                     onUpdate={(updates) => updateQuestion(question.id, updates)}
                     onRemove={() => handleRemoveQuestion(question.id)}
-                    isReadOnly={status === 'published'}
                   />
                 ))}
               </div>
@@ -701,7 +701,6 @@ const AdminTestEditPage: React.FC = () => {
             onUpdate={setSettings}
             showAdvanced={showAdvancedSettings}
             onToggleAdvanced={() => setShowAdvancedSettings(!showAdvancedSettings)}
-            isReadOnly={status === 'published'}
           />
         )}
 

@@ -135,6 +135,7 @@ export default function AdminTestsPage() {
         orderIndex: test.order_index || 0,
         course_id: test.course_id || null,
         course_title: test.course_title || null,
+        unit_title: test.unit_title || test.unit?.title || null,
       }));
       
       // If we have real tests from API, show them; otherwise show mock tests
@@ -465,9 +466,12 @@ export default function AdminTestsPage() {
                         </h3>
                       </div>
 
-                      {/* Status Badge */}
+                      {/* Unit Name */}
                       <div className="flex-shrink-0">
-                        {getStatusBadge(test.status)}
+                        <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-indigo-100 text-indigo-800">
+                          <BookOpen className="w-3 h-3 mr-1.5" />
+                          {test.unit_title || 'Без юнита'}
+                        </span>
                       </div>
 
                       {/* Metadata Icons */}

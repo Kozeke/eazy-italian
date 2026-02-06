@@ -53,7 +53,8 @@ def get_tests(
             "created_at": test.created_at,
             "updated_at": test.updated_at,
             "course_id": test.unit.course_id if test.unit and test.unit.course else None,
-            "course_title": test.unit.course.title if test.unit and test.unit.course else None
+            "course_title": test.unit.course.title if test.unit and test.unit.course else None,
+            "unit_title": test.unit.title if test.unit else None
         }
         result.append(TestResponse(**test_dict))
     

@@ -37,6 +37,7 @@ class TestResponse(TestBase):
     updated_at: Optional[datetime] = None
     course_id: Optional[int] = None
     course_title: Optional[str] = None
+    unit_title: Optional[str] = None
 
     class Config:
         from_attributes = True
