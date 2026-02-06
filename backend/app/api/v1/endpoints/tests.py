@@ -595,31 +595,44 @@ def start_test(
     if test.unit_id:
         check_unit_access(db, current_user, test.unit_id)
     
-    # Check max attempts
-    if test.settings and test.settings.get('max_attempts'):
-        attempts_count = db.query(TestAttempt).filter(
-            and_(
-                TestAttempt.test_id == test_id,
-                TestAttempt.student_id == current_user.id
-            )
-        ).count()
+    # Check for existing active attempt
+    active_attempt = db.query(TestAttempt).filter(
+        and_(
+            TestAttempt.test_id == test_id,
+            TestAttempt.student_id == current_user.id,
+            TestAttempt.status == AttemptStatus.IN_PROGRESS
+        )
+    ).first()
+    
+    if active_attempt:
+        # Return existing active attempt instead of creating a new one
+        attempt = active_attempt
+    else:
+        # Check max attempts (only count completed attempts)
+        if test.settings and test.settings.get('max_attempts'):
+            attempts_count = db.query(TestAttempt).filter(
+                and_(
+                    TestAttempt.test_id == test_id,
+                    TestAttempt.student_id == current_user.id,
+                    TestAttempt.status == AttemptStatus.COMPLETED
+                )
+            ).count()
+            
+            if attempts_count >= test.settings['max_attempts']:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Maximum attempts ({test.settings['max_attempts']}) reached"
+                )
         
-        if attempts_count >= test.settings['max_attempts']:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Maximum attempts ({test.settings['max_attempts']}) reached"
-            )
-    
-    # Create new attempt
-    attempt = TestAttempt(
-        test_id=test_id,
-        student_id=current_user.id,
-        status=AttemptStatus.IN_PROGRESS
-    )
-    
-    db.add(attempt)
-    db.commit()
-    db.refresh(attempt)
+        # Create new attempt only if no active attempt exists
+        attempt = TestAttempt(
+            test_id=test_id,
+            student_id=current_user.id,
+            status=AttemptStatus.IN_PROGRESS
+        )
+        db.add(attempt)
+        db.commit()
+        db.refresh(attempt)
     
     # Get questions for this test
     test_questions = db.query(TestQuestion).options(
@@ -804,16 +817,42 @@ def submit_test(
     percentage = (total_score / max_score * 100) if max_score > 0 else 0
     
     # Update attempt
-    attempt.submitted_at = datetime.utcnow()
+    from datetime import timezone
+    submitted_at = datetime.now(timezone.utc)
+    attempt.submitted_at = submitted_at
     attempt.score = percentage
     attempt.detail = results_detail
     attempt.status = AttemptStatus.COMPLETED
+    
+    # Calculate time taken in seconds
+    time_taken_seconds = 0
+    if attempt.started_at and submitted_at:
+        # Ensure both datetimes are timezone-aware for comparison
+        if attempt.started_at.tzinfo is None:
+            # If started_at is naive, assume it's UTC
+            started_at = attempt.started_at.replace(tzinfo=timezone.utc)
+        else:
+            started_at = attempt.started_at
+        time_delta = submitted_at - started_at
+        time_taken_seconds = int(time_delta.total_seconds())
     
     db.commit()
     db.refresh(attempt)
     
     # Check if passed
     passed = percentage >= test.passing_score
+    
+    # Calculate remaining attempts (only count completed attempts)
+    attempts_remaining = None
+    if test.settings and test.settings.get('max_attempts'):
+        completed_attempts_count = db.query(TestAttempt).filter(
+            and_(
+                TestAttempt.test_id == test_id,
+                TestAttempt.student_id == current_user.id,
+                TestAttempt.status == AttemptStatus.COMPLETED
+            )
+        ).count()
+        attempts_remaining = test.settings['max_attempts'] - completed_attempts_count
     
     return {
         "attempt_id": attempt.id,
@@ -822,7 +861,9 @@ def submit_test(
         "points_earned": total_score,
         "points_possible": max_score,
         "results": results_detail if test.settings.get('show_results_immediately', True) else None,
-        "submitted_at": attempt.submitted_at
+        "submitted_at": attempt.submitted_at,
+        "time_taken_seconds": time_taken_seconds,
+        "attempts_remaining": attempts_remaining
     }
 
 @router.get("/{test_id}/attempts")
@@ -832,7 +873,7 @@ def get_test_attempts(
     db: Session = Depends(get_db)
 ):
     """Get all attempts for a test by the current student"""
-    from app.models.test import TestAttempt
+    from app.models.test import TestAttempt, AttemptStatus
     
     # Verify test exists
     test = db.query(Test).filter(Test.id == test_id).first()
@@ -846,6 +887,9 @@ def get_test_attempts(
             TestAttempt.student_id == current_user.id
         )
     ).order_by(TestAttempt.started_at.desc()).all()
+    
+    # Count only completed attempts for remaining calculation
+    completed_attempts = [a for a in attempts if a.status == AttemptStatus.COMPLETED]
     
     return {
         "test_id": test_id,
@@ -861,6 +905,6 @@ def get_test_attempts(
             }
             for attempt in attempts
         ],
-        "attempts_remaining": test.settings.get('max_attempts', 999) - len(attempts) if test.settings.get('max_attempts') else None,
+        "attempts_remaining": test.settings.get('max_attempts', 999) - len(completed_attempts) if test.settings.get('max_attempts') else None,
         "best_score": max((a.score for a in attempts if a.score is not None), default=None)
     }

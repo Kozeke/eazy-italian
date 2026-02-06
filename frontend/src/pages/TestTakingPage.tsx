@@ -192,7 +192,10 @@ export default function TestTakingPage() {
               {/* Multiple Choice */}
               {question.type === 'multiple_choice' && question.options && (
                 <div className="space-y-2 ml-10">
-                  {question.options.map((option) => (
+                  {[...question.options].sort((a, b) => {
+                    // Sort options alphabetically by id (A, B, C, D, etc.)
+                    return a.id.localeCompare(b.id);
+                  }).map((option) => (
                     <label
                       key={option.id}
                       className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${

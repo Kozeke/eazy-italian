@@ -22,9 +22,22 @@ export default function TestResultsPage() {
           setUnitId(testData.unit_id);
         }
         
+        // Get saved result from sessionStorage
         const savedResult = sessionStorage.getItem(`test_result_${attemptId}`);
         if (savedResult) {
-          setResult(JSON.parse(savedResult));
+          const parsedResult = JSON.parse(savedResult);
+          
+          // Fetch current attempts data to get accurate attempts_remaining
+          try {
+            const attemptsData = await testsApi.getTestAttempts(parseInt(id));
+            // Update result with current attempts_remaining
+            parsedResult.attempts_remaining = attemptsData.attempts_remaining;
+            setResult(parsedResult);
+          } catch (error) {
+            // If fetching attempts fails, use saved result as fallback
+            console.error('Error fetching attempts:', error);
+            setResult(parsedResult);
+          }
         } else {
           toast.error('Результаты не найдены');
           navigate(`/tests/${id}`);
@@ -34,7 +47,16 @@ export default function TestResultsPage() {
         console.error('Error loading test data:', error);
         const savedResult = sessionStorage.getItem(`test_result_${attemptId}`);
         if (savedResult) {
-          setResult(JSON.parse(savedResult));
+          const parsedResult = JSON.parse(savedResult);
+          
+          // Try to fetch attempts data even if test data failed
+          try {
+            const attemptsData = await testsApi.getTestAttempts(parseInt(id));
+            parsedResult.attempts_remaining = attemptsData.attempts_remaining;
+            setResult(parsedResult);
+          } catch (err) {
+            setResult(parsedResult);
+          }
         } else {
           toast.error('Результаты не найдены');
           navigate(`/tests/${id}`);
@@ -113,8 +135,17 @@ export default function TestResultsPage() {
                 </div>
                 <p className="text-xs text-green-600 font-medium mb-1">Время</p>
                 <p className="text-lg font-bold text-green-900">
-                  {result.duration_minutes || 'N/A'} мин
+                  {result.time_taken_seconds !== undefined 
+                    ? `${Math.floor(result.time_taken_seconds / 60)}:${String(result.time_taken_seconds % 60).padStart(2, '0')}`
+                    : result.duration_minutes 
+                      ? `${result.duration_minutes} мин`
+                      : 'N/A'}
                 </p>
+                {result.time_taken_seconds !== undefined && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ({result.time_taken_seconds} сек)
+                  </p>
+                )}
               </div>
             </div>
 
@@ -175,7 +206,7 @@ export default function TestResultsPage() {
                 </button>
               )}
               
-              {!passed && result.attempts_remaining > 0 && (
+              {!passed && (result.attempts_remaining === null || result.attempts_remaining === undefined || result.attempts_remaining > 0) && (
                 <button
                   onClick={() => navigate(`/tests/${id}`)}
                   className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
@@ -197,9 +228,11 @@ export default function TestResultsPage() {
                 </div>
               ) : (
                 <p className="text-sm text-gray-600">
-                  {result.attempts_remaining > 0 
-                    ? `Осталось попыток: ${result.attempts_remaining}`
-                    : 'Попытки исчерпаны'}
+                  {result.attempts_remaining === null || result.attempts_remaining === undefined
+                    ? 'Попытки не ограничены'
+                    : result.attempts_remaining > 0 
+                      ? `Осталось попыток: ${result.attempts_remaining}`
+                      : 'Попытки исчерпаны'}
                 </p>
               )}
             </div>
