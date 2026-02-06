@@ -210,22 +210,6 @@ export default function AdminTestsPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { color: 'bg-gray-100 text-gray-800', label: 'Черновик' },
-      published: { color: 'bg-green-100 text-green-800', label: 'Опубликовано' },
-      scheduled: { color: 'bg-blue-100 text-blue-800', label: 'Запланировано' },
-      archived: { color: 'bg-red-100 text-red-800', label: 'Архивировано' }
-    };
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
 
   const getTypeBadge = (type: string) => {
     const typeConfig = {
@@ -470,7 +454,7 @@ export default function AdminTestsPage() {
                       <div className="flex-shrink-0">
                         <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-indigo-100 text-indigo-800">
                           <BookOpen className="w-3 h-3 mr-1.5" />
-                          {test.unit_title || 'Без юнита'}
+                          {(test as any).unit_title || 'Без юнита'}
                         </span>
                       </div>
 
