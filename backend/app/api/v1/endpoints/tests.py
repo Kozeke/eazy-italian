@@ -368,19 +368,13 @@ def add_question_to_test(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Add a question to a test (test must be in DRAFT status)"""
+    """Add a question to a test"""
     from app.models.test import Question, TestQuestion, QuestionType
     
-    # Get test and verify it's in draft status
+    # Get test
     test = db.query(Test).filter(Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
-    
-    if test.status != TestStatus.DRAFT:
-        raise HTTPException(
-            status_code=400,
-            detail="Questions can only be added to tests in DRAFT status"
-        )
     
     if test.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to modify this test")

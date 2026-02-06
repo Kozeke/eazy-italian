@@ -647,31 +647,29 @@ const AdminTestEditPage: React.FC = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold text-gray-900">Вопросы теста</h2>
-              {status !== 'published' && (
-                <div className="flex space-x-2">
-                  <button
-                    onClick={addMCQQuestion}
-                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Выбор ответа
-                  </button>
-                  <button
-                    onClick={addOpenAnswerQuestion}
-                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Открытый ответ
-                  </button>
-                  <button
-                    onClick={addClozeQuestion}
-                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Пропуски
-                  </button>
-                </div>
-              )}
+              <div className="flex space-x-2">
+                <button
+                  onClick={addMCQQuestion}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Выбор ответа
+                </button>
+                <button
+                  onClick={addOpenAnswerQuestion}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Открытый ответ
+                </button>
+                <button
+                  onClick={addClozeQuestion}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Пропуски
+                </button>
+              </div>
             </div>
 
             {questions.length === 0 ? (

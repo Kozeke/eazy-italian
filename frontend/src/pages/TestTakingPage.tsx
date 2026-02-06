@@ -120,31 +120,50 @@ export default function TestTakingPage() {
   const progressPercent = (answeredCount / questions.length) * 100;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div className="min-h-screen bg-gray-50 relative">
+      {/* Sticky Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">{testData?.test_title}</h1>
-              <p className="text-xs text-gray-500">Вопрос {answeredCount} из {questions.length}</p>
-            </div>
-            
-            {/* Timer */}
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
-              timeCritical ? 'bg-red-100 text-red-700' :
-              timeWarning ? 'bg-yellow-100 text-yellow-700' :
-              'bg-indigo-100 text-indigo-700'
-            }`}>
-              <Clock className="h-4 w-4" />
-              <span className="font-mono">{formatTime(timeRemaining)}</span>
-            </div>
+          <div className="mb-3">
+            <h1 className="text-lg font-semibold text-gray-900 truncate">{testData?.test_title}</h1>
+            <p className="text-xs text-gray-500">Вопрос {answeredCount} из {questions.length}</p>
           </div>
           
           {/* Progress bar */}
           <div className="w-full bg-gray-200 rounded-full h-1.5">
             <div 
               className="bg-indigo-600 h-1.5 rounded-full transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Fixed Timer on Right Side - Always visible when scrolling */}
+      <div className="fixed right-2 sm:right-4 top-20 z-50 flex flex-col gap-3">
+        {/* Timer Widget */}
+        <div className={`flex flex-col items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl shadow-lg transition-all ${
+          timeCritical ? 'bg-red-100 text-red-700 border-2 border-red-300' :
+          timeWarning ? 'bg-yellow-100 text-yellow-700 border-2 border-yellow-300' :
+          'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
+        }`}>
+          <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
+          <span className="font-mono text-lg sm:text-xl font-bold">{formatTime(timeRemaining)}</span>
+          <span className="text-xs font-medium opacity-75 hidden sm:block">Осталось</span>
+        </div>
+        
+        {/* Question Progress Widget */}
+        <div className="bg-white border-2 border-indigo-300 rounded-xl shadow-lg px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col items-center gap-1.5">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+            <span className="text-sm sm:text-base font-semibold text-gray-900">
+              <span className="text-indigo-600">{answeredCount}</span> / {questions.length}
+            </span>
+          </div>
+          <span className="text-xs font-medium text-gray-600 hidden sm:block">Отвечено</span>
+          <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2 mt-1">
+            <div 
+              className="bg-indigo-600 h-1.5 sm:h-2 rounded-full transition-all"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
