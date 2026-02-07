@@ -156,12 +156,6 @@ export default function TestResultsPage() {
     return [value];
   };
 
-  const getOptionLabel = (options: Array<{ id: string; text: string }> | undefined, id: string) => {
-    if (!options) return id;
-    const option = options.find((opt) => opt.id === id);
-    return option ? `${option.id}. ${option.text}` : id;
-  };
-
   const renderSimpleAnswer = (value: any) => {
     if (value === null || value === undefined || value === '') return '—';
     if (typeof value === 'string' || typeof value === 'number') return String(value);
