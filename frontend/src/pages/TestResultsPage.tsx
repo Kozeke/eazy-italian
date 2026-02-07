@@ -156,6 +156,12 @@ export default function TestResultsPage() {
     return [value];
   };
 
+  const getOptionLabel = (options: Array<{ id: string; text: string }> | undefined, id: string) => {
+    if (!options) return id;
+    const option = options.find((opt) => opt.id === id);
+    return option ? `${option.id}. ${option.text}` : id;
+  };
+
   const renderSimpleAnswer = (value: any) => {
     if (value === null || value === undefined || value === '') return '—';
     if (typeof value === 'string' || typeof value === 'number') return String(value);
@@ -297,6 +303,16 @@ export default function TestResultsPage() {
 
                           {question?.type === 'multiple_choice' && options?.length ? (
                             <div className="space-y-2">
+                              {!isCorrect && (
+                                <div className="rounded-md border border-gray-200 bg-white p-2 text-sm">
+                                  <p className="text-xs font-medium text-gray-500 mb-1">Правильный ответ</p>
+                                  <p className="text-gray-900">
+                                    {correctIds.length
+                                      ? correctIds.map((id: string) => getOptionLabel(options, id)).join(', ')
+                                      : '—'}
+                                  </p>
+                                </div>
+                              )}
                               {options.map((option) => {
                                 const isCorrectOption = correctIds.includes(option.id);
                                 const isSelectedOption = studentIds.includes(option.id);
