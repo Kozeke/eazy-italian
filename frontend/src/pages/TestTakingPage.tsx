@@ -36,6 +36,12 @@ export default function TestTakingPage() {
         setQuestions(data.questions || []);
         setTimeRemaining(data.time_limit_minutes * 60);
         setStartTime(new Date());
+        if (data.attempt_id) {
+          sessionStorage.setItem(
+            `test_questions_${data.attempt_id}`,
+            JSON.stringify(data.questions || [])
+          );
+        }
         console.log('Test started:', data);
       } catch (error: any) {
         console.error('Error starting test:', error);

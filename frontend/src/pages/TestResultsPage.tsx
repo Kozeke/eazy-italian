@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Award, Clock, Home, RotateCcw, ArrowLeft } from 'lucide-react';
+import { CheckCircle, XCircle, Award, Clock, Home, RotateCcw, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { testsApi } from '../services/api';
 
@@ -11,6 +11,8 @@ export default function TestResultsPage() {
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<any>(null);
   const [unitId, setUnitId] = useState<number | null>(null);
+  const [questionMap, setQuestionMap] = useState<Record<string, any>>({});
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const loadData = async () => {
@@ -26,6 +28,32 @@ export default function TestResultsPage() {
         const savedResult = sessionStorage.getItem(`test_result_${attemptId}`);
         if (savedResult) {
           const parsedResult = JSON.parse(savedResult);
+
+          if (attemptId) {
+            const savedQuestions = sessionStorage.getItem(`test_questions_${attemptId}`);
+            if (savedQuestions) {
+              const parsedQuestions = JSON.parse(savedQuestions);
+              if (Array.isArray(parsedQuestions)) {
+                const map: Record<string, any> = {};
+                parsedQuestions.forEach((question: any) => {
+                  if (question?.id !== undefined) {
+                    map[String(question.id)] = question;
+                  }
+                });
+                setQuestionMap(map);
+              }
+            }
+          }
+
+          if (parsedResult?.results) {
+            const map: Record<string, any> = {};
+            Object.entries(parsedResult.results).forEach(([questionId, details]: [string, any]) => {
+              if (details?.question) {
+                map[String(questionId)] = details.question;
+              }
+            });
+            setQuestionMap((prev) => ({ ...prev, ...map }));
+          }
           
           // Fetch current attempts data to get accurate attempts_remaining
           try {
@@ -48,6 +76,32 @@ export default function TestResultsPage() {
         const savedResult = sessionStorage.getItem(`test_result_${attemptId}`);
         if (savedResult) {
           const parsedResult = JSON.parse(savedResult);
+
+          if (attemptId) {
+            const savedQuestions = sessionStorage.getItem(`test_questions_${attemptId}`);
+            if (savedQuestions) {
+              const parsedQuestions = JSON.parse(savedQuestions);
+              if (Array.isArray(parsedQuestions)) {
+                const map: Record<string, any> = {};
+                parsedQuestions.forEach((question: any) => {
+                  if (question?.id !== undefined) {
+                    map[String(question.id)] = question;
+                  }
+                });
+                setQuestionMap(map);
+              }
+            }
+          }
+
+          if (parsedResult?.results) {
+            const map: Record<string, any> = {};
+            Object.entries(parsedResult.results).forEach(([questionId, details]: [string, any]) => {
+              if (details?.question) {
+                map[String(questionId)] = details.question;
+              }
+            });
+            setQuestionMap((prev) => ({ ...prev, ...map }));
+          }
           
           // Try to fetch attempts data even if test data failed
           try {
@@ -84,6 +138,35 @@ export default function TestResultsPage() {
 
   const passed = result.passed;
   const percentage = result.score;
+  const toggleQuestion = (questionId: string) => {
+    setExpandedQuestions((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) {
+        next.delete(questionId);
+      } else {
+        next.add(questionId);
+      }
+      return next;
+    });
+  };
+
+  const normalizeAnswerIds = (value: any) => {
+    if (Array.isArray(value)) return value;
+    if (value === null || value === undefined || value === '') return [];
+    return [value];
+  };
+
+  const getOptionLabel = (options: Array<{ id: string; text: string }> | undefined, id: string) => {
+    if (!options) return id;
+    const option = options.find((opt) => opt.id === id);
+    return option ? `${option.id}. ${option.text}` : id;
+  };
+
+  const renderSimpleAnswer = (value: any) => {
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'string' || typeof value === 'number') return String(value);
+    return JSON.stringify(value);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -155,17 +238,30 @@ export default function TestResultsPage() {
                 <h2 className="text-sm font-semibold text-gray-900 mb-4">Детальные результаты</h2>
                 <div className="space-y-2">
                   {Object.entries(result.results).map(([questionId, details]: [string, any], index) => (
+                    (() => {
+                      const question = details?.question || questionMap[questionId];
+                      const isCorrect = details?.is_correct ?? details?.correct ?? false;
+                      const pointsEarned = details?.points_earned ?? details?.points ?? 0;
+                      const pointsPossible = details?.points_possible ?? details?.max_points ?? 0;
+                      const isExpanded = expandedQuestions.has(questionId);
+                      const studentAnswer = details?.student_answer ?? details?.answer;
+                      const correctAnswer = question?.correct_answer;
+                      const options = question?.options as Array<{ id: string; text: string }> | undefined;
+                      const studentIds = normalizeAnswerIds(studentAnswer);
+                      const correctIds = normalizeAnswerIds(correctAnswer?.correct_option_ids);
+
+                      return (
                     <div 
                       key={questionId}
                       className={`p-3 rounded-lg border ${
-                        details.is_correct 
+                        isCorrect 
                           ? 'border-green-200 bg-green-50' 
                           : 'border-red-200 bg-red-50'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          {details.is_correct ? (
+                          {isCorrect ? (
                             <CheckCircle className="h-4 w-4 text-green-600" />
                           ) : (
                             <XCircle className="h-4 w-4 text-red-600" />
@@ -174,13 +270,119 @@ export default function TestResultsPage() {
                             Вопрос {index + 1}
                           </span>
                         </div>
-                        <span className={`text-xs font-medium ${
-                          details.is_correct ? 'text-green-700' : 'text-red-700'
-                        }`}>
-                          {details.points_earned?.toFixed(1)} / {details.points_possible}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xs font-medium ${
+                            isCorrect ? 'text-green-700' : 'text-red-700'
+                          }`}>
+                            {pointsEarned?.toFixed(1)} / {pointsPossible}
+                          </span>
+                          <button
+                            onClick={() => toggleQuestion(questionId)}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900"
+                          >
+                            {isExpanded ? 'Скрыть' : 'Показать'}
+                            {isExpanded ? (
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </div>
+                      {isExpanded && (
+                        <div className="mt-3 border-t border-gray-200 pt-3 space-y-3">
+                          {question?.prompt ? (
+                            <div className="text-sm text-gray-900"
+                              dangerouslySetInnerHTML={{ __html: question.prompt }}
+                            />
+                          ) : (
+                            <div className="text-xs text-gray-500">
+                              Детали вопроса недоступны для этого результата.
+                            </div>
+                          )}
+
+                          {question?.type === 'multiple_choice' && options?.length ? (
+                            <div className="space-y-2">
+                              {options.map((option) => {
+                                const isCorrectOption = correctIds.includes(option.id);
+                                const isSelectedOption = studentIds.includes(option.id);
+                                const baseClass = 'border-gray-200 bg-white';
+                                const correctClass = 'border-green-200 bg-green-50';
+                                const selectedWrongClass = 'border-red-200 bg-red-50';
+                                const optionClass = isCorrectOption
+                                  ? correctClass
+                                  : isSelectedOption
+                                    ? selectedWrongClass
+                                    : baseClass;
+                                return (
+                                  <div
+                                    key={option.id}
+                                    className={`p-2 rounded-md border text-sm ${optionClass}`}
+                                  >
+                                    <span className="font-medium">{option.id}.</span> {option.text}
+                                    {isCorrectOption && (
+                                      <span className="ml-2 text-xs text-green-700">Правильный</span>
+                                    )}
+                                    {isSelectedOption && !isCorrectOption && (
+                                      <span className="ml-2 text-xs text-red-700">Ваш выбор</span>
+                                    )}
+                                    {isSelectedOption && isCorrectOption && (
+                                      <span className="ml-2 text-xs text-green-700">Ваш выбор</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <div className="rounded-md border border-gray-200 bg-white p-2">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Ваш ответ</p>
+                                <p className="text-gray-900">
+                                  {renderSimpleAnswer(studentAnswer)}
+                                </p>
+                              </div>
+                              <div className="rounded-md border border-gray-200 bg-white p-2">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Правильный ответ</p>
+                                <p className="text-gray-900">
+                                  {question?.type === 'open_answer' && question?.expected_answer_config?.keywords?.length
+                                    ? question.expected_answer_config.keywords.map((kw: any) => kw.text).join(', ')
+                                    : renderSimpleAnswer(correctAnswer)}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {question?.type === 'cloze' && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <div className="rounded-md border border-gray-200 bg-white p-2">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Ваши ответы</p>
+                                <p className="text-gray-900">
+                                  {typeof studentAnswer === 'object' && studentAnswer !== null
+                                    ? Object.entries(studentAnswer).map(([key, value]) => `${key}: ${value}`).join(', ')
+                                    : renderSimpleAnswer(studentAnswer)}
+                                </p>
+                              </div>
+                              <div className="rounded-md border border-gray-200 bg-white p-2">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Правильные ответы</p>
+                                <p className="text-gray-900">
+                                  {Array.isArray(question?.gaps_config) && question.gaps_config.length
+                                    ? question.gaps_config.map((gap: any) => `${gap.id}: ${gap.answer}`).join(', ')
+                                    : renderSimpleAnswer(correctAnswer)}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {question?.explanation && (
+                            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700"
+                              dangerouslySetInnerHTML={{ __html: question.explanation }}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
+                      );
+                    })()
                   ))}
                 </div>
               </div>

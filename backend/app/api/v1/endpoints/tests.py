@@ -805,12 +805,25 @@ def submit_test(
         
         total_score += points_earned
         
+        question_payload = {
+            "id": q.id,
+            "type": q.type.value,
+            "prompt": q.prompt_rich,
+            "points": tq.points,
+            "options": q.options or [],
+            "correct_answer": q.correct_answer,
+            "expected_answer_config": q.expected_answer_config,
+            "gaps_config": q.gaps_config,
+            "explanation": q.explanation_rich,
+        }
+
         results_detail[question_id] = {
             "question_id": q.id,
             "student_answer": student_answer,
             "is_correct": is_correct,
             "points_earned": points_earned,
-            "points_possible": tq.points
+            "points_possible": tq.points,
+            "question": question_payload
         }
     
     # Calculate percentage
