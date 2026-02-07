@@ -143,12 +143,6 @@ def remove_question_from_test(
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
     
-    if test.status != TestStatus.DRAFT:
-        raise HTTPException(
-            status_code=400,
-            detail="Questions can only be removed from tests in DRAFT status"
-        )
-    
     if test.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to modify this test")
     
