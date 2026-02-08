@@ -24,70 +24,6 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-// Mock data - replace with actual API calls
-const mockTests = [
-  {
-    id: 1,
-    title: 'Тест по грамматике A1',
-    description: 'Проверка знаний базовой грамматики итальянского языка',
-    level: 'A1',
-    status: 'published',
-    type: 'grammar',
-    difficulty: 'easy',
-    duration: 30,
-    questionsCount: 20,
-    passingScore: 70,
-    attemptsCount: 156,
-    averageScore: 78,
-    dueDate: '2024-02-20T23:59:00Z',
-    lastUpdated: '2024-01-10T10:30:00Z',
-    createdAt: '2024-01-05T10:30:00Z',
-    orderIndex: 1,
-    course_id: 1,
-    course_title: 'Итальянский A1'
-  },
-  {
-    id: 2,
-    title: 'Лексический тест: Еда и рестораны',
-    description: 'Тест на знание лексики по теме еды и ресторанов',
-    level: 'A2',
-    status: 'draft',
-    type: 'vocabulary',
-    difficulty: 'medium',
-    duration: 25,
-    questionsCount: 15,
-    passingScore: 75,
-    attemptsCount: 0,
-    averageScore: 0,
-    dueDate: null,
-    lastUpdated: '2024-01-12T14:20:00Z',
-    createdAt: '2024-01-12T14:20:00Z',
-    orderIndex: 2,
-    course_id: 1,
-    course_title: 'Итальянский A1'
-  },
-  {
-    id: 3,
-    title: 'Аудирование: Диалоги в городе',
-    description: 'Тест на понимание разговорной речи в городской среде',
-    level: 'A2',
-    status: 'scheduled',
-    type: 'listening',
-    difficulty: 'medium',
-    duration: 35,
-    questionsCount: 12,
-    passingScore: 80,
-    attemptsCount: 0,
-    averageScore: 0,
-    dueDate: '2024-02-25T23:59:00Z',
-    lastUpdated: '2024-01-08T09:15:00Z',
-    createdAt: '2024-01-08T09:15:00Z',
-    orderIndex: 3,
-    course_id: 2,
-    course_title: 'Итальянский A2'
-  }
-];
-
 const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const statuses = ['draft', 'published', 'scheduled', 'archived'];
 const types = ['grammar', 'vocabulary', 'listening', 'reading', 'writing', 'speaking'];
@@ -95,8 +31,9 @@ const types = ['grammar', 'vocabulary', 'listening', 'reading', 'writing', 'spea
 export default function AdminTestsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [tests, setTests] = useState(mockTests);
+  const [tests, setTests] = useState<any[]>([]);
   const [testStats, setTestStats] = useState<any>({});
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -123,6 +60,7 @@ export default function AdminTestsPage() {
   };
 
   const loadTests = async () => {
+    setLoading(true);
     try {
       const response = await testsApi.getTests();
       const fetchedTests = Array.isArray(response) ? response : response.items || [];
@@ -151,18 +89,13 @@ export default function AdminTestsPage() {
         unit_title: test.unit_title || test.unit?.title || null,
       }));
       
-      // If we have real tests from API, show them; otherwise show mock tests
-      if (mappedTests.length > 0) {
-        setTests(mappedTests);
-      } else {
-        // Show mock tests only if no real tests exist
-        setTests(mockTests);
-      }
+      setTests(mappedTests);
     } catch (error) {
       console.error('Error loading tests:', error);
       toast.error('Ошибка загрузки тестов');
-      // Keep mock data on error
-      setTests(mockTests);
+      setTests([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -422,7 +355,35 @@ export default function AdminTestsPage() {
 
         {/* Tests List with Expandable Rows */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="divide-y divide-gray-200">
+          {loading ? (
+            /* Loading Skeleton */
+            <div className="divide-y divide-gray-200">
+              {[...Array(5)].map((_, index) => (
+                <div key={index} className="px-6 py-4 animate-pulse">
+                  <div className="flex items-center gap-4">
+                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
+                    <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-5 bg-gray-200 rounded w-3/4"></div>
+                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                    <div className="w-20 h-6 bg-gray-200 rounded-full"></div>
+                    <div className="flex gap-2">
+                      <div className="w-16 h-4 bg-gray-200 rounded"></div>
+                      <div className="w-12 h-4 bg-gray-200 rounded"></div>
+                      <div className="w-12 h-4 bg-gray-200 rounded"></div>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+                      <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+                      <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
             {sortedTests.map((test) => {
               const isExpanded = expandedRows.has(test.id);
               
@@ -655,9 +616,10 @@ export default function AdminTestsPage() {
               );
             })}
           </div>
+          )}
 
         {/* Empty State */}
-        {sortedTests.length === 0 && (
+        {!loading && sortedTests.length === 0 && (
           <div className="text-center py-12">
             <ClipboardList className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">Нет тестов</h3>
