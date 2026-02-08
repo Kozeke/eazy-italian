@@ -43,7 +43,6 @@ export default function AdminUnitEditPage() {
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newTag, setNewTag] = useState('');
 
@@ -587,13 +586,6 @@ export default function AdminUnitEditPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowPreview(!showPreview)}
-              className="hidden sm:inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр'}
-            </button>
-            <button
               onClick={() => handleSave(false)}
               disabled={saving}
               className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -651,6 +643,40 @@ export default function AdminUnitEditPage() {
                       <option value="C2">C2 - В совершенстве</option>
                     </select>
                   </div>
+
+                  {/* Course Selection */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                      <BookMarked className="h-4 w-4 mr-1 text-gray-400" />
+                      Курс
+                    </label>
+                    <select
+                      value={formData.course_id || ''}
+                      onChange={(e) => handleInputChange('course_id', e.target.value ? parseInt(e.target.value) : null)}
+                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    >
+                      <option value="">Без курса (автономный юнит)</option>
+                      {availableCourses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.title} {course.level && `(${course.level})`}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Выберите курс, к которому будет принадлежать этот юнит. Если не выбран, юнит будет автономным.
+                    </p>
+                    {availableCourses.length === 0 && !loadingContent && (
+                      <p className="mt-2 text-xs text-amber-600">
+                        Нет доступных курсов. <button 
+                          type="button"
+                          onClick={() => navigate('/admin/courses/new')}
+                          className="text-primary-600 hover:text-primary-700 underline"
+                        >
+                          Создать курс
+                        </button>
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Description */}
@@ -699,40 +725,6 @@ export default function AdminUnitEditPage() {
 
                 {showAdvanced && (
                   <div className="mt-6 space-y-6">
-                    {/* Course Selection */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                        <BookMarked className="h-4 w-4 mr-1 text-gray-400" />
-                        Курс (опционально)
-                      </label>
-                      <select
-                        value={formData.course_id || ''}
-                        onChange={(e) => handleInputChange('course_id', e.target.value ? parseInt(e.target.value) : null)}
-                        className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      >
-                        <option value="">Без курса (автономный юнит)</option>
-                        {availableCourses.map((course) => (
-                          <option key={course.id} value={course.id}>
-                            {course.title} {course.level && `(${course.level})`}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Выберите курс, к которому будет принадлежать этот юнит. Если не выбран, юнит будет автономным.
-                      </p>
-                      {availableCourses.length === 0 && !loadingContent && (
-                        <p className="mt-2 text-xs text-amber-600">
-                          Нет доступных курсов. <button 
-                            type="button"
-                            onClick={() => navigate('/admin/courses/new')}
-                            className="text-primary-600 hover:text-primary-700 underline"
-                          >
-                            Создать курс
-                          </button>
-                        </p>
-                      )}
-                    </div>
-
                     {/* Order Index */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -893,55 +885,6 @@ export default function AdminUnitEditPage() {
                   </div>
                 )}
               </div>
-
-              {/* Preview block */}
-              {showPreview && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                    Предпросмотр юнита (вид студента)
-                  </h2>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Как этот юнит будет выглядеть в списке уроков.
-                  </p>
-
-                  <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="text-base font-semibold text-gray-900">
-                          {formData.title || 'Без названия'}
-                        </h3>
-                        <p className="mt-1 text-sm text-gray-600 line-clamp-2">
-                          {formData.description || 'Описание юнита пока не заполнено.'}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
-                          {formData.level}
-                        </span>
-                      </div>
-                    </div>
-
-                    {formData.tags.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {formData.tags.map((tag, i) => (
-                          <span
-                            key={i}
-                            className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-600 border border-gray-200"
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                      <span>{videos.length} видео</span>
-                      <span>{tasks.length} заданий</span>
-                      <span>{tests.length} тестов</span>
-                    </div>
-                  </div>
-                </div>
-              )}
           </div>
         </div>
     </div>
