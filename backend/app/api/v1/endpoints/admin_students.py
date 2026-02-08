@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth import get_current_teacher
 from app.models.user import User
+from app.services.user_service import UserService
 from app.models.subscription import (
     Subscription,
     UserSubscription

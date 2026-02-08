@@ -9,7 +9,9 @@ import {
   Trash2,
   Check,
   X,
-  Layers
+  Layers,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { unitsApi } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -46,6 +48,7 @@ export default function AdminUnitsPage() {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [orderSort, setOrderSort] = useState<'asc' | 'desc'>('asc');
 
   // Mock data for demonstration
   const mockUnits: Unit[] = [
@@ -271,6 +274,11 @@ export default function AdminUnitsPage() {
     return matchesSearch && matchesLevel && matchesStatus;
   });
 
+  const sortedUnits = [...filteredUnits].sort((a, b) => {
+    const diff = a.order_index - b.order_index;
+    return orderSort === 'asc' ? diff : -diff;
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -438,7 +446,19 @@ export default function AdminUnitsPage() {
                       Статус
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Порядок
+                      <button
+                        type="button"
+                        onClick={() => setOrderSort(prev => (prev === 'asc' ? 'desc' : 'asc'))}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                        aria-label="Сортировать по порядку"
+                      >
+                        Порядок
+                        {orderSort === 'asc' ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Контент
@@ -452,7 +472,7 @@ export default function AdminUnitsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredUnits.map((unit) => (
+                  {sortedUnits.map((unit) => (
                     <tr key={unit.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <input

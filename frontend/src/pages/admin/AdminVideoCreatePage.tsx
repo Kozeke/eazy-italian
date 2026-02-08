@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Youtube, Upload, X, Check, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Youtube, Upload, X, Check, Settings as SettingsIcon, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { videosApi, unitsApi } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -48,6 +48,12 @@ export default function AdminVideoCreatePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+
+  // Thumbnail state
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(null);
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const [autoGenerateThumbnail, setAutoGenerateThumbnail] = useState(true);
   
   // Load available units on mount
   useEffect(() => {
@@ -163,6 +169,22 @@ export default function AdminVideoCreatePage() {
     setFormData(prev => ({ ...prev, file_path: undefined }));
     setUploadProgress(0);
   };
+
+  const handleThumbnailSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setThumbnailFile(file);
+    setThumbnailPreviewUrl(URL.createObjectURL(file));
+    setAutoGenerateThumbnail(false);
+  };
+
+  const handleRemoveThumbnail = () => {
+    setThumbnailFile(null);
+    if (thumbnailPreviewUrl) {
+      URL.revokeObjectURL(thumbnailPreviewUrl);
+    }
+    setThumbnailPreviewUrl(null);
+  };
   
   // Format file size
   const formatFileSize = (bytes: number): string => {
@@ -242,6 +264,31 @@ export default function AdminVideoCreatePage() {
       console.log('Sending video data:', submitData);
       
       const createdVideo = await videosApi.createVideo(submitData);
+
+      // Handle thumbnail after video creation
+      if (createdVideo?.id) {
+        if (thumbnailFile) {
+          setUploadingThumbnail(true);
+          try {
+            await videosApi.uploadThumbnail(createdVideo.id, thumbnailFile);
+            toast.success('Миниатюра успешно загружена!');
+          } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Ошибка при загрузке миниатюры');
+          } finally {
+            setUploadingThumbnail(false);
+          }
+        } else if (autoGenerateThumbnail) {
+          setUploadingThumbnail(true);
+          try {
+            await videosApi.generateThumbnail(createdVideo.id);
+            toast.success('Миниатюра автоматически сгенерирована!');
+          } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Ошибка при генерации миниатюры');
+          } finally {
+            setUploadingThumbnail(false);
+          }
+        }
+      }
       
       console.log('✅ Video created:', createdVideo);
       toast.success(
@@ -661,6 +708,75 @@ export default function AdminVideoCreatePage() {
                       }
                       className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                     />
+                  </div>
+
+                  {/* Thumbnail */}
+                  <div>
+                    <h3 className="text-md font-semibold text-gray-900 mb-4">
+                      Миниатюра видео
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {/* Thumbnail preview */}
+                      <div className="relative w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
+                        {thumbnailPreviewUrl ? (
+                          <>
+                            <img
+                              src={thumbnailPreviewUrl}
+                              alt="Video thumbnail"
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleRemoveThumbnail}
+                              disabled={uploadingThumbnail}
+                              className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Удалить миниатюру"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <ImageIcon className="w-12 h-12 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Upload buttons */}
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <label className="flex-1 cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleThumbnailSelect}
+                            disabled={uploadingThumbnail}
+                          />
+                          <div className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <Upload className="w-4 h-4" />
+                            {uploadingThumbnail ? 'Загрузка...' : 'Загрузить миниатюру'}
+                          </div>
+                        </label>
+                        
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAutoGenerateThumbnail(true);
+                            toast.success('Миниатюра будет сгенерирована после сохранения');
+                          }}
+                          disabled={uploadingThumbnail}
+                          className="flex items-center justify-center gap-2 px-4 py-2.5 border border-primary-300 rounded-lg text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          Сгенерировать автоматически
+                        </button>
+                      </div>
+                      
+                      <p className="text-xs text-gray-500">
+                        Если миниатюра не загружена, она будет сгенерирована автоматически после сохранения.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Publish at */}

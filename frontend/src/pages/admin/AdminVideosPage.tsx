@@ -26,6 +26,7 @@ export default function AdminVideosPage() {
   const [selectedVideos, setSelectedVideos] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortOption, setSortOption] = useState<'order_asc' | 'order_desc' | 'date_desc' | 'date_asc'>('order_asc');
   const pageSize = 9;
   
   // Load videos on mount
@@ -36,7 +37,7 @@ export default function AdminVideosPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedLevel]);
+  }, [searchQuery, selectedLevel, sortOption]);
   
   const loadVideos = async () => {
     try {
@@ -107,9 +108,17 @@ export default function AdminVideosPage() {
   });
 
   const sortedVideos = [...filteredVideos].sort((a, b) => {
-    const aValue = a.order_index || a.orderIndex || 0;
-    const bValue = b.order_index || b.orderIndex || 0;
-    return aValue - bValue;
+    if (sortOption === 'order_asc' || sortOption === 'order_desc') {
+      const aValue = a.order_index || a.orderIndex || 0;
+      const bValue = b.order_index || b.orderIndex || 0;
+      const diff = aValue - bValue;
+      return sortOption === 'order_asc' ? diff : -diff;
+    }
+
+    const aDate = new Date(a.updated_at || a.created_at || 0).getTime();
+    const bDate = new Date(b.updated_at || b.created_at || 0).getTime();
+    const diff = aDate - bDate;
+    return sortOption === 'date_asc' ? diff : -diff;
   });
 
   // Calculate pagination
@@ -192,6 +201,22 @@ export default function AdminVideosPage() {
                 </select>
               </div>
 
+              {/* Sorting */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Сортировка
+                </label>
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as typeof sortOption)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="order_asc">Порядок ↑</option>
+                  <option value="order_desc">Порядок ↓</option>
+                  <option value="date_desc">Дата обновления ↓</option>
+                  <option value="date_asc">Дата обновления ↑</option>
+                </select>
+              </div>
             </>
           }
         />

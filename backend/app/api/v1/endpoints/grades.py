@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.auth import get_current_teacher
-from app.models.test import TestAttempt, Test
+from app.models.test import TestAttempt, Test, TestQuestion, Question
 from app.models.user import User
 from app.models.unit import Unit
 from app.models.course import Course
@@ -95,8 +95,44 @@ def get_grade_detail(
         TestAttempt.id == attempt_id
     ).first()
 
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    # Build a map of all question IDs that appear in the attempt detail
+    question_ids_in_attempt = set()
+    for key, detail in (attempt.detail or {}).items():
+        question_id = detail.get("question_id") or int(key)
+        question_ids_in_attempt.add(question_id)
+    
+    # Fetch questions directly by their IDs (not through TestQuestion)
+    questions = db.query(Question).filter(Question.id.in_(question_ids_in_attempt)).all()
+    question_map = {q.id: q for q in questions}
+
+    details = []
+    for key, detail in (attempt.detail or {}).items():
+        question_id = detail.get("question_id") or int(key)
+        question = question_map.get(question_id)
+        details.append({
+            "question_id": question_id,
+            "prompt": question.prompt_rich if question else None,
+            "type": question.type.value if question else None,
+            "options": question.options if question else None,
+            "correct_answer": question.correct_answer if question else None,
+            "student_answer": detail.get("student_answer"),
+            "is_correct": detail.get("is_correct"),
+            "points_earned": detail.get("points_earned"),
+            "points_possible": detail.get("points_possible"),
+        })
+
+    time_taken_seconds = None
+    if attempt.started_at and attempt.submitted_at:
+        time_taken_seconds = int((attempt.submitted_at - attempt.started_at).total_seconds())
+
     return {
         "attempt_id": attempt.id,
         "score": attempt.score,
-        "detail": attempt.detail
+        "detail": details,
+        "started_at": attempt.started_at,
+        "submitted_at": attempt.submitted_at,
+        "time_taken_seconds": time_taken_seconds
     }

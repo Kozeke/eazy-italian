@@ -37,6 +37,7 @@ import AdminQuestionBankPage from './pages/admin/AdminQuestionBankPage';
 import AdminStudentsPage from './pages/admin/AdminStudentsPage';
 import AdminStudentCreatePage from './pages/admin/AdminStudentCreatePage';
 import AdminStudentEditPage from './pages/admin/AdminStudentEditPage';
+import AdminStudentViewPage from './pages/admin/AdminStudentViewPage';
 import AdminEmailCampaignsPage from './pages/admin/AdminEmailCampaignsPage';
 import AdminGradesPage from './pages/admin/AdminGradesPage';
 import AdminProgressPage from './pages/admin/AdminProgressPage';
@@ -119,11 +120,13 @@ function App() {
          {/* Tests routes */}
          <Route path="/admin/tests" element={<AdminTestsPage />} />
          <Route path="/admin/tests/new" element={<AdminTestCreatePage />} />
+        <Route path="/admin/tests/:id" element={<AdminTestEditPage />} />
          <Route path="/admin/tests/:id/edit" element={<AdminTestEditPage />} />
          
          {/* Students routes */}
          <Route path="/admin/students" element={<AdminStudentsPage />} />
          <Route path="/admin/students/new" element={<AdminStudentCreatePage />} />
+        <Route path="/admin/students/:id" element={<AdminStudentViewPage />} />
          <Route path="/admin/students/:id/edit" element={<AdminStudentEditPage />} />
          
          {/* Other admin routes */}

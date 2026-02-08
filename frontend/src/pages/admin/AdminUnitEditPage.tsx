@@ -22,7 +22,7 @@ interface UnitFormData {
   tags: string[];
   status: string;
   publish_at: string;
-  order_index: number;
+  order_index: number | '';
   course_id: number | null;
   is_visible_to_students: boolean;
   meta_title: string;
@@ -140,7 +140,7 @@ export default function AdminUnitEditPage() {
           tags: (unitData as any).tags || [],
           status: unitData.status || 'draft',
           publish_at: (unitData as any).publish_at ? (unitData as any).publish_at.slice(0, 16) : '',
-          order_index: unitData.order_index || 0,
+          order_index: unitData.order_index ?? 0,
           course_id: (unitData as any).course_id || null,
           is_visible_to_students: (unitData as any).is_visible_to_students || false,
           meta_title: (unitData as any).meta_title || '',
@@ -316,6 +316,7 @@ export default function AdminUnitEditPage() {
       // Save unit data
       const unitData = {
         ...formData,
+        order_index: formData.order_index === '' ? 0 : formData.order_index,
         status: status,
         is_visible_to_students: is_visible_to_students,
         publish_at: formData.publish_at || (publish ? new Date().toISOString() : null)
@@ -739,8 +740,15 @@ export default function AdminUnitEditPage() {
                       </label>
                       <input
                         type="number"
-                        value={formData.order_index}
-                        onChange={(e) => handleInputChange('order_index', parseInt(e.target.value) || 0)}
+                      value={formData.order_index === '' ? '' : formData.order_index}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          handleInputChange('order_index', '');
+                          return;
+                        }
+                        handleInputChange('order_index', parseInt(raw, 10));
+                      }}
                         min="0"
                         className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                         placeholder="0"

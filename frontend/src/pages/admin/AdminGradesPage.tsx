@@ -23,7 +23,7 @@ export default function AdminGradesPage() {
   const [allGrades, setAllGrades] = useState<GradeRow[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const pageSize = 10;
+  const pageSize = 20;
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -196,7 +196,7 @@ export default function AdminGradesPage() {
               )}
             </div>
           </th>
-          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200">
             {t('admin.grades.actions')}
           </th>
           
@@ -242,7 +242,7 @@ export default function AdminGradesPage() {
                 : t('admin.grades.emptyAnswer')}
             </td>
 
-            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200">
               <button
                 onClick={() => setSelectedAttempt(g.attempt_id)}
                 className="text-primary-600 hover:text-primary-900"
@@ -313,6 +313,11 @@ export default function AdminGradesPage() {
           ✕
         </button>
       </div>
+      <div className="mb-4 text-sm text-gray-600">
+        Время: {detail.time_taken_seconds != null
+          ? `${Math.floor(detail.time_taken_seconds / 60)}:${String(detail.time_taken_seconds % 60).padStart(2, '0')}`
+          : '—'}
+      </div>
 
       {/* Questions table */}
       <div className="overflow-x-auto">
@@ -335,18 +340,59 @@ export default function AdminGradesPage() {
           </thead>
 
           <tbody className="divide-y divide-gray-200">
-            {Object.values(detail.detail || {}).map((q: any) => (
+            {(Array.isArray(detail.detail) ? detail.detail : []).map((q: any) => {
+              const correctIds = q.correct_answer?.correct_option_ids || [];
+              const correctText = q.type === 'multiple_choice' && q.options
+                ? q.options
+                    .filter((opt: any) => correctIds.includes(opt.id))
+                    .map((opt: any) => `${opt.id}. ${opt.text}`)
+                    .join(', ')
+                : q.type === 'open_answer'
+                  ? q.correct_answer?.expected?.keywords?.map((kw: any) => kw.text).join(', ') || q.correct_answer?.expected?.pattern
+                  : q.correct_answer?.gaps
+                    ? q.correct_answer.gaps.map((g: any) => `${g.id}: ${g.answer}`).join(', ')
+                    : '—';
+
+              const studentAnswerText = (() => {
+                if (q.type === 'multiple_choice' && q.options) {
+                  const answerIds = Array.isArray(q.student_answer)
+                    ? q.student_answer
+                    : q.student_answer
+                      ? [q.student_answer]
+                      : [];
+                  return answerIds
+                    .map((id: string) => {
+                      const opt = q.options.find((o: any) => o.id === id);
+                      return opt ? `${opt.id}. ${opt.text}` : id;
+                    })
+                    .join(', ') || t('admin.grades.emptyAnswer');
+                }
+                if (q.type === 'cloze' && q.student_answer && typeof q.student_answer === 'object') {
+                  return Object.entries(q.student_answer)
+                    .map(([key, value]) => `${key}: ${value}`)
+                    .join(', ') || t('admin.grades.emptyAnswer');
+                }
+                return String(q.student_answer ?? t('admin.grades.emptyAnswer'));
+              })();
+
+              return (
               <tr key={q.question_id}>
                 <td className="px-4 py-2 text-sm text-gray-900">
-                  {t('admin.grades.questionNumber', { id: q.question_id })}
+                  <div className="font-medium">{t('admin.grades.questionNumber', { id: q.question_id })}</div>
+                  {q.prompt && (
+                    <div
+                      className="text-xs text-gray-500 mt-1"
+                      dangerouslySetInnerHTML={{ __html: q.prompt }}
+                    />
+                  )}
                 </td>
 
                 <td className="px-4 py-2 text-sm text-gray-900">
-                  {String(q.student_answer ?? t('admin.grades.emptyAnswer'))}
+                  {studentAnswerText}
                 </td>
 
                 <td className="px-4 py-2 text-sm text-gray-900">
-                  {q.is_correct ? t('admin.grades.emptyAnswer') : t('admin.grades.error')}
+                  {correctText || t('admin.grades.emptyAnswer')}
                 </td>
 
                 <td className="px-4 py-2">
@@ -357,7 +403,7 @@ export default function AdminGradesPage() {
                   )}
                 </td>
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
       </div>

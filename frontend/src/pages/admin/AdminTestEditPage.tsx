@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   Save,
   ArrowLeft,
@@ -68,6 +68,8 @@ type TestStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 const AdminTestEditPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
+  const isReadOnly = /^\/admin\/tests\/\d+$/.test(location.pathname);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -546,12 +548,15 @@ const AdminTestEditPage: React.FC = () => {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-900">Редактировать тест</h1>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {isReadOnly ? 'Просмотр теста' : 'Редактировать тест'}
+                </h1>
                 <div className="mt-2 flex items-center space-x-4">
                   <select
                     value={selectedUnitId || ''}
                     onChange={(e) => setSelectedUnitId(e.target.value ? parseInt(e.target.value) : null)}
                     className="block w-64 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                    disabled={isReadOnly}
                   >
                     <option value="">Без юнита</option>
                     {units.map(unit => (
@@ -567,6 +572,7 @@ const AdminTestEditPage: React.FC = () => {
                       value={status}
                       onChange={(e) => setStatus(e.target.value as TestStatus)}
                       className={`block rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm ${getStatusColor(status)} px-3 py-1 font-medium`}
+                      disabled={isReadOnly}
                     >
                       <option value="draft">Черновик</option>
                       <option value="scheduled">Запланирован</option>
@@ -588,6 +594,7 @@ const AdminTestEditPage: React.FC = () => {
                 onChange={(e) => setTestTitle(e.target.value)}
                 placeholder="Название теста"
                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-lg"
+                disabled={isReadOnly}
               />
             </div>
             <div>
@@ -599,6 +606,7 @@ const AdminTestEditPage: React.FC = () => {
                   onChange={(e) => setTimeLimit(parseInt(e.target.value) || 0)}
                   min="1"
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                  disabled={isReadOnly}
                 />
                 <span className="text-sm text-gray-500">мин</span>
               </div>
@@ -606,70 +614,74 @@ const AdminTestEditPage: React.FC = () => {
           </div>
 
           {/* Tabs */}
-          <div className="mt-4 border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              {[
-                { id: 'questions', label: 'Вопросы', count: questions.length },
-                { id: 'settings', label: 'Настройки' },
-                { id: 'preview', label: 'Предпросмотр' },
-                { id: 'review', label: 'Проверка и публикация', count: validationErrors.length },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`${
-                    activeTab === tab.id
-                      ? 'border-primary-500 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
-                >
-                  {tab.label}
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
-                      tab.id === 'review' && validationErrors.length > 0
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-900'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </nav>
-          </div>
+          {!isReadOnly && (
+            <div className="mt-4 border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                {[
+                  { id: 'questions', label: 'Вопросы', count: questions.length },
+                  { id: 'settings', label: 'Настройки' },
+                  { id: 'preview', label: 'Предпросмотр' },
+                  { id: 'review', label: 'Проверка и публикация', count: validationErrors.length },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`${
+                      activeTab === tab.id
+                        ? 'border-primary-500 text-primary-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+                  >
+                    {tab.label}
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
+                        tab.id === 'review' && validationErrors.length > 0
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-900'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
         {/* Questions Tab */}
-        {activeTab === 'questions' && (
+        {!isReadOnly && activeTab === 'questions' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold text-gray-900">Вопросы теста</h2>
-              <div className="flex space-x-2">
-                <button
-                  onClick={addMCQQuestion}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Выбор ответа
-                </button>
-                <button
-                  onClick={addOpenAnswerQuestion}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Открытый ответ
-                </button>
-                <button
-                  onClick={addClozeQuestion}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Пропуски
-                </button>
-              </div>
+              {!isReadOnly && (
+                <div className="flex space-x-2">
+                  <button
+                    onClick={addMCQQuestion}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Выбор ответа
+                  </button>
+                  <button
+                    onClick={addOpenAnswerQuestion}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Открытый ответ
+                  </button>
+                  <button
+                    onClick={addClozeQuestion}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Пропуски
+                  </button>
+                </div>
+              )}
             </div>
 
             {questions.length === 0 ? (
@@ -683,8 +695,12 @@ const AdminTestEditPage: React.FC = () => {
                     key={question.id}
                     question={question}
                     index={index}
-                    onUpdate={(updates) => updateQuestion(question.id, updates)}
+                    onUpdate={(updates) => {
+                      if (isReadOnly) return;
+                      updateQuestion(question.id, updates);
+                    }}
                     onRemove={() => handleRemoveQuestion(question.id)}
+                    isReadOnly={isReadOnly}
                   />
                 ))}
               </div>
@@ -693,26 +709,28 @@ const AdminTestEditPage: React.FC = () => {
         )}
 
         {/* Settings Tab */}
-        {activeTab === 'settings' && (
+        {!isReadOnly && activeTab === 'settings' && (
           <SettingsTab 
             settings={settings} 
             onUpdate={setSettings}
             showAdvanced={showAdvancedSettings}
             onToggleAdvanced={() => setShowAdvancedSettings(!showAdvancedSettings)}
+            isReadOnly={isReadOnly}
           />
         )}
 
         {/* Preview Tab */}
-        {activeTab === 'preview' && (
+        {(activeTab === 'preview' || isReadOnly) && (
           <PreviewTab 
             testTitle={testTitle}
             timeLimit={timeLimit}
+            maxAttempts={settings.max_attempts}
             questions={questions}
           />
         )}
 
         {/* Review Tab */}
-        {activeTab === 'review' && (
+        {!isReadOnly && activeTab === 'review' && (
           <ReviewTab 
             validationErrors={validationErrors}
             testTitle={testTitle}
@@ -723,6 +741,7 @@ const AdminTestEditPage: React.FC = () => {
       </div>
 
       {/* Sticky Footer */}
+      {!isReadOnly && (
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
@@ -765,6 +784,7 @@ const AdminTestEditPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
@@ -1323,12 +1343,14 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
 };
 
 // Preview Tab Component
-const PreviewTab: React.FC<{ testTitle: string; timeLimit: number; questions: Question[] }> = ({ testTitle, timeLimit, questions }) => {
+const PreviewTab: React.FC<{ testTitle: string; timeLimit: number; maxAttempts: number; questions: Question[] }> = ({ testTitle, timeLimit, maxAttempts, questions }) => {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">{testTitle || 'Без названия'}</h1>
-        <p className="text-gray-600">Время: {timeLimit} минут | Вопросов: {questions.length}</p>
+        <p className="text-gray-600">
+          Время: {timeLimit} минут | Вопросов: {questions.length} | Попыток: {maxAttempts}
+        </p>
       </div>
 
       <div className="space-y-6">
@@ -1349,7 +1371,12 @@ const PreviewTab: React.FC<{ testTitle: string; timeLimit: number; questions: Qu
                 {question.options?.map(option => (
                   <div key={option.id} className="flex items-center space-x-2">
                     <input type="radio" name={`preview-${question.id}`} className="text-primary-600" disabled />
-                    <label className="text-gray-700">{option.text || 'Вариант ответа'}</label>
+                    <label className="text-gray-700">
+                      {option.text || 'Вариант ответа'}
+                      {question.correct_option_ids?.includes(option.id) && (
+                        <span className="ml-2 text-xs text-green-700 font-medium">Правильный</span>
+                      )}
+                    </label>
                   </div>
                 ))}
               </div>
@@ -1363,6 +1390,12 @@ const PreviewTab: React.FC<{ testTitle: string; timeLimit: number; questions: Qu
                   className="block w-full rounded-md border-gray-300 bg-gray-50"
                   disabled
                 />
+                <p className="mt-2 text-xs text-gray-600">
+                  Правильный ответ:{' '}
+                  {question.expected?.mode === 'keywords'
+                    ? (question.expected.keywords?.map(k => k.text).filter(Boolean).join(', ') || 'Не задан')
+                    : (question.expected?.pattern || 'Не задан')}
+                </p>
               </div>
             )}
 
@@ -1380,6 +1413,12 @@ const PreviewTab: React.FC<{ testTitle: string; timeLimit: number; questions: Qu
                     ) : part
                   )}
                 </p>
+                <div className="mt-2 text-xs text-gray-600">
+                  Правильные ответы:{' '}
+                  {question.gaps && question.gaps.length > 0
+                    ? question.gaps.map(gap => `${gap.id}: ${gap.answer || '—'}`).join(', ')
+                    : 'Не заданы'}
+                </div>
               </div>
             )}
           </div>
