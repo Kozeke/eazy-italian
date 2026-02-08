@@ -14,6 +14,13 @@ import { coursesApi } from '../../services/api';
 import toast from 'react-hot-toast';
 import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 
+// Helper function to strip HTML tags from description
+const stripHtml = (html: string): string => {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+};
+
 interface Course {
   id: number;
   title: string;
@@ -162,7 +169,7 @@ export default function AdminCoursesPage() {
 
   const filteredCourses = courses.filter(course => {
     const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (course.description?.toLowerCase().includes(searchQuery.toLowerCase()) || false);
+      (stripHtml(course.description || '').toLowerCase().includes(searchQuery.toLowerCase()) || false);
     const matchesLevel = !selectedLevel || course.level === selectedLevel;
     const matchesStatus = !selectedStatus || course.status === selectedStatus;
     
@@ -377,7 +384,7 @@ export default function AdminCoursesPage() {
 
                     {course.description && (
                       <p className="text-sm text-gray-500 line-clamp-2">
-                        {course.description}
+                        {stripHtml(course.description)}
                       </p>
                     )}
 
