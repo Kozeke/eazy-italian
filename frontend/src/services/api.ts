@@ -131,13 +131,6 @@ export const coursesApi = {
     return response.data;
   },
 
-  generateThumbnail: async (id: number): Promise<{ thumbnail_path: string }> => {
-    const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
-      `/admin/courses/${id}/generate-thumbnail`
-    );
-    return response.data;
-  },
-
   publishCourse: async (id: number, publishData?: { publish_at?: string }): Promise<any> => {
     const response: AxiosResponse<any> = await api.patch(`/admin/courses/${id}/publish`, publishData || {});
     return response.data;

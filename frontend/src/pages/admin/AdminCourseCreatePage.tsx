@@ -44,7 +44,6 @@ export default function AdminCourseCreatePage() {
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string>('');
-  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
   const [formData, setFormData] = useState<CourseFormData>({
     title: '',
