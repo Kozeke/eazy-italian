@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { coursesApi } from '../../services/api';
 import toast from 'react-hot-toast';
+import RichTextEditor from '../../components/admin/RichTextEditor';
 
 interface CourseFormData {
   title: string;
@@ -342,11 +343,9 @@ export default function AdminCourseCreatePage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Описание курса
                   </label>
-                  <textarea
+                  <RichTextEditor
                     value={formData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    rows={5}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    onChange={(value) => handleInputChange('description', value)}
                     placeholder="Опишите, что студенты будут изучать в этом курсе, какие навыки получат..."
                   />
                   <p className="mt-1 text-xs text-gray-500">
