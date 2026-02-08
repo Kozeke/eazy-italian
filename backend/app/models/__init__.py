@@ -9,6 +9,7 @@ from .progress import Progress
 from .email import EmailCampaign, EmailLog
 from .subscription import Subscription, SubscriptionLevel, UserSubscription
 from .enrollment import CourseEnrollment
+from .notification import Notification, NotificationType
 
 __all__ = [
     "User",
@@ -31,4 +32,6 @@ __all__ = [
     "SubscriptionLevel",
     "UserSubscription",
     "CourseEnrollment",
+    "Notification",
+    "NotificationType",
 ]

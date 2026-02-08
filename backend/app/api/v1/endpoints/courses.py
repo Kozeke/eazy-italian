@@ -752,6 +752,14 @@ async def enroll_in_course(
     )
     db.add(enrollment)
     
+    # Create notification for course enrollment
+    from app.services.notification_service import notify_course_enrollment
+    try:
+        notify_course_enrollment(db, current_user.id, course_id, course.title)
+    except Exception as e:
+        # Don't fail enrollment if notification fails
+        print(f"Failed to create enrollment notification: {e}")
+    
     # Create progress record for first unit
     first_unit = db.query(Unit).filter(
         Unit.course_id == course_id,

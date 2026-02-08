@@ -11,6 +11,7 @@ import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useAuth } from '../../hooks/useAuth';
+import NotificationCenter from './NotificationCenter';
 import {
   LayoutDashboard,
   BookOpen,
@@ -19,7 +20,6 @@ import {
   Users,
   BarChart3,
   Search,
-  Bell,
   LogOut,
   Menu,
   X,
@@ -206,9 +206,7 @@ export default function AdminLayout({}: AdminLayoutProps) {
               </button>
 
               {/* Notifications */}
-              <button className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700">
-                <Bell className="h-4 w-4" />
-              </button>
+              <NotificationCenter />
 
               {/* Language Switcher */}
               <button

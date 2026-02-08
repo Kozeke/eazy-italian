@@ -593,6 +593,31 @@ export const gradesApi = {
   },
 };
 
+// Notifications API
+export const notificationsApi = {
+  getNotifications: async (unreadOnly: boolean = false) => {
+    const response = await api.get('/notifications/admin/notifications', {
+      params: { unread_only: unreadOnly }
+    });
+    return response.data;
+  },
+  
+  getUnreadCount: async () => {
+    const response = await api.get('/notifications/admin/notifications/unread-count');
+    return response.data;
+  },
+  
+  markAsRead: async (notificationId: number) => {
+    const response = await api.post(`/notifications/admin/notifications/${notificationId}/read`);
+    return response.data;
+  },
+  
+  markAllAsRead: async () => {
+    const response = await api.post('/notifications/admin/notifications/read-all');
+    return response.data;
+  },
+};
+
 // Student Tests API
 export const studentTestsApi = {
   // 1️⃣ List available tests for student

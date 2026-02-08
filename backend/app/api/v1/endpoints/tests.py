@@ -855,6 +855,14 @@ def submit_test(
     # Check if passed
     passed = percentage >= test.passing_score
     
+    # Create notification for test completion
+    from app.services.notification_service import notify_test_completed
+    try:
+        notify_test_completed(db, current_user.id, test_id, test.title, percentage, passed)
+    except Exception as e:
+        # Don't fail submission if notification fails
+        print(f"Failed to create test notification: {e}")
+    
     # Calculate remaining attempts (only count completed attempts)
     attempts_remaining = None
     if test.settings and test.settings.get('max_attempts'):
