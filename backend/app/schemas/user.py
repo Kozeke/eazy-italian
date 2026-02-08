@@ -31,11 +31,15 @@ class Token(BaseModel):
 class UserResponse(UserBase):
     id: int
     role: UserRole
-    email_verified_at: Optional[datetime]
-    notification_prefs: Dict[str, Any]
+    email_verified_at: Optional[datetime] = None
+    notification_prefs: Dict[str, Any] = {}
     is_active: bool
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
+    last_login: Optional[datetime] = None
+    subscription: Optional[str] = None
+    subscription_ends_at: Optional[datetime] = None
+    enrolled_courses_count: int = 0
 
     class Config:
         from_attributes = True

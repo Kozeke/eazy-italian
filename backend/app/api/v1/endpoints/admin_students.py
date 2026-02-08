@@ -22,8 +22,43 @@ def get_students(
     skip: int = 0,
     limit: int = 100
 ):
-    user_service = UserService(db)
-    return user_service.get_students(skip=skip, limit=limit)
+    from app.models.enrollment import CourseEnrollment
+    from sqlalchemy import func
+    
+    # Query students with enrolled courses count
+    students_query = (
+        db.query(
+            User,
+            func.count(CourseEnrollment.id).label('enrolled_courses_count')
+        )
+        .outerjoin(CourseEnrollment, CourseEnrollment.user_id == User.id)
+        .filter(User.role == "student")
+        .group_by(User.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    results = students_query.all()
+    
+    # Convert to response format with enrolled_courses_count
+    students_with_count = []
+    for student, enrolled_count in results:
+        student_dict = {
+            "id": student.id,
+            "email": student.email,
+            "first_name": student.first_name,
+            "last_name": student.last_name,
+            "role": student.role,
+            "is_active": student.is_active,
+            "created_at": student.created_at,
+            "last_login": student.last_login,
+            "subscription": student.subscription,
+            "subscription_ends_at": student.subscription_ends_at,
+            "enrolled_courses_count": enrolled_count
+        }
+        students_with_count.append(UserResponse(**student_dict))
+    
+    return students_with_count
 
 
 @router.put("/{student_id}/subscription")

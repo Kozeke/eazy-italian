@@ -46,6 +46,7 @@ type StudentRow = {
   totalPoints: string; // Changed to string for "X/Y" format
   subscriptionType: string;
   subscriptionExpiry: string | null;
+  enrolledCoursesCount: number; // Add courses count
 };
 
 export default function AdminStudentsPage() {
@@ -88,6 +89,7 @@ export default function AdminStudentsPage() {
           completedUnits: 0,
           averageScore: 0,
           totalPoints: '0/0',
+          enrolledCoursesCount: s.enrolled_courses_count || 0,
   
           subscriptionType: s.subscription || 'free',
           subscriptionExpiry: s.subscription_ends_at ?? null,
@@ -376,7 +378,7 @@ export default function AdminStudentsPage() {
                   />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Курс
+                  Курсы
                 </th>
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -447,14 +449,17 @@ export default function AdminStudentsPage() {
                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
                   </td>
-                  <td className="px-6 py-4">
-                    {(student as any).course_title ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 break-words">
-                        {(student as any).course_title}
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <div className="inline-flex items-center gap-1">
+                      <span className="text-sm font-semibold text-gray-900">
+                        {student.enrolledCoursesCount}
                       </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
+                      <span className="text-xs text-gray-500">
+                        {student.enrolledCoursesCount === 1 ? 'курс' : 
+                         student.enrolledCoursesCount >= 2 && student.enrolledCoursesCount <= 4 ? 'курса' : 
+                         'курсов'}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center">
