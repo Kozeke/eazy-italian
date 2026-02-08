@@ -384,12 +384,12 @@ export const tasksApi = {
 export const usersApi = {
   getStudents: async (): Promise<Student[]> => {
     const response: AxiosResponse<Student[]> =
-      await api.get('/students/admin/students');
+      await api.get('/admin/students');
   
     return response.data;
   },
   changeSubscription: async (studentId: number, subscription: string) => {
-    await api.put(`/students/${studentId}/subscription`, {
+    await api.put(`/admin/students/${studentId}/subscription`, {
       subscription,
     });
   },
