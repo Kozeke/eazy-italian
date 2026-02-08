@@ -23,9 +23,10 @@ def get_students(
     limit: int = 100
 ):
     from app.models.enrollment import CourseEnrollment
+    from app.models.subscription import UserSubscription, Subscription
     from sqlalchemy import func
     
-    # Query students with enrolled courses count
+    # Query students with enrolled courses count and active subscription
     students_query = (
         db.query(
             User,
@@ -43,6 +44,26 @@ def get_students(
     # Convert to response format with enrolled_courses_count
     students_with_count = []
     for student, enrolled_count in results:
+        # Get active subscription if exists
+        active_user_sub = (
+            db.query(UserSubscription)
+            .filter(
+                UserSubscription.user_id == student.id,
+                UserSubscription.is_active == True
+            )
+            .first()
+        )
+        
+        subscription_name = None
+        subscription_ends_at = None
+        
+        if active_user_sub:
+            subscription_name = active_user_sub.subscription.name.value if active_user_sub.subscription else "free"
+            subscription_ends_at = active_user_sub.ends_at
+        else:
+            # Fallback to subscription_type column
+            subscription_name = student.subscription_type.value if student.subscription_type else "free"
+        
         student_dict = {
             "id": student.id,
             "email": student.email,
@@ -52,8 +73,11 @@ def get_students(
             "is_active": student.is_active,
             "created_at": student.created_at,
             "last_login": student.last_login,
-            "subscription": student.subscription,
-            "subscription_ends_at": student.subscription_ends_at,
+            "email_verified_at": student.email_verified_at,
+            "notification_prefs": student.notification_prefs or {},
+            "updated_at": student.updated_at,
+            "subscription": subscription_name,
+            "subscription_ends_at": subscription_ends_at,
             "enrolled_courses_count": enrolled_count
         }
         students_with_count.append(UserResponse(**student_dict))
