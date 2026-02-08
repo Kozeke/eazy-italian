@@ -99,7 +99,8 @@ export default function AdminStudentsPage() {
     }
   };
   useEffect(() => {
-    progressApi.getStudentsProgress()
+    // Fetch all students
+    usersApi.getStudents()
       .then((data) => {
         const normalized = data.map((s: any) => ({
           id: s.id,
@@ -112,16 +113,40 @@ export default function AdminStudentsPage() {
           registrationDate: s.created_at,
           lastLogin: s.last_login ?? null,
   
-          // 🔥 REAL PROGRESS
-          completedUnits: s.passed_tests,
-          averageScore: s.progress_percent,
-          totalPoints: `${s.passed_tests}/${s.total_tests}`,
+          // Will be filled from progress data
+          completedUnits: 0,
+          averageScore: 0,
+          totalPoints: '0/0',
   
-          subscriptionType: s.subscription,
+          subscriptionType: s.subscription || 'free',
           subscriptionExpiry: s.subscription_ends_at ?? null,
         }));
   
         setStudents(normalized);
+
+        // Fetch progress data separately and merge
+        progressApi.getStudentsProgress()
+          .then((progressData) => {
+            const progressMap = new Map(
+              progressData.map((p: any) => [p.id, p])
+            );
+
+            const merged = normalized.map((student: any) => {
+              const progress = progressMap.get(student.id);
+              if (progress) {
+                return {
+                  ...student,
+                  completedUnits: progress.passed_tests,
+                  averageScore: progress.progress_percent,
+                  totalPoints: `${progress.passed_tests}/${progress.total_tests}`,
+                };
+              }
+              return student;
+            });
+
+            setStudents(merged);
+          })
+          .catch(console.error);
       })
       .catch(console.error);
   }, []);
