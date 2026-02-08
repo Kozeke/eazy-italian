@@ -1,7 +1,7 @@
 """
 Course management endpoints for admin and student views
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, asc, func
 from typing import List, Optional, Dict, Any
@@ -349,6 +349,56 @@ async def update_course(
         published_units_count=course.published_units_count,
         content_summary=course.content_summary
     )
+
+@router.post("/admin/courses/{course_id}/thumbnail")
+async def upload_course_thumbnail(
+    course_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db)
+):
+    """Upload a thumbnail for a course"""
+    
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Get uploads path
+    from app.utils.thumbnail_generator import get_uploads_path
+    uploads_path = get_uploads_path()
+    upload_dir = os.path.join(uploads_path, "thumbnails")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Generate filename
+    import uuid
+    file_ext = os.path.splitext(file.filename or '')[1] or '.jpg'
+    filename = f"course_{course_id}_{uuid.uuid4().hex[:8]}{file_ext}"
+    file_path = os.path.join(upload_dir, filename)
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Update course with thumbnail path
+        thumbnail_path = f"thumbnails/{filename}"
+        course.thumbnail_path = thumbnail_path
+        course.updated_by = current_user.id
+        course.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(course)
+        
+        return {
+            "message": "Thumbnail uploaded successfully",
+            "thumbnail_path": thumbnail_path
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload thumbnail: {str(e)}")
 
 @router.post("/admin/courses/{course_id}/generate-thumbnail")
 async def generate_course_thumbnail(
