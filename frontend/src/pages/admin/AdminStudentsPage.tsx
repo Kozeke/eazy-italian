@@ -77,10 +77,27 @@ const subscriptionTypes = ['free', 'premium', 'pro'];
 
 
 
+type StudentRow = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  level: string;
+  status: string;
+  registrationDate: string;
+  lastLogin: string | null;
+  completedUnits: number;
+  averageScore: number;
+  totalPoints: string; // Changed to string for "X/Y" format
+  subscriptionType: string;
+  subscriptionExpiry: string | null;
+};
+
 export default function AdminStudentsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [students, setStudents] = useState(mockStudents);
+  const [students, setStudents] = useState<StudentRow[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -102,7 +119,7 @@ export default function AdminStudentsPage() {
     // Fetch all students
     usersApi.getStudents()
       .then((data) => {
-        const normalized = data.map((s: any) => ({
+        const normalized: StudentRow[] = data.map((s: any) => ({
           id: s.id,
           firstName: s.first_name,
           lastName: s.last_name,
@@ -131,14 +148,14 @@ export default function AdminStudentsPage() {
               progressData.map((p: any) => [p.id, p])
             );
 
-            const merged = normalized.map((student: any) => {
+            const merged: StudentRow[] = normalized.map((student) => {
               const progress = progressMap.get(student.id);
               if (progress) {
                 return {
                   ...student,
-                  completedUnits: progress.passed_tests,
-                  averageScore: progress.progress_percent,
-                  totalPoints: `${progress.passed_tests}/${progress.total_tests}`,
+                  completedUnits: progress.passed_tests || 0,
+                  averageScore: progress.progress_percent || 0,
+                  totalPoints: `${progress.passed_tests || 0}/${progress.total_tests || 0}`,
                 };
               }
               return student;
