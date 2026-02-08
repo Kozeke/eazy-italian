@@ -9,8 +9,7 @@ import {
   TrendingUp,
   Award,
   Target,
-  BarChart3,
-  PieChart as PieChartIcon
+  BarChart3
 } from 'lucide-react';
 import { coursesApi } from '../../services/api';
 import {
@@ -363,12 +362,12 @@ export default function AdminDashboardPage() {
                               fill="#8884d8"
                               dataKey="students"
                             >
-                              {courseEnrollmentData.map((entry, index) => (
+                              {courseEnrollmentData.map((_, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                               ))}
                             </Pie>
-                            <Tooltip formatter={(value: any, name: any, props: any) => [`${value} студентов`, props.payload.fullName]} />
-                            <Legend formatter={(value: any, entry: any) => entry.payload.fullName} wrapperStyle={{ fontSize: '12px' }} />
+                            <Tooltip formatter={(value: any, _name: any, props: any) => [`${value} студентов`, props.payload.fullName]} />
+                            <Legend formatter={(_value: any, entry: any) => entry.payload.fullName} wrapperStyle={{ fontSize: '12px' }} />
                           </PieChart>
                         </ResponsiveContainer>
                         <p className="text-xs text-center text-gray-500 mt-2">
@@ -398,7 +397,7 @@ export default function AdminDashboardPage() {
                             />
                             <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
                             <Tooltip 
-                              formatter={(value: any, name: any, props: any) => [`${value}%`, props.payload.fullName]}
+                              formatter={(value: any, _name: any, props: any) => [`${value}%`, props.payload.fullName]}
                               contentStyle={{ fontSize: 11 }}
                             />
                             <Bar dataKey="score" fill="#10b981" radius={[6, 6, 0, 0]} />
