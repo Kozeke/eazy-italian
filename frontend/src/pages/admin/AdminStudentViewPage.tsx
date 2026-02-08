@@ -357,7 +357,6 @@ export default function AdminStudentViewPage() {
             </div>
           </div>
         )}
-        </div>
       </div>
     </div>
   );
