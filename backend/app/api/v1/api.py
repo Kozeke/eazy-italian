@@ -14,7 +14,7 @@ api_router.include_router(test_constructor.router, tags=["test-constructor"])
 api_router.include_router(progress.router, prefix="/progress", tags=["progress"])
 api_router.include_router(grades.router, prefix="/grades", tags=["grades"])
 api_router.include_router(email_campaigns.router, prefix="/email-campaigns", tags=["email-campaigns"])
-api_router.include_router(admin_students.router, prefix="", tags=["students"])
+api_router.include_router(admin_students.router, prefix="/admin/students", tags=["students"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 
 #student routes

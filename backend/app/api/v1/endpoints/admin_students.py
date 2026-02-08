@@ -15,7 +15,7 @@ from app.schemas.user import UserResponse, UserUpdate
 router = APIRouter()
 
 
-@router.get("/admin/students", response_model=list[UserResponse])
+@router.get("", response_model=list[UserResponse])
 def get_students(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db),
@@ -85,7 +85,7 @@ def get_students(
     return students_with_count
 
 
-@router.put("/admin/students/{student_id}/subscription")
+@router.put("/{student_id}/subscription")
 def change_student_subscription(
     student_id: int,
     payload: ChangeSubscriptionRequest,
