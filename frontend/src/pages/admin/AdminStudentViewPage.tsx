@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Mail, Calendar, ArrowLeft, User, CheckCircle, XCircle, TrendingUp, Eye, Award } from 'lucide-react';
+import { Mail, Calendar, ArrowLeft, User, CheckCircle, XCircle, TrendingUp, Eye, Award, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { progressApi, usersApi, gradesApi } from '../../services/api';
 
@@ -11,6 +11,7 @@ export default function AdminStudentViewPage() {
   const [studentProfile, setStudentProfile] = useState<any | null>(null);
   const [studentProgress, setStudentProgress] = useState<any | null>(null);
   const [studentStats, setStudentStats] = useState<any | null>(null);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
 
   useEffect(() => {
     const loadStudent = async () => {
@@ -23,10 +24,11 @@ export default function AdminStudentViewPage() {
       setLoading(true);
       try {
         const studentId = parseInt(id, 10);
-        const [students, progress, stats] = await Promise.all([
+        const [students, progress, stats, courses] = await Promise.all([
           usersApi.getStudents(),
           progressApi.getStudentsProgress(),
           gradesApi.getStudentStats(studentId),
+          gradesApi.getStudentEnrollments(studentId),
         ]);
 
         const profile = (students || []).find((s: any) => s.id === studentId);
@@ -41,6 +43,7 @@ export default function AdminStudentViewPage() {
         setStudentProfile(profile || null);
         setStudentProgress(progressRow || null);
         setStudentStats(stats || null);
+        setEnrollments(courses || []);
       } catch (error) {
         console.error('Error loading student:', error);
         toast.error('Ошибка загрузки данных студента');
@@ -219,6 +222,58 @@ export default function AdminStudentViewPage() {
             </div>
           </div>
         </div>
+
+        {/* Registered Courses */}
+        {enrollments && enrollments.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-primary-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Зарегистрированные курсы</h2>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">Курсы, на которые записан студент</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
+              {enrollments.map((enrollment: any) => (
+                <div
+                  key={enrollment.course_id}
+                  className="border border-gray-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-md transition-all cursor-pointer"
+                  onClick={() => navigate(`/admin/courses/${enrollment.course_id}`)}
+                >
+                  <div className="flex items-start gap-3">
+                    {enrollment.thumbnail_path ? (
+                      <img
+                        src={enrollment.thumbnail_path.startsWith('http') 
+                          ? enrollment.thumbnail_path 
+                          : `http://localhost:8000${enrollment.thumbnail_path}`}
+                        alt={enrollment.title}
+                        className="w-16 h-16 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
+                        <BookOpen className="w-8 h-8 text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        {enrollment.title}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                          {enrollment.level}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-xs text-gray-500">
+                        <div>Юнитов: {enrollment.total_units}</div>
+                        <div>Записан: {formatDate(enrollment.enrolled_at)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Test Attempts History */}
         {studentStats && studentStats.attempts && studentStats.attempts.length > 0 && (

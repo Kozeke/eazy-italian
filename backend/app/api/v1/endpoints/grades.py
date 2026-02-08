@@ -196,6 +196,51 @@ def get_student_stats(
         "average_score": average_score,
         "attempts": attempts_list
     }
+
+
+@router.get("/admin/students/{student_id}/enrollments")
+def get_student_enrollments(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher)
+):
+    """Get student's enrolled courses"""
+    from app.models.enrollment import CourseEnrollment
+    
+    enrollments = (
+        db.query(
+            Course.id.label("course_id"),
+            Course.title,
+            Course.level,
+            Course.thumbnail_path,
+            CourseEnrollment.created_at.label("enrolled_at"),
+            func.count(Unit.id).label("total_units"),
+        )
+        .join(CourseEnrollment, CourseEnrollment.course_id == Course.id)
+        .outerjoin(Unit, Unit.course_id == Course.id)
+        .filter(CourseEnrollment.user_id == student_id)
+        .group_by(
+            Course.id,
+            Course.title,
+            Course.level,
+            Course.thumbnail_path,
+            CourseEnrollment.created_at
+        )
+        .order_by(desc(CourseEnrollment.created_at))
+        .all()
+    )
+    
+    return [
+        {
+            "course_id": e.course_id,
+            "title": e.title,
+            "level": e.level,
+            "thumbnail_path": e.thumbnail_path,
+            "enrolled_at": e.enrolled_at,
+            "total_units": e.total_units or 0,
+        }
+        for e in enrollments
+    ]
         raise HTTPException(status_code=404, detail="Attempt not found")
 
     # Build a map of all question IDs that appear in the attempt detail
