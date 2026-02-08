@@ -38,6 +38,7 @@ class TestResponse(TestBase):
     course_id: Optional[int] = None
     course_title: Optional[str] = None
     unit_title: Optional[str] = None
+    questions_count: int = 0
 
     class Config:
         from_attributes = True

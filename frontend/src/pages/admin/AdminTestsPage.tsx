@@ -76,7 +76,7 @@ export default function AdminTestsPage() {
         type: 'grammar', // Default type
         difficulty: 'medium',
         duration: test.time_limit_minutes || 30,
-        questionsCount: test.test_questions?.length || 0,
+        questionsCount: test.questions_count || 0,
         passingScore: test.passing_score || 70,
         attemptsCount: test.attempts?.length || 0,
         averageScore: 0,

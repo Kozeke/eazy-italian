@@ -25,8 +25,11 @@ def get_tests(
     limit: int = 100
 ):
     """Get tests, optionally filtered by unit_id"""
+    from app.models.test import TestQuestion
+    
     query = db.query(Test).options(
-        joinedload(Test.unit).joinedload(Unit.course)
+        joinedload(Test.unit).joinedload(Unit.course),
+        joinedload(Test.test_questions)
     )
     
     if unit_id is not None:
@@ -54,7 +57,8 @@ def get_tests(
             "updated_at": test.updated_at,
             "course_id": test.unit.course_id if test.unit and test.unit.course else None,
             "course_title": test.unit.course.title if test.unit and test.unit.course else None,
-            "unit_title": test.unit.title if test.unit else None
+            "unit_title": test.unit.title if test.unit else None,
+            "questions_count": len(test.test_questions) if test.test_questions else 0
         }
         result.append(TestResponse(**test_dict))
     
