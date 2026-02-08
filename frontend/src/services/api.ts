@@ -109,6 +109,28 @@ export const coursesApi = {
     await api.delete(`/admin/courses/${id}`);
   },
 
+  uploadThumbnail: async (id: number, file: File): Promise<{ thumbnail_path: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
+      `/admin/courses/${id}/thumbnail`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  generateThumbnail: async (id: number): Promise<{ thumbnail_path: string }> => {
+    const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
+      `/admin/courses/${id}/generate-thumbnail`
+    );
+    return response.data;
+  },
+
   generateThumbnail: async (id: number): Promise<{ thumbnail_path: string }> => {
     const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
       `/admin/courses/${id}/generate-thumbnail`

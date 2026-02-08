@@ -42,6 +42,9 @@ export default function AdminCourseCreatePage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string>('');
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
   const [formData, setFormData] = useState<CourseFormData>({
     title: '',
@@ -97,6 +100,33 @@ export default function AdminCourseCreatePage() {
     }));
   };
 
+  const handleThumbnailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Пожалуйста, выберите файл изображения');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        toast.error('Размер файла не должен превышать 10MB');
+        return;
+      }
+      setThumbnailFile(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setThumbnailPreviewUrl(previewUrl);
+    }
+  };
+
+  const handleRemoveThumbnail = () => {
+    setThumbnailFile(null);
+    if (thumbnailPreviewUrl) {
+      URL.revokeObjectURL(thumbnailPreviewUrl);
+      setThumbnailPreviewUrl('');
+    }
+    handleInputChange('thumbnail_path', '');
+  };
+
   const validateForm = (): boolean => {
     if (!formData.title.trim()) {
       toast.error('Название курса обязательно');
@@ -137,8 +167,26 @@ export default function AdminCourseCreatePage() {
       
       console.log('Course saved successfully:', savedCourse);
       
-      // Generate thumbnail if title and level are set
-      if (savedCourse.id && formData.title && formData.level) {
+      // Upload thumbnail if file is selected
+      if (thumbnailFile && savedCourse.id) {
+        try {
+          setUploadingThumbnail(true);
+          const uploadedThumbnail = await coursesApi.uploadThumbnail(savedCourse.id, thumbnailFile);
+          if (uploadedThumbnail.thumbnail_path) {
+            // Update course with new thumbnail path
+            await coursesApi.updateCourse(savedCourse.id, {
+              thumbnail_path: uploadedThumbnail.thumbnail_path
+            });
+          }
+        } catch (error) {
+          console.error('Error uploading thumbnail:', error);
+          toast.error('Не удалось загрузить обложку');
+        } finally {
+          setUploadingThumbnail(false);
+        }
+      }
+      // Generate thumbnail if no file is uploaded but title and level are set
+      else if (savedCourse.id && formData.title && formData.level) {
         try {
           const thumbnailResult = await coursesApi.generateThumbnail(savedCourse.id);
           if (thumbnailResult.thumbnail_path) {
@@ -359,49 +407,70 @@ export default function AdminCourseCreatePage() {
                     Обложка курса
                   </label>
                   
-                  {formData.thumbnail_url ? (
-                    <img
-                      src={formData.thumbnail_url || ''}
-                      alt="Course thumbnail"
-                      className="w-full max-w-md rounded-xl shadow border mb-3"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                  {(thumbnailPreviewUrl || formData.thumbnail_url) ? (
+                    <div className="relative inline-block">
+                      <img
+                        src={thumbnailPreviewUrl || formData.thumbnail_url || ''}
+                        alt="Course thumbnail"
+                        className="w-full max-w-md rounded-xl shadow border mb-3"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveThumbnail}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   ) : (
                     <div className="h-48 max-w-md rounded-xl border border-dashed flex items-center justify-center text-gray-400 mb-3">
-                      Обложка будет сгенерирована автоматически
+                      {thumbnailFile ? 'Обложка будет загружена при сохранении' : 'Загрузите обложку или она будет сгенерирована автоматически'}
                     </div>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!formData.title.trim()) {
-                        toast.error('Сначала введите название курса');
-                        return;
-                      }
-                      
-                      setGeneratingThumbnail(true);
-                      try {
-                        // For new courses, we'll generate after creation
-                        // For now, show a preview based on title and level
-                        toast.success('Обложка будет сгенерирована после сохранения курса');
-                      } catch (error: any) {
-                        toast.error('Ошибка при генерации обложки');
-                      } finally {
-                        setGeneratingThumbnail(false);
-                      }
-                    }}
-                    disabled={generatingThumbnail || !formData.title.trim()}
-                    className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {generatingThumbnail ? 'Генерация...' : 'Сгенерировать обложку'}
-                  </button>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <label className="inline-flex items-center px-4 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Загрузить файл
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleThumbnailFileChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!formData.title.trim()) {
+                          toast.error('Сначала введите название курса');
+                          return;
+                        }
+                        
+                        setGeneratingThumbnail(true);
+                        try {
+                          // For new courses, we'll generate after creation
+                          // For now, show a preview based on title and level
+                          toast.success('Обложка будет сгенерирована после сохранения курса');
+                        } catch (error: any) {
+                          toast.error('Ошибка при генерации обложки');
+                        } finally {
+                          setGeneratingThumbnail(false);
+                        }
+                      }}
+                      disabled={generatingThumbnail || !formData.title.trim()}
+                      className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {generatingThumbnail ? 'Генерация...' : 'Сгенерировать обложку'}
+                    </button>
+                  </div>
 
                   <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                      <Upload className="h-4 w-4 mr-1 text-gray-400" />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Или укажите URL обложки курса
                     </label>
                     <input
