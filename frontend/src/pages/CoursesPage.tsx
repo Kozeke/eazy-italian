@@ -26,6 +26,13 @@ import {
 import { coursesApi } from '../services/api';
 import toast from 'react-hot-toast';
 
+// Helper function to strip HTML tags from description
+const stripHtml = (html: string): string => {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+};
+
 interface Course {
   id: number;
   title: string;
@@ -89,7 +96,7 @@ export default function CoursesPage() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const matchTitle = (course.title || '').toLowerCase().includes(query);
-      const matchDesc = (course.description || '').toLowerCase().includes(query);
+      const matchDesc = stripHtml(course.description || '').toLowerCase().includes(query);
       if (!matchTitle && !matchDesc) return false;
     }
     if (selectedLevel && course.level !== selectedLevel) return false;
@@ -323,7 +330,7 @@ export default function CoursesPage() {
                                 {getLevelBadge(course.level)}
                               </div>
                               <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-                                {course.description || ''}
+                                {stripHtml(course.description || '')}
                               </p>
                             </div>
                           </div>
