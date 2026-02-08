@@ -19,63 +19,17 @@ import {
 } from 'lucide-react';
 import { progressApi, usersApi } from '../../services/api';
 import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
-// Mock data - replace with actual API calls
-const mockStudents = [
-  {
-    id: 1,
-    firstName: 'Анна',
-    lastName: 'Иванова',
-    email: 'anna.ivanova@example.com',
-    phone: '+7 (999) 123-45-67',
-    level: 'A2',
-    status: 'active',
-    registrationDate: '2024-01-15T10:30:00Z',
-    lastLogin: '2024-01-20T14:25:00Z',
-    completedUnits: 5,
-    averageScore: 85,
-    totalPoints: 1250,
-    subscriptionType: 'premium',
-    subscriptionExpiry: '2024-12-31T23:59:00Z'
-  },
-  {
-    id: 2,
-    firstName: 'Иван',
-    lastName: 'Петров',
-    email: 'ivan.petrov@example.com',
-    phone: '+7 (999) 234-56-78',
-    level: 'A1',
-    status: 'active',
-    registrationDate: '2024-01-10T09:15:00Z',
-    lastLogin: '2024-01-19T16:30:00Z',
-    completedUnits: 3,
-    averageScore: 72,
-    totalPoints: 850,
-    subscriptionType: 'basic',
-    subscriptionExpiry: '2024-06-30T23:59:00Z'
-  },
-  {
-    id: 3,
-    firstName: 'Мария',
-    lastName: 'Сидорова',
-    email: 'maria.sidorova@example.com',
-    phone: '+7 (999) 345-67-89',
-    level: 'B1',
-    status: 'inactive',
-    registrationDate: '2023-12-01T11:00:00Z',
-    lastLogin: '2024-01-05T10:15:00Z',
-    completedUnits: 8,
-    averageScore: 91,
-    totalPoints: 2100,
-    subscriptionType: 'premium',
-    subscriptionExpiry: '2024-03-15T23:59:00Z'
-  }
-];
 
 const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const statuses = ['active', 'inactive', 'suspended', 'graduated'];
 const subscriptionTypes = ['free', 'premium', 'pro'];
 
-
+type ProgressData = {
+  id: number;
+  passed_tests: number;
+  progress_percent: number;
+  total_tests: number;
+};
 
 type StudentRow = {
   id: number;
@@ -143,9 +97,9 @@ export default function AdminStudentsPage() {
 
         // Fetch progress data separately and merge
         progressApi.getStudentsProgress()
-          .then((progressData) => {
+          .then((progressData: ProgressData[]) => {
             const progressMap = new Map(
-              progressData.map((p: any) => [p.id, p])
+              progressData.map((p) => [p.id, p])
             );
 
             const merged: StudentRow[] = normalized.map((student) => {
@@ -256,8 +210,12 @@ export default function AdminStudentsPage() {
   });
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
-    const aValue = a[sortField as keyof typeof a];
-    const bValue = b[sortField as keyof typeof b];
+    const aValue = a[sortField as keyof StudentRow];
+    const bValue = b[sortField as keyof StudentRow];
+    
+    // Handle null values
+    if (aValue === null || aValue === undefined) return 1;
+    if (bValue === null || bValue === undefined) return -1;
     
     if (sortDirection === 'asc') {
       return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
