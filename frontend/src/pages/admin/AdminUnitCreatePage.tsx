@@ -632,6 +632,40 @@ export default function AdminUnitCreatePage() {
                     <option value="C2">C2 – В совершенстве</option>
                   </select>
                 </div>
+
+                {/* Course Selection */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                    <BookMarked className="h-4 w-4 mr-1 text-gray-400" />
+                    Курс
+                  </label>
+                  <select
+                    value={formData.course_id || ''}
+                    onChange={(e) => handleInputChange('course_id', e.target.value ? parseInt(e.target.value) : null)}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    <option value="">Без курса (автономный юнит)</option>
+                    {availableCourses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.title} {course.level && `(${course.level})`}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Выберите курс, к которому будет принадлежать этот юнит. Если не выбран, юнит будет автономным.
+                  </p>
+                  {availableCourses.length === 0 && !loadingContent && (
+                    <p className="mt-2 text-xs text-amber-600">
+                      Нет доступных курсов. <button 
+                        type="button"
+                        onClick={() => navigate('/admin/courses/new')}
+                        className="text-primary-600 hover:text-primary-700 underline"
+                      >
+                        Создать курс
+                      </button>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Описание */}
@@ -723,40 +757,6 @@ export default function AdminUnitCreatePage() {
 
               {showAdvanced && (
                 <div className="mt-6 space-y-6">
-                  {/* Course Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                      <BookMarked className="h-4 w-4 mr-1 text-gray-400" />
-                      Курс (опционально)
-                    </label>
-                    <select
-                      value={formData.course_id || ''}
-                      onChange={(e) => handleInputChange('course_id', e.target.value ? parseInt(e.target.value) : null)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    >
-                      <option value="">Без курса (автономный юнит)</option>
-                      {availableCourses.map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {course.title} {course.level && `(${course.level})`}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Выберите курс, к которому будет принадлежать этот юнит. Если не выбран, юнит будет автономным.
-                    </p>
-                    {availableCourses.length === 0 && !loadingContent && (
-                      <p className="mt-2 text-xs text-amber-600">
-                        Нет доступных курсов. <button 
-                          type="button"
-                          onClick={() => navigate('/admin/courses/new')}
-                          className="text-primary-600 hover:text-primary-700 underline"
-                        >
-                          Создать курс
-                        </button>
-                      </p>
-                    )}
-                  </div>
-
                   {/* Order Index */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
