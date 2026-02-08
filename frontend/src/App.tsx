@@ -40,6 +40,7 @@ import AdminStudentEditPage from './pages/admin/AdminStudentEditPage';
 import AdminStudentViewPage from './pages/admin/AdminStudentViewPage';
 import AdminEmailCampaignsPage from './pages/admin/AdminEmailCampaignsPage';
 import AdminGradesPage from './pages/admin/AdminGradesPage';
+import AdminGradeDetailPage from './pages/admin/AdminGradeDetailPage';
 import AdminProgressPage from './pages/admin/AdminProgressPage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminAuditLogPage from './pages/admin/AdminAuditLogPage';
@@ -133,6 +134,7 @@ function App() {
          <Route path="/admin/questions" element={<AdminQuestionBankPage />} />
          <Route path="/admin/email-campaigns" element={<AdminEmailCampaignsPage />} />
          <Route path="/admin/grades" element={<AdminGradesPage />} />
+         <Route path="/admin/grades/:attemptId" element={<AdminGradeDetailPage />} />
          <Route path="/admin/progress" element={<AdminProgressPage />} />
          <Route path="/admin/settings" element={<AdminSettingsPage />} />
          <Route path="/admin/audit-log" element={<AdminAuditLogPage />} />
