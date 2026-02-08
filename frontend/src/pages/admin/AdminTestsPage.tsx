@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { testsApi } from '../../services/api';
+import { testsApi, gradesApi } from '../../services/api';
 import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 import { 
   Plus, 
@@ -19,7 +19,9 @@ import {
   Brain,
   Percent,
   Archive,
-  BookOpen
+  BookOpen,
+  Users,
+  TrendingUp
 } from 'lucide-react';
 
 // Mock data - replace with actual API calls
@@ -94,6 +96,7 @@ export default function AdminTestsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [tests, setTests] = useState(mockTests);
+  const [testStats, setTestStats] = useState<any>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -107,7 +110,17 @@ export default function AdminTestsPage() {
   // Load tests from API
   useEffect(() => {
     loadTests();
+    loadTestStats();
   }, []);
+
+  const loadTestStats = async () => {
+    try {
+      const stats = await gradesApi.getTestsStatistics();
+      setTestStats(stats);
+    } catch (error) {
+      console.error('Error loading test statistics:', error);
+    }
+  };
 
   const loadTests = async () => {
     try {
@@ -516,6 +529,55 @@ export default function AdminTestsPage() {
                           </div>
                         )}
 
+                        {/* Statistics Cards */}
+                        {testStats[test.id] && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Users className="w-4 h-4 text-blue-600" />
+                                <p className="text-xs font-medium text-gray-500">Студенты</p>
+                              </div>
+                              <p className="text-xl font-bold text-gray-900">
+                                {testStats[test.id].unique_students}
+                              </p>
+                              <p className="text-xs text-gray-500">уникальных</p>
+                            </div>
+
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="flex items-center gap-2 mb-1">
+                                <TrendingUp className="w-4 h-4 text-green-600" />
+                                <p className="text-xs font-medium text-gray-500">Попытки</p>
+                              </div>
+                              <p className="text-xl font-bold text-gray-900">
+                                {testStats[test.id].total_attempts}
+                              </p>
+                              <p className="text-xs text-gray-500">всего</p>
+                            </div>
+
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Percent className="w-4 h-4 text-purple-600" />
+                                <p className="text-xs font-medium text-gray-500">Средний балл</p>
+                              </div>
+                              <p className="text-xl font-bold text-gray-900">
+                                {testStats[test.id].average_score.toFixed(1)}%
+                              </p>
+                              <p className="text-xs text-gray-500">из 100%</p>
+                            </div>
+
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Brain className="w-4 h-4 text-orange-600" />
+                                <p className="text-xs font-medium text-gray-500">Прошли</p>
+                              </div>
+                              <p className="text-xl font-bold text-gray-900">
+                                {testStats[test.id].pass_rate.toFixed(1)}%
+                              </p>
+                              <p className="text-xs text-gray-500">{testStats[test.id].passed_attempts} из {testStats[test.id].total_attempts}</p>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Details Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {/* Unit */}
@@ -539,22 +601,6 @@ export default function AdminTestsPage() {
                                 {formatDate(test.lastUpdated)}
                               </span>
                             </div>
-                          </div>
-
-                          {/* Attempts */}
-                          <div>
-                            <p className="text-sm font-medium text-gray-700 mb-1">Попытки:</p>
-                            <span className="text-sm text-gray-600">
-                              {test.attemptsCount || 0} попыток
-                            </span>
-                          </div>
-
-                          {/* Average Score */}
-                          <div>
-                            <p className="text-sm font-medium text-gray-700 mb-1">Средний балл:</p>
-                            <span className="text-sm text-gray-600">
-                              {test.averageScore > 0 ? `${test.averageScore}%` : 'Нет данных'}
-                            </span>
                           </div>
                         </div>
 

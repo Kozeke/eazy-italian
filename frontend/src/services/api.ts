@@ -564,7 +564,7 @@ export const gradesApi = {
     sort_dir?: 'asc' | 'desc';
   }) => {
     const res = await api.get('grades/admin/grades', {
-      params, // 🔥 THIS WAS MISSING
+      params,
     });
     return res.data;
   },
@@ -584,6 +584,11 @@ export const gradesApi = {
   
   getStudentEnrollments: async (studentId: number) => {
     const response = await api.get(`grades/admin/students/${studentId}/enrollments`);
+    return response.data;
+  },
+  
+  getTestsStatistics: async () => {
+    const response = await api.get('grades/admin/tests/statistics');
     return response.data;
   },
 };

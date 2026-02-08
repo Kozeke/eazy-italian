@@ -10,7 +10,7 @@ from app.models.course import Course
 router = APIRouter()
 
 
-from sqlalchemy import desc, asc, func
+from sqlalchemy import desc, asc, func, case
 
 @router.get("/admin/grades")
 def get_grades(
@@ -241,3 +241,47 @@ def get_student_enrollments(
         }
         for e in enrollments
     ]
+
+
+@router.get("/admin/tests/statistics")
+def get_tests_statistics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher)
+):
+    """Get statistics for all tests including attempts and average scores"""
+    from app.models.test import AttemptStatus
+    
+    tests_stats = (
+        db.query(
+            Test.id,
+            Test.title,
+            func.count(TestAttempt.id).label("total_attempts"),
+            func.count(func.distinct(TestAttempt.student_id)).label("unique_students"),
+            func.avg(TestAttempt.score).label("average_score"),
+            func.sum(
+                case(
+                    (TestAttempt.score >= Test.passing_score, 1),
+                    else_=0
+                )
+            ).label("passed_attempts"),
+        )
+        .outerjoin(TestAttempt, 
+            (TestAttempt.test_id == Test.id) & 
+            (TestAttempt.status == AttemptStatus.COMPLETED)
+        )
+        .group_by(Test.id, Test.title)
+        .all()
+    )
+    
+    return {
+        str(stat.id): {
+            "test_id": stat.id,
+            "test_title": stat.title,
+            "total_attempts": stat.total_attempts or 0,
+            "unique_students": stat.unique_students or 0,
+            "average_score": round(stat.average_score, 2) if stat.average_score else 0,
+            "passed_attempts": stat.passed_attempts or 0,
+            "pass_rate": round((stat.passed_attempts / stat.total_attempts * 100), 2) if stat.total_attempts > 0 else 0
+        }
+        for stat in tests_stats
+    }
