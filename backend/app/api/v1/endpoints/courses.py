@@ -152,6 +152,12 @@ async def get_admin_courses(
     for course in courses:
         # Handle thumbnail_path gracefully in case column doesn't exist yet
         thumbnail_path = getattr(course, 'thumbnail_path', None)
+        
+        # Get enrolled students count
+        enrolled_students_count = db.query(func.count(CourseEnrollment.id)).filter(
+            CourseEnrollment.course_id == course.id
+        ).scalar() or 0
+        
         result.append(CourseListResponse(
             id=course.id,
             title=course.title,
@@ -166,7 +172,9 @@ async def get_admin_courses(
             created_at=course.created_at,
             updated_at=course.updated_at,
             units_count=course.units_count,
-            published_units_count=course.published_units_count
+            published_units_count=course.published_units_count,
+            content_summary=course.content_summary,
+            enrolled_students_count=enrolled_students_count
         ))
     
     return result

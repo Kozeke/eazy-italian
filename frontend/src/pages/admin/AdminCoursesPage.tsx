@@ -8,7 +8,9 @@ import {
   Trash2,
   Check,
   X,
-  BookMarked
+  BookMarked,
+  Users,
+  FileText
 } from 'lucide-react';
 import { coursesApi } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -33,6 +35,12 @@ interface Course {
   thumbnail_path?: string;
   units_count: number;
   published_units_count: number;
+  content_summary?: {
+    total_tests: number;
+    total_videos: number;
+    total_tasks: number;
+  };
+  enrolled_students_count?: number;
   created_by: number;
   created_at: string;
   updated_at: string | null;
@@ -389,9 +397,24 @@ export default function AdminCoursesPage() {
                     )}
 
                     <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
-                      <span>
-                        {course.published_units_count} / {course.units_count} юнитов
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1">
+                          <BookMarked className="h-3.5 w-3.5" />
+                          {course.published_units_count}/{course.units_count}
+                        </span>
+                        {course.enrolled_students_count !== undefined && (
+                          <span className="flex items-center gap-1" title="Зарегистрированных студентов">
+                            <Users className="h-3.5 w-3.5" />
+                            {course.enrolled_students_count}
+                          </span>
+                        )}
+                        {course.content_summary && course.content_summary.total_tests > 0 && (
+                          <span className="flex items-center gap-1" title="Количество тестов">
+                            <FileText className="h-3.5 w-3.5" />
+                            {course.content_summary.total_tests}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={(e) => {
