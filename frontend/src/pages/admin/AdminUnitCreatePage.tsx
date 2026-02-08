@@ -12,6 +12,7 @@ import {
 import { unitsApi, videosApi, tasksApi, testsApi, coursesApi } from '../../services/api';
 import toast from 'react-hot-toast';
 import { BookMarked } from 'lucide-react';
+import RichTextEditor from '../../components/admin/RichTextEditor';
 
 interface UnitFormData {
   title: string;
@@ -663,11 +664,9 @@ export default function AdminUnitCreatePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Описание
                 </label>
-                <textarea
+                <RichTextEditor
                   value={formData.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  rows={4}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  onChange={(value) => handleInputChange('description', value)}
                   placeholder="Кратко опишите, что студенты будут изучать в этом юните"
                 />
               </div>
