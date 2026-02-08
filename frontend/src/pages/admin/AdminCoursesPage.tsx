@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus, 
-  Eye,
   Pencil,
   Trash2,
   Check,
@@ -416,17 +415,6 @@ export default function AdminCoursesPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            navigate(`/admin/courses/${course.id}`);
-                          }}
-                          className="text-primary-600 hover:text-primary-900"
-                          title="Просмотр"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
