@@ -219,7 +219,7 @@ export default function AdminGradesPage() {
             </td>
 
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-              {g.score} / {g.passing_score}
+              {Number(g.score).toFixed(2)} / {Number(g.passing_score).toFixed(2)}
             </td>
 
             <td className="px-6 py-4 whitespace-nowrap">

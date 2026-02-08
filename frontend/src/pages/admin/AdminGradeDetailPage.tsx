@@ -94,7 +94,7 @@ export default function AdminGradeDetailPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Score</p>
-                <p className="text-2xl font-bold text-gray-900">{detail.score}%</p>
+                <p className="text-2xl font-bold text-gray-900">{Number(detail.score).toFixed(2)}%</p>
               </div>
             </div>
           </div>
