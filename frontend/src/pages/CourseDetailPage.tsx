@@ -8,7 +8,8 @@ import {
   Lock,
   User,
   Target,
-  CheckCircle2
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
 import { coursesApi } from '../services/api';
 import toast from 'react-hot-toast';
@@ -31,6 +32,11 @@ interface Course {
   user_subscription?: string;
   enrolled_courses_count?: number;
   learning_outcomes?: string[];
+  content_summary?: {
+    total_videos: number;
+    total_tasks: number;
+    total_tests: number;
+  };
   units?: Array<{
     id: number;
     title: string;
@@ -307,6 +313,15 @@ export default function CourseDetailPage() {
                 {t('courses.units') || 'юнитов'}
               </span>
             </div>
+            {course.content_summary && course.content_summary.total_tests > 0 && (
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary-600" />
+                <span className="text-sm text-gray-600">
+                  <strong className="font-semibold text-gray-900">{course.content_summary.total_tests}</strong>{' '}
+                  {course.content_summary.total_tests === 1 ? 'тест' : course.content_summary.total_tests < 5 ? 'теста' : 'тестов'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
