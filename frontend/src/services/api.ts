@@ -575,7 +575,12 @@ export const gradesApi = {
       await api.get(`grades/admin/grades/${attemptId}`);
   
     return response.data;
-  },  
+  },
+  
+  getStudentStats: async (studentId: number) => {
+    const response = await api.get(`grades/admin/students/${studentId}/stats`);
+    return response.data;
+  },
 };
 
 // Student Tests API

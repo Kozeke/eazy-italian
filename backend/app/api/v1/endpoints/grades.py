@@ -136,3 +136,103 @@ def get_grade_detail(
         "submitted_at": attempt.submitted_at,
         "time_taken_seconds": time_taken_seconds
     }
+
+
+@router.get("/admin/students/{student_id}/stats")
+def get_student_stats(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher)
+):
+    """Get student statistics including average grade and test history"""
+    
+    # Get all test attempts for this student
+    attempts = (
+        db.query(
+            TestAttempt.id.label("attempt_id"),
+            TestAttempt.score,
+            TestAttempt.status,
+            TestAttempt.submitted_at,
+            TestAttempt.started_at,
+            Test.title.label("test_title"),
+            Test.id.label("test_id"),
+            Test.passing_score,
+            Unit.title.label("unit_title"),
+            Course.title.label("course_title")
+        )
+        .join(Test, Test.id == TestAttempt.test_id)
+        .outerjoin(Unit, Unit.id == Test.unit_id)
+        .outerjoin(Course, Course.id == Unit.course_id)
+        .filter(TestAttempt.student_id == student_id)
+        .filter(TestAttempt.status == "completed")
+        .order_by(desc(TestAttempt.submitted_at))
+        .all()
+    )
+    
+    # Calculate average score
+    scores = [a.score for a in attempts if a.score is not None]
+    average_score = round(sum(scores) / len(scores), 2) if scores else 0
+    
+    # Format attempts for response
+    attempts_list = [
+        {
+            "attempt_id": a.attempt_id,
+            "test_id": a.test_id,
+            "test_title": a.test_title,
+            "unit_title": a.unit_title or "—",
+            "course_title": a.course_title or "—",
+            "score": round(a.score, 2) if a.score else 0,
+            "passing_score": a.passing_score,
+            "passed": a.score >= a.passing_score if a.score else False,
+            "submitted_at": a.submitted_at,
+            "time_taken_seconds": int((a.submitted_at - a.started_at).total_seconds()) if a.submitted_at and a.started_at else None
+        }
+        for a in attempts
+    ]
+    
+    return {
+        "student_id": student_id,
+        "total_attempts": len(attempts_list),
+        "average_score": average_score,
+        "attempts": attempts_list
+    }
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    # Build a map of all question IDs that appear in the attempt detail
+    question_ids_in_attempt = set()
+    for key, detail in (attempt.detail or {}).items():
+        question_id = detail.get("question_id") or int(key)
+        question_ids_in_attempt.add(question_id)
+    
+    # Fetch questions directly by their IDs (not through TestQuestion)
+    questions = db.query(Question).filter(Question.id.in_(question_ids_in_attempt)).all()
+    question_map = {q.id: q for q in questions}
+
+    details = []
+    for key, detail in (attempt.detail or {}).items():
+        question_id = detail.get("question_id") or int(key)
+        question = question_map.get(question_id)
+        details.append({
+            "question_id": question_id,
+            "prompt": question.prompt_rich if question else None,
+            "type": question.type.value if question else None,
+            "options": question.options if question else None,
+            "correct_answer": question.correct_answer if question else None,
+            "student_answer": detail.get("student_answer"),
+            "is_correct": detail.get("is_correct"),
+            "points_earned": detail.get("points_earned"),
+            "points_possible": detail.get("points_possible"),
+        })
+
+    time_taken_seconds = None
+    if attempt.started_at and attempt.submitted_at:
+        time_taken_seconds = int((attempt.submitted_at - attempt.started_at).total_seconds())
+
+    return {
+        "attempt_id": attempt.id,
+        "score": attempt.score,
+        "detail": details,
+        "started_at": attempt.started_at,
+        "submitted_at": attempt.submitted_at,
+        "time_taken_seconds": time_taken_seconds
+    }

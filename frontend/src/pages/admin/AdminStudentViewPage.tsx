@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Mail, Calendar, ArrowLeft, User, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
+import { Mail, Calendar, ArrowLeft, User, CheckCircle, XCircle, TrendingUp, Eye, Award } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { progressApi, usersApi } from '../../services/api';
+import { progressApi, usersApi, gradesApi } from '../../services/api';
 
 export default function AdminStudentViewPage() {
   const navigate = useNavigate();
@@ -10,6 +10,7 @@ export default function AdminStudentViewPage() {
   const [loading, setLoading] = useState(true);
   const [studentProfile, setStudentProfile] = useState<any | null>(null);
   const [studentProgress, setStudentProgress] = useState<any | null>(null);
+  const [studentStats, setStudentStats] = useState<any | null>(null);
 
   useEffect(() => {
     const loadStudent = async () => {
@@ -22,9 +23,10 @@ export default function AdminStudentViewPage() {
       setLoading(true);
       try {
         const studentId = parseInt(id, 10);
-        const [students, progress] = await Promise.all([
+        const [students, progress, stats] = await Promise.all([
           usersApi.getStudents(),
           progressApi.getStudentsProgress(),
+          gradesApi.getStudentStats(studentId),
         ]);
 
         const profile = (students || []).find((s: any) => s.id === studentId);
@@ -38,6 +40,7 @@ export default function AdminStudentViewPage() {
 
         setStudentProfile(profile || null);
         setStudentProgress(progressRow || null);
+        setStudentStats(stats || null);
       } catch (error) {
         console.error('Error loading student:', error);
         toast.error('Ошибка загрузки данных студента');
@@ -118,7 +121,7 @@ export default function AdminStudentViewPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center gap-4">
               <div className="h-14 w-14 rounded-full bg-gray-200 flex items-center justify-center text-lg font-semibold text-gray-700">
@@ -194,6 +197,111 @@ export default function AdminStudentViewPage() {
               </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Award className="w-5 h-5 text-primary-600" />
+              <h2 className="text-base font-semibold text-gray-900">Средний балл</h2>
+            </div>
+            <div className="space-y-2 text-sm text-gray-700">
+              <div>
+                <span className="text-gray-500">Всего попыток:</span>{' '}
+                <span className="font-medium">
+                  {studentStats?.total_attempts ?? 0}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Средний балл:</span>{' '}
+                <span className="font-medium text-2xl block mt-2">
+                  {studentStats?.average_score ?? 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Test Attempts History */}
+        {studentStats && studentStats.attempts && studentStats.attempts.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">История попыток</h2>
+              <p className="text-sm text-gray-500 mt-1">Все попытки прохождения тестов</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Курс / Юнит
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Тест
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Балл
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Результат
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Время
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Дата
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Действия
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {studentStats.attempts.map((attempt: any) => (
+                    <tr key={attempt.attempt_id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{attempt.course_title}</div>
+                        <div className="text-sm text-gray-500">{attempt.unit_title}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {attempt.test_title}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {attempt.score.toFixed(2)} / {attempt.passing_score.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {attempt.passed ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Пройдено
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Не пройдено
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {attempt.time_taken_seconds != null
+                          ? `${Math.floor(attempt.time_taken_seconds / 60)}:${String(attempt.time_taken_seconds % 60).padStart(2, '0')}`
+                          : '—'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(attempt.submitted_at)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button
+                          onClick={() => navigate(`/admin/grades/${attempt.attempt_id}`)}
+                          className="text-primary-600 hover:text-primary-900"
+                          title="Просмотреть детали"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         </div>
       </div>
     </div>
