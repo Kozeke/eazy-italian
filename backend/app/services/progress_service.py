@@ -40,16 +40,16 @@ def calculate_progress_for_students(
             Subscription.name.label("subscription"),
             UserSubscription.ends_at.label("subscription_ends_at"),
 
-            func.count(
+            func.count(func.distinct(
                 case(
                     (
                         (TestAttempt.status == AttemptStatus.COMPLETED)
                         & (TestAttempt.score >= Test.passing_score),
-                        1
+                        Test.id
                     ),
                     else_=None
                 )
-            ).label("passed_tests")
+            )).label("passed_tests")
         )
         .outerjoin(UserSubscription, UserSubscription.user_id == User.id)
         .outerjoin(Subscription, Subscription.id == UserSubscription.subscription_id)
