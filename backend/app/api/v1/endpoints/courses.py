@@ -367,9 +367,24 @@ async def upload_course_thumbnail(
     if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
     
-    # Get uploads path
-    from app.utils.thumbnail_generator import get_uploads_path
-    uploads_path = get_uploads_path()
+    # Get uploads path - same logic as videos
+    # __file__ is backend/app/api/v1/endpoints/courses.py
+    # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
+    current_file = os.path.abspath(__file__)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
+    
+    # Check if we're in Docker
+    is_docker = (os.name != 'nt' and
+                 os.path.exists("/app") and 
+                 os.getcwd() == "/app" and 
+                 backend_dir == "/app")
+    
+    if is_docker:
+        uploads_path = "/app/uploads"
+    else:
+        # Local development - uploads is inside backend directory
+        uploads_path = os.path.join(backend_dir, "uploads")
+    
     upload_dir = os.path.join(uploads_path, "thumbnails")
     os.makedirs(upload_dir, exist_ok=True)
     
