@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Plus,
   X,
-  Eye,
   Pencil,
   Trash2,
   ExternalLink,
