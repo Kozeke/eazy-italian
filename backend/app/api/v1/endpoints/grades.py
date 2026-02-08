@@ -10,7 +10,7 @@ from app.models.course import Course
 router = APIRouter()
 
 
-from sqlalchemy import desc, asc
+from sqlalchemy import desc, asc, func
 
 @router.get("/admin/grades")
 def get_grades(
