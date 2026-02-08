@@ -45,6 +45,9 @@ export default function AdminCourseEditPage() {
   const [newTag, setNewTag] = useState('');
   const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string>('');
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
   const [formData, setFormData] = useState<CourseFormData>({
     title: '',
@@ -152,6 +155,69 @@ export default function AdminCourseEditPage() {
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
+  };
+
+  const handleThumbnailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Пожалуйста, выберите файл изображения');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        toast.error('Размер файла не должен превышать 10MB');
+        return;
+      }
+      setThumbnailFile(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setThumbnailPreviewUrl(previewUrl);
+      setThumbnail(previewUrl);
+    }
+  };
+
+  const handleRemoveThumbnail = () => {
+    setThumbnailFile(null);
+    if (thumbnailPreviewUrl) {
+      URL.revokeObjectURL(thumbnailPreviewUrl);
+      setThumbnailPreviewUrl('');
+    }
+    setThumbnail(null);
+    handleInputChange('thumbnail_path', '');
+    handleInputChange('thumbnail_url', '');
+  };
+
+  const handleUploadThumbnail = async () => {
+    if (!id || !thumbnailFile) return;
+    
+    setUploadingThumbnail(true);
+    try {
+      const uploadedThumbnail = await coursesApi.uploadThumbnail(parseInt(id), thumbnailFile);
+      if (uploadedThumbnail.thumbnail_path) {
+        // Update course with new thumbnail path
+        await coursesApi.updateCourse(parseInt(id), {
+          thumbnail_path: uploadedThumbnail.thumbnail_path
+        });
+        
+        const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+        setThumbnail(`${apiBase}/static/thumbnails/${uploadedThumbnail.thumbnail_path.split('/').pop()}`);
+        setFormData(prev => ({
+          ...prev,
+          thumbnail_path: uploadedThumbnail.thumbnail_path
+        }));
+        toast.success('Обложка успешно загружена!');
+        setThumbnailFile(null);
+        if (thumbnailPreviewUrl) {
+          URL.revokeObjectURL(thumbnailPreviewUrl);
+          setThumbnailPreviewUrl('');
+        }
+      }
+    } catch (error) {
+      console.error('Error uploading thumbnail:', error);
+      toast.error('Не удалось загрузить обложку');
+    } finally {
+      setUploadingThumbnail(false);
+    }
   };
 
   const validateForm = (): boolean => {
@@ -429,33 +495,65 @@ export default function AdminCourseEditPage() {
                     Обложка курса
                   </label>
                   
-                  {(thumbnail || formData.thumbnail_url || formData.thumbnail_path) ? (
-                    <img
-                      src={thumbnail || formData.thumbnail_url || (formData.thumbnail_path ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/thumbnails/${formData.thumbnail_path.split('/').pop()}` : '')}
-                      alt="Course thumbnail"
-                      className="w-full max-w-md rounded-xl shadow border mb-3"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                  {(thumbnailPreviewUrl || thumbnail || formData.thumbnail_url || formData.thumbnail_path) ? (
+                    <div className="relative inline-block">
+                      <img
+                        src={thumbnailPreviewUrl || thumbnail || formData.thumbnail_url || (formData.thumbnail_path ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/thumbnails/${formData.thumbnail_path.split('/').pop()}` : '')}
+                        alt="Course thumbnail"
+                        className="w-full max-w-md rounded-xl shadow border mb-3"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveThumbnail}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   ) : (
                     <div className="h-48 max-w-md rounded-xl border border-dashed flex items-center justify-center text-gray-400 mb-3">
                       Обложка не загружена
                     </div>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={handleGenerateThumbnail}
-                    disabled={generatingThumbnail || !formData.title.trim()}
-                    className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed mb-3"
-                  >
-                    {generatingThumbnail ? 'Генерация...' : 'Сгенерировать обложку'}
-                  </button>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <label className="inline-flex items-center px-4 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Загрузить файл
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleThumbnailFileChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {thumbnailFile && (
+                      <button
+                        type="button"
+                        onClick={handleUploadThumbnail}
+                        disabled={uploadingThumbnail}
+                        className="inline-flex items-center px-4 py-2 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {uploadingThumbnail ? 'Загрузка...' : 'Применить загруженный файл'}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleGenerateThumbnail}
+                      disabled={generatingThumbnail || !formData.title.trim()}
+                      className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {generatingThumbnail ? 'Генерация...' : 'Сгенерировать обложку'}
+                    </button>
+                  </div>
 
                   <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                      <Upload className="h-4 w-4 mr-1 text-gray-400" />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Или укажите URL обложки курса
                     </label>
                     <input
