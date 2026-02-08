@@ -169,7 +169,6 @@ export default function AdminCourseCreatePage() {
       // Upload thumbnail if file is selected
       if (thumbnailFile && savedCourse.id) {
         try {
-          setUploadingThumbnail(true);
           const uploadedThumbnail = await coursesApi.uploadThumbnail(savedCourse.id, thumbnailFile);
           if (uploadedThumbnail.thumbnail_path) {
             // Update course with new thumbnail path
@@ -180,8 +179,6 @@ export default function AdminCourseCreatePage() {
         } catch (error) {
           console.error('Error uploading thumbnail:', error);
           toast.error('Не удалось загрузить обложку');
-        } finally {
-          setUploadingThumbnail(false);
         }
       }
       // Generate thumbnail if no file is uploaded but title and level are set
