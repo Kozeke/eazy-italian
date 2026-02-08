@@ -19,6 +19,14 @@ def calculate_progress_for_students(
     Calculate test-based progress for all students
     """
 
+    # First, get count of all published tests
+    total_published_tests = (
+        db.query(func.count(Test.id))
+        .filter(Test.status == "published")
+        .scalar()
+    ) or 0
+
+    # Get student info with their passed tests count
     rows = (
         db.query(
             User.id.label("id"),
@@ -29,29 +37,28 @@ def calculate_progress_for_students(
             User.created_at,
             User.last_login,
 
-            Subscription.name.label("subscription"),  # ✅
-            UserSubscription.ends_at.label("subscription_ends_at"),  # ✅
+            Subscription.name.label("subscription"),
+            UserSubscription.ends_at.label("subscription_ends_at"),
 
-            func.count(Test.id).label("total_tests"),
-            func.sum(
+            func.count(
                 case(
                     (
                         (TestAttempt.status == AttemptStatus.COMPLETED)
                         & (TestAttempt.score >= Test.passing_score),
                         1
                     ),
-                    else_=0
+                    else_=None
                 )
             ).label("passed_tests")
         )
-        .join(UserSubscription, UserSubscription.user_id == User.id)
-        .join(Subscription, Subscription.id == UserSubscription.subscription_id)
+        .outerjoin(UserSubscription, UserSubscription.user_id == User.id)
+        .outerjoin(Subscription, Subscription.id == UserSubscription.subscription_id)
         .outerjoin(TestAttempt, TestAttempt.student_id == User.id)
         .outerjoin(Test, Test.id == TestAttempt.test_id)
-        .outerjoin(Unit, Unit.id == Test.unit_id)
         .filter(User.role == "student")
-        .filter(UserSubscription.is_active == True)
-        .filter(or_(Test.id == None, Test.status == "published"))
+        .filter(
+            (UserSubscription.is_active == True) | (UserSubscription.id == None)
+        )
         .group_by(
             User.id,
             User.email,
@@ -69,7 +76,6 @@ def calculate_progress_for_students(
     result = []
 
     for r in rows:
-        total = r.total_tests or 0
         passed = r.passed_tests or 0
 
         result.append({
@@ -79,14 +85,14 @@ def calculate_progress_for_students(
             "last_name": r.last_name,
             "is_active": r.is_active,
             "created_at": r.created_at,
-            "last_login": r.last_login,  # ✅ NOW INCLUDED
+            "last_login": r.last_login,
 
-            "subscription": r.subscription,  # ✅ NOW INCLUDED
-            "subscription_ends_at": r.subscription_ends_at,  # ✅ NOW INCLUDED
+            "subscription": r.subscription or "free",
+            "subscription_ends_at": r.subscription_ends_at,
 
-            "total_tests": total,
+            "total_tests": total_published_tests,
             "passed_tests": passed,
-            "progress_percent": round((passed / total) * 100) if total > 0 else 0
+            "progress_percent": round((passed / total_published_tests) * 100) if total_published_tests > 0 else 0
         })
 
     return result
