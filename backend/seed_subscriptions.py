@@ -19,14 +19,14 @@ def seed_subscriptions():
         
         print("Seeding subscriptions table...")
         
-        # Insert default subscriptions
+        # Insert default subscriptions (matching the Subscription model)
         conn.execute(text("""
-            INSERT INTO subscriptions (name, description, price, duration_days, features, is_active, created_at)
+            INSERT INTO subscriptions (name, price, is_active)
             VALUES 
-                ('free', 'Free subscription with basic access', 0.00, NULL, '{"courses": "limited", "tests": "limited"}', true, NOW()),
-                ('premium', 'Premium subscription with full course access', 9.99, 30, '{"courses": "all", "tests": "all", "priority_support": true}', true, NOW()),
-                ('pro', 'Pro subscription with unlimited access', 19.99, 30, '{"courses": "all", "tests": "all", "priority_support": true, "certificates": true, "offline_access": true}', true, NOW())
-            ON CONFLICT DO NOTHING
+                ('free', 0.00, true),
+                ('premium', 9.99, true),
+                ('pro', 19.99, true)
+            ON CONFLICT (name) DO NOTHING
         """))
         conn.commit()
         
