@@ -228,8 +228,12 @@ class TaskList(TaskBase):
     is_available: bool
     is_overdue: bool
     
-    # Unit info
+    # Unit and course info
     unit_title: Optional[str] = None
+    course_title: Optional[str] = None
+    
+    # Student-specific submission data (only for student endpoints)
+    student_submission: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True

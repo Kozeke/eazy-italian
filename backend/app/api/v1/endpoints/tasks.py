@@ -1136,9 +1136,11 @@ def get_student_tasks(
     # Build query: tasks from units that belong to enrolled courses
     # Include PUBLISHED tasks and SCHEDULED tasks where publish_at has passed
     # Exclude DRAFT and ARCHIVED tasks
-    now = datetime.utcnow()
+    from app.models.course import Course
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
     query = db.query(Task).join(Unit).options(
-        joinedload(Task.unit)
+        joinedload(Task.unit).joinedload(Unit.course)
     ).filter(
         and_(
             or_(
@@ -1188,9 +1190,36 @@ def get_student_tasks(
     
     print(f"[DEBUG] After filtering, {len(filtered_tasks)} tasks available for student {current_user.id}")
     
+    # Get student's submissions for all tasks in one query
+    task_ids = [task.id for task in filtered_tasks]
+    student_submissions = {}
+    if task_ids:
+        submissions = db.query(TaskSubmission).filter(
+            and_(
+                TaskSubmission.task_id.in_(task_ids),
+                TaskSubmission.student_id == current_user.id
+            )
+        ).all()
+        for submission in submissions:
+            if submission.task_id not in student_submissions:
+                student_submissions[submission.task_id] = []
+            student_submissions[submission.task_id].append(submission)
+    
     # Convert to TaskList objects manually (similar to get_admin_tasks)
     result = []
     for task in filtered_tasks:
+        # Get student's latest submission for this task
+        student_task_submissions = student_submissions.get(task.id, [])
+        latest_submission = None
+        if student_task_submissions:
+            # Get the latest submission (highest attempt_number or most recent)
+            latest_submission = max(student_task_submissions, key=lambda s: (s.attempt_number, s.submitted_at or datetime.min))
+        
+        # Get course info
+        course_title = None
+        if task.unit and task.unit.course:
+            course_title = task.unit.course.title
+        
         task_data = {
             # TaskBase fields
             "title": task.title,
@@ -1230,8 +1259,22 @@ def get_student_tasks(
             "is_available": task.is_available if hasattr(task, 'is_available') else True,
             "is_overdue": task.is_overdue if hasattr(task, 'is_overdue') else False,
             "unit_title": task.unit.title if task.unit else None,
+            "course_title": course_title,
             "content": task.content,
-            "questions": task.questions or []
+            "questions": task.questions or [],
+            # Student-specific submission data
+            "student_submission": {
+                "id": latest_submission.id if latest_submission else None,
+                "status": latest_submission.status.value if latest_submission else None,
+                "score": latest_submission.score if latest_submission else None,
+                "final_score": latest_submission.final_score if latest_submission else None,
+                "is_submitted": latest_submission.is_submitted if latest_submission else False,
+                "is_graded": latest_submission.is_graded if latest_submission else False,
+                "submitted_at": latest_submission.submitted_at.isoformat() if latest_submission and latest_submission.submitted_at else None,
+                "graded_at": latest_submission.graded_at.isoformat() if latest_submission and latest_submission.graded_at else None,
+                "feedback_rich": latest_submission.feedback_rich if latest_submission else None,
+                "attempt_number": latest_submission.attempt_number if latest_submission else 0
+            } if latest_submission else None
         }
         result.append(TaskList(**task_data))
     

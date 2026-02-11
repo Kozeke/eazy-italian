@@ -273,9 +273,80 @@ export default function TaskDetailPage() {
               {task.type === 'reading' && task.content && (
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <h3 className="text-sm font-medium text-gray-900 mb-3">Текст для чтения</h3>
-                  <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
-                    {task.content}
-                  </div>
+                  {(() => {
+                    // Check if content is a file path (starts with /api/v1/static, /static, or contains file extensions)
+                    const isFilePath = task.content.startsWith('/api/v1/static') || 
+                                      task.content.startsWith('/static') || 
+                                      task.content.startsWith('static/') ||
+                                      /\.(pdf|doc|docx|xls|xlsx|txt|rtf)$/i.test(task.content);
+                    
+                    // Get base URL and normalize it (remove trailing /api/v1 if present)
+                    let apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+                    // Remove /api/v1 suffix if present to avoid duplication
+                    apiBaseUrl = apiBaseUrl.replace(/\/api\/v1$/, '');
+                    
+                    if (isFilePath) {
+                      // It's a file - show as downloadable link
+                      let fileUrl: string;
+                      
+                      if (task.content.startsWith('http://') || task.content.startsWith('https://')) {
+                        // Full URL - use as is
+                        fileUrl = task.content;
+                      } else if (task.content.startsWith('/api/v1/static')) {
+                        // Path like /api/v1/static/tasks/documents/1/file.pdf
+                        // apiBaseUrl is already normalized (no /api/v1), so just prepend it
+                        fileUrl = `${apiBaseUrl}${task.content}`;
+                      } else if (task.content.startsWith('/static')) {
+                        // Path like /static/tasks/documents/1/file.pdf - needs /api/v1 prefix
+                        fileUrl = `${apiBaseUrl}/api/v1${task.content}`;
+                      } else if (task.content.startsWith('static/')) {
+                        // Path like static/tasks/documents/1/file.pdf
+                        fileUrl = `${apiBaseUrl}/api/v1/${task.content}`;
+                      } else if (task.content.startsWith('tasks/')) {
+                        // Path like tasks/documents/1/file.pdf
+                        fileUrl = `${apiBaseUrl}/api/v1/static/${task.content}`;
+                      } else {
+                        // Relative path - assume it needs /api/v1/static prefix
+                        fileUrl = `${apiBaseUrl}/api/v1/static/${task.content}`;
+                      }
+                      
+                      const fileName = task.content.split('/').pop() || 'Документ';
+                      const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
+                      
+                      return (
+                        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+                          <FileText className="h-8 w-8 text-primary-600 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {fileExtension === 'pdf' ? 'PDF документ' : 
+                               ['doc', 'docx'].includes(fileExtension) ? 'Word документ' :
+                               ['xls', 'xlsx'].includes(fileExtension) ? 'Excel таблица' :
+                               ['txt', 'rtf'].includes(fileExtension) ? 'Текстовый документ' :
+                               'Файл для скачивания'}
+                            </p>
+                          </div>
+                          <a
+                            href={fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Скачать
+                          </a>
+                        </div>
+                      );
+                    } else {
+                      // It's text content - display as before
+                      return (
+                        <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
+                          {task.content}
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
               )}
 
@@ -385,16 +456,52 @@ export default function TaskDetailPage() {
                 </div>
               )}
 
-              {/* Submit Button */}
+              {/* Submit Button or Results */}
               <div className="pt-4 border-t border-gray-200">
                 {isTaskAvailable ? (
-                  <button
-                    onClick={() => setShowSubmissionModal(true)}
-                    className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium rounded-lg text-white bg-amber-600 hover:bg-amber-700 transition-colors"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Выполнить задание
-                  </button>
+                  task.student_submission?.is_graded ? (
+                    // Task is graded - show results
+                    <div className="w-full p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-green-900">Задание оценено</span>
+                        <span className="text-lg font-bold text-green-700">
+                          {task.student_submission.final_score ?? task.student_submission.score ?? 0} / {task.max_score}
+                          ({((task.student_submission.final_score ?? task.student_submission.score ?? 0) / (task.max_score || 100) * 100).toFixed(0)}%)
+                        </span>
+                      </div>
+                      {task.student_submission.feedback_rich && (
+                        <div className="mt-2 text-sm text-gray-700">
+                          <p className="font-medium mb-1">Обратная связь:</p>
+                          <div 
+                            className="prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: task.student_submission.feedback_rich }}
+                          />
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500 mt-2">
+                        Оценено: {task.student_submission.graded_at ? formatDate(task.student_submission.graded_at) : '—'}
+                      </p>
+                    </div>
+                  ) : task.student_submission?.is_submitted ? (
+                    // Task is submitted but not graded
+                    <div className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm font-medium text-yellow-900">
+                        Задание отправлено и ожидает проверки
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Отправлено: {task.student_submission.submitted_at ? formatDate(task.student_submission.submitted_at) : '—'}
+                      </p>
+                    </div>
+                  ) : (
+                    // Task not submitted - show submit button
+                    <button
+                      onClick={() => setShowSubmissionModal(true)}
+                      className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium rounded-lg text-white bg-amber-600 hover:bg-amber-700 transition-colors"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Выполнить задание
+                    </button>
+                  )
                 ) : (
                   <div className="text-center">
                     <div className="inline-flex items-center px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm">

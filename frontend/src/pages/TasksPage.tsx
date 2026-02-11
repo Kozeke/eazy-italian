@@ -14,7 +14,13 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
-  AlertCircle
+  AlertCircle,
+  Award,
+  GraduationCap,
+  ChevronDown,
+  ChevronUp,
+  Headphones,
+  PenTool
 } from 'lucide-react';
 import { tasksApi } from '../services/api';
 import toast from 'react-hot-toast';
@@ -36,6 +42,20 @@ interface Task {
   status?: string;
   is_available?: boolean;
   is_overdue?: boolean;
+  unit_title?: string;
+  course_title?: string;
+  student_submission?: {
+    id: number;
+    status: 'draft' | 'submitted' | 'graded';
+    score?: number;
+    final_score?: number;
+    is_submitted: boolean;
+    is_graded: boolean;
+    submitted_at?: string;
+    graded_at?: string;
+    feedback_rich?: string;
+    attempt_number: number;
+  } | null;
 }
 
 export default function TasksPage() {
@@ -45,8 +65,21 @@ export default function TasksPage() {
   const [selectedLevel, setSelectedLevel] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
   const pageSize = 15;
   const navigate = useNavigate();
+  
+  const toggleExpand = (taskId: number) => {
+    setExpandedTasks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -87,12 +120,47 @@ export default function TasksPage() {
     return true;
   });
 
+  // Sort tasks: urgent (not done + overdue or due soon) first, then by due date
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    const aIsDone = a.student_submission?.is_graded || false;
+    const bIsDone = b.student_submission?.is_graded || false;
+    
+    // Urgent tasks (not done and overdue or due soon) come first
+    const aIsUrgent = !aIsDone && (a.is_overdue || (a.due_at && new Date(a.due_at) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
+    const bIsUrgent = !bIsDone && (b.is_overdue || (b.due_at && new Date(b.due_at) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
+    
+    if (aIsUrgent && !bIsUrgent) return -1;
+    if (!aIsUrgent && bIsUrgent) return 1;
+    
+    // Within urgent or non-urgent, sort by due date (earliest first)
+    if (a.due_at && b.due_at) {
+      return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
+    }
+    if (a.due_at) return -1;
+    if (b.due_at) return 1;
+    
+    return 0;
+  });
+
   // Calculate pagination
-  const totalPages = Math.ceil(filteredTasks.length / pageSize);
+  const totalPages = Math.ceil(sortedTasks.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
-  const showPagination = filteredTasks.length > pageSize;
+  const paginatedTasks = sortedTasks.slice(startIndex, endIndex);
+  const showPagination = sortedTasks.length > pageSize;
+  
+  // Count urgent tasks (not done and overdue or due within 7 days)
+  const urgentTasks = sortedTasks.filter(task => {
+    const isDone = task.student_submission?.is_graded || false;
+    if (isDone) return false;
+    if (task.is_overdue) return true;
+    if (task.due_at) {
+      const dueDate = new Date(task.due_at);
+      const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      return dueDate <= sevenDaysFromNow;
+    }
+    return false;
+  });
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '—';
@@ -105,6 +173,37 @@ export default function TasksPage() {
   };
 
   const getStatusBadge = (task: Task) => {
+    // If task is graded, show grade
+    if (task.student_submission?.is_graded) {
+      const score = task.student_submission.final_score ?? task.student_submission.score ?? 0;
+      const maxScore = task.max_score || 100;
+      const percentage = (score / maxScore) * 100;
+      
+      return (
+        <div className="flex flex-col items-end gap-1">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Оценено
+          </span>
+          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-primary-100 text-primary-800">
+            <Award className="w-3 h-3 mr-1" />
+            {score.toFixed(1)} / {maxScore} ({percentage.toFixed(0)}%)
+          </span>
+        </div>
+      );
+    }
+    
+    // If task is submitted but not graded
+    if (task.student_submission?.is_submitted) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Отправлено
+        </span>
+      );
+    }
+    
+    // If task is overdue
     if (task.is_overdue) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -113,6 +212,8 @@ export default function TasksPage() {
         </span>
       );
     }
+    
+    // If task is not available
     if (!task.is_available) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -120,10 +221,11 @@ export default function TasksPage() {
         </span>
       );
     }
+    
+    // Task is available but not submitted
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-        <CheckCircle className="w-3 h-3 mr-1" />
-        Доступно
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+        К выполнению
       </span>
     );
   };
@@ -138,6 +240,32 @@ export default function TasksPage() {
       'reading': 'Чтение'
     };
     return types[type || ''] || type || '—';
+  };
+
+  const getTypeIcon = (type?: string) => {
+    switch (type) {
+      case 'writing':
+        return <PenTool className="w-5 h-5 text-purple-600" />;
+      case 'listening':
+        return <Headphones className="w-5 h-5 text-blue-600" />;
+      case 'reading':
+        return <BookOpen className="w-5 h-5 text-green-600" />;
+      default:
+        return <FileText className="w-5 h-5 text-amber-600" />;
+    }
+  };
+
+  const getTypeIconBg = (type?: string) => {
+    switch (type) {
+      case 'writing':
+        return 'bg-purple-100';
+      case 'listening':
+        return 'bg-blue-100';
+      case 'reading':
+        return 'bg-green-100';
+      default:
+        return 'bg-amber-100';
+    }
   };
 
   if (loading) {
@@ -165,10 +293,30 @@ export default function TasksPage() {
         </div>
         {tasks.length > 0 && (
           <div className="text-sm text-gray-500">
-            {filteredTasks.length} из {tasks.length}
+            {sortedTasks.length} из {tasks.length}
           </div>
         )}
       </div>
+
+      {/* Urgent Tasks Alert */}
+      {urgentTasks.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-900">
+                Срочные задания: {urgentTasks.length} {urgentTasks.length === 1 ? 'задание требует' : 'заданий требуют'} внимания
+              </p>
+              <p className="text-xs text-red-700 mt-1">
+                {urgentTasks.filter(t => t.is_overdue).length > 0 && 
+                  `${urgentTasks.filter(t => t.is_overdue).length} ${urgentTasks.filter(t => t.is_overdue).length === 1 ? 'просрочено' : 'просрочено'}, `}
+                {urgentTasks.filter(t => !t.is_overdue && t.due_at).length > 0 && 
+                  `${urgentTasks.filter(t => !t.is_overdue && t.due_at).length} ${urgentTasks.filter(t => !t.is_overdue && t.due_at).length === 1 ? 'срок истекает' : 'сроки истекают'} в ближайшие 7 дней`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search & Filters */}
       <SearchFilters
@@ -207,57 +355,111 @@ export default function TasksPage() {
         <>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="divide-y divide-gray-200">
-              {paginatedTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="group flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/tasks/${task.id}`)}
-                >
-                  {/* Left: Icon + Title */}
-                  <div className="flex items-start gap-4 flex-1 min-w-0">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-amber-600" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
-                        {task.title}
-                      </h3>
-                      
-                      {/* Metadata */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                        {task.max_score && (
-                          <span>
-                            {task.max_score} баллов
-                          </span>
-                        )}
-                        {task.type && (
-                          <span>
-                            {getTypeLabel(task.type)}
-                          </span>
-                        )}
-                        {task.unit?.title && (
-                          <span className="inline-flex items-center gap-1">
-                            <BookOpen className="w-3.5 h-3.5" />
-                            {task.unit.title}
-                          </span>
-                        )}
+              {paginatedTasks.map((task) => {
+                const isExpanded = expandedTasks.has(task.id);
+                return (
+                  <div key={task.id} className="hover:bg-gray-50 transition-colors">
+                    {/* Minimal Row - Always Visible */}
+                    <div
+                      className="flex items-center justify-between px-5 py-3 cursor-pointer"
+                      onClick={() => toggleExpand(task.id)}
+                    >
+                      {/* Left: Icon + Minimal Info */}
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div 
+                          className={`flex-shrink-0 w-10 h-10 rounded-lg ${getTypeIconBg(task.type)} flex items-center justify-center`}
+                          title={task.type ? getTypeLabel(task.type) : 'Задание'}
+                        >
+                          {getTypeIcon(task.type)}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-gray-900 truncate">
+                            {task.title}
+                          </h3>
+                          
+                          {/* Minimal Metadata */}
+                          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                            {task.course_title && (
+                              <span className="inline-flex items-center gap-1">
+                                <GraduationCap className="w-3.5 h-3.5" />
+                                {task.course_title}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Deadline + Status Badge + Expand Icon */}
+                      <div className="flex items-center gap-3 flex-shrink-0">
                         {task.due_at && (
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" />
-                            Срок: {formatDate(task.due_at)}
-                          </span>
+                          <div className="text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
+                            <span className={`inline-flex items-center gap-1 ${task.is_overdue ? 'text-red-600 font-medium' : ''}`}>
+                              <Calendar className="w-3.5 h-3.5" />
+                              {formatDate(task.due_at)}
+                            </span>
+                          </div>
+                        )}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          {getStatusBadge(task)}
+                        </div>
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-400" />
                         )}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Right: Status Badge */}
-                  <div className="flex-shrink-0 ml-4" onClick={(e) => e.stopPropagation()}>
-                    {getStatusBadge(task)}
+                    {/* Expanded Details */}
+                    {isExpanded && (
+                      <div className="px-5 pb-4 pt-2 border-t border-gray-100 bg-gray-50">
+                        <div className="ml-14 space-y-2">
+                          {/* Additional Details */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                            {(task.unit_title || task.unit?.title) && (
+                              <span className="inline-flex items-center gap-1">
+                                <BookOpen className="w-3.5 h-3.5" />
+                                {task.unit_title || task.unit?.title}
+                              </span>
+                            )}
+                            {task.max_score && (
+                              <span>
+                                {task.max_score} баллов
+                              </span>
+                            )}
+                            {task.due_at && (
+                              <span className={`inline-flex items-center gap-1 ${task.is_overdue ? 'text-red-600 font-medium' : ''}`}>
+                                <Calendar className="w-3.5 h-3.5" />
+                                Срок: {formatDate(task.due_at)}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Description if available */}
+                          {task.description && (
+                            <p className="text-xs text-gray-500 mt-2 line-clamp-2">
+                              {task.description}
+                            </p>
+                          )}
+                          
+                          {/* Action Button */}
+                          <div className="pt-2">
+                            <button
+                              onClick={() => navigate(`/tasks/${task.id}`)}
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors"
+                            >
+                              {task.student_submission?.is_graded ? 'Просмотреть результаты' : 
+                               task.student_submission?.is_submitted ? 'Просмотреть отправку' : 
+                               'Выполнить задание'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -265,7 +467,7 @@ export default function TasksPage() {
           {showPagination && (
             <div className="flex items-center justify-between px-4 py-4 bg-white rounded-xl border border-gray-200">
               <span className="text-sm text-gray-600">
-                Показано {filteredTasks.length > 0 ? startIndex + 1 : 0}–{Math.min(endIndex, filteredTasks.length)} из {filteredTasks.length}
+                Показано {sortedTasks.length > 0 ? startIndex + 1 : 0}–{Math.min(endIndex, sortedTasks.length)} из {sortedTasks.length}
               </span>
 
               <div className="flex items-center space-x-2">

@@ -117,6 +117,19 @@ export interface Task {
   // Relationships
   unit?: Unit;
   submissions?: TaskSubmission[];
+  course_title?: string;
+  student_submission?: {
+    id: number;
+    status: 'draft' | 'submitted' | 'graded';
+    score?: number;
+    final_score?: number;
+    is_submitted: boolean;
+    is_graded: boolean;
+    submitted_at?: string;
+    graded_at?: string;
+    feedback_rich?: string;
+    attempt_number: number;
+  } | null;
 }
 
 export interface TaskSubmission {
