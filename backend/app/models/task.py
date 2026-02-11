@@ -103,16 +103,18 @@ class Task(Base):
         if self.is_draft or self.is_archived:
             return False
         if self.is_scheduled and self.publish_at:
-            from datetime import datetime
-            return datetime.utcnow() >= self.publish_at
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            return now >= self.publish_at
         return self.is_published
 
     @property
     def is_overdue(self) -> bool:
         if not self.due_at:
             return False
-        from datetime import datetime
-        return datetime.utcnow() > self.due_at
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        return now > self.due_at
 
     @property
     def assigned_student_count(self) -> int:
