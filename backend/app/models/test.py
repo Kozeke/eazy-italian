@@ -15,6 +15,7 @@ class QuestionType(str, enum.Enum):
     SHORT_ANSWER = "short_answer"
     LISTENING = "listening"
     READING = "reading"
+    VISUAL = "visual"  # Visual question with image
 
 class TestStatus(str, enum.Enum):
     DRAFT = "draft"

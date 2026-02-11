@@ -63,6 +63,7 @@ try:
     os.makedirs(os.path.join(uploads_path, "videos"), exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "tasks", "audio"), exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "tasks", "documents"), exist_ok=True)
+    os.makedirs(os.path.join(uploads_path, "questions"), exist_ok=True)
     
     if os.path.exists(uploads_path):
         # List directories for debugging

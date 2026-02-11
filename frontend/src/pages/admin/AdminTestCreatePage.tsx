@@ -25,7 +25,7 @@ interface QuestionOption {
 
 interface Question {
   id: string; // temporary ID for frontend
-  type: 'multiple_choice' | 'open_answer' | 'cloze';
+  type: 'multiple_choice' | 'open_answer' | 'cloze' | 'visual';
   prompt: string;
   score: number;
   question_metadata: Record<string, any>; // Simplified - no specific fields
@@ -48,6 +48,9 @@ interface Question {
     case_insensitive?: boolean;
     score: number; // Auto-calculated proportionally
   }>;
+  // Visual question specific
+  media?: Array<{ type: string; url: string; path: string }>;
+  answer_type?: 'multiple_choice' | 'single_choice' | 'open_answer' | 'true_false';
 }
 
 interface TestSettings {
@@ -171,6 +174,25 @@ const AdminTestCreatePage: React.FC = () => {
     setQuestions([...questions, newQuestion]);
   };
 
+  const addVisualQuestion = () => {
+    const newQuestion: Question = {
+      id: `temp-${Date.now()}`,
+      type: 'visual',
+      prompt: '',
+      score: 1,
+      question_metadata: {},
+      media: [],
+      answer_type: 'multiple_choice',
+      options: [
+        { id: 'A', text: '' },
+        { id: 'B', text: '' },
+      ],
+      correct_option_ids: [],
+      shuffle_options: true,
+    };
+    setQuestions([...questions, newQuestion]);
+  };
+
   const removeQuestion = (questionId: string) => {
     setQuestions(questions.filter(q => q.id !== questionId));
   };
@@ -231,6 +253,32 @@ const AdminTestCreatePage: React.FC = () => {
           }
         });
       }
+
+      if (q.type === 'visual') {
+        if (!q.media || q.media.length === 0) {
+          errors.push(`Вопрос ${index + 1}: загрузите изображение`);
+        }
+        const answerType = q.answer_type || 'multiple_choice';
+        if (answerType === 'multiple_choice' || answerType === 'single_choice') {
+          if (!q.options || q.options.length < 2) {
+            errors.push(`Вопрос ${index + 1}: нужно минимум 2 варианта ответа`);
+          }
+          if (!q.correct_option_ids || q.correct_option_ids.length === 0) {
+            errors.push(`Вопрос ${index + 1}: выберите правильный ответ`);
+          }
+        } else if (answerType === 'open_answer') {
+          if (q.expected?.mode === 'keywords' && (!q.expected.keywords || q.expected.keywords.length === 0)) {
+            errors.push(`Вопрос ${index + 1}: добавьте ключевые слова`);
+          }
+          if (q.expected?.mode === 'regex' && !q.expected.pattern) {
+            errors.push(`Вопрос ${index + 1}: укажите regex паттерн`);
+          }
+        } else if (answerType === 'true_false') {
+          if (!q.correct_option_ids || q.correct_option_ids.length === 0) {
+            errors.push(`Вопрос ${index + 1}: выберите правильный ответ (Верно/Неверно)`);
+          }
+        }
+      }
     });
 
     return errors;
@@ -285,6 +333,23 @@ const AdminTestCreatePage: React.FC = () => {
           questionPayload.expected = question.expected;
         } else if (question.type === 'cloze') {
           questionPayload.gaps = question.gaps;
+        } else if (question.type === 'visual') {
+          questionPayload.media = question.media || [];
+          questionPayload.answer_type = question.answer_type || 'multiple_choice';
+          questionPayload.metadata = { ...question.question_metadata, answer_type: question.answer_type };
+          if (question.answer_type === 'multiple_choice' || question.answer_type === 'single_choice') {
+            questionPayload.options = question.options;
+            questionPayload.correct_option_ids = question.correct_option_ids;
+            questionPayload.shuffle_options = question.shuffle_options;
+          } else if (question.answer_type === 'open_answer') {
+            questionPayload.expected = question.expected;
+          } else if (question.answer_type === 'true_false') {
+            questionPayload.options = [
+              { id: 'true', text: 'True' },
+              { id: 'false', text: 'False' }
+            ];
+            questionPayload.correct_option_ids = question.correct_option_ids;
+          }
         }
 
         await testsApi.addQuestionToTest(createdTest.id, questionPayload);
@@ -369,6 +434,23 @@ const AdminTestCreatePage: React.FC = () => {
           questionPayload.expected = question.expected;
         } else if (question.type === 'cloze') {
           questionPayload.gaps = question.gaps;
+        } else if (question.type === 'visual') {
+          questionPayload.media = question.media || [];
+          questionPayload.answer_type = question.answer_type || 'multiple_choice';
+          questionPayload.metadata = { ...question.question_metadata, answer_type: question.answer_type };
+          if (question.answer_type === 'multiple_choice' || question.answer_type === 'single_choice') {
+            questionPayload.options = question.options;
+            questionPayload.correct_option_ids = question.correct_option_ids;
+            questionPayload.shuffle_options = question.shuffle_options;
+          } else if (question.answer_type === 'open_answer') {
+            questionPayload.expected = question.expected;
+          } else if (question.answer_type === 'true_false') {
+            questionPayload.options = [
+              { id: 'true', text: 'True' },
+              { id: 'false', text: 'False' }
+            ];
+            questionPayload.correct_option_ids = question.correct_option_ids;
+          }
         }
 
         await testsApi.addQuestionToTest(createdTest.id, questionPayload);
@@ -526,6 +608,13 @@ const AdminTestCreatePage: React.FC = () => {
                   <Plus className="w-4 h-4 mr-1" />
                   Пропуски
                 </button>
+                <button
+                  onClick={addVisualQuestion}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Визуальный вопрос
+                </button>
               </div>
             </div>
 
@@ -639,6 +728,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
       case 'multiple_choice': return 'Multiple Choice';
       case 'open_answer': return 'Open Answer';
       case 'cloze': return 'Cloze';
+      case 'visual': return 'Visual';
       default: return type;
     }
   };
@@ -656,8 +746,13 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
         ? `Keywords: ${question.expected.keywords?.map(k => k.text).join(', ') || '...'}`
         : `Regex: ${question.expected?.pattern || '...'}`;
     }
-    if (question.type === 'cloze' && question.gaps && question.gaps.length > 0) {
+        if (question.type === 'cloze' && question.gaps && question.gaps.length > 0) {
       return `${question.gaps.length} gap(s)`;
+    }
+    if (question.type === 'visual') {
+      const hasImage = question.media && question.media.length > 0;
+      const answerType = question.answer_type || 'multiple_choice';
+      return `${hasImage ? '📷 ' : ''}${answerType === 'multiple_choice' ? 'Множественный выбор' : answerType === 'single_choice' ? 'Одиночный выбор' : answerType === 'open_answer' ? 'Открытый ответ' : 'Верно/Неверно'}`;
     }
     return '...';
   };
@@ -680,7 +775,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
               <div className="text-sm text-gray-700 line-clamp-1">
                 {question.prompt || 'No question text'}
               </div>
-              {(question.type === 'multiple_choice' || question.type === 'open_answer' || question.type === 'cloze') && (
+              {(question.type === 'multiple_choice' || question.type === 'open_answer' || question.type === 'cloze' || question.type === 'visual') && (
                 <div className="text-xs text-gray-500 mt-1">
                   {getPreviewText()}
                 </div>
@@ -754,6 +849,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
           )}
           {question.type === 'cloze' && (
             <ClozeFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
+          )}
+          {question.type === 'visual' && (
+            <VisualFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
           )}
         </div>
       )}
@@ -1014,6 +1112,379 @@ const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Qu
   );
 };
 
+// Visual Fields Component
+const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced }) => {
+  const [uploading, setUploading] = useState(false);
+  
+  // Normalize API base URL (remove trailing /api/v1 if present)
+  const getNormalizedApiBaseUrl = () => {
+    const url = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    if (url.endsWith('/api/v1')) {
+      return url.substring(0, url.length - '/api/v1'.length);
+    }
+    return url;
+  };
+  const apiBaseUrl = getNormalizedApiBaseUrl();
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Пожалуйста, выберите изображение');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Размер файла не должен превышать 5MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${apiBaseUrl}/api/v1/tests/questions/upload-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка загрузки изображения');
+      }
+
+      const data = await response.json();
+      const mediaItem = {
+        type: 'image',
+        url: data.url,
+        path: data.path
+      };
+
+      onUpdate({ media: [mediaItem] });
+      toast.success('Изображение загружено');
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      toast.error(error.message || 'Ошибка загрузки изображения');
+    } finally {
+      setUploading(false);
+      e.target.value = ''; // Reset input
+    }
+  };
+
+  const removeImage = () => {
+    onUpdate({ media: [] });
+  };
+
+  const getImageUrl = () => {
+    if (!question.media || question.media.length === 0) return null;
+    const mediaItem = question.media[0];
+    if (mediaItem.url) {
+      // If URL is relative, prepend API base URL
+      if (mediaItem.url.startsWith('/api/v1/static')) {
+        return `${apiBaseUrl}${mediaItem.url}`;
+      }
+      return mediaItem.url;
+    }
+    return null;
+  };
+
+  const addOption = () => {
+    const newId = String.fromCharCode(65 + (question.options?.length || 0));
+    const newOptions = [...(question.options || []), { id: newId, text: '' }];
+    onUpdate({ options: newOptions });
+  };
+
+  const updateOption = (optionId: string, text: string) => {
+    const newOptions = question.options?.map(opt => 
+      opt.id === optionId ? { ...opt, text } : opt
+    );
+    onUpdate({ options: newOptions });
+  };
+
+  const toggleCorrect = (optionId: string) => {
+    const currentCorrect = question.correct_option_ids || [];
+    const newCorrect = currentCorrect.includes(optionId)
+      ? currentCorrect.filter(id => id !== optionId)
+      : [...currentCorrect, optionId];
+    onUpdate({ correct_option_ids: newCorrect });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Image Upload */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Изображение вопроса
+        </label>
+        {getImageUrl() ? (
+          <div className="relative">
+            <img
+              src={getImageUrl() || ''}
+              alt="Question"
+              className="max-w-full h-auto rounded-lg border border-gray-300"
+              style={{ maxHeight: '400px' }}
+            />
+            <button
+              type="button"
+              onClick={removeImage}
+              className="mt-2 text-sm text-red-600 hover:text-red-800"
+            >
+              Удалить изображение
+            </button>
+          </div>
+        ) : (
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              disabled={uploading}
+              className="hidden"
+              id={`image-upload-${question.id}`}
+            />
+            <label
+              htmlFor={`image-upload-${question.id}`}
+              className="cursor-pointer block"
+            >
+              <div className="text-gray-600">
+                {uploading ? 'Загрузка...' : 'Нажмите для загрузки изображения'}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                JPEG, PNG, GIF, WebP (макс. 5MB)
+              </div>
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Answer Type Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Тип ответа
+        </label>
+        <select
+          value={question.answer_type || 'multiple_choice'}
+          onChange={(e) => {
+            const answerType = e.target.value as 'multiple_choice' | 'single_choice' | 'open_answer' | 'true_false';
+            onUpdate({ answer_type: answerType });
+            
+            // Reset options based on answer type
+            if (answerType === 'multiple_choice' || answerType === 'single_choice') {
+              onUpdate({
+                options: [
+                  { id: 'A', text: '' },
+                  { id: 'B', text: '' },
+                ],
+                correct_option_ids: [],
+                shuffle_options: true
+              });
+            } else if (answerType === 'open_answer') {
+              onUpdate({
+                expected: {
+                  mode: 'keywords',
+                  keywords: [{ text: '', weight: 1.0 }],
+                  case_insensitive: true,
+                  allow_typos: 0,
+                }
+              });
+            } else if (answerType === 'true_false') {
+              onUpdate({
+                options: [
+                  { id: 'true', text: 'True' },
+                  { id: 'false', text: 'False' }
+                ],
+                correct_option_ids: [],
+                shuffle_options: false
+              });
+            }
+          }}
+          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+        >
+          <option value="multiple_choice">Множественный выбор</option>
+          <option value="single_choice">Одиночный выбор</option>
+          <option value="open_answer">Открытый ответ</option>
+          <option value="true_false">Верно/Неверно</option>
+        </select>
+      </div>
+
+      {/* Answer Type Specific Fields */}
+      {(question.answer_type === 'multiple_choice' || question.answer_type === 'single_choice') && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">Варианты ответов</label>
+            <button
+              type="button"
+              onClick={addOption}
+              className="text-sm text-primary-600 hover:text-primary-700"
+            >
+              + Добавить вариант
+            </button>
+          </div>
+          {question.options?.map(option => (
+            <div key={option.id} className="flex items-center space-x-2">
+              <input
+                type={question.answer_type === 'single_choice' ? 'radio' : 'checkbox'}
+                checked={question.correct_option_ids?.includes(option.id) || false}
+                onChange={() => {
+                  if (question.answer_type === 'single_choice') {
+                    // For single choice, only one can be selected
+                    onUpdate({ correct_option_ids: [option.id] });
+                  } else {
+                    toggleCorrect(option.id);
+                  }
+                }}
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <input
+                type="text"
+                value={option.text}
+                onChange={(e) => updateOption(option.id, e.target.value)}
+                placeholder={`Вариант ${option.id}`}
+                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const newOptions = question.options?.filter(opt => opt.id !== option.id);
+                  const newCorrect = question.correct_option_ids?.filter(id => id !== option.id);
+                  onUpdate({ options: newOptions, correct_option_ids: newCorrect });
+                }}
+                className="text-red-600 hover:text-red-800"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              checked={question.shuffle_options ?? true}
+              onChange={(e) => onUpdate({ shuffle_options: e.target.checked })}
+              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            <label className="ml-2 text-sm text-gray-700">Перемешивать варианты</label>
+          </div>
+        </div>
+      )}
+
+      {question.answer_type === 'open_answer' && (
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">Ожидаемый ответ</label>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Режим проверки</label>
+            <select
+              value={question.expected?.mode || 'keywords'}
+              onChange={(e) => {
+                const mode = e.target.value as 'keywords' | 'regex';
+                onUpdate({
+                  expected: {
+                    ...question.expected,
+                    mode,
+                    keywords: mode === 'keywords' ? [{ text: '', weight: 1.0 }] : undefined,
+                    pattern: mode === 'regex' ? '' : undefined,
+                  }
+                });
+              }}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+            >
+              <option value="keywords">Ключевые слова</option>
+              <option value="regex">Регулярное выражение</option>
+            </select>
+          </div>
+          {question.expected?.mode === 'keywords' && (
+            <div className="space-y-2">
+              {question.expected.keywords?.map((keyword, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={keyword.text}
+                    onChange={(e) => {
+                      const newKeywords = [...(question.expected?.keywords || [])];
+                      newKeywords[index] = { ...keyword, text: e.target.value };
+                      onUpdate({ expected: { ...question.expected, keywords: newKeywords } });
+                    }}
+                    placeholder="Ключевое слово"
+                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={keyword.weight}
+                    onChange={(e) => {
+                      const newKeywords = [...(question.expected?.keywords || [])];
+                      newKeywords[index] = { ...keyword, weight: parseFloat(e.target.value) || 0 };
+                      onUpdate({ expected: { ...question.expected, keywords: newKeywords } });
+                    }}
+                    step="0.1"
+                    min="0"
+                    max="1"
+                    className="w-20 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newKeywords = question.expected?.keywords?.filter((_, i) => i !== index);
+                      onUpdate({ expected: { ...question.expected, keywords: newKeywords } });
+                    }}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const newKeywords = [...(question.expected?.keywords || []), { text: '', weight: 1.0 }];
+                  onUpdate({ expected: { ...question.expected, keywords: newKeywords } });
+                }}
+                className="text-sm text-primary-600 hover:text-primary-700"
+              >
+                + Добавить ключевое слово
+              </button>
+            </div>
+          )}
+          {question.expected?.mode === 'regex' && (
+            <input
+              type="text"
+              value={question.expected?.pattern || ''}
+              onChange={(e) => onUpdate({ expected: { ...question.expected, pattern: e.target.value } })}
+              placeholder="Регулярное выражение"
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+            />
+          )}
+        </div>
+      )}
+
+      {question.answer_type === 'true_false' && (
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">Правильный ответ</label>
+          <div className="space-y-2">
+            {question.options?.map(option => (
+              <div key={option.id} className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name={`true_false-${question.id}`}
+                  checked={question.correct_option_ids?.includes(option.id) || false}
+                  onChange={() => onUpdate({ correct_option_ids: [option.id] })}
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <label className="text-sm text-gray-700">{option.text}</label>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Settings Tab Component
 const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestSettings) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ settings, onUpdate, showAdvanced, onToggleAdvanced }) => {
   return (
@@ -1207,6 +1678,58 @@ const PreviewTab: React.FC<{ testTitle: string; timeLimit: number; questions: Qu
                     ) : part
                   )}
                 </p>
+              </div>
+            )}
+
+            {question.type === 'visual' && (
+              <div className="ml-11 space-y-3">
+                {question.media && question.media.length > 0 && (
+                  <div>
+                    {question.media.map((mediaItem, mediaIndex) => {
+                      if (mediaItem.type === 'image') {
+                        const imageUrl = mediaItem.url?.startsWith('/api/v1/static') 
+                          ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${mediaItem.url}`
+                          : mediaItem.url;
+                        return (
+                          <img
+                            key={mediaIndex}
+                            src={imageUrl}
+                            alt="Question preview"
+                            className="max-w-full h-auto rounded-lg border border-gray-300 mb-2"
+                            style={{ maxHeight: '300px' }}
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                )}
+                {question.answer_type === 'multiple_choice' || question.answer_type === 'single_choice' ? (
+                  <div className="space-y-2">
+                    {question.options?.map(option => (
+                      <div key={option.id} className="flex items-center space-x-2">
+                        <input type={question.answer_type === 'single_choice' ? 'radio' : 'checkbox'} className="text-primary-600" disabled />
+                        <label className="text-gray-700">{option.text || 'Вариант ответа'}</label>
+                      </div>
+                    ))}
+                  </div>
+                ) : question.answer_type === 'open_answer' ? (
+                  <textarea
+                    rows={3}
+                    placeholder="Ваш ответ..."
+                    className="block w-full rounded-md border-gray-300 bg-gray-50"
+                    disabled
+                  />
+                ) : question.answer_type === 'true_false' ? (
+                  <div className="space-y-2">
+                    {question.options?.map(option => (
+                      <div key={option.id} className="flex items-center space-x-2">
+                        <input type="radio" className="text-primary-600" disabled />
+                        <label className="text-gray-700">{option.text}</label>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
