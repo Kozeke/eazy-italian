@@ -12,7 +12,8 @@ import {
   AlertCircle,
   BookOpen,
   Eye,
-  BarChart3
+  BarChart3,
+  Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tasksApi } from '../../services/api';
@@ -287,22 +288,89 @@ export default function AdminTaskDetailPage() {
                   </h2>
                 </div>
                 <div className="p-6">
-                  {task.type === 'listening' && task.content.startsWith('http') ? (
-                    <div>
-                      <a 
-                        href={task.content} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-primary-600 hover:text-primary-700 underline"
-                      >
-                        {task.content}
-                      </a>
-                    </div>
-                  ) : (
-                    <div className="prose prose-sm max-w-none">
-                      <p className="text-sm text-gray-900 whitespace-pre-wrap">{task.content}</p>
-                    </div>
-                  )}
+                  {(() => {
+                    // Check if content is a file path
+                    const isFilePath = task.content.startsWith('/api/v1/static') || 
+                                      task.content.startsWith('/static') || 
+                                      task.content.startsWith('static/') ||
+                                      /\.(pdf|doc|docx|xls|xlsx|txt|rtf|mp3|mp4|wav|avi|mov)$/i.test(task.content);
+                    
+                    // Get base URL and normalize it
+                    let apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+                    apiBaseUrl = apiBaseUrl.replace(/\/api\/v1$/, '');
+                    
+                    if (isFilePath) {
+                      // It's a file - show as downloadable link
+                      let fileUrl: string;
+                      
+                      if (task.content.startsWith('http://') || task.content.startsWith('https://')) {
+                        fileUrl = task.content;
+                      } else if (task.content.startsWith('/api/v1/static')) {
+                        fileUrl = `${apiBaseUrl}${task.content}`;
+                      } else if (task.content.startsWith('/static')) {
+                        fileUrl = `${apiBaseUrl}/api/v1${task.content}`;
+                      } else if (task.content.startsWith('static/')) {
+                        fileUrl = `${apiBaseUrl}/api/v1/${task.content}`;
+                      } else if (task.content.startsWith('tasks/')) {
+                        fileUrl = `${apiBaseUrl}/api/v1/static/${task.content}`;
+                      } else {
+                        fileUrl = `${apiBaseUrl}/api/v1/static/${task.content}`;
+                      }
+                      
+                      const fileName = task.content.split('/').pop() || 'Файл';
+                      const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
+                      
+                      return (
+                        <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <FileText className="h-8 w-8 text-primary-600 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {fileExtension === 'pdf' ? 'PDF документ' : 
+                               ['doc', 'docx'].includes(fileExtension) ? 'Word документ' :
+                               ['xls', 'xlsx'].includes(fileExtension) ? 'Excel таблица' :
+                               ['mp3', 'wav'].includes(fileExtension) ? 'Аудио файл' :
+                               ['mp4', 'avi', 'mov'].includes(fileExtension) ? 'Видео файл' :
+                               ['txt', 'rtf'].includes(fileExtension) ? 'Текстовый документ' :
+                               'Файл для скачивания'}
+                            </p>
+                          </div>
+                          <a
+                            href={fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Скачать
+                          </a>
+                        </div>
+                      );
+                    } else if (task.type === 'listening' && task.content.startsWith('http')) {
+                      // URL for listening task
+                      return (
+                        <div>
+                          <a 
+                            href={task.content} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary-600 hover:text-primary-700 underline inline-flex items-center gap-2"
+                          >
+                            <FileText className="w-4 h-4" />
+                            {task.content}
+                          </a>
+                        </div>
+                      );
+                    } else {
+                      // Text content for reading task
+                      return (
+                        <div className="prose prose-sm max-w-none">
+                          <p className="text-sm text-gray-900 whitespace-pre-wrap">{task.content}</p>
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
               </div>
             )}

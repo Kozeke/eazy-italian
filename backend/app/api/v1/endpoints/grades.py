@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.auth import get_current_teacher
 from app.models.test import TestAttempt, Test, TestQuestion, Question
+from app.models.task import TaskSubmission, Task
 from app.models.user import User
 from app.models.unit import Unit
 from app.models.course import Course
+from datetime import datetime
 
 router = APIRouter()
 
@@ -45,7 +47,8 @@ def get_grades(
             "sort_dir": sort_dir,
         }
     
-    base_query = (
+    # Get test attempts
+    test_rows = (
         db.query(
             TestAttempt.id.label("attempt_id"),
             User.first_name,
@@ -68,34 +71,92 @@ def get_grades(
                 Unit.course_id.in_(teacher_course_ids)
             )
         )
-    )
-
-    total = base_query.count()
-
-    rows = (
-        base_query
-        .order_by(sort_order)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
         .all()
     )
 
+    # Get task submissions (only graded ones)
+    from app.models.task import SubmissionStatus
+    task_rows = (
+        db.query(
+            TaskSubmission.id.label("attempt_id"),
+            TaskSubmission.task_id,
+            User.first_name,
+            User.last_name,
+            Course.title.label("course"),
+            Task.title.label("test"),
+            Unit.title.label("unit"),
+            TaskSubmission.score,
+            Task.max_score.label("passing_score"),
+            TaskSubmission.status,
+            TaskSubmission.submitted_at,
+        )
+        .join(User, User.id == TaskSubmission.student_id)
+        .join(Task, Task.id == TaskSubmission.task_id)
+        .join(Unit, Unit.id == Task.unit_id)
+        .outerjoin(Course, Course.id == Unit.course_id)
+        .filter(
+            and_(
+                Task.created_by == current_user.id,
+                Unit.course_id.in_(teacher_course_ids),
+                TaskSubmission.status == SubmissionStatus.GRADED  # Only show graded task submissions
+            )
+        )
+        .all()
+    )
+    
+    # Combine and convert to dict format
+    all_items = []
+    
+    for r in test_rows:
+        all_items.append({
+            "attempt_id": r.attempt_id,
+            "student": f"{r.first_name} {r.last_name}",
+            "course": r.course or "—",
+            "test": r.test,
+            "unit": r.unit,
+            "score": r.score,
+            "passing_score": r.passing_score,
+            "passed": r.score >= r.passing_score if r.score is not None else False,
+            "status": r.status.value if hasattr(r.status, 'value') else str(r.status),
+            "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+            "type": "test",
+        })
+    
+    for r in task_rows:
+        # For tasks, we use max_score as passing_score for display
+        # Tasks don't have a passing threshold, so we'll show score/max_score
+        all_items.append({
+            "attempt_id": r.attempt_id,
+            "task_id": r.task_id,  # Include task_id for navigation
+            "student": f"{r.first_name} {r.last_name}",
+            "course": r.course or "—",
+            "test": r.test,  # Task title
+            "unit": r.unit,
+            "score": r.score,
+            "passing_score": r.passing_score,  # max_score
+            "passed": True,  # Tasks are always "passed" if graded
+            "status": r.status.value if hasattr(r.status, 'value') else str(r.status),
+            "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+            "type": "task",
+        })
+    
+    # Sort combined results
+    if sort_by == "submitted_at":
+        reverse = sort_dir == "desc"
+        all_items.sort(key=lambda x: x["submitted_at"] or "", reverse=reverse)
+    elif sort_by == "score":
+        reverse = sort_dir == "desc"
+        all_items.sort(key=lambda x: x["score"] or 0, reverse=reverse)
+    
+    total = len(all_items)
+    
+    # Apply pagination
+    start = (page - 1) * page_size
+    end = start + page_size
+    paginated_items = all_items[start:end]
+
     return {
-        "items": [
-            {
-                "attempt_id": r.attempt_id,
-                "student": f"{r.first_name} {r.last_name}",
-                "course": r.course or "—",  # Show "—" if course is None
-                "test": r.test,
-                "unit": r.unit,
-                "score": r.score,
-                "passing_score": r.passing_score,
-                "passed": r.score >= r.passing_score if r.score is not None else False,
-                "status": r.status,
-                "submitted_at": r.submitted_at,
-            }
-            for r in rows
-        ],
+        "items": paginated_items,
         "total": total,
         "page": page,
         "page_size": page_size,

@@ -2,12 +2,13 @@ import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gradesApi } from '../../services/api';
-import { Eye, Users, ChevronUp, ChevronDown, GraduationCap } from 'lucide-react';
+import { Eye, Users, ChevronUp, ChevronDown, GraduationCap, FileText, ClipboardList } from 'lucide-react';
 import i18n from '../../i18n';
 import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 
 type GradeRow = {
   attempt_id: number;
+  task_id?: number;  // For task submissions
   student: string;
   course: string;
   unit: string;
@@ -17,6 +18,7 @@ type GradeRow = {
   passed: boolean;
   status: string;
   submitted_at: string;
+  type?: 'test' | 'task';
 };
 export default function AdminGradesPage() {
   const { t } = useTranslation();
@@ -106,7 +108,7 @@ export default function AdminGradesPage() {
               )}
             </div>
             <p className="mt-1 text-xs md:text-sm text-gray-500">
-              Просматривайте результаты тестов и оценки студентов
+              Просматривайте результаты тестов и заданий, оценки студентов
             </p>
           </div>
         </div>
@@ -121,7 +123,7 @@ export default function AdminGradesPage() {
             setSearchQuery(value);
             setPage(1); // Reset to first page when search changes
           }}
-          searchPlaceholder="Поиск по студенту, курсу, юниту или тесту..."
+          searchPlaceholder="Поиск по студенту, курсу, юниту, тесту или заданию..."
           showFilters={showFilters}
           onToggleFilters={() => setShowFilters(!showFilters)}
           filters={
@@ -163,13 +165,13 @@ export default function AdminGradesPage() {
             {t('admin.grades.unit')}
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            {t('admin.grades.test')}
+            Тип
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            {t('admin.grades.score')}
+            {t('admin.grades.test')} / Задание
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            {t('admin.grades.result')}
+            Оценка / Результат
           </th>
           <th
             onClick={() =>
@@ -186,7 +188,7 @@ export default function AdminGradesPage() {
               )}
             </div>
           </th>
-          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200">
+          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200 w-16">
             {t('admin.grades.actions')}
           </th>
           
@@ -203,27 +205,66 @@ export default function AdminGradesPage() {
             </td>
 
             <td className="px-6 py-4 whitespace-nowrap">
-              <div className="text-sm font-semibold text-gray-900">
+              <div 
+                className="text-sm font-semibold text-gray-900 truncate max-w-[200px]" 
+                title={g.course}
+              >
                 {g.course}
               </div>
             </td>
 
             <td className="px-6 py-4 whitespace-nowrap">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+              <span 
+                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 truncate max-w-[150px]" 
+                title={g.unit}
+              >
                 {g.unit}
               </span>
             </td>
 
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-              {g.test}
-            </td>
-
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-              {Number(g.score).toFixed(2)} / {Number(g.passing_score).toFixed(2)}
-            </td>
-
             <td className="px-6 py-4 whitespace-nowrap">
-              {getResultBadge(g.passed)}
+              {g.type === 'task' ? (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  <FileText className="w-3 h-3 mr-1" />
+                  Задание
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <ClipboardList className="w-3 h-3 mr-1" />
+                  Тест
+                </span>
+              )}
+            </td>
+
+            <td className="px-6 py-4 text-sm text-gray-900">
+              <div 
+                className="truncate max-w-[250px]" 
+                title={g.test}
+              >
+                {g.test}
+              </div>
+            </td>
+
+            <td className="px-6 py-4 whitespace-nowrap sticky right-16 bg-white z-10 border-l border-gray-200">
+              <div className="flex flex-col gap-2">
+                <div className="text-sm text-gray-900">
+                  {g.type === 'task' ? (
+                    <span>
+                      {Number(g.score || 0).toFixed(1)} / {Number(g.passing_score || 100).toFixed(0)} 
+                      <span className="text-gray-500 ml-1">
+                        ({((Number(g.score || 0) / Number(g.passing_score || 100)) * 100).toFixed(0)}%)
+                      </span>
+                    </span>
+                  ) : (
+                    <span>
+                      {Number(g.score).toFixed(2)} / {Number(g.passing_score).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  {getResultBadge(g.passed)}
+                </div>
+              </div>
             </td>
 
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -232,14 +273,24 @@ export default function AdminGradesPage() {
                 : t('admin.grades.emptyAnswer')}
             </td>
 
-            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200">
-              <button
-                onClick={() => navigate(`/admin/grades/${g.attempt_id}`)}
-                className="text-primary-600 hover:text-primary-900"
-                title={t('admin.grades.viewErrors')}
-              >
-                <Eye className="w-4 h-4" />
-              </button>
+            <td className="px-6 py-4 whitespace-nowrap text-center sticky right-0 bg-white z-10 border-l border-gray-200 w-16">
+              {g.type === 'task' && g.task_id ? (
+                <button
+                  onClick={() => navigate(`/admin/tasks/${g.task_id}/submissions/${g.attempt_id}`)}
+                  className="text-primary-600 hover:text-primary-900"
+                  title="Просмотреть задание"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate(`/admin/grades/${g.attempt_id}`)}
+                  className="text-primary-600 hover:text-primary-900"
+                  title={t('admin.grades.viewErrors')}
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              )}
             </td>
           </tr>
         ))}
