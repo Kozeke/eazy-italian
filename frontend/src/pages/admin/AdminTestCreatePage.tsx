@@ -1408,7 +1408,8 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
                     onChange={(e) => {
                       const newKeywords = [...(question.expected?.keywords || [])];
                       newKeywords[index] = { ...keyword, text: e.target.value };
-                      onUpdate({ expected: { mode: question.expected?.mode || 'keywords', keywords: newKeywords, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
+                      const currentMode = (question.expected?.mode || 'keywords') as 'keywords' | 'regex';
+                      onUpdate({ expected: { mode: currentMode, keywords: newKeywords, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
                     }}
                     placeholder="Ключевое слово"
                     className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
@@ -1419,7 +1420,8 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
                     onChange={(e) => {
                       const newKeywords = [...(question.expected?.keywords || [])];
                       newKeywords[index] = { ...keyword, weight: parseFloat(e.target.value) || 0 };
-                      onUpdate({ expected: { mode: question.expected?.mode || 'keywords', keywords: newKeywords, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
+                      const currentMode = (question.expected?.mode || 'keywords') as 'keywords' | 'regex';
+                      onUpdate({ expected: { mode: currentMode, keywords: newKeywords, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
                     }}
                     step="0.1"
                     min="0"
@@ -1430,7 +1432,8 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
                     type="button"
                     onClick={() => {
                       const newKeywords = question.expected?.keywords?.filter((_, i) => i !== index);
-                      onUpdate({ expected: { mode: question.expected?.mode || 'keywords', keywords: newKeywords, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
+                      const currentMode = (question.expected?.mode || 'keywords') as 'keywords' | 'regex';
+                      onUpdate({ expected: { mode: currentMode, keywords: newKeywords, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
                     }}
                     className="text-red-600 hover:text-red-800"
                   >
@@ -1442,7 +1445,8 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
                 type="button"
                 onClick={() => {
                   const newKeywords = [...(question.expected?.keywords || []), { text: '', weight: 1.0 }];
-                  onUpdate({ expected: { mode: question.expected?.mode || 'keywords', keywords: newKeywords, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
+                  const currentMode = (question.expected?.mode || 'keywords') as 'keywords' | 'regex';
+                  onUpdate({ expected: { mode: currentMode, keywords: newKeywords, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
                 }}
                 className="text-sm text-primary-600 hover:text-primary-700"
               >
@@ -1454,7 +1458,10 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
             <input
               type="text"
               value={question.expected?.pattern || ''}
-              onChange={(e) => onUpdate({ expected: { mode: question.expected?.mode || 'regex', pattern: e.target.value, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } })}
+              onChange={(e) => {
+                const currentMode = (question.expected?.mode || 'regex') as 'keywords' | 'regex';
+                onUpdate({ expected: { mode: currentMode, pattern: e.target.value, case_insensitive: question.expected?.case_insensitive, allow_typos: question.expected?.allow_typos } });
+              }}
               placeholder="Регулярное выражение"
               className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
             />
