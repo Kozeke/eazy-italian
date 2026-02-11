@@ -61,6 +61,8 @@ try:
     os.makedirs(uploads_path, exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "thumbnails"), exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "videos"), exist_ok=True)
+    os.makedirs(os.path.join(uploads_path, "tasks", "audio"), exist_ok=True)
+    os.makedirs(os.path.join(uploads_path, "tasks", "documents"), exist_ok=True)
     
     if os.path.exists(uploads_path):
         # List directories for debugging
@@ -174,6 +176,149 @@ async def startup_event():
                             conn.execute(migration_sql)
                             conn.commit()
                             print(f"✅ Added missing column: questions.{column_name}")
+                    
+                    # Add missing columns to tasks table if they don't exist
+                    task_migrations = [
+                        ("questions", "JSON DEFAULT '[]'"),
+                    ]
+                    
+                    for column_name, column_def in task_migrations:
+                        # Check if column exists
+                        check_query = text("""
+                            SELECT column_name 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'tasks' 
+                            AND column_name = :column_name
+                        """)
+                        result = conn.execute(check_query, {"column_name": column_name})
+                        if result.fetchone() is None:
+                            # Column doesn't exist, add it
+                            migration_sql = text(f"""
+                                ALTER TABLE tasks 
+                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
+                            """)
+                            conn.execute(migration_sql)
+                            conn.commit()
+                            print(f"✅ Added missing column: tasks.{column_name}")
+                    
+                    # Handle TaskType enum - check if it exists and what values it has
+                    check_tasktype_enum = text("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM pg_type WHERE typname = 'tasktype'
+                        );
+                    """)
+                    tasktype_enum_exists = conn.execute(check_tasktype_enum).scalar()
+                    
+                    if tasktype_enum_exists:
+                        # Check what enum values exist
+                        tasktype_values_result = conn.execute(text("""
+                            SELECT enumlabel FROM pg_enum 
+                            WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'tasktype')
+                            ORDER BY enumsortorder
+                        """))
+                        tasktype_labels = [row[0] for row in tasktype_values_result.fetchall()]
+                        print(f"TaskType enum exists with values: {tasktype_labels}")
+                        
+                        # Add listening if it doesn't exist
+                        if 'listening' not in tasktype_labels:
+                            try:
+                                conn.execute(text("ALTER TYPE tasktype ADD VALUE IF NOT EXISTS 'listening'"))
+                                conn.commit()
+                                print("✅ Added 'listening' to TaskType enum")
+                            except Exception as e:
+                                # IF NOT EXISTS might not be supported in all PostgreSQL versions
+                                try:
+                                    conn.execute(text("ALTER TYPE tasktype ADD VALUE 'listening'"))
+                                    conn.commit()
+                                    print("✅ Added 'listening' to TaskType enum")
+                                except Exception as e2:
+                                    print(f"⚠️  Could not add 'listening' to TaskType enum: {e2}")
+                        
+                        # Add reading if it doesn't exist
+                        if 'reading' not in tasktype_labels:
+                            try:
+                                conn.execute(text("ALTER TYPE tasktype ADD VALUE IF NOT EXISTS 'reading'"))
+                                conn.commit()
+                                print("✅ Added 'reading' to TaskType enum")
+                            except Exception as e:
+                                # IF NOT EXISTS might not be supported in all PostgreSQL versions
+                                try:
+                                    conn.execute(text("ALTER TYPE tasktype ADD VALUE 'reading'"))
+                                    conn.commit()
+                                    print("✅ Added 'reading' to TaskType enum")
+                                except Exception as e2:
+                                    print(f"⚠️  Could not add 'reading' to TaskType enum: {e2}")
+                    
+                    # Handle TaskStatus enum - check if it exists and what values it has
+                    check_taskstatus_enum = text("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM pg_type WHERE typname = 'taskstatus'
+                        );
+                    """)
+                    taskstatus_enum_exists = conn.execute(check_taskstatus_enum).scalar()
+                    
+                    if taskstatus_enum_exists:
+                        # Check what enum values exist
+                        taskstatus_values_result = conn.execute(text("""
+                            SELECT enumlabel FROM pg_enum 
+                            WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'taskstatus')
+                            ORDER BY enumsortorder
+                        """))
+                        taskstatus_labels = [row[0] for row in taskstatus_values_result.fetchall()]
+                        print(f"TaskStatus enum exists with values: {taskstatus_labels}")
+                        
+                        # Add lowercase values if they don't exist
+                        lowercase_values = ['draft', 'scheduled', 'published', 'archived']
+                        for value in lowercase_values:
+                            if value not in taskstatus_labels:
+                                try:
+                                    conn.execute(text(f"ALTER TYPE taskstatus ADD VALUE IF NOT EXISTS '{value}'"))
+                                    conn.commit()
+                                    print(f"✅ Added '{value}' to TaskStatus enum")
+                                except Exception as e:
+                                    try:
+                                        conn.execute(text(f"ALTER TYPE taskstatus ADD VALUE '{value}'"))
+                                        conn.commit()
+                                        print(f"✅ Added '{value}' to TaskStatus enum")
+                                    except Exception as e2:
+                                        print(f"⚠️  Could not add '{value}' to TaskStatus enum: {e2}")
+                    
+                    # Since we're using native_enum=False, we need to convert enum columns to VARCHAR
+                    # Check if tasks.type is still an enum type
+                    check_type_column = text("""
+                        SELECT data_type 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'tasks' AND column_name = 'type'
+                    """)
+                    type_column_type = conn.execute(check_type_column).scalar()
+                    
+                    if type_column_type == 'USER-DEFINED':  # It's an enum
+                        print("⚠️  tasks.type is still an enum type. Converting to VARCHAR...")
+                        try:
+                            # Convert enum to VARCHAR
+                            conn.execute(text("ALTER TABLE tasks ALTER COLUMN type TYPE VARCHAR(50) USING type::text"))
+                            conn.commit()
+                            print("✅ Converted tasks.type from enum to VARCHAR")
+                        except Exception as e:
+                            print(f"⚠️  Could not convert tasks.type: {e}")
+                    
+                    # Check and convert status column
+                    check_status_column = text("""
+                        SELECT data_type 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'tasks' AND column_name = 'status'
+                    """)
+                    status_column_type = conn.execute(check_status_column).scalar()
+                    
+                    if status_column_type == 'USER-DEFINED':  # It's an enum
+                        print("⚠️  tasks.status is still an enum type. Converting to VARCHAR...")
+                        try:
+                            # Convert enum to VARCHAR
+                            conn.execute(text("ALTER TABLE tasks ALTER COLUMN status TYPE VARCHAR(50) USING status::text"))
+                            conn.commit()
+                            print("✅ Converted tasks.status from enum to VARCHAR")
+                        except Exception as e:
+                            print(f"⚠️  Could not convert tasks.status: {e}")
                     
                     # Handle SubscriptionType enum - check if it exists and what values it has
                     check_subscription_enum = text("""

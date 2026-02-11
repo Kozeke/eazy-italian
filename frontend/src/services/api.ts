@@ -378,6 +378,21 @@ export const tasksApi = {
     const response: AxiosResponse<TaskSubmission> = await api.post(`/tasks/${id}/submit`, submissionData);
     return response.data;
   },
+
+  uploadTaskFile: async (file: File, fileType: 'listening' | 'reading'): Promise<{ file_path: string; filename: string; size: number; url: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response: AxiosResponse<{ file_path: string; filename: string; size: number; url: string }> = await api.post(
+      `/tasks/admin/tasks/upload-file?file_type=${fileType}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
 };
 
 // Student endpoints

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Enum, ForeignKey, Float, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Enum, ForeignKey, Float, Boolean, TypeDecorator
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -9,6 +9,8 @@ class TaskType(str, enum.Enum):
     AUTO = "auto"
     PRACTICE = "practice"
     WRITING = "writing"
+    LISTENING = "listening"
+    READING = "reading"
 
 class AutoTaskType(str, enum.Enum):
     SCQ = "single_choice"  # Single Choice Question
@@ -39,9 +41,11 @@ class Task(Base):
     description = Column(Text, nullable=True)
     content = Column(Text, nullable=True)
     instructions = Column(Text, nullable=True)  # Rich text instructions
-    type = Column(Enum(TaskType), default=TaskType.MANUAL, nullable=False)
-    auto_task_type = Column(Enum(AutoTaskType), nullable=True)  # For auto-gradable tasks
-    status = Column(Enum(TaskStatus), default=TaskStatus.DRAFT, nullable=False)
+    # Use native_enum=False to store as VARCHAR, but we'll use enum values
+    # This ensures we use lowercase values like "listening" instead of enum names like "LISTENING"
+    type = Column(Enum(TaskType, native_enum=False, values_callable=lambda x: [e.value for e in TaskType]), default=TaskType.MANUAL, nullable=False)
+    auto_task_type = Column(Enum(AutoTaskType, native_enum=False, values_callable=lambda x: [e.value for e in AutoTaskType]), nullable=True)
+    status = Column(Enum(TaskStatus, native_enum=False, values_callable=lambda x: [e.value for e in TaskStatus]), default=TaskStatus.DRAFT, nullable=False)
     publish_at = Column(DateTime(timezone=True), nullable=True)
     order_index = Column(Integer, default=0, nullable=False)
     max_score = Column(Float, default=100.0, nullable=False)
@@ -52,6 +56,7 @@ class Task(Base):
     attachments = Column(JSON, default=list)  # List of file paths
     rubric = Column(JSON, default=dict)  # Grading rubric
     auto_check_config = Column(JSON, default=dict)  # For auto-gradable tasks
+    questions = Column(JSON, default=list)  # Questions about the content (for listening/reading tasks)
     
     # Assignment settings
     assigned_cohorts = Column(JSON, default=list)  # List of cohort IDs

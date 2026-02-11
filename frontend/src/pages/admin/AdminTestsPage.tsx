@@ -60,8 +60,8 @@ export default function AdminTestsPage() {
   };
 
   const loadTests = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const response = await testsApi.getTests();
       const fetchedTests = Array.isArray(response) ? response : response.items || [];
       console.log('Loaded tests from API:', fetchedTests);
@@ -384,10 +384,11 @@ export default function AdminTestsPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-            {sortedTests.map((test) => {
-              const isExpanded = expandedRows.has(test.id);
-              
-              return (
+              {sortedTests.length > 0 ? (
+                sortedTests.map((test) => {
+                  const isExpanded = expandedRows.has(test.id);
+                  
+                  return (
                 <div key={test.id} className="transition-colors hover:bg-gray-50">
                   {/* Collapsed Row */}
                   <div 
@@ -613,35 +614,33 @@ export default function AdminTestsPage() {
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-12">
+                  <ClipboardList className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">Нет тестов</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {searchQuery || selectedLevel || selectedStatus || selectedType
+                      ? 'Попробуйте изменить фильтры поиска.'
+                      : 'Начните с создания первого теста.'
+                    }
+                  </p>
+                  {!searchQuery && !selectedLevel && !selectedStatus && !selectedType && (
+                    <div className="mt-6">
+                      <button
+                        onClick={() => navigate('/admin/tests/new')}
+                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Создать тест
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
-
-        {/* Empty State */}
-        {!loading && sortedTests.length === 0 && (
-          <div className="text-center py-12">
-            <ClipboardList className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Нет тестов</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || selectedLevel || selectedStatus || selectedType
-                ? 'Попробуйте изменить фильтры поиска.'
-                : 'Начните с создания первого теста.'
-              }
-            </p>
-            {!searchQuery && !selectedLevel && !selectedStatus && !selectedType && (
-              <div className="mt-6">
-                <button
-                  onClick={() => navigate('/admin/tests/new')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Создать тест
-                </button>
-              </div>
-            )}
-          </div>
-        )}
         </div>
       </main>
     </div>

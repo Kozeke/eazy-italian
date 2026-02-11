@@ -6,6 +6,7 @@ from typing import List, Dict
 
 from app.models.test import Test, TestAttempt, AttemptStatus
 from app.models.unit import Unit
+from app.models.course import Course
 from app.models.subscription import UserSubscription, Subscription
 from app.models.user import User
 from sqlalchemy import func, case, or_
@@ -13,21 +14,30 @@ from sqlalchemy import func, case, or_
 
 def calculate_progress_for_students(
     student_ids: List[int],
-    db: Session
+    db: Session,
+    teacher_id: int = None
 ) -> List[dict]:
     """
     Calculate test-based progress for all students
+    If teacher_id is provided, only count tests from that teacher's courses
     """
 
-    # First, get count of all published tests
-    total_published_tests = (
-        db.query(func.count(Test.id))
-        .filter(Test.status == "published")
-        .scalar()
-    ) or 0
+    # Build query for total published tests
+    total_tests_query = db.query(func.count(Test.id)).filter(Test.status == "published")
+    
+    # If teacher_id is provided, filter by teacher's courses
+    if teacher_id is not None:
+        total_tests_query = (
+            total_tests_query
+            .join(Unit, Unit.id == Test.unit_id)
+            .join(Course, Course.id == Unit.course_id)
+            .filter(Course.created_by == teacher_id)
+        )
+    
+    total_published_tests = total_tests_query.scalar() or 0
 
     # Get student info with their passed tests count
-    rows = (
+    query = (
         db.query(
             User.id.label("id"),
             User.email,
@@ -56,9 +66,23 @@ def calculate_progress_for_students(
         .outerjoin(TestAttempt, TestAttempt.student_id == User.id)
         .outerjoin(Test, Test.id == TestAttempt.test_id)
         .filter(User.role == "student")
+        .filter(User.id.in_(student_ids))
         .filter(
             (UserSubscription.is_active == True) | (UserSubscription.id == None)
         )
+    )
+    
+    # If teacher_id is provided, filter tests by teacher's courses
+    if teacher_id is not None:
+        query = (
+            query
+            .outerjoin(Unit, Unit.id == Test.unit_id)
+            .outerjoin(Course, Course.id == Unit.course_id)
+            .filter(Course.created_by == teacher_id)
+        )
+    
+    rows = (
+        query
         .group_by(
             User.id,
             User.email,

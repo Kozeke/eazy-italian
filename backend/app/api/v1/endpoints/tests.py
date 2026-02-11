@@ -24,13 +24,17 @@ def get_tests(
     skip: int = 0,
     limit: int = 100
 ):
-    """Get tests, optionally filtered by unit_id"""
+    """Get tests, optionally filtered by unit_id - teachers only see their own tests"""
     from app.models.test import TestQuestion
     
     query = db.query(Test).options(
         joinedload(Test.unit).joinedload(Unit.course),
         joinedload(Test.test_questions)
     )
+    
+    # If user is a teacher, only show their own tests
+    if current_user.role == UserRole.TEACHER:
+        query = query.filter(Test.created_by == current_user.id)
     
     if unit_id is not None:
         query = query.filter(Test.unit_id == unit_id)
@@ -98,9 +102,15 @@ def get_test(
     db: Session = Depends(get_db)
 ):
     """Get a specific test - requires enrollment if test belongs to a course (teachers bypass this check)"""
-    test = db.query(Test).options(
+    query = db.query(Test).options(
         joinedload(Test.unit).joinedload(Unit.course)
-    ).filter(Test.id == test_id).first()
+    ).filter(Test.id == test_id)
+    
+    # If user is a teacher, only show their own tests
+    if current_user.role == UserRole.TEACHER:
+        query = query.filter(Test.created_by == current_user.id)
+    
+    test = query.first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
     
@@ -137,13 +147,13 @@ def update_test(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Update a test - allows changing status (draft, published, archived, etc.)"""
-    test = db.query(Test).filter(Test.id == test_id).first()
+    """Update a test - only if created by current teacher"""
+    test = db.query(Test).filter(
+        Test.id == test_id,
+        Test.created_by == current_user.id
+    ).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
-    
-    if test.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to modify this test")
     
     # Check if status is being changed to PUBLISHED
     update_dict = test_data.dict(exclude_unset=True)
@@ -172,15 +182,13 @@ def delete_test(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Delete a test - any teacher can delete any test in admin panel"""
-    test = db.query(Test).filter(Test.id == test_id).first()
+    """Delete a test - only if created by current teacher"""
+    test = db.query(Test).filter(
+        Test.id == test_id,
+        Test.created_by == current_user.id
+    ).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
-    
-    # Allow any teacher to delete any test (admin panel behavior)
-    # If you want to restrict to creator only, uncomment the line below:
-    # if test.created_by != current_user.id:
-    #     raise HTTPException(status_code=403, detail="Not authorized to delete this test")
     
     db.delete(test)
     db.commit()
@@ -194,10 +202,19 @@ def get_units_for_test_creation(
     db: Session = Depends(get_db)
 ):
     """
-    Get list of all units for test creation dropdown/selection
+    Get list of units for test creation - only units in teacher's courses
     Returns: [{ id, title, level, status }]
     """
-    units = db.query(Unit).all()
+    from app.models.course import Course
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        return []
+    
+    units = db.query(Unit).filter(Unit.course_id.in_(teacher_course_ids)).all()
     return [
         {
             "id": unit.id,
@@ -216,11 +233,11 @@ def get_videos_for_test_creation(
     db: Session = Depends(get_db)
 ):
     """
-    Get list of all videos for test creation
+    Get list of videos for test creation - only videos created by teacher
     Optional filter by unit_id
     Returns: [{ id, title, unit_id, unit_title, status, duration }]
     """
-    query = db.query(Video)
+    query = db.query(Video).filter(Video.created_by == current_user.id)
     if unit_id:
         query = query.filter(Video.unit_id == unit_id)
     
@@ -273,12 +290,35 @@ def get_students_for_test_assignment(
     db: Session = Depends(get_db)
 ):
     """
-    Get list of all students for test assignment
+    Get list of students for test assignment - only students enrolled in teacher's courses
     Returns: [{ id, email, first_name, last_name, full_name }]
     """
     from app.models.user import UserRole
+    from app.models.course import Course
+    from app.models.enrollment import CourseEnrollment
     
-    students = db.query(User).filter(User.role == UserRole.STUDENT).all()
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        return []
+    
+    # Get student IDs enrolled in teacher's courses
+    enrolled_student_ids = [e.user_id for e in db.query(CourseEnrollment.user_id).filter(
+        CourseEnrollment.course_id.in_(teacher_course_ids)
+    ).distinct().all()]
+    
+    if not enrolled_student_ids:
+        return []
+    
+    students = db.query(User).filter(
+        and_(
+            User.role == UserRole.STUDENT,
+            User.id.in_(enrolled_student_ids)
+        )
+    ).all()
     return [
         {
             "id": student.id,

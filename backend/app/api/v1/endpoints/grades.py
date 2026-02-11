@@ -10,7 +10,7 @@ from app.models.course import Course
 router = APIRouter()
 
 
-from sqlalchemy import desc, asc, func, case
+from sqlalchemy import desc, asc, func, case, and_
 
 @router.get("/admin/grades")
 def get_grades(
@@ -30,6 +30,21 @@ def get_grades(
     sort_column = sort_fields.get(sort_by, TestAttempt.submitted_at)
     sort_order = desc(sort_column) if sort_dir == "desc" else asc(sort_column)
 
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        return {
+            "items": [],
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "sort_by": sort_by,
+            "sort_dir": sort_dir,
+        }
+    
     base_query = (
         db.query(
             TestAttempt.id.label("attempt_id"),
@@ -47,6 +62,12 @@ def get_grades(
         .join(Test, Test.id == TestAttempt.test_id)
         .join(Unit, Unit.id == Test.unit_id)
         .outerjoin(Course, Course.id == Unit.course_id)
+        .filter(
+            and_(
+                Test.created_by == current_user.id,
+                Unit.course_id.in_(teacher_course_ids)
+            )
+        )
     )
 
     total = base_query.count()
@@ -91,9 +112,17 @@ def get_grade_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher)
 ):
-    attempt = db.query(TestAttempt).filter(
-        TestAttempt.id == attempt_id
+    """Get grade detail - only if test is created by current teacher"""
+    attempt = db.query(TestAttempt).join(Test).filter(
+        and_(
+            TestAttempt.id == attempt_id,
+            Test.created_by == current_user.id
+        )
     ).first()
+    
+    if not attempt:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Grade not found")
 
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
@@ -144,9 +173,35 @@ def get_student_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher)
 ):
-    """Get student statistics including average grade and test history"""
+    """Get student statistics including average grade and test history - only for teacher's courses"""
+    from app.models.enrollment import CourseEnrollment
     
-    # Get all test attempts for this student
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        return {
+            "student_id": student_id,
+            "total_attempts": 0,
+            "average_score": 0,
+            "attempts": []
+        }
+    
+    # Verify student is enrolled in at least one of teacher's courses
+    student_enrolled = db.query(CourseEnrollment).filter(
+        CourseEnrollment.user_id == student_id,
+        CourseEnrollment.course_id.in_(teacher_course_ids)
+    ).first()
+    
+    if not student_enrolled:
+        raise HTTPException(
+            status_code=403,
+            detail="Student is not enrolled in any of your courses"
+        )
+    
+    # Get test attempts for this student, but only for tests in teacher's courses
     attempts = (
         db.query(
             TestAttempt.id.label("attempt_id"),
@@ -165,6 +220,7 @@ def get_student_stats(
         .outerjoin(Course, Course.id == Unit.course_id)
         .filter(TestAttempt.student_id == student_id)
         .filter(TestAttempt.status == "completed")
+        .filter(Course.created_by == current_user.id)  # Only tests from teacher's courses
         .order_by(desc(TestAttempt.submitted_at))
         .all()
     )
@@ -204,9 +260,18 @@ def get_student_enrollments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher)
 ):
-    """Get student's enrolled courses"""
+    """Get student's enrolled courses - only courses owned by the teacher"""
     from app.models.enrollment import CourseEnrollment
     
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        return []
+    
+    # Get enrollments only for courses owned by the teacher
     enrollments = (
         db.query(
             Course.id.label("course_id"),
@@ -219,6 +284,7 @@ def get_student_enrollments(
         .join(CourseEnrollment, CourseEnrollment.course_id == Course.id)
         .outerjoin(Unit, Unit.course_id == Course.id)
         .filter(CourseEnrollment.user_id == student_id)
+        .filter(Course.id.in_(teacher_course_ids))  # Only teacher's courses
         .group_by(
             Course.id,
             Course.title,

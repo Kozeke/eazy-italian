@@ -64,7 +64,7 @@ export interface Task {
   description?: string;
   instructions?: string;
   content?: string;
-  type: 'manual' | 'auto' | 'practice' | 'writing';
+  type: 'manual' | 'auto' | 'practice' | 'writing' | 'listening' | 'reading';
   auto_task_type?: 'single_choice' | 'multiple_choice' | 'matching' | 'ordering' | 'gap_fill' | 'short_answer' | 'numeric';
   status: 'draft' | 'scheduled' | 'published' | 'archived';
   publish_at?: string;
@@ -77,6 +77,14 @@ export interface Task {
   attachments: string[];
   rubric: Record<string, any>;
   auto_check_config: Record<string, any>;
+  questions?: Array<{
+    id?: string;
+    question: string;
+    type: 'single_choice' | 'multiple_choice' | 'short_answer' | 'true_false';
+    options?: string[];
+    correct_answer?: string | string[];
+    points?: number;
+  }>;
   
   // Assignment settings
   assign_to_all: boolean;

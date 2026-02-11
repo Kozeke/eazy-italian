@@ -19,6 +19,7 @@ import {
   GraduationCap,
   LogOut,
   BookMarked,
+  ClipboardList,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -37,13 +38,15 @@ export default function Layout({ children }: LayoutProps) {
     { name: t('nav.dashboard'), href: '/dashboard', icon: Home },
     { name: t('nav.courses'), href: '/courses', icon: BookMarked },
     { name: t('nav.myCourses') || 'My Courses', href: '/my-courses', icon: BookOpen },
-    // { name: t('nav.tasks'), href: '/tasks', icon: ClipboardList },
+    { name: t('nav.tasks'), href: '/tasks', icon: ClipboardList },
     { name: t('nav.tests'), href: '/tests', icon: FileText },
     { name: t('nav.profile'), href: '/profile', icon: User },
   ];
 
   // Check if navigation item is active based on current route
-  const isActive = (href: string) => location.pathname === href;
+  const isActive = (href: string) => 
+    location.pathname === href || 
+    (href !== '/dashboard' && location.pathname.startsWith(href));
 
   return (
     <div className="min-h-screen bg-slate-50 flex">

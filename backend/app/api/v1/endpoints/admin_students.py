@@ -1,16 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, func
 
 from app.core.database import get_db
 from app.core.auth import get_current_teacher
-from app.models.user import User
-from app.services.user_service import UserService
+from app.models.user import User, UserRole
+from app.models.course import Course
+from app.models.enrollment import CourseEnrollment
 from app.models.subscription import (
     Subscription,
     UserSubscription
 )
 from app.schemas.subscription import ChangeSubscriptionRequest
 from app.schemas.user import UserResponse, UserUpdate
+from app.services.user_service import UserService
 
 router = APIRouter()
 
@@ -22,9 +25,22 @@ def get_students(
     skip: int = 0,
     limit: int = 100
 ):
-    from app.models.enrollment import CourseEnrollment
-    from app.models.subscription import UserSubscription, Subscription
-    from sqlalchemy import func
+    """Get students - only students enrolled in current teacher's courses with subscription info"""
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        return []
+    
+    # Get student IDs enrolled in teacher's courses
+    enrolled_student_ids = [e.user_id for e in db.query(CourseEnrollment.user_id).filter(
+        CourseEnrollment.course_id.in_(teacher_course_ids)
+    ).distinct().all()]
+    
+    if not enrolled_student_ids:
+        return []
     
     # Query students with enrolled courses count and active subscription
     students_query = (
@@ -33,7 +49,12 @@ def get_students(
             func.count(CourseEnrollment.id).label('enrolled_courses_count')
         )
         .outerjoin(CourseEnrollment, CourseEnrollment.user_id == User.id)
-        .filter(User.role == "student")
+        .filter(
+            and_(
+                User.role == UserRole.STUDENT,
+                User.id.in_(enrolled_student_ids)
+            )
+        )
         .group_by(User.id)
         .offset(skip)
         .limit(limit)
@@ -92,10 +113,36 @@ def change_student_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher),
 ):
+    """Change student subscription - only for students enrolled in teacher's courses"""
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        raise HTTPException(
+            status_code=403, 
+            detail="Student is not enrolled in any of your courses"
+        )
+    
+    # Check if student is enrolled in teacher's courses
+    is_enrolled = db.query(CourseEnrollment).filter(
+        and_(
+            CourseEnrollment.user_id == student_id,
+            CourseEnrollment.course_id.in_(teacher_course_ids)
+        )
+    ).first()
+    
+    if not is_enrolled:
+        raise HTTPException(
+            status_code=403, 
+            detail="Student is not enrolled in any of your courses"
+        )
+    
     # 1️⃣ Ensure student exists
     student = db.query(User).filter(
         User.id == student_id,
-        User.role == "student"
+        User.role == UserRole.STUDENT
     ).first()
 
     if not student:
