@@ -851,7 +851,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
             <ClozeFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
           )}
           {question.type === 'visual' && (
-            <VisualFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
+            <VisualFields question={question} onUpdate={onUpdate} />
           )}
         </div>
       )}
@@ -1113,7 +1113,7 @@ const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Qu
 };
 
 // Visual Fields Component
-const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced }) => {
+const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void }> = ({ question, onUpdate }) => {
   const [uploading, setUploading] = useState(false);
   
   // Normalize API base URL (remove trailing /api/v1 if present)
@@ -1408,7 +1408,7 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
                     onChange={(e) => {
                       const newKeywords = [...(question.expected?.keywords || [])];
                       newKeywords[index] = { ...keyword, text: e.target.value };
-                      onUpdate({ expected: { ...question.expected, keywords: newKeywords } });
+                      onUpdate({ expected: { ...question.expected, mode: question.expected?.mode || 'keywords', keywords: newKeywords } });
                     }}
                     placeholder="Ключевое слово"
                     className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
@@ -1419,7 +1419,7 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
                     onChange={(e) => {
                       const newKeywords = [...(question.expected?.keywords || [])];
                       newKeywords[index] = { ...keyword, weight: parseFloat(e.target.value) || 0 };
-                      onUpdate({ expected: { ...question.expected, keywords: newKeywords } });
+                      onUpdate({ expected: { ...question.expected, mode: question.expected?.mode || 'keywords', keywords: newKeywords } });
                     }}
                     step="0.1"
                     min="0"
@@ -1430,7 +1430,7 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
                     type="button"
                     onClick={() => {
                       const newKeywords = question.expected?.keywords?.filter((_, i) => i !== index);
-                      onUpdate({ expected: { ...question.expected, keywords: newKeywords } });
+                      onUpdate({ expected: { ...question.expected, mode: question.expected?.mode || 'keywords', keywords: newKeywords } });
                     }}
                     className="text-red-600 hover:text-red-800"
                   >
@@ -1442,7 +1442,7 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
                 type="button"
                 onClick={() => {
                   const newKeywords = [...(question.expected?.keywords || []), { text: '', weight: 1.0 }];
-                  onUpdate({ expected: { ...question.expected, keywords: newKeywords } });
+                  onUpdate({ expected: { ...question.expected, mode: question.expected?.mode || 'keywords', keywords: newKeywords } });
                 }}
                 className="text-sm text-primary-600 hover:text-primary-700"
               >
@@ -1454,7 +1454,7 @@ const VisualFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Q
             <input
               type="text"
               value={question.expected?.pattern || ''}
-              onChange={(e) => onUpdate({ expected: { ...question.expected, pattern: e.target.value } })}
+              onChange={(e) => onUpdate({ expected: { ...question.expected, mode: question.expected?.mode || 'regex', pattern: e.target.value } })}
               placeholder="Регулярное выражение"
               className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
             />
