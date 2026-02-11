@@ -1112,7 +1112,7 @@ def get_task_statistics(
     )
 
 # Student-facing endpoints
-@router.get("/", response_model=List[TaskList])
+@router.get("", response_model=List[TaskList])
 def get_student_tasks(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
