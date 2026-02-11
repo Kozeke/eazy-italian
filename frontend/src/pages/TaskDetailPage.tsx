@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Award, FileText, BookOpen, X, Play } from 'lucide-react';
+import { ArrowLeft, Calendar, Award, FileText, BookOpen, X, Play, XCircle } from 'lucide-react';
 import { tasksApi } from '../services/api';
 import toast from 'react-hot-toast';
 import { Task } from '../types';
