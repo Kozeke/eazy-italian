@@ -138,12 +138,12 @@ async def get_admin_videos(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get paginated list of videos for admin panel"""
+    """Get paginated list of videos for admin panel - only videos created by current teacher"""
     
-    # Build query
+    # Build query - only videos created by current teacher
     query_builder = db.query(Video).join(Unit).options(
         joinedload(Video.unit)
-    )
+    ).filter(Video.created_by == current_user.id)
     
     # Apply filters
     if query:
@@ -279,9 +279,12 @@ async def get_video(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get video details"""
+    """Get video details - only if created by current teacher"""
     
-    video = db.query(Video).filter(Video.id == video_id).first()
+    video = db.query(Video).filter(
+        Video.id == video_id,
+        Video.created_by == current_user.id
+    ).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
@@ -294,9 +297,12 @@ async def update_video(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Update video"""
+    """Update video - only if created by current teacher"""
     
-    video = db.query(Video).filter(Video.id == video_id).first()
+    video = db.query(Video).filter(
+        Video.id == video_id,
+        Video.created_by == current_user.id
+    ).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
@@ -325,9 +331,12 @@ async def upload_thumbnail(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Upload a thumbnail for a video"""
+    """Upload a thumbnail for a video - only if created by current teacher"""
     
-    video = db.query(Video).filter(Video.id == video_id).first()
+    video = db.query(Video).filter(
+        Video.id == video_id,
+        Video.created_by == current_user.id
+    ).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
@@ -440,9 +449,12 @@ async def generate_thumbnail(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Generate a default thumbnail for a video based on unit level"""
+    """Generate a default thumbnail for a video - only if created by current teacher"""
     
-    video = db.query(Video).join(Unit).filter(Video.id == video_id).first()
+    video = db.query(Video).join(Unit).filter(
+        Video.id == video_id,
+        Video.created_by == current_user.id
+    ).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
@@ -476,9 +488,12 @@ async def delete_video(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Delete video"""
+    """Delete video - only if created by current teacher"""
     
-    video = db.query(Video).filter(Video.id == video_id).first()
+    video = db.query(Video).filter(
+        Video.id == video_id,
+        Video.created_by == current_user.id
+    ).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     

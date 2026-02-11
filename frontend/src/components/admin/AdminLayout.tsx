@@ -26,6 +26,7 @@ import {
   Plus,
   GraduationCap,
   BookMarked,
+  FileText,
 } from 'lucide-react';
 
 interface AdminLayoutProps {}
@@ -36,7 +37,7 @@ const navigation = [
   { name: 'courses', href: '/admin/courses', icon: BookMarked },
   { name: 'units', href: '/admin/units', icon: BookOpen },
   { name: 'videos', href: '/admin/videos', icon: Video },
-  // { name: 'tasks', href: '/admin/tasks', icon: FileText },
+  { name: 'tasks', href: '/admin/tasks', icon: FileText },
   { name: 'tests', href: '/admin/tests', icon: ClipboardList },
   // { name: 'questionBank', href: '/admin/questions', icon: Database },
   { name: 'students', href: '/admin/students', icon: Users },
@@ -78,10 +79,17 @@ export default function AdminLayout({}: AdminLayoutProps) {
       navigate('/admin/courses/new');
     } else if (currentPath.includes('/units')) {
       navigate('/admin/units/new');
-    // } else if (currentPath.includes('/tasks')) {
-    //   navigate('/admin/tasks/new');
+    } else if (currentPath.includes('/videos')) {
+      navigate('/admin/videos/new');
+    } else if (currentPath.includes('/tasks')) {
+      navigate('/admin/tasks/new');
     } else if (currentPath.includes('/tests')) {
       navigate('/admin/tests/new');
+    } else if (currentPath.includes('/students')) {
+      navigate('/admin/students/new');
+    } else {
+      // Default to courses if on dashboard or unknown route
+      navigate('/admin/courses/new');
     }
   };
 

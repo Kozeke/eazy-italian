@@ -38,13 +38,22 @@ async def get_admin_units(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get paginated list of units for admin panel"""
+    """Get paginated list of units for admin panel - only units in teacher's courses"""
     
-    # Build query
+    # Get teacher's course IDs
+    from app.models.course import Course
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        return []
+    
+    # Build query - only units in teacher's courses
     query_builder = db.query(Unit).options(
         joinedload(Unit.created_by_user),
         joinedload(Unit.course)
-    )
+    ).filter(Unit.course_id.in_(teacher_course_ids))
     
     # Apply filters
     if query:
@@ -149,9 +158,20 @@ async def get_unit(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get unit details with content"""
+    """Get unit details with content - only if unit is in teacher's course"""
     
-    unit = db.query(Unit).filter(Unit.id == unit_id).first()
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    
+    unit = db.query(Unit).filter(
+        Unit.id == unit_id,
+        Unit.course_id.in_(teacher_course_ids)
+    ).first()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
     

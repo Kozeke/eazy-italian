@@ -117,12 +117,12 @@ async def get_admin_courses(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get paginated list of courses for admin panel"""
+    """Get paginated list of courses for admin panel - only shows courses created by current teacher"""
     
-    # Build query
+    # Build query - ONLY show courses created by current teacher
     query_builder = db.query(Course).options(
         joinedload(Course.created_by_user)
-    )
+    ).filter(Course.created_by == current_user.id)
     
     # Apply filters
     if query:
@@ -140,8 +140,8 @@ async def get_admin_courses(
     if status:
         query_builder = query_builder.filter(Course.status == status)
     
-    if created_by:
-        query_builder = query_builder.filter(Course.created_by == created_by)
+    # Remove created_by filter since we're already filtering by current_user.id
+    # Teachers can only see their own courses
     
     # Apply pagination
     offset = (page - 1) * limit
@@ -256,11 +256,14 @@ async def get_admin_course(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get a specific course with its units"""
+    """Get a specific course with its units - only if created by current teacher"""
     
     course = db.query(Course).options(
         joinedload(Course.units)
-    ).filter(Course.id == course_id).first()
+    ).filter(
+        Course.id == course_id,
+        Course.created_by == current_user.id
+    ).first()
     
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -313,9 +316,12 @@ async def update_course(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Update a course"""
+    """Update a course - only if created by current teacher"""
     
-    course = db.query(Course).filter(Course.id == course_id).first()
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.created_by == current_user.id
+    ).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
@@ -485,15 +491,14 @@ async def delete_course(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Delete a course"""
+    """Delete a course - only if created by current teacher"""
     
-    course = db.query(Course).filter(Course.id == course_id).first()
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.created_by == current_user.id
+    ).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    
-    # Check permissions
-    if course.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this course")
     
     db.delete(course)
     db.commit()
@@ -507,14 +512,14 @@ async def publish_course(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Publish a course"""
+    """Publish a course - only if created by current teacher"""
     
-    course = db.query(Course).filter(Course.id == course_id).first()
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.created_by == current_user.id
+    ).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    
-    if course.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to publish this course")
     
     can_publish, reason = course.can_publish()
     if not can_publish:
@@ -562,10 +567,13 @@ async def reorder_courses(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Reorder courses"""
+    """Reorder courses - only courses created by current teacher"""
     
     for index, course_id in enumerate(reorder_data.course_ids):
-        course = db.query(Course).filter(Course.id == course_id).first()
+        course = db.query(Course).filter(
+            Course.id == course_id,
+            Course.created_by == current_user.id
+        ).first()
         if course:
             course.order_index = index
             course.updated_by = current_user.id
@@ -1030,54 +1038,107 @@ async def get_dashboard_statistics(
     now = datetime.now(timezone.utc)
     month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
     
-    # Count courses
-    courses_count = db.query(func.count(Course.id)).scalar() or 0
+    # Get teacher's course IDs for filtering
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
     
-    # Count courses created this month
+    # Count courses - only teacher's courses
+    courses_count = db.query(func.count(Course.id)).filter(
+        Course.created_by == current_user.id
+    ).scalar() or 0
+    
+    # Count courses created this month - only teacher's courses
     courses_this_month = db.query(func.count(Course.id)).filter(
-        Course.created_at >= month_start
-    ).scalar() or 0
-    
-    # Count units
-    units_count = db.query(func.count(Unit.id)).scalar() or 0
-    
-    # Count units created this month
-    units_this_month = db.query(func.count(Unit.id)).filter(
-        Unit.created_at >= month_start
-    ).scalar() or 0
-    
-    # Count videos
-    videos_count = db.query(func.count(Video.id)).scalar() or 0
-    
-    # Count videos created this month
-    videos_this_month = db.query(func.count(Video.id)).filter(
-        Video.created_at >= month_start
-    ).scalar() or 0
-    
-    # Count tests
-    tests_count = db.query(func.count(Test.id)).scalar() or 0
-    
-    # Count tests created this month
-    tests_this_month = db.query(func.count(Test.id)).filter(
-        Test.created_at >= month_start
-    ).scalar() or 0
-    
-    # Count students
-    students_count = db.query(func.count(User.id)).filter(
-        User.role == UserRole.STUDENT
-    ).scalar() or 0
-    
-    # Count students created this month
-    students_this_month = db.query(func.count(User.id)).filter(
         and_(
-            User.role == UserRole.STUDENT,
-            User.created_at >= month_start
+            Course.created_by == current_user.id,
+            Course.created_at >= month_start
         )
     ).scalar() or 0
     
+    # Count units - only in teacher's courses
+    if teacher_course_ids:
+        units_count = db.query(func.count(Unit.id)).filter(
+            Unit.course_id.in_(teacher_course_ids)
+        ).scalar() or 0
+    else:
+        units_count = 0
+    
+    # Count units created this month - only in teacher's courses
+    if teacher_course_ids:
+        units_this_month = db.query(func.count(Unit.id)).filter(
+            and_(
+                Unit.course_id.in_(teacher_course_ids),
+                Unit.created_at >= month_start
+            )
+        ).scalar() or 0
+        
+        # Count videos - only in teacher's courses
+        videos_count = db.query(func.count(Video.id)).join(Unit).filter(
+            Unit.course_id.in_(teacher_course_ids)
+        ).scalar() or 0
+        
+        # Count videos created this month - only in teacher's courses
+        videos_this_month = db.query(func.count(Video.id)).join(Unit).filter(
+            and_(
+                Unit.course_id.in_(teacher_course_ids),
+                Video.created_at >= month_start
+            )
+        ).scalar() or 0
+        
+        # Count tests - only in teacher's courses
+        tests_count = db.query(func.count(Test.id)).join(Unit).filter(
+            Unit.course_id.in_(teacher_course_ids)
+        ).scalar() or 0
+        
+        # Count tests created this month - only in teacher's courses
+        tests_this_month = db.query(func.count(Test.id)).join(Unit).filter(
+            and_(
+                Unit.course_id.in_(teacher_course_ids),
+                Test.created_at >= month_start
+            )
+        ).scalar() or 0
+    else:
+        units_this_month = 0
+        videos_count = 0
+        videos_this_month = 0
+        tests_count = 0
+        tests_this_month = 0
+    
+    # Count students - only students enrolled in teacher's courses
+    if teacher_course_ids:
+        enrolled_student_ids = [e.user_id for e in db.query(CourseEnrollment.user_id).filter(
+            CourseEnrollment.course_id.in_(teacher_course_ids)
+        ).distinct().all()]
+        
+        students_count = db.query(func.count(User.id)).filter(
+            and_(
+                User.role == UserRole.STUDENT,
+                User.id.in_(enrolled_student_ids) if enrolled_student_ids else []
+            )
+        ).scalar() or 0
+        
+        # Count students created this month - only enrolled in teacher's courses
+        students_this_month = db.query(func.count(User.id)).filter(
+            and_(
+                User.role == UserRole.STUDENT,
+                User.id.in_(enrolled_student_ids) if enrolled_student_ids else [],
+                User.created_at >= month_start
+            )
+        ).scalar() or 0
+    else:
+        students_count = 0
+        students_this_month = 0
+        enrolled_student_ids = []
+    
     # COURSE-LEVEL AGGREGATED PROGRESS (Overview, not details)
-    # Get all courses with their units
-    all_courses = db.query(Course).filter(Course.status == 'published').all()
+    # Get all courses with their units - only teacher's courses
+    all_courses = db.query(Course).filter(
+        and_(
+            Course.created_by == current_user.id,
+            Course.status == 'published'
+        )
+    ).all()
     
     course_progress = []
     at_risk_students = []
@@ -1211,9 +1272,16 @@ async def get_dashboard_statistics(
             })
     
     # STUDENT-LEVEL AGGREGATED PROGRESS (Overview - who is doing well / who is stuck)
-    all_students = db.query(User.id, User.first_name, User.last_name).filter(
-        User.role == UserRole.STUDENT
-    ).all()
+    # Only students enrolled in teacher's courses
+    if enrolled_student_ids:
+        all_students = db.query(User.id, User.first_name, User.last_name).filter(
+            and_(
+                User.role == UserRole.STUDENT,
+                User.id.in_(enrolled_student_ids)
+            )
+        ).all()
+    else:
+        all_students = []
     
     students_progress = []
     

@@ -58,3 +58,16 @@ def notify_test_completed(db: Session, student_id: int, test_id: int, test_title
         related_id=test_id,
         related_type="test"
     )
+
+
+def notify_task_submitted(db: Session, student_id: int, task_id: int, task_title: str):
+    """Create notification when student submits a task (for teacher)"""
+    return create_notification(
+        db=db,
+        notification_type=NotificationType.TASK_SUBMITTED,
+        title="Новая сдача задания",
+        message=f"Студент отправил задание: {task_title}",
+        student_id=student_id,
+        related_id=task_id,
+        related_type="task"
+    )

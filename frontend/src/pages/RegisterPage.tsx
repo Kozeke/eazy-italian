@@ -46,7 +46,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      await registerUser({
+      const registeredUser = await registerUser({
         email: data.email,
         password: data.password,
         first_name: data.first_name,
@@ -54,7 +54,12 @@ export default function RegisterPage() {
         role: data.role,
       });
       toast.success(t('auth.registerSuccess') || 'Registration successful!');
-      navigate('/dashboard');
+      // Navigate based on user role
+      if (registeredUser?.role === 'teacher') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       toast.error(error.message || t('auth.registerError') || 'Registration error');
     } finally {

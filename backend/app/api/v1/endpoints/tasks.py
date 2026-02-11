@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_, desc, asc
+from sqlalchemy import and_, or_, desc, asc, func, case
 from typing import List, Optional
 from datetime import datetime, timedelta
 import json
+import os
+import uuid
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_teacher
@@ -17,6 +19,7 @@ from app.schemas.task import (
 )
 from app.services.user_service import UserService
 from app.services.email_service import EmailService
+from app.services.notification_service import notify_task_submitted
 
 router = APIRouter()
 
@@ -29,14 +32,155 @@ def get_task_with_relations(db: Session, task_id: int) -> Optional[Task]:
         joinedload(Task.submissions).joinedload(TaskSubmission.student)
     ).filter(Task.id == task_id).first()
 
-def validate_task_assignment(task_data: dict) -> None:
+def get_course_enrolled_students(db: Session, course_id: int) -> List[int]:
+    """Get all student IDs enrolled in a course"""
+    from app.models.enrollment import CourseEnrollment
+    from app.models.user import UserRole
+    
+    enrollments = db.query(CourseEnrollment.user_id).join(
+        User, User.id == CourseEnrollment.user_id
+    ).filter(
+        CourseEnrollment.course_id == course_id,
+        User.role == UserRole.STUDENT
+    ).all()
+    
+    return [e.user_id for e in enrollments]
+
+def validate_task_assignment(task_data: dict, db: Session = None, unit_id: int = None) -> None:
     """Validate task assignment settings"""
-    if task_data.get('status') == TaskStatus.PUBLISHED:
-        if not task_data.get('assign_to_all') and not task_data.get('assigned_cohorts') and not task_data.get('assigned_students'):
+    status_val = task_data.get('status')
+    # Handle both enum and string values
+    is_published = False
+    if isinstance(status_val, TaskStatus):
+        is_published = status_val == TaskStatus.PUBLISHED
+    elif isinstance(status_val, str):
+        is_published = status_val.lower() == 'published'
+    elif hasattr(status_val, 'value'):
+        is_published = status_val.value == 'published'
+    
+    if is_published:
+        has_assignments = (
+            task_data.get('assign_to_all') or 
+            (task_data.get('assigned_cohorts') and len(task_data.get('assigned_cohorts', [])) > 0) or 
+            (task_data.get('assigned_students') and len(task_data.get('assigned_students', [])) > 0)
+        )
+        
+        if not has_assignments:
+            # If task has a unit_id, we can auto-assign to enrolled students
+            # So we allow publishing without explicit assignments
+            check_unit_id = unit_id or task_data.get('unit_id')
+            if check_unit_id and db:
+                # Check if unit exists and has a course
+                unit = db.query(Unit).filter(Unit.id == check_unit_id).first()
+                if unit and unit.course_id:
+                    # Unit has a course, we can auto-assign, so allow it
+                    return
+            
+            # No unit_id or can't auto-assign, require explicit assignment
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Задание должно быть назначено хотя бы одной аудитории при публикации"
             )
+
+def auto_grade_task_submission(task: Task, student_answers: dict) -> dict:
+    """
+    Auto-grade a task submission for listening/reading tasks with questions.
+    Returns dict with score, max_score, and question_results.
+    """
+    if task.type not in [TaskType.LISTENING, TaskType.READING]:
+        return None
+    
+    if not task.questions or len(task.questions) == 0:
+        return None
+    
+    total_score = 0.0
+    max_score = 0.0
+    question_results = {}
+    
+    for index, question in enumerate(task.questions):
+        question_id = question.get('id') or f"q-{index}"
+        question_type = question.get('type', '').lower()
+        correct_answer = question.get('correct_answer')
+        points = question.get('points', 1.0)
+        options = question.get('options', [])
+        
+        max_score += points
+        
+        student_answer = student_answers.get(question_id) or student_answers.get(str(index))
+        points_earned = 0.0
+        is_correct = False
+        
+        if question_type == 'multiple_choice':
+            # For multiple choice, correct_answer is an array
+            # Normalize correct_answer to always be a list
+            if not isinstance(correct_answer, list):
+                correct_answer = [correct_answer]
+            
+            # Normalize student_answer to always be a list
+            if isinstance(student_answer, str):
+                student_answer = [student_answer]
+            elif not isinstance(student_answer, list):
+                student_answer = []
+            
+            # Compare sets to handle order differences
+            correct_set = set(str(c) for c in correct_answer)
+            student_set = set(str(s) for s in student_answer)
+            
+            if correct_set == student_set:
+                is_correct = True
+                points_earned = points
+            else:
+                # Partial credit: correct selections / total correct
+                correct_selections = len(correct_set & student_set)
+                if len(correct_set) > 0:
+                    points_earned = points * (correct_selections / len(correct_set))
+                else:
+                    points_earned = 0.0
+        
+        elif question_type == 'single_choice' or question_type == 'true_false':
+            # For single choice, correct_answer can be a string or array with one element
+            if isinstance(correct_answer, list):
+                correct_val = correct_answer[0] if len(correct_answer) > 0 else None
+            else:
+                correct_val = correct_answer
+            
+            if correct_val is not None and str(student_answer) == str(correct_val):
+                is_correct = True
+                points_earned = points
+        
+        elif question_type == 'short_answer':
+            # For short answer, check if answer matches (case-insensitive)
+            if isinstance(correct_answer, list):
+                correct_vals = [str(c).lower().strip() for c in correct_answer]
+            else:
+                correct_vals = [str(correct_answer).lower().strip()]
+            
+            student_val = str(student_answer).lower().strip() if student_answer else ""
+            if student_val in correct_vals:
+                is_correct = True
+                points_earned = points
+        
+        total_score += points_earned
+        
+        question_results[question_id] = {
+            'question': question.get('question', ''),
+            'type': question_type,
+            'student_answer': student_answer,
+            'correct_answer': correct_answer,
+            'is_correct': is_correct,
+            'points_earned': points_earned,
+            'points_possible': points
+        }
+    
+    # Calculate percentage score
+    percentage_score = (total_score / max_score * 100) if max_score > 0 else 0.0
+    
+    return {
+        'score': total_score,
+        'max_score': max_score,
+        'percentage': percentage_score,
+        'question_results': question_results
+    }
 
 def validate_auto_config(task_data: dict) -> None:
     """Validate auto-check configuration"""
@@ -110,11 +254,22 @@ def get_admin_tasks(
     sort_by: str = Query("created_at"),
     sort_order: str = Query("desc")
 ):
-    """Get tasks for admin with filtering and pagination"""
-    query = db.query(Task).options(
+    """Get tasks for admin with filtering and pagination - only tasks in teacher's courses"""
+    from app.models.course import Course
+    
+    # Get teacher's course IDs
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+    
+    if not teacher_course_ids:
+        return []
+    
+    # Build query - only tasks in units that belong to teacher's courses
+    query = db.query(Task).join(Unit).options(
         joinedload(Task.unit),
         joinedload(Task.submissions)
-    )
+    ).filter(Unit.course_id.in_(teacher_course_ids))
     
     # Apply filters
     if search:
@@ -169,9 +324,60 @@ def get_admin_tasks(
     total = query.count()
     tasks = query.offset(skip).limit(limit).all()
     
+    # Get task IDs for batch querying submissions
+    task_ids = [task.id for task in tasks]
+    
+    # Query submission counts directly from database for accuracy
+    if task_ids:
+        # Get all submissions for these tasks
+        all_submissions = db.query(TaskSubmission).filter(
+            TaskSubmission.task_id.in_(task_ids)
+        ).all()
+        
+        # Calculate stats manually for accuracy
+        stats_dict = {}
+        for task_id in task_ids:
+            task_subs = [s for s in all_submissions if s.task_id == task_id]
+            total = len(task_subs)
+            submitted = len([s for s in task_subs if s.status in [SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED]])
+            graded = len([s for s in task_subs if s.status == SubmissionStatus.GRADED])
+            stats_dict[task_id] = {
+                'total': total,
+                'submitted': submitted,
+                'graded': graded
+            }
+    else:
+        stats_dict = {}
+    
+    # Query average scores for graded submissions
+    if task_ids:
+        avg_scores = db.query(
+            TaskSubmission.task_id,
+            func.avg(TaskSubmission.score).label('avg_score')
+        ).filter(
+            and_(
+                TaskSubmission.task_id.in_(task_ids),
+                TaskSubmission.status == SubmissionStatus.GRADED,
+                TaskSubmission.score.isnot(None)
+            )
+        ).group_by(TaskSubmission.task_id).all()
+        
+        avg_scores_dict = {task_id: float(avg_score) for task_id, avg_score in avg_scores}
+    else:
+        avg_scores_dict = {}
+    
     # Convert to TaskList objects manually
     result = []
     for task in tasks:
+        # Get submission stats from database query
+        stats = stats_dict.get(task.id, {'total': 0, 'submitted': 0, 'graded': 0})
+        submission_stats = {
+            "total": stats['total'],
+            "submitted": stats['submitted'],
+            "graded": stats['graded'],
+            "pending": stats['submitted'] - stats['graded']
+        }
+        
         task_data = {
             # TaskBase fields
             "title": task.title,
@@ -201,8 +407,8 @@ def get_admin_tasks(
             "created_at": task.created_at,
             "updated_at": task.updated_at,
             "assigned_student_count": task.assigned_student_count,
-            "submission_stats": task.submission_stats,
-            "average_score": task.average_score,
+            "submission_stats": submission_stats,
+            "average_score": avg_scores_dict.get(task.id, 0.0),
             "is_available": task.is_available,
             "is_overdue": task.is_overdue,
             "unit_title": task.unit.title if task.unit else None,
@@ -223,23 +429,242 @@ def create_task(
     db: Session = Depends(get_db)
 ):
     """Create a new task"""
-    # Validate assignment settings
-    validate_task_assignment(task_data.dict())
+    # Convert task_data to dict and ensure enum values are used (not names)
+    # Use model_dump with mode='python' to get Python native types, then convert enums
+    task_dict = task_data.dict(exclude_unset=True)
+    
+    # Validate assignment settings (pass db and unit_id for auto-assignment check)
+    validate_task_assignment(task_dict, db=db, unit_id=task_dict.get('unit_id'))
     
     # Validate auto-config if applicable
-    validate_auto_config(task_data.dict())
+    validate_auto_config(task_dict)
     
-    # Create task
+    # Ensure enum values are converted to their string values
+    # Pydantic may serialize enums as their names, so we need to convert them explicitly
+    from app.models.task import TaskType, AutoTaskType, TaskStatus
+    
+    # Convert type enum to lowercase string value
+    if 'type' in task_dict:
+        type_val = task_dict['type']
+        if isinstance(type_val, TaskType):
+            task_dict['type'] = type_val.value  # Use enum value (e.g., "listening")
+        elif isinstance(type_val, str):
+            task_dict['type'] = type_val.lower()  # Ensure lowercase
+        else:
+            # Try to get value attribute
+            task_dict['type'] = getattr(type_val, 'value', str(type_val).lower())
+    
+    # Convert auto_task_type enum to lowercase string value
+    if 'auto_task_type' in task_dict and task_dict['auto_task_type'] is not None:
+        auto_type_val = task_dict['auto_task_type']
+        if isinstance(auto_type_val, AutoTaskType):
+            task_dict['auto_task_type'] = auto_type_val.value
+        elif isinstance(auto_type_val, str):
+            task_dict['auto_task_type'] = auto_type_val.lower()
+        else:
+            task_dict['auto_task_type'] = getattr(auto_type_val, 'value', str(auto_type_val).lower())
+    
+    # Convert status enum to lowercase string value
+    if 'status' in task_dict:
+        status_val = task_dict['status']
+        if isinstance(status_val, TaskStatus):
+            task_dict['status'] = status_val.value  # Use enum value (e.g., "draft")
+        elif isinstance(status_val, str):
+            task_dict['status'] = status_val.lower()
+        else:
+            task_dict['status'] = getattr(status_val, 'value', str(status_val).lower())
+    else:
+        # If status is not provided, default to DRAFT
+        task_dict['status'] = TaskStatus.DRAFT.value
+        print(f"[DEBUG] Status not provided in request, defaulting to DRAFT")
+    
+    # Debug: Print the status value to verify it's set correctly
+    print(f"[DEBUG] Task status value: {task_dict.get('status')}, type: {type(task_dict.get('status'))}")
+    print(f"[DEBUG] Task type value: {task_dict.get('type')}, type: {type(task_dict.get('type'))}")
+    
+    # Create task - set enum fields as enum objects, not strings
+    # SQLAlchemy will use the enum value when saving to database
     task = Task(
-        **task_data.dict(exclude_unset=True),
         created_by=current_user.id
     )
+    
+    # Set all non-enum fields first
+    for key, value in task_dict.items():
+        if key not in ['type', 'status', 'auto_task_type']:
+            setattr(task, key, value)
+    
+    # Set enum fields as enum objects (SQLAlchemy will use .value for str enums)
+    if 'type' in task_dict:
+        type_str = task_dict['type']
+        # Convert string to enum object
+        try:
+            task.type = TaskType(type_str)  # This will use the value, e.g., TaskType("listening")
+        except ValueError:
+            # If direct conversion fails, try by name
+            task.type = TaskType[type_str.upper()]
+    
+    if 'status' in task_dict:
+        status_str = task_dict['status']
+        try:
+            task.status = TaskStatus(status_str)
+            print(f"[DEBUG] Set task status to: {task.status.value}")
+        except ValueError:
+            try:
+                task.status = TaskStatus[status_str.upper()]
+                print(f"[DEBUG] Set task status to (by name): {task.status.value}")
+            except KeyError:
+                print(f"[DEBUG] Invalid status value: {status_str}, defaulting to DRAFT")
+                task.status = TaskStatus.DRAFT
+    else:
+        print(f"[DEBUG] Status not in task_dict, using model default (DRAFT)")
+        task.status = TaskStatus.DRAFT
+    
+    # Set publish_at if status is PUBLISHED and publish_at is not already set
+    if task.status == TaskStatus.PUBLISHED and not task.publish_at:
+        task.publish_at = datetime.utcnow()
+        print(f"[DEBUG] Set publish_at to current time for PUBLISHED task")
+    
+    # Auto-assign to all enrolled students if publishing
+    if task.status == TaskStatus.PUBLISHED and task.unit_id:
+        # If assign_to_all is True, assign to all enrolled students in the course
+        if task.assign_to_all:
+            unit = db.query(Unit).filter(Unit.id == task.unit_id).first()
+            if unit and unit.course_id:
+                # Get all students enrolled in the course
+                enrolled_student_ids = get_course_enrolled_students(db, unit.course_id)
+                if enrolled_student_ids:
+                    task.assigned_students = enrolled_student_ids
+                    print(f"[DEBUG] Assigned task to all {len(enrolled_student_ids)} students enrolled in course {unit.course_id}")
+                else:
+                    print(f"[DEBUG] No students enrolled in course {unit.course_id}")
+        # If no assignments are set, auto-assign to all enrolled students
+        elif not task.assigned_cohorts and not task.assigned_students:
+            # Get the course_id from the unit
+            unit = db.query(Unit).filter(Unit.id == task.unit_id).first()
+            if unit and unit.course_id:
+                # Get all students enrolled in the course
+                enrolled_student_ids = get_course_enrolled_students(db, unit.course_id)
+                if enrolled_student_ids:
+                    task.assigned_students = enrolled_student_ids
+                    print(f"[DEBUG] Auto-assigned task to {len(enrolled_student_ids)} students enrolled in course {unit.course_id}")
+                else:
+                    print(f"[DEBUG] No students enrolled in course {unit.course_id}, task will be published without assignments")
+    
+    if 'auto_task_type' in task_dict and task_dict['auto_task_type'] is not None:
+        auto_type_str = task_dict['auto_task_type']
+        try:
+            task.auto_task_type = AutoTaskType(auto_type_str)
+        except ValueError:
+            task.auto_task_type = AutoTaskType[auto_type_str.upper()]
     
     db.add(task)
     db.commit()
     db.refresh(task)
     
     return task
+
+def get_uploads_path():
+    """Get the uploads directory path"""
+    current_file = os.path.abspath(__file__)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
+    
+    # Check if we're in Docker
+    is_docker = (os.name != 'nt' and
+                 os.path.exists("/app") and 
+                 os.getcwd() == "/app" and 
+                 backend_dir == "/app")
+    
+    if is_docker:
+        return "/app/uploads"
+    else:
+        return os.path.join(backend_dir, "uploads")
+
+@router.post("/admin/tasks/upload-file")
+async def upload_task_file(
+    file: UploadFile = File(...),
+    file_type: str = Query(..., description="Type of file: 'listening' for audio/video, 'reading' for documents"),
+    current_user: User = Depends(get_current_teacher)
+):
+    """Upload a file for listening or reading task"""
+    
+    # Allowed file types for listening (audio/video)
+    listening_mime_types = [
+        'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/wave', 'audio/x-wav',
+        'audio/ogg', 'audio/webm', 'audio/aac', 'audio/flac',
+        'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo',
+        'video/x-matroska', 'video/ogg', 'video/x-flv', 'video/3gpp', 'video/x-ms-wmv'
+    ]
+    listening_extensions = ['.mp3', '.wav', '.ogg', '.webm', '.aac', '.flac',
+                            '.mp4', '.webm', '.mov', '.avi', '.mkv', '.ogv', '.flv', '.3gp', '.wmv']
+    
+    # Allowed file types for reading (documents)
+    reading_mime_types = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
+        'text/plain',
+        'text/html',
+        'application/rtf'
+    ]
+    reading_extensions = ['.pdf', '.doc', '.docx', '.txt', '.html', '.rtf']
+    
+    # Validate file type based on task type
+    if file_type == 'listening':
+        allowed_mime_types = listening_mime_types
+        allowed_extensions = listening_extensions
+        subfolder = 'audio'
+    elif file_type == 'reading':
+        allowed_mime_types = reading_mime_types
+        allowed_extensions = reading_extensions
+        subfolder = 'documents'
+    else:
+        raise HTTPException(status_code=400, detail="Invalid file_type. Must be 'listening' or 'reading'")
+    
+    # Validate file type
+    if not file.content_type:
+        if file.filename:
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            if file_ext not in allowed_extensions:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid file type. Allowed formats: {', '.join(allowed_extensions)}"
+                )
+        else:
+            raise HTTPException(status_code=400, detail="File type could not be determined")
+    elif file.content_type not in allowed_mime_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed formats: {', '.join(allowed_extensions)}"
+        )
+    
+    # Get uploads path
+    uploads_path = get_uploads_path()
+    files_dir = os.path.join(uploads_path, "tasks", subfolder, str(current_user.id))
+    os.makedirs(files_dir, exist_ok=True)
+    
+    # Generate filename
+    file_ext = os.path.splitext(file.filename or f'file.{allowed_extensions[0][1:]}')[1] or allowed_extensions[0]
+    filename = f"{uuid.uuid4().hex[:16]}{file_ext}"
+    file_path = os.path.join(files_dir, filename)
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Return relative path (relative to uploads directory)
+        relative_path = f"tasks/{subfolder}/{current_user.id}/{filename}"
+        
+        return {
+            "message": "File uploaded successfully",
+            "file_path": relative_path,
+            "filename": filename,
+            "size": len(content),
+            "url": f"/api/v1/static/{relative_path}"  # URL to access the file via static mount
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
 @router.get("/admin/tasks/{task_id}", response_model=TaskInDB)
 def get_admin_task(
@@ -274,12 +699,78 @@ def update_task(
     
     # Validate assignment settings
     update_data = task_data.dict(exclude_unset=True)
-    validate_task_assignment(update_data)
+    
+    # For validation, merge update data with existing task data
+    # This ensures validation checks the final state after update would be applied
+    validation_data = {
+        'status': update_data.get('status', task.status),
+        'assign_to_all': update_data.get('assign_to_all', task.assign_to_all),
+        'assigned_cohorts': update_data.get('assigned_cohorts', task.assigned_cohorts or []),
+        'assigned_students': update_data.get('assigned_students', task.assigned_students or []),
+        'unit_id': update_data.get('unit_id', task.unit_id)
+    }
+    
+    validate_task_assignment(validation_data, db=db, unit_id=validation_data.get('unit_id'))
     validate_auto_config(update_data)
+    
+    # Ensure enum values are converted to their string values
+    if 'type' in update_data and hasattr(update_data['type'], 'value'):
+        update_data['type'] = update_data['type'].value
+    if 'auto_task_type' in update_data and update_data['auto_task_type'] is not None and hasattr(update_data['auto_task_type'], 'value'):
+        update_data['auto_task_type'] = update_data['auto_task_type'].value
+    if 'status' in update_data and hasattr(update_data['status'], 'value'):
+        update_data['status'] = update_data['status'].value
     
     # Update task
     for field, value in update_data.items():
         setattr(task, field, value)
+    
+    # Check if status is being changed to PUBLISHED
+    new_status = update_data.get('status')
+    is_being_published = False
+    if new_status:
+        if isinstance(new_status, TaskStatus):
+            is_being_published = new_status == TaskStatus.PUBLISHED
+        elif isinstance(new_status, str):
+            is_being_published = new_status.lower() == 'published'
+        elif hasattr(new_status, 'value'):
+            is_being_published = new_status.value == 'published'
+    
+    # Auto-assign to all enrolled students if publishing
+    if is_being_published and task.unit_id:
+        # Check final assignment state after update
+        final_assign_to_all = update_data.get('assign_to_all', task.assign_to_all)
+        final_assigned_cohorts = update_data.get('assigned_cohorts', task.assigned_cohorts or [])
+        final_assigned_students = update_data.get('assigned_students', task.assigned_students or [])
+        
+        # If assign_to_all is True, assign to all enrolled students in the course
+        if final_assign_to_all:
+            unit = db.query(Unit).filter(Unit.id == task.unit_id).first()
+            if unit and unit.course_id:
+                # Get all students enrolled in the course
+                enrolled_student_ids = get_course_enrolled_students(db, unit.course_id)
+                if enrolled_student_ids:
+                    task.assigned_students = enrolled_student_ids
+                    print(f"[DEBUG] Assigned task to all {len(enrolled_student_ids)} students enrolled in course {unit.course_id}")
+                else:
+                    print(f"[DEBUG] No students enrolled in course {unit.course_id}")
+        # If no assignments are set, auto-assign to all enrolled students
+        elif not final_assigned_cohorts and not final_assigned_students:
+            # Get the course_id from the unit
+            unit = db.query(Unit).filter(Unit.id == task.unit_id).first()
+            if unit and unit.course_id:
+                # Get all students enrolled in the course
+                enrolled_student_ids = get_course_enrolled_students(db, unit.course_id)
+                if enrolled_student_ids:
+                    task.assigned_students = enrolled_student_ids
+                    print(f"[DEBUG] Auto-assigned task to {len(enrolled_student_ids)} students enrolled in course {unit.course_id}")
+                else:
+                    print(f"[DEBUG] No students enrolled in course {unit.course_id}, task will be published without assignments")
+    
+    # Set publish_at if status is being changed to PUBLISHED and publish_at is not already set
+    if is_being_published and not task.publish_at:
+        task.publish_at = datetime.utcnow()
+        print(f"[DEBUG] Set publish_at to current time for PUBLISHED task")
     
     task.updated_at = datetime.utcnow()
     db.commit()
@@ -419,8 +910,11 @@ def get_task_submissions(
     status: Optional[SubmissionStatus] = Query(None),
     search: Optional[str] = Query(None)
 ):
-    """Get submissions for a task"""
-    task = db.query(Task).filter(Task.id == task_id).first()
+    """Get submissions for a task - only if task is created by current teacher"""
+    task = db.query(Task).filter(
+        Task.id == task_id,
+        Task.created_by == current_user.id
+    ).first()
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -446,12 +940,10 @@ def get_task_submissions(
     
     submissions = query.offset(skip).limit(limit).all()
     
-    # Add computed properties
+    # Computed properties (is_submitted, is_graded, is_late, final_score) 
+    # are automatically available via the model's @property decorators
+    # Add student_name for response
     for submission in submissions:
-        submission.is_submitted = submission.is_submitted
-        submission.is_graded = submission.is_graded
-        submission.is_late = submission.is_late
-        submission.final_score = submission.final_score
         if submission.student:
             submission.student_name = f"{submission.student.first_name} {submission.student.last_name}"
         if submission.grader:
@@ -466,7 +958,18 @@ def get_task_submission(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get specific submission for grading"""
+    """Get task submission - only if task is created by current teacher"""
+    # First verify the task belongs to the teacher
+    task = db.query(Task).filter(
+        Task.id == task_id,
+        Task.created_by == current_user.id
+    ).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задание не найдено"
+        )
+    
     submission = db.query(TaskSubmission).options(
         joinedload(TaskSubmission.student),
         joinedload(TaskSubmission.grader),
@@ -484,11 +987,9 @@ def get_task_submission(
             detail="Сдача не найдена"
         )
     
-    # Add computed properties
-    submission.is_submitted = submission.is_submitted
-    submission.is_graded = submission.is_graded
-    submission.is_late = submission.is_late
-    submission.final_score = submission.final_score
+    # Computed properties (is_submitted, is_graded, is_late, final_score) 
+    # are automatically available via the model's @property decorators
+    # Add student_name for response
     if submission.student:
         submission.student_name = f"{submission.student.first_name} {submission.student.last_name}"
     if submission.grader:
@@ -534,16 +1035,11 @@ def grade_submission(
     db.commit()
     db.refresh(submission)
     
-    # Send notification to student if enabled
-    if submission.task.notify_student_on_grade:
-        email_service = EmailService(db)
-        email_service.send_grade_notification_to_student(submission)
+    # Note: Student notifications for grading can be added here if needed
+    # For now, we'll skip email notifications as per user's request
     
-    # Add computed properties
-    submission.is_submitted = submission.is_submitted
-    submission.is_graded = submission.is_graded
-    submission.is_late = submission.is_late
-    submission.final_score = submission.final_score
+    # Computed properties (is_submitted, is_graded, is_late, final_score) 
+    # are automatically available via the model's @property decorators
     
     return submission
 
@@ -622,21 +1118,124 @@ def get_student_tasks(
     db: Session = Depends(get_db),
     unit_id: Optional[int] = Query(None)
 ):
-    """Get tasks available to the current student"""
-    # For simplicity, just show all published tasks for now
-    # In production, you'd filter by assigned_students properly using JSONB operators
-    query = db.query(Task).filter(Task.status == TaskStatus.PUBLISHED)
+    """Get tasks available to the current student - only from enrolled courses"""
+    from app.models.course import Course
+    from app.models.enrollment import CourseEnrollment
+    from app.core.enrollment_guard import get_user_enrolled_courses
+    
+    # Get enrolled course IDs for the student
+    enrolled_course_ids = get_user_enrolled_courses(db, current_user.id)
+    
+    print(f"[DEBUG] Student {current_user.id} enrolled in courses: {enrolled_course_ids}")
+    
+    if not enrolled_course_ids:
+        # Student is not enrolled in any courses, return empty list
+        print(f"[DEBUG] Student {current_user.id} is not enrolled in any courses")
+        return []
+    
+    # Build query: tasks from units that belong to enrolled courses
+    # Include PUBLISHED tasks and SCHEDULED tasks where publish_at has passed
+    # Exclude DRAFT and ARCHIVED tasks
+    now = datetime.utcnow()
+    query = db.query(Task).join(Unit).options(
+        joinedload(Task.unit)
+    ).filter(
+        and_(
+            or_(
+                Task.status == TaskStatus.PUBLISHED,
+                and_(
+                    Task.status == TaskStatus.SCHEDULED,
+                    Task.publish_at <= now
+                )
+            ),
+            Task.status != TaskStatus.DRAFT,
+            Task.status != TaskStatus.ARCHIVED,
+            Unit.course_id.in_(enrolled_course_ids)
+        )
+    )
     
     if unit_id:
         query = query.filter(Task.unit_id == unit_id)
     
     tasks = query.all()
     
-    # Properties are computed automatically, no need to set them
-    # Just access them when needed - they're read-only properties
-    # If unit_title is needed, it can be accessed via task.unit.title
+    print(f"[DEBUG] Found {len(tasks)} tasks for student {current_user.id} from enrolled courses")
+    if tasks:
+        print(f"[DEBUG] Task statuses: {[t.status for t in tasks]}")
+        print(f"[DEBUG] Task IDs: {[t.id for t in tasks]}")
     
-    return tasks
+    # Filter by availability and assignment
+    # Tasks with assign_to_all=True are available to all students in the course
+    # Tasks with assigned_students list should include current_user.id
+    # If no assignment restrictions, include it for all enrolled students
+    filtered_tasks = []
+    for task in tasks:
+        # Only include tasks that are available (using the is_available property)
+        if not task.is_available:
+            print(f"[DEBUG] Task {task.id} is not available (status: {task.status}, publish_at: {task.publish_at})")
+            continue
+        # If task is assigned to all students in the course, include it
+        if task.assign_to_all:
+            filtered_tasks.append(task)
+        # If task has specific student assignments, check if current user is assigned
+        elif task.assigned_students and len(task.assigned_students) > 0:
+            if current_user.id in task.assigned_students:
+                filtered_tasks.append(task)
+        # If no assignment restrictions (assign_to_all=False and no assigned_students),
+        # include it for all students in the course (default behavior)
+        else:
+            filtered_tasks.append(task)
+    
+    print(f"[DEBUG] After filtering, {len(filtered_tasks)} tasks available for student {current_user.id}")
+    
+    # Convert to TaskList objects manually (similar to get_admin_tasks)
+    result = []
+    for task in filtered_tasks:
+        task_data = {
+            # TaskBase fields
+            "title": task.title,
+            "description": task.description,
+            "instructions": task.instructions,
+            "type": task.type,
+            "auto_task_type": task.auto_task_type,
+            "max_score": task.max_score,
+            "due_at": task.due_at,
+            "allow_late_submissions": task.allow_late_submissions,
+            "late_penalty_percent": task.late_penalty_percent,
+            "max_attempts": task.max_attempts,
+            "order_index": task.order_index,
+            "assign_to_all": task.assign_to_all,
+            "assigned_cohorts": task.assigned_cohorts or [],
+            "assigned_students": task.assigned_students or [],
+            "send_assignment_email": task.send_assignment_email,
+            "reminder_days_before": task.reminder_days_before,
+            "send_results_email": task.send_results_email,
+            "send_teacher_copy": task.send_teacher_copy,
+            # TaskList specific fields
+            "id": task.id,
+            "unit_id": task.unit_id,
+            "status": task.status,
+            "publish_at": task.publish_at,
+            "created_at": task.created_at,
+            "updated_at": task.updated_at,
+            # Computed properties
+            "assigned_student_count": len(task.assigned_students) if task.assigned_students else 0,
+            "submission_stats": {
+                "total": 0,
+                "submitted": 0,
+                "graded": 0,
+                "pending": 0
+            },
+            "average_score": 0.0,
+            "is_available": task.is_available if hasattr(task, 'is_available') else True,
+            "is_overdue": task.is_overdue if hasattr(task, 'is_overdue') else False,
+            "unit_title": task.unit.title if task.unit else None,
+            "content": task.content,
+            "questions": task.questions or []
+        }
+        result.append(TaskList(**task_data))
+    
+    return result
 
 @router.get("/{task_id}", response_model=TaskInDB)
 def get_student_task(
@@ -738,16 +1337,40 @@ def submit_task(
     db.commit()
     db.refresh(submission)
     
-    # Send notification to teacher if enabled
-    if task.notify_teacher_on_submit:
-        email_service = EmailService(db)
-        email_service.send_submission_notification_to_teacher(submission)
+    # Auto-grade if task is listening or reading with questions and grading type is automatic
+    grading_type = task.auto_check_config.get('grading_type', 'manual') if task.auto_check_config else 'manual'
+    if (task.type in [TaskType.LISTENING, TaskType.READING] and 
+        task.questions and 
+        grading_type == 'automatic'):
+        grading_result = auto_grade_task_submission(task, submission_data.answers)
+        
+        if grading_result:
+            # Update submission with auto-graded score
+            submission.score = grading_result['percentage']  # Store as percentage
+            submission.status = SubmissionStatus.GRADED
+            submission.graded_at = datetime.utcnow()
+            # Store detailed results in feedback_rich as JSON string
+            import json
+            submission.feedback_rich = json.dumps({
+                'auto_graded': True,
+                'total_score': grading_result['score'],
+                'max_score': grading_result['max_score'],
+                'percentage': grading_result['percentage'],
+                'question_results': grading_result['question_results']
+            }, ensure_ascii=False)
+            
+            db.commit()
+            db.refresh(submission)
     
-    # Add computed properties
-    submission.is_submitted = submission.is_submitted
-    submission.is_graded = submission.is_graded
-    submission.is_late = submission.is_late
-    submission.final_score = submission.final_score
+    # Create notification for teacher about task submission
+    try:
+        notify_task_submitted(db, current_user.id, task_id, task.title)
+    except Exception as e:
+        # Don't fail submission if notification fails
+        print(f"Failed to create task submission notification: {e}")
+    
+    # Computed properties (is_submitted, is_graded, is_late, final_score) 
+    # are automatically available via the model's @property decorators
     
     return submission
 

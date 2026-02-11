@@ -12,6 +12,7 @@ import MyLearningPage from './pages/MyLearningPage';
 import CourseUnitsPage from './pages/CourseUnitsPage';
 import UnitDetailPage from './pages/UnitDetailPage';
 import TasksPage from './pages/TasksPage';
+import TaskDetailPage from './pages/TaskDetailPage';
 import TestsPage from './pages/TestsPage';
 import TestDetailPage from './pages/TestDetailPage';
 import TestTakingPage from './pages/TestTakingPage';
@@ -82,7 +83,7 @@ function App() {
         <Route path="/my-courses" element={<MyLearningPage />} />
         <Route path="/units/:id" element={<UnitDetailPage />} />
         <Route path="/tasks" element={<TasksPage />} />
-        <Route path="/tasks/:id" element={<TasksPage />} />
+        <Route path="/tasks/:id" element={<TaskDetailPage />} />
         <Route path="/tests" element={<TestsPage />} />
         <Route path="/tests/:id" element={<TestDetailPage />} />
         <Route path="/tests/:id/take" element={<TestTakingPage />} />

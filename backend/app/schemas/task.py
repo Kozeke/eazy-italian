@@ -50,12 +50,34 @@ class TaskBase(BaseModel):
         if v == "" or v is None:
             return None
         return v
+    
+    @validator('type', pre=True)
+    def validate_type(cls, v):
+        """Normalize task type to lowercase enum value"""
+        if isinstance(v, str):
+            # Convert to lowercase to match enum values
+            v_lower = v.lower()
+            # Map to enum value
+            type_map = {
+                'manual': TaskType.MANUAL,
+                'auto': TaskType.AUTO,
+                'practice': TaskType.PRACTICE,
+                'writing': TaskType.WRITING,
+                'listening': TaskType.LISTENING,
+                'reading': TaskType.READING,
+            }
+            if v_lower in type_map:
+                return type_map[v_lower]
+        return v
 
 class TaskCreate(TaskBase):
     unit_id: Optional[int] = Field(None, description="ID юнита (опционально)")
+    content: Optional[str] = Field(None, description="Содержание задания (текст для чтения/прослушивания)")
+    status: Optional[TaskStatus] = Field(TaskStatus.DRAFT, description="Статус задания")
     auto_check_config: Dict[str, Any] = Field(default_factory=dict, description="Конфигурация авто-проверки")
     rubric: Dict[str, Any] = Field(default_factory=dict, description="Критерии оценки")
     attachments: List[str] = Field(default_factory=list, description="Прикрепленные файлы")
+    questions: List[Dict[str, Any]] = Field(default_factory=list, description="Вопросы о содержании (для listening/reading задач)")
 
     @validator('unit_id', pre=True)
     def validate_unit_id(cls, v):
@@ -83,6 +105,23 @@ class TaskCreate(TaskBase):
         """Convert empty string to None for reminder_days_before"""
         if v == "" or v is None:
             return None
+        return v
+
+    @validator('status', pre=True)
+    def validate_status(cls, v):
+        """Normalize task status to enum value"""
+        if isinstance(v, str):
+            # Convert to lowercase to match enum values
+            v_lower = v.lower()
+            # Map to enum value
+            status_map = {
+                'draft': TaskStatus.DRAFT,
+                'scheduled': TaskStatus.SCHEDULED,
+                'published': TaskStatus.PUBLISHED,
+                'archived': TaskStatus.ARCHIVED,
+            }
+            if v_lower in status_map:
+                return status_map[v_lower]
         return v
 
     @validator('unit_id', 'assigned_cohorts', 'assigned_students')
@@ -143,6 +182,8 @@ class TaskUpdate(TaskBase):
     auto_check_config: Optional[Dict[str, Any]] = None
     rubric: Optional[Dict[str, Any]] = None
     attachments: Optional[List[str]] = None
+    content: Optional[str] = Field(None, description="Содержание задания (текст для чтения/прослушивания)")
+    questions: Optional[List[Dict[str, Any]]] = Field(None, description="Вопросы о содержании (для listening/reading задач)")
     # Allow updating unit association
     unit_id: Optional[int] = Field(None, description="ID юнита")
     status: Optional[TaskStatus] = Field(None, description="Статус задания")
@@ -152,9 +193,11 @@ class TaskInDB(TaskBase):
     unit_id: Optional[int]
     status: TaskStatus
     publish_at: Optional[datetime]
+    content: Optional[str]
     auto_check_config: Dict[str, Any]
     rubric: Dict[str, Any]
     attachments: List[str]
+    questions: List[Dict[str, Any]]
     created_by: int
     created_at: datetime
     updated_at: Optional[datetime]
@@ -176,6 +219,7 @@ class TaskList(TaskBase):
     publish_at: Optional[datetime]
     created_at: datetime
     updated_at: Optional[datetime]
+    auto_check_config: Dict[str, Any] = Field(default_factory=dict)
     
     # Computed properties
     assigned_student_count: int
@@ -196,8 +240,7 @@ class TaskSubmissionBase(BaseModel):
     attachments: List[str] = Field(default_factory=list, description="Прикрепленные файлы")
 
 class TaskSubmissionCreate(TaskSubmissionBase):
-    task_id: int
-    student_id: int
+    pass  # task_id comes from URL path, student_id comes from authenticated user
 
 class TaskSubmissionUpdate(TaskSubmissionBase):
     answers: Optional[Dict[str, Any]] = None

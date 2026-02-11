@@ -20,7 +20,7 @@ import { Task } from '../../types';
 import { tasksApi } from '../../services/api';
 
 const statuses = ['draft', 'published', 'scheduled', 'archived'];
-const types = ['manual', 'auto', 'practice', 'writing'];
+const types = ['writing', 'listening', 'reading'];
 
 export default function AdminTasksPage() {
   const navigate = useNavigate();
@@ -152,19 +152,89 @@ export default function AdminTasksPage() {
 
   const getTypeBadge = (type: string) => {
     const typeConfig = {
-      manual: { color: 'bg-blue-100 text-blue-800', label: 'Ручная проверка' },
-      auto: { color: 'bg-green-100 text-green-800', label: 'Авто-проверка' },
-      practice: { color: 'bg-yellow-100 text-yellow-800', label: 'Практика' },
-      writing: { color: 'bg-purple-100 text-purple-800', label: 'Письменная работа' }
+      writing: { color: 'bg-purple-100 text-purple-800', label: 'Письмо', icon: '✍️' },
+      listening: { color: 'bg-blue-100 text-blue-800', label: 'Аудирование', icon: '🎧' },
+      reading: { color: 'bg-green-100 text-green-800', label: 'Чтение', icon: '📖' }
     };
     
-    const config = typeConfig[type as keyof typeof typeConfig] || typeConfig.manual;
+    const config = typeConfig[type as keyof typeof typeConfig] || { color: 'bg-gray-100 text-gray-800', label: type, icon: '' };
     
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+        {config.icon && <span className="mr-1">{config.icon}</span>}
         {config.label}
       </span>
     );
+  };
+
+  const isTaskFullyGraded = (task: Task): boolean => {
+    // Task is fully graded if all submitted work is graded
+    if (!task.submission_stats) return false;
+    const submitted = task.submission_stats.submitted || 0;
+    const graded = task.submission_stats.graded || 0;
+    return submitted > 0 && submitted === graded;
+  };
+
+  const hasPendingGrading = (task: Task): boolean => {
+    // Task has pending grading if there are submitted but not graded
+    if (!task.submission_stats) return false;
+    const submitted = task.submission_stats.submitted || 0;
+    const graded = task.submission_stats.graded || 0;
+    return submitted > graded;
+  };
+
+  const getRowClassName = (task: Task): string => {
+    const baseClass = "transition-colors";
+    
+    if (isTaskFullyGraded(task)) {
+      return `${baseClass} bg-green-100 hover:bg-green-200 border-l-4 border-green-500`;
+    } else if (hasPendingGrading(task)) {
+      return `${baseClass} bg-yellow-100 hover:bg-yellow-200 border-l-4 border-yellow-500`;
+    }
+    
+    return `${baseClass} hover:bg-gray-50`;
+  };
+
+  const getGradingTypeBadge = (task: Task) => {
+    // Writing tasks are always manual
+    if (task.type === 'writing') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          Ручная
+        </span>
+      );
+    }
+    
+    // For listening/reading, check auto_check_config
+    // Handle both cases: auto_check_config might be undefined, null, empty object, or have grading_type
+    const autoCheckConfig = task.auto_check_config || {};
+    let gradingType = autoCheckConfig.grading_type;
+    
+    // Fallback: if no grading_type is set but task has questions, assume automatic
+    // (for backward compatibility with tasks created before grading_type was added)
+    if (!gradingType && (task.type === 'listening' || task.type === 'reading')) {
+      if (task.questions && task.questions.length > 0) {
+        gradingType = 'automatic';
+      } else {
+        gradingType = 'manual';
+      }
+    }
+    
+    gradingType = gradingType || 'manual';
+    
+    if (gradingType === 'automatic') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          ⚡ Автоматическая
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+          ✋ Ручная
+        </span>
+      );
+    }
   };
 
   // Loading state
@@ -282,9 +352,9 @@ export default function AdminTasksPage() {
                     <option value="">Все типы</option>
                     {types.map(type => (
                       <option key={type} value={type}>
-                        {type === 'manual' ? 'Ручная проверка' :
-                         type === 'auto' ? 'Авто-проверка' :
-                         type === 'practice' ? 'Практика' : 'Письменная работа'}
+                        {type === 'writing' ? 'Письмо' :
+                         type === 'listening' ? 'Аудирование' :
+                         type === 'reading' ? 'Чтение' : type}
                       </option>
                     ))}
                   </select>
@@ -327,6 +397,24 @@ export default function AdminTasksPage() {
       )}
 
       {/* Tasks Table */}
+      {/* Legend */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <div className="flex items-center gap-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-green-200 border-2 border-green-400"></div>
+            <span className="text-sm text-gray-700">Все сдачи оценены</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-yellow-200 border-2 border-yellow-400"></div>
+            <span className="text-sm text-gray-700">Есть неоцененные сдачи</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-gray-100 border-2 border-gray-300"></div>
+            <span className="text-sm text-gray-700">Нет сдач</span>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -363,7 +451,10 @@ export default function AdminTasksPage() {
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип
+                  Тип задания
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Тип проверки
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Назначено
@@ -393,14 +484,14 @@ export default function AdminTasksPage() {
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10">
                   Действия
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {tasks.map((task) => (
-                <tr key={task.id} className="hover:bg-gray-50">
+                <tr key={task.id} className={getRowClassName(task)}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
                       type="checkbox"
@@ -427,6 +518,9 @@ export default function AdminTasksPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getTypeBadge(task.type)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {getGradingTypeBadge(task)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-1">
@@ -457,7 +551,7 @@ export default function AdminTasksPage() {
                       <span className="text-gray-400">Не установлен</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
                     <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => navigate(`/admin/tasks/${task.id}`)}

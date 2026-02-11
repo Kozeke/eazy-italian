@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (userData: any) => Promise<void>;
+  register: (userData: any) => Promise<User>;
   logout: () => void;
   isAuthenticated: boolean;
   isTeacher: boolean;
@@ -57,7 +57,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (userData: any) => {
     try {
       const newUser = await authApi.register(userData);
-      setUser(newUser);
+      // Automatically log in the user after registration
+      const response = await authApi.login({ 
+        email: userData.email, 
+        password: userData.password 
+      });
+      localStorage.setItem('token', response.access_token);
+      const currentUser = await authApi.getCurrentUser();
+      setUser(currentUser);
+      return currentUser;
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
