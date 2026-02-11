@@ -836,7 +836,7 @@ export default function AdminTaskEditPage() {
                                   )}
                                 </div>
                               ))}
-                              {question.type !== 'true_false' && (
+                              {question.type === 'multiple_choice' && (
                                 <button
                                   type="button"
                                   onClick={() => addOption(question.id)}

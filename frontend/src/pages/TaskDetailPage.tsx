@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Award, CheckCircle, XCircle, FileText, Clock, BookOpen, Upload, X, Play } from 'lucide-react';
+import { ArrowLeft, Calendar, Award, FileText, BookOpen, X, Play } from 'lucide-react';
 import { tasksApi } from '../services/api';
 import toast from 'react-hot-toast';
 import { Task } from '../types';
@@ -100,7 +100,6 @@ export default function TaskDetailPage() {
   }
 
   const isTaskAvailable = task.is_available;
-  const isOverdue = task.is_overdue;
   const dueDate = formatDate(task.due_at);
 
   // Helper function to extract YouTube video ID

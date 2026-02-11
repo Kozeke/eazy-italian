@@ -9,7 +9,6 @@ import {
   FileText, 
   Clock,
   CheckCircle,
-  XCircle,
   AlertCircle,
   BookOpen,
   Eye,

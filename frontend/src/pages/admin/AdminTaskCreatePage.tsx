@@ -51,7 +51,6 @@ export default function AdminTaskCreatePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
   
   // Settings
@@ -71,7 +70,6 @@ export default function AdminTaskCreatePage() {
   
   // Units
   const [units, setUnits] = useState<Unit[]>([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -778,7 +776,7 @@ export default function AdminTaskCreatePage() {
                                   )}
                                 </div>
                               ))}
-                              {question.type !== 'true_false' && (
+                              {question.type === 'multiple_choice' && (
                                 <button
                                   type="button"
                                   onClick={() => addOption(question.id)}

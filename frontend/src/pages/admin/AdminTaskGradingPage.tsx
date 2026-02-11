@@ -6,7 +6,6 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Award,
   FileText,
   Headphones,
   BookOpen,
@@ -290,7 +289,7 @@ export default function AdminTaskGradingPage() {
                 </div>
 
                 <div className="space-y-6">
-                  {task.questions.map((question, index) => {
+                  {task.questions && task.questions.map((question, index) => {
                     const qId = question.id || `q-${index}`;
                     const studentAnswer = submission.answers?.[qId] || submission.answers?.[index] || submission.answers?.[`q-${index}`];
                     const autoResult = autoGradingResults?.question_results?.[qId];

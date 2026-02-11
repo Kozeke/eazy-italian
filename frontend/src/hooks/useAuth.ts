@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (userData: any) => {
     try {
-      const newUser = await authApi.register(userData);
+      await authApi.register(userData);
       // Automatically log in the user after registration
       const response = await authApi.login({ 
         email: userData.email, 
