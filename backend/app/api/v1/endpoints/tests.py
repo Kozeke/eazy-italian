@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import os
+import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_teacher
 from app.core.enrollment_guard import check_unit_access
@@ -14,6 +19,22 @@ from app.models.task import Task
 from app.schemas.test import TestResponse, TestCreate, TestUpdate
 
 router = APIRouter()
+
+def get_uploads_path():
+    """Get the uploads directory path - same logic as main.py"""
+    current_file = os.path.abspath(__file__)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
+    
+    # Check if we're in Docker
+    is_docker = (os.name != 'nt' and
+                 os.path.exists("/app") and 
+                 os.getcwd() == "/app" and 
+                 backend_dir == "/app")
+    
+    if is_docker:
+        return "/app/uploads"
+    else:
+        return os.path.join(backend_dir, "uploads")
 
 @router.get("", response_model=List[TestResponse])
 @router.get("/", response_model=List[TestResponse])
@@ -405,6 +426,70 @@ def get_all_resources_for_test_creation(
     }
 
 # Question management endpoints
+@router.post("/questions/upload-image")
+async def upload_question_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_teacher)
+):
+    """Upload an image for a visual question"""
+    
+    # Allowed image MIME types
+    allowed_mime_types = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/gif',
+        'image/webp'
+    ]
+    
+    # Allowed file extensions
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+    
+    # Validate file type
+    if not file.content_type:
+        if file.filename:
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            if file_ext not in allowed_extensions:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid file type. Allowed formats: {', '.join(allowed_extensions)}"
+                )
+        else:
+            raise HTTPException(status_code=400, detail="File type could not be determined")
+    elif file.content_type not in allowed_mime_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed formats: JPEG, PNG, GIF, WebP"
+        )
+    
+    # Get uploads path
+    uploads_path = get_uploads_path()
+    questions_dir = os.path.join(uploads_path, "questions", str(current_user.id))
+    os.makedirs(questions_dir, exist_ok=True)
+    
+    # Generate filename
+    file_ext = os.path.splitext(file.filename or 'image.jpg')[1] or '.jpg'
+    filename = f"{uuid.uuid4().hex[:16]}{file_ext}"
+    file_path = os.path.join(questions_dir, filename)
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Return relative path for storage in database
+        # Path will be: questions/{user_id}/{filename}
+        relative_path = f"questions/{current_user.id}/{filename}"
+        
+        return {
+            "message": "Image uploaded successfully",
+            "path": relative_path,
+            "url": f"/api/v1/static/{relative_path}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")
+
 @router.post("/{test_id}/questions", status_code=status.HTTP_201_CREATED)
 def add_question_to_test(
     test_id: int,
@@ -457,6 +542,7 @@ def add_question_to_test(
         'multiple_choice': 'multiple_choice',
         'multiplechoice': 'multiple_choice',
         'cloze': 'cloze',
+        'visual': 'visual',
     }
     question_type_normalized = type_mapping.get(question_type_normalized, question_type_normalized)
     
@@ -509,6 +595,35 @@ def add_question_to_test(
     elif question_type_value == 'cloze':
         question.gaps_config = question_data.get('gaps', [])
         question.correct_answer = {"gaps": question_data.get('gaps', [])}
+    elif question_type_value == 'visual':
+        # Visual questions can have different answer types (multiple_choice, single_choice, open_answer, true_false)
+        answer_type = question_data.get('answer_type', 'multiple_choice')
+        question.question_metadata = question_data.get('metadata', {})
+        question.question_metadata['answer_type'] = answer_type
+        
+        # Handle media (image) - always set for visual questions
+        if question_type_value == 'visual':
+            # Always set media for visual questions, even if empty
+            media_data = question_data.get('media', [])
+            question.media = media_data if media_data else []
+            print(f"[DEBUG] Setting media for visual question: {question.media}, type: {type(question.media)}")
+        elif question_data.get('media'):
+            question.media = question_data.get('media', [])
+        
+        # Set options and correct answer based on answer_type
+        if answer_type in ['multiple_choice', 'single_choice']:
+            question.options = question_data.get('options', [])
+            question.correct_answer = {"correct_option_ids": question_data.get('correct_option_ids', [])}
+            question.shuffle_options = question_data.get('shuffle_options', True)
+        elif answer_type == 'open_answer':
+            question.expected_answer_config = question_data.get('expected', {})
+            question.correct_answer = {"expected": question_data.get('expected', {})}
+        elif answer_type == 'true_false':
+            question.options = [
+                {"id": "true", "text": "True"},
+                {"id": "false", "text": "False"}
+            ]
+            question.correct_answer = {"correct_option_ids": question_data.get('correct_option_ids', [])}
     
     db.add(question)
     db.flush()
@@ -525,6 +640,10 @@ def add_question_to_test(
     db.add(test_question)
     db.commit()
     db.refresh(question)
+    
+    # Debug: Check media after commit and refresh
+    if question_type_value == 'visual':
+        print(f"[DEBUG] After commit - Question {question.id} media: {question.media}, type: {type(question.media)}")
     
     return {"id": question.id, "message": "Question added successfully"}
 
@@ -690,6 +809,7 @@ def start_test(
         questions_list = random.sample(test_questions, len(test_questions))
     
     # Format questions for frontend
+    logger.info(f"[DEBUG] Formatting {len(questions_list)} questions for test {test_id}")
     questions_data = []
     for tq in questions_list:
         q = tq.question
@@ -700,7 +820,54 @@ def start_test(
             "score": tq.points,
         }
         
-        if q.type.value == 'multiple_choice':
+        # Include media (images, audio) if present
+        # For visual questions, always include media field (even if empty)
+        is_visual = q.type.value == "visual" or q.type.name == "VISUAL"
+        logger.info(f"[DEBUG] Question {q.id}: type = {q.type}, type.value = {q.type.value}, type.name = {q.type.name}, is_visual = {is_visual}")
+        if is_visual:
+            logger.info(f"[DEBUG] Visual question {q.id}: media = {q.media}, type = {type(q.media)}, has media = {bool(q.media)}, len = {len(q.media) if q.media else 0}")
+        if is_visual:
+            # Always include media for visual questions
+            media_data = q.media if q.media is not None else []
+            if isinstance(media_data, list) and len(media_data) > 0:
+                # Convert media paths to full URLs
+                media_list = []
+                for media_item in media_data:
+                    if isinstance(media_item, dict):
+                        media_dict = media_item.copy()
+                        # If URL is a relative path, convert to full URL
+                        if media_dict.get("url") and not media_dict["url"].startswith("http"):
+                            # Ensure it starts with /api/v1/static
+                            if not media_dict["url"].startswith("/api/v1/static"):
+                                media_dict["url"] = f"/api/v1/static/{media_dict.get('path', media_dict.get('url', ''))}"
+                        elif media_dict.get("path") and not media_dict.get("url"):
+                            # If only path is provided, construct URL
+                            media_dict["url"] = f"/api/v1/static/{media_dict['path']}"
+                        media_list.append(media_dict)
+                    else:
+                        # Handle case where media is stored as a simple string/path
+                        media_list.append({
+                            "type": "image",
+                            "path": str(media_item),
+                            "url": f"/api/v1/static/{media_item}"
+                        })
+                question_data["media"] = media_list
+            else:
+                # For visual questions without media, include empty array
+                question_data["media"] = []
+            
+            # Visual questions can have different answer types
+            answer_type = q.question_metadata.get("answer_type", "multiple_choice") if q.question_metadata else "multiple_choice"
+            question_data["answer_type"] = answer_type
+            
+            if answer_type in ["multiple_choice", "single_choice"]:
+                options = q.options or []
+                # Shuffle options if needed
+                if test.settings and test.settings.get('shuffle_options') and q.shuffle_options:
+                    import random
+                    options = random.sample(options, len(options))
+                question_data['options'] = options
+        elif q.type.value == 'multiple_choice':
             options = q.options or []
             # Shuffle options if needed
             if test.settings and test.settings.get('shuffle_options') and q.shuffle_options:
@@ -795,13 +962,62 @@ def submit_test(
         points_earned = 0
         
         # Debug logging
-        print(f"DEBUG Question {question_id}: type={q.type.value}, autograde={q.autograde}")
-        print(f"DEBUG Question {question_id}: correct_answer={q.correct_answer}")
-        print(f"DEBUG Question {question_id}: student_answer={student_answer}")
+        logger.info(f"[DEBUG] Question {question_id}: type={q.type.value}, type.name={q.type.name}, autograde={q.autograde}")
+        logger.info(f"[DEBUG] Question {question_id}: correct_answer={q.correct_answer}")
+        logger.info(f"[DEBUG] Question {question_id}: student_answer={student_answer} (type: {type(student_answer)})")
         
         if q.autograde:
             # Auto-grade based on question type
-            if q.type.value == 'multiple_choice':
+            # Check if it's a visual question
+            is_visual = q.type.value == "visual" or q.type.name == "VISUAL"
+            
+            if is_visual:
+                # Visual questions can have different answer types
+                answer_type = q.question_metadata.get("answer_type", "multiple_choice") if q.question_metadata else "multiple_choice"
+                logger.info(f"[DEBUG] Visual question {question_id}: answer_type={answer_type}, question_metadata={q.question_metadata}")
+                
+                if answer_type in ["multiple_choice", "single_choice", "true_false"]:
+                    # These all use correct_option_ids format
+                    correct_ids = q.correct_answer.get('correct_option_ids', [])
+                    # Normalize student_answer to a list for comparison
+                    if isinstance(student_answer, str):
+                        student_answer_list = [student_answer]
+                    elif isinstance(student_answer, list):
+                        student_answer_list = student_answer
+                    else:
+                        student_answer_list = []
+                    
+                    # Compare sets to handle order differences
+                    student_set = set(student_answer_list)
+                    correct_set = set(correct_ids)
+                    logger.info(f"[DEBUG] Visual question {question_id}: Comparing sets - student={student_set}, correct={correct_set}, match={student_set == correct_set}")
+                    
+                    if student_set == correct_set:
+                        is_correct = True
+                        points_earned = tq.points
+                        logger.info(f"[DEBUG] Visual question {question_id}: ✅ Correct! student={student_answer_list}, correct={correct_ids}")
+                    else:
+                        logger.info(f"[DEBUG] Visual question {question_id}: ❌ Incorrect! student={student_answer_list}, correct={correct_ids}")
+                
+                elif answer_type == "open_answer":
+                    # Open answer grading for visual questions
+                    expected_config = q.expected_answer_config or {}
+                    if expected_config.get('mode') == 'keywords':
+                        keywords = expected_config.get('keywords', [])
+                        # Simple keyword matching (can be enhanced)
+                        student_text = (student_answer or "").lower()
+                        matches = sum(1 for kw in keywords if kw.get('text', '').lower() in student_text)
+                        if matches > 0:
+                            is_correct = True
+                            points_earned = tq.points
+                    elif expected_config.get('mode') == 'regex':
+                        import re
+                        pattern = expected_config.get('pattern', '')
+                        if pattern and re.search(pattern, str(student_answer or ""), re.IGNORECASE):
+                            is_correct = True
+                            points_earned = tq.points
+            
+            elif q.type.value == 'multiple_choice':
                 correct_ids = q.correct_answer.get('correct_option_ids', [])
                 # Normalize student_answer to a list for comparison
                 # Frontend sends single selection as a string, multiple as an array

@@ -249,6 +249,11 @@ export default function TestResultsPage() {
                       const options = question?.options as Array<{ id: string; text: string }> | undefined;
                       const studentIds = normalizeAnswerIds(studentAnswer);
                       const correctIds = normalizeAnswerIds(correctAnswer?.correct_option_ids);
+                      
+                      // Check if it's a visual question
+                      const isVisual = question?.type === 'visual';
+                      const answerType = isVisual ? (question?.question_metadata?.answer_type || 'multiple_choice') : null;
+                      const media = question?.media || [];
 
                       return (
                     <div 
@@ -301,7 +306,42 @@ export default function TestResultsPage() {
                             </div>
                           )}
 
-                          {question?.type === 'multiple_choice' && options?.length ? (
+                          {/* Display image for visual questions */}
+                          {isVisual && media && media.length > 0 && (
+                            <div className="mt-3">
+                              {media.map((mediaItem: any, mediaIndex: number) => {
+                                if (mediaItem.type === 'image') {
+                                  // Normalize API base URL
+                                  const getNormalizedApiBaseUrl = () => {
+                                    const url = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+                                    if (url.endsWith('/api/v1')) {
+                                      return url.substring(0, url.length - '/api/v1'.length);
+                                    }
+                                    return url;
+                                  };
+                                  const apiBaseUrl = getNormalizedApiBaseUrl();
+                                  
+                                  const imageUrl = mediaItem.url?.startsWith('/api/v1/static') 
+                                    ? `${apiBaseUrl}${mediaItem.url}`
+                                    : mediaItem.url;
+                                  
+                                  return (
+                                    <img
+                                      key={mediaIndex}
+                                      src={imageUrl}
+                                      alt="Question image"
+                                      className="max-w-full h-auto rounded-lg border border-gray-300 mb-3"
+                                      style={{ maxHeight: '400px' }}
+                                    />
+                                  );
+                                }
+                                return null;
+                              })}
+                            </div>
+                          )}
+
+                          {/* Visual questions with multiple/single choice or true/false */}
+                          {isVisual && answerType && ['multiple_choice', 'single_choice', 'true_false'].includes(answerType) && options?.length ? (
                             <div className="space-y-2">
                               {!isCorrect && (
                                 <div className="rounded-md border border-gray-200 bg-white p-2 text-sm">
@@ -343,7 +383,66 @@ export default function TestResultsPage() {
                                 );
                               })}
                             </div>
-                          ) : (
+                          ) : question?.type === 'multiple_choice' && options?.length ? (
+                            <div className="space-y-2">
+                              {!isCorrect && (
+                                <div className="rounded-md border border-gray-200 bg-white p-2 text-sm">
+                                  <p className="text-xs font-medium text-gray-500 mb-1">Правильный ответ</p>
+                                  <p className="text-gray-900">
+                                    {correctIds.length
+                                      ? correctIds.map((id: string) => getOptionLabel(options, id)).join(', ')
+                                      : '—'}
+                                  </p>
+                                </div>
+                              )}
+                              {options.map((option) => {
+                                const isCorrectOption = correctIds.includes(option.id);
+                                const isSelectedOption = studentIds.includes(option.id);
+                                const baseClass = 'border-gray-200 bg-white';
+                                const correctClass = 'border-green-200 bg-green-50';
+                                const selectedWrongClass = 'border-red-200 bg-red-50';
+                                const optionClass = isCorrectOption
+                                  ? correctClass
+                                  : isSelectedOption
+                                    ? selectedWrongClass
+                                    : baseClass;
+                                return (
+                                  <div
+                                    key={option.id}
+                                    className={`p-2 rounded-md border text-sm ${optionClass}`}
+                                  >
+                                    <span className="font-medium">{option.id}.</span> {option.text}
+                                    {isCorrectOption && (
+                                      <span className="ml-2 text-xs text-green-700">Правильный</span>
+                                    )}
+                                    {isSelectedOption && !isCorrectOption && (
+                                      <span className="ml-2 text-xs text-red-700">Ваш выбор</span>
+                                    )}
+                                    {isSelectedOption && isCorrectOption && (
+                                      <span className="ml-2 text-xs text-green-700">Ваш выбор</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : isVisual && answerType === 'open_answer' ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <div className="rounded-md border border-gray-200 bg-white p-2">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Ваш ответ</p>
+                                <p className="text-gray-900">
+                                  {renderSimpleAnswer(studentAnswer)}
+                                </p>
+                              </div>
+                              <div className="rounded-md border border-gray-200 bg-white p-2">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Правильный ответ</p>
+                                <p className="text-gray-900">
+                                  {question?.expected_answer_config?.keywords?.length
+                                    ? question.expected_answer_config.keywords.map((kw: any) => kw.text).join(', ')
+                                    : question?.expected_answer_config?.pattern || '—'}
+                                </p>
+                              </div>
+                            </div>
+                          ) : !isVisual && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                               <div className="rounded-md border border-gray-200 bg-white p-2">
                                 <p className="text-xs font-medium text-gray-500 mb-1">Ваш ответ</p>

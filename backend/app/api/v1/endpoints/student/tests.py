@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from typing import Dict, Any
 from datetime import datetime
+import logging
 
 from app.core.database import get_db
 from app.core.auth import get_current_student
@@ -14,6 +15,8 @@ from app.models.test import (
     TestStatus,
     AttemptStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -56,13 +59,17 @@ def start_test(
     current_user: User = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"[DEBUG] Starting test {test_id} for user {current_user.id}")
     test = db.query(Test).filter(
         Test.id == test_id,
         Test.status == TestStatus.PUBLISHED
     ).first()
 
     if not test:
+        logger.warning(f"[DEBUG] Test {test_id} not found or not published")
         raise HTTPException(404, "Test not available")
+    
+    logger.info(f"[DEBUG] Test {test_id} found, loading questions...")
 
     # Prevent parallel attempts
     active_attempt = db.query(TestAttempt).filter(
@@ -108,6 +115,7 @@ def start_test(
         import random
         random.shuffle(test_questions)
 
+    logger.info(f"[DEBUG] Found {len(test_questions)} questions for test {test_id}")
     questions = []
     for tq in test_questions:
         q = tq.question
@@ -118,12 +126,84 @@ def start_test(
             "points": tq.points,
         }
 
+        # Debug: Log question details
+        logger.info(f"[DEBUG] Question {q.id}: type = {q.type}, type.value = {q.type.value}, type.name = {q.type.name}")
+        is_visual = q.type.value == "visual" or q.type.name == "VISUAL"
+        if is_visual:
+            logger.info(f"[DEBUG] Visual question {q.id}: media = {q.media}, type = {type(q.media)}, has media = {bool(q.media)}, len = {len(q.media) if q.media else 0}")
+
+        # Include media (images, audio) if present
+        # For visual questions, always include media field (even if empty)
+        # Check both value and name to handle enum properly
+        if is_visual:
+            # Always include media for visual questions
+            # Check if media exists and is not None/empty
+            media_data = q.media if q.media is not None else []
+            if isinstance(media_data, list) and len(media_data) > 0:
+                # Convert media paths to full URLs
+                media_list = []
+                for media_item in media_data:
+                    if isinstance(media_item, dict):
+                        media_dict = media_item.copy()
+                        # If URL is a relative path, convert to full URL
+                        if media_dict.get("url") and not media_dict["url"].startswith("http"):
+                            # Ensure it starts with /api/v1/static
+                            if not media_dict["url"].startswith("/api/v1/static"):
+                                media_dict["url"] = f"/api/v1/static/{media_dict.get('path', media_dict.get('url', ''))}"
+                            else:
+                                media_dict["url"] = media_dict["url"]
+                        elif media_dict.get("path") and not media_dict.get("url"):
+                            # If only path is provided, construct URL
+                            media_dict["url"] = f"/api/v1/static/{media_dict['path']}"
+                        media_list.append(media_dict)
+                    else:
+                        # Handle case where media is stored as a simple string/path
+                        media_list.append({
+                            "type": "image",
+                            "path": str(media_item),
+                            "url": f"/api/v1/static/{media_item}"
+                        })
+                payload["media"] = media_list
+            else:
+                # For visual questions without media, include empty array
+                payload["media"] = []
+        elif q.media and len(q.media) > 0:
+            # For other question types, only include media if present
+            media_list = []
+            for media_item in q.media:
+                if isinstance(media_item, dict):
+                    media_dict = media_item.copy()
+                    if media_dict.get("url") and not media_dict["url"].startswith("http"):
+                        if not media_dict["url"].startswith("/api/v1/static"):
+                            media_dict["url"] = f"/api/v1/static/{media_dict.get('path', media_dict.get('url', ''))}"
+                    elif media_dict.get("path") and not media_dict.get("url"):
+                        media_dict["url"] = f"/api/v1/static/{media_dict['path']}"
+                    media_list.append(media_dict)
+                else:
+                    media_list.append({
+                        "type": "image",
+                        "path": str(media_item),
+                        "url": f"/api/v1/static/{media_item}"
+                    })
+            payload["media"] = media_list
+
         if q.type.value == "multiple_choice":
             options = q.options or []
             if test.settings.get("shuffle_options") and q.shuffle_options:
                 import random
                 options = random.sample(options, len(options))
             payload["options"] = options
+        elif q.type.value == "visual":
+            # Visual questions can have multiple_choice, single_choice, open_answer, or true_false
+            # Check question_metadata for the answer type
+            answer_type = q.question_metadata.get("answer_type", "multiple_choice")
+            if answer_type in ["multiple_choice", "single_choice"]:
+                options = q.options or []
+                if test.settings.get("shuffle_options") and q.shuffle_options:
+                    import random
+                    options = random.sample(options, len(options))
+                payload["options"] = options
+                payload["answer_type"] = answer_type
 
         questions.append(payload)
 

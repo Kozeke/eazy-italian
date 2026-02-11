@@ -60,8 +60,11 @@ export default function AdminLayout({}: AdminLayoutProps) {
 
   // Handle user logout and redirect to login
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    const loggedOut = logout();
+    // Only navigate if logout was actually performed (not blocked by active test)
+    if (loggedOut) {
+      navigate('/login');
+    }
   };
 
   // Handle quick search on Enter key press

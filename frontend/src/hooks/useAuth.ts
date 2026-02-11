@@ -7,7 +7,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   register: (userData: any) => Promise<User>;
-  logout: () => void;
+  logout: () => boolean; // Returns true if logout was performed, false if blocked
   isAuthenticated: boolean;
   isTeacher: boolean;
   isStudent: boolean;
@@ -72,10 +72,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = (): boolean => {
+    // Check if a test is active
+    const testActive = sessionStorage.getItem('test_active');
+    if (testActive === 'true') {
+      // Dispatch custom event to trigger test submission confirmation
+      const event = new CustomEvent('logout-attempt');
+      window.dispatchEvent(event);
+      return false; // Don't logout yet, wait for confirmation
+    }
+    
+    // Normal logout if no test is active
     localStorage.removeItem('token');
     setUser(null);
+    return true; // Logout was performed
   };
+
+  // Listen for confirmed logout after test submission
+  React.useEffect(() => {
+    const handlePerformLogout = () => {
+      localStorage.removeItem('token');
+      setUser(null);
+      // Clear test state
+      sessionStorage.removeItem('test_active');
+      sessionStorage.removeItem('test_id');
+      // Navigate to login page
+      window.location.href = '/login';
+    };
+
+    window.addEventListener('perform-logout', handlePerformLogout);
+    return () => {
+      window.removeEventListener('perform-logout', handlePerformLogout);
+    };
+  }, []);
 
   const value: AuthContextType = {
     user,
