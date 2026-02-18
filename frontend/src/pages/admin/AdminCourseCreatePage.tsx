@@ -254,55 +254,57 @@ export default function AdminCourseCreatePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Top sticky bar */}
       <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/admin/courses')}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад к курсам
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <BookMarked className="h-6 w-6 text-primary-600" />
-                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                  Создать новый курс
-                </h1>
-                {getStatusBadge(formData.status)}
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+              <button
+                onClick={() => navigate('/admin/courses')}
+                className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 flex-shrink-0"
+              >
+                <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Назад к курсам</span>
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                  <BookMarked className="h-5 w-5 sm:h-6 sm:w-6 text-primary-600 flex-shrink-0" />
+                  <h1 className="text-base sm:text-xl md:text-2xl font-semibold text-gray-900 truncate">
+                    Создать новый курс
+                  </h1>
+                  {getStatusBadge(formData.status)}
+                </div>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">
+                  Курс — это контейнер для организации учебных юнитов
+                </p>
               </div>
-              <p className="text-xs md:text-sm text-gray-500 mt-1">
-                Курс — это контейнер для организации учебных юнитов
-              </p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            {/* <button
-              type="button"
-              onClick={() => setShowPreview(!showPreview)}
-              className="hidden sm:inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр'}
-            </button> */}
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              {/* <button
+                type="button"
+                onClick={() => setShowPreview(!showPreview)}
+                className="hidden sm:inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр'}
+              </button> */}
 
-            {/* <button
-              onClick={() => handleSave(false)}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Сохранение...' : 'Сохранить черновик'}
-            </button> */}
+              {/* <button
+                onClick={() => handleSave(false)}
+                disabled={saving}
+                className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? 'Сохранение...' : 'Сохранить черновик'}
+              </button> */}
 
-            <button
-              onClick={() => handleSave(true)}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? 'Публикация...' : 'Сохранить и опубликовать'}
-            </button>
+              <button
+                onClick={() => handleSave(true)}
+                disabled={saving}
+                className="inline-flex items-center justify-center rounded-lg border border-transparent bg-green-600 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 flex-1 sm:flex-initial whitespace-nowrap"
+              >
+                {saving ? 'Публикация...' : 'Сохранить и опубликовать'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

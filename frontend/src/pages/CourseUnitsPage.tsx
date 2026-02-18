@@ -482,9 +482,6 @@ export default function CourseUnitsPage() {
                 </span>
               </div>
               <h1 className="text-3xl font-bold mb-2">{course.title}</h1>
-              {course.description && (
-                <p className="text-indigo-100 text-sm mb-4">{course.description}</p>
-              )}
               
               {/* Next Activity Section */}
               {(() => {

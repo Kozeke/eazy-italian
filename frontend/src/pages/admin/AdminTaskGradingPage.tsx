@@ -408,7 +408,7 @@ export default function AdminTaskGradingPage() {
                   {task.type === 'listening' ? 'Аудио/Видео контент' : 'Текст для чтения'}
                 </h3>
                 {task.type === 'listening' && task.content.startsWith('http') ? (
-                  <div className="aspect-video">
+                  <div className="aspect-video lg:aspect-video max-h-[300px] lg:max-h-none">
                     <iframe
                       src={task.content}
                       className="w-full h-full rounded-lg"

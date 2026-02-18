@@ -196,44 +196,45 @@ export default function AdminDashboardPage() {
 
           {/* Tabs */}
           <div className="bg-white rounded-xl shadow-sm">
-            <div className="border-b border-gray-200">
-              <nav className="flex -mb-px">
+            <div className="border-b border-gray-200 overflow-x-auto">
+              <nav className="flex -mb-px min-w-max">
                 <button
                   onClick={() => setActiveTab('overview')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  className={`px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === 'overview'
                       ? 'border-primary-600 text-primary-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Быстрые действия
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden min-[375px]:inline">Быстрые действия</span>
+                    <span className="min-[375px]:hidden">Действия</span>
                   </div>
                 </button>
                 <button
                   onClick={() => setActiveTab('courses')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  className={`px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === 'courses'
                       ? 'border-primary-600 text-primary-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4" />
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
                     Курсы
                   </div>
                 </button>
                 <button
                   onClick={() => setActiveTab('performance')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  className={`px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === 'performance'
                       ? 'border-primary-600 text-primary-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4" />
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
                     Статистика
                   </div>
                 </button>

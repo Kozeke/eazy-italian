@@ -540,43 +540,37 @@ export default function AdminUnitCreatePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Top sticky bar – Udemy/Coursera style */}
       <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/admin/units')}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад к юнитам
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                  Создать новый юнит
-                </h1>
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+              <button
+                onClick={() => navigate('/admin/units')}
+                className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 flex-shrink-0"
+              >
+                <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Назад к юнитам</span>
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                  <h1 className="text-base sm:text-xl md:text-2xl font-semibold text-gray-900 truncate">
+                    Создать новый юнит
+                  </h1>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">
+                  Настройте структуру юнита — как модули и лекции на Coursera/Udemy
+                </p>
               </div>
-              <p className="text-xs md:text-sm text-gray-500 mt-1">
-                Настройте структуру юнита — как модули и лекции на Coursera/Udemy
-              </p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => handleSave(false)}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? 'Сохранение...' : 'Сохранить'}
-            </button>
-
-            <button
-              onClick={() => handleSave(true)}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? 'Публикация...' : 'Опубликовать'}
-            </button>
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <button
+                onClick={() => handleSave(true)}
+                disabled={saving}
+                className="inline-flex items-center justify-center rounded-lg border border-transparent bg-primary-600 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 flex-1 sm:flex-initial whitespace-nowrap"
+              >
+                {saving ? 'Публикация...' : 'Опубликовать'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

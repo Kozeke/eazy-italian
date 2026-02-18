@@ -277,18 +277,18 @@ export default function AdminGradesPage() {
               {g.type === 'task' && g.task_id ? (
                 <button
                   onClick={() => navigate(`/admin/tasks/${g.task_id}/submissions/${g.attempt_id}`)}
-                  className="text-primary-600 hover:text-primary-900"
+                  className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
                   title="Просмотреть задание"
                 >
-                  <Eye className="w-4 h-4" />
+                  <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                 </button>
               ) : (
                 <button
                   onClick={() => navigate(`/admin/grades/${g.attempt_id}`)}
-                  className="text-primary-600 hover:text-primary-900"
+                  className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
                   title={t('admin.grades.viewErrors')}
                 >
-                  <Eye className="w-4 h-4" />
+                  <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                 </button>
               )}
             </td>

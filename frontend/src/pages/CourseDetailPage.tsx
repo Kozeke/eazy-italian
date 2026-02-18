@@ -205,7 +205,7 @@ export default function CourseDetailPage() {
   const showUpgradeButton = isFreeUser && enrolledCount >= 1 && !isEnrolled;
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="max-w-7xl mx-auto space-y-6 pb-20">
       {/* Back Button */}
       <button
         onClick={() => navigate('/courses')}
@@ -386,9 +386,9 @@ export default function CourseDetailPage() {
         </div>
       )}
 
-      {/* Bottom CTA Button - Fixed at bottom */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
-        <div className="max-w-7xl mx-auto">
+      {/* Bottom CTA Button - Fixed at bottom, aligned to content column */}
+      <div className="fixed bottom-0 left-0 lg:left-64 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+        <div className="py-4 px-4 sm:px-6 lg:px-8">
           <button
             onClick={handleButtonClick}
             disabled={enrolling}

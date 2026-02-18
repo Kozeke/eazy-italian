@@ -238,7 +238,7 @@ export default function TestsPage() {
                         {test.passing_score && (
                           <span className="inline-flex items-center gap-1">
                             <Percent className="w-3.5 h-3.5" />
-                            {t('tests.passingScore') || 'Проходной балл'} {test.passing_score}%
+                            {t('tests.passingScore') || 'Проходной порог'} {test.passing_score}%
                           </span>
                         )}
                         {test.unit?.title && (

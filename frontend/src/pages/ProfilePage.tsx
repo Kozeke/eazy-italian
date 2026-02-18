@@ -25,15 +25,11 @@ export default function ProfilePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Имя
+                  ФИО
                 </label>
-                <p className="mt-1 text-sm text-gray-900">{user?.first_name}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Фамилия
-                </label>
-                <p className="mt-1 text-sm text-gray-900">{user?.last_name}</p>
+                <p className="mt-1 text-sm text-gray-900">
+                  {user?.first_name} {user?.last_name}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">

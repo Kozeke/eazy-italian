@@ -197,69 +197,119 @@ export default function TaskDetailPage() {
               </div>
 
               {/* Video/Audio Player for Listening Tasks */}
-              {task.type === 'listening' && task.content && (
+              {task.type === 'listening' && (task.content || (task.attachments && task.attachments.length > 0)) && (
                 <div className="mb-6">
-                  <div className="bg-gray-900 rounded-lg overflow-hidden">
-                    {isContentUrl ? (
-                      (() => {
-                        const youtubeId = extractYouTubeVideoId(task.content);
-                        const vimeoId = extractVimeoVideoId(task.content);
+                  {task.content && (
+                    <div className="bg-gray-900 rounded-lg overflow-hidden mb-4">
+                      {isContentUrl ? (
+                        (() => {
+                          const youtubeId = extractYouTubeVideoId(task.content);
+                          const vimeoId = extractVimeoVideoId(task.content);
+                          
+                          if (youtubeId) {
+                            return (
+                              <div className="aspect-video lg:aspect-video max-h-[300px] lg:max-h-none">
+                                <iframe
+                                  src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
+                                  className="w-full h-full"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                  title={task.title}
+                                />
+                              </div>
+                            );
+                          } else if (vimeoId) {
+                            return (
+                              <div className="aspect-video lg:aspect-video max-h-[300px] lg:max-h-none">
+                                <iframe
+                                  src={`https://player.vimeo.com/video/${vimeoId}`}
+                                  className="w-full h-full"
+                                  allow="autoplay; fullscreen; picture-in-picture"
+                                  allowFullScreen
+                                  title={task.title}
+                                />
+                              </div>
+                            );
+                          } else {
+                            // Generic video URL - try to embed directly
+                            return (
+                              <div className="aspect-video lg:aspect-video max-h-[300px] lg:max-h-none">
+                                <video
+                                  controls
+                                  className="w-full h-full"
+                                  src={task.content}
+                                >
+                                  Ваш браузер не поддерживает видео.
+                                  <a href={task.content} target="_blank" rel="noopener noreferrer">
+                                    Скачать видео
+                                  </a>
+                                </video>
+                              </div>
+                            );
+                          }
+                        })()
+                      ) : isContentFile ? (
+                        // File-based video/audio
+                        <div className="aspect-video lg:aspect-video max-h-[300px] lg:max-h-none">
+                          <video
+                            controls
+                            className="w-full h-full"
+                            src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/${task.content}`}
+                          >
+                            Ваш браузер не поддерживает видео.
+                          </video>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                  
+                  {/* Display multiple attachments */}
+                  {task.attachments && task.attachments.length > 0 && (
+                    <div className="space-y-3">
+                      {task.attachments.map((attachment: string, index: number) => {
+                        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/v1$/, '');
+                        const fileUrl = attachment.startsWith('http') 
+                          ? attachment 
+                          : `${apiBaseUrl}/api/v1/static/${attachment}`;
+                        const fileName = attachment.split('/').pop() || `Файл ${index + 1}`;
+                        const isVideo = /\.(mp4|webm|mov|avi|mkv|ogv|flv|3gp|wmv)$/i.test(fileName);
+                        const isAudio = /\.(mp3|wav|ogg|webm|aac|flac)$/i.test(fileName);
                         
-                        if (youtubeId) {
-                          return (
-                            <div className="aspect-video">
-                              <iframe
-                                src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
-                                className="w-full h-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                                title={task.title}
-                              />
-                            </div>
-                          );
-                        } else if (vimeoId) {
-                          return (
-                            <div className="aspect-video">
-                              <iframe
-                                src={`https://player.vimeo.com/video/${vimeoId}`}
-                                className="w-full h-full"
-                                allow="autoplay; fullscreen; picture-in-picture"
-                                allowFullScreen
-                                title={task.title}
-                              />
-                            </div>
-                          );
-                        } else {
-                          // Generic video URL - try to embed directly
-                          return (
-                            <div className="aspect-video">
-                              <video
-                                controls
-                                className="w-full h-full"
-                                src={task.content}
-                              >
-                                Ваш браузер не поддерживает видео.
-                                <a href={task.content} target="_blank" rel="noopener noreferrer">
-                                  Скачать видео
+                        return (
+                          <div key={index} className="bg-gray-900 rounded-lg overflow-hidden">
+                            {isVideo ? (
+                              <div className="aspect-video lg:aspect-video max-h-[300px] lg:max-h-none">
+                                <video controls className="w-full h-full" src={fileUrl}>
+                                  Ваш браузер не поддерживает видео.
+                                </video>
+                              </div>
+                            ) : isAudio ? (
+                              <div className="p-4">
+                                <audio controls className="w-full" src={fileUrl}>
+                                  Ваш браузер не поддерживает аудио.
+                                </audio>
+                                <p className="mt-2 text-sm text-gray-300 text-center">{fileName}</p>
+                              </div>
+                            ) : (
+                              <div className="p-4 bg-gray-800">
+                                <a
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download
+                                  className="flex items-center gap-3 text-white hover:text-primary-300"
+                                >
+                                  <FileText className="h-6 w-6" />
+                                  <span>{fileName}</span>
                                 </a>
-                              </video>
-                            </div>
-                          );
-                        }
-                      })()
-                    ) : isContentFile ? (
-                      // File-based video/audio
-                      <div className="aspect-video">
-                        <video
-                          controls
-                          className="w-full h-full"
-                          src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/${task.content}`}
-                        >
-                          Ваш браузер не поддерживает видео.
-                        </video>
-                      </div>
-                    ) : null}
-                  </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
                   {task.type === 'listening' && (
                     <p className="mt-2 text-xs text-gray-500 text-center">
                       <Play className="h-3 w-3 inline mr-1" />
@@ -270,10 +320,10 @@ export default function TaskDetailPage() {
               )}
 
               {/* Content for Reading Tasks */}
-              {task.type === 'reading' && task.content && (
+              {task.type === 'reading' && (task.content || (task.attachments && task.attachments.length > 0)) && (
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <h3 className="text-sm font-medium text-gray-900 mb-3">Текст для чтения</h3>
-                  {(() => {
+                  {task.content && (() => {
                     // Check if content is a file path (starts with /api/v1/static, /static, or contains file extensions)
                     const isFilePath = task.content.startsWith('/api/v1/static') || 
                                       task.content.startsWith('/static') || 
@@ -314,7 +364,7 @@ export default function TaskDetailPage() {
                       const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
                       
                       return (
-                        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+                        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200 mb-3">
                           <FileText className="h-8 w-8 text-primary-600 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
@@ -341,12 +391,52 @@ export default function TaskDetailPage() {
                     } else {
                       // It's text content - display as before
                       return (
-                        <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
+                        <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap mb-3">
                           {task.content}
                         </div>
                       );
                     }
                   })()}
+                  
+                  {/* Display multiple attachments */}
+                  {task.attachments && task.attachments.length > 0 && (
+                    <div className="space-y-3">
+                      {task.attachments.map((attachment: string, index: number) => {
+                        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/v1$/, '');
+                        const fileUrl = attachment.startsWith('http') 
+                          ? attachment 
+                          : `${apiBaseUrl}/api/v1/static/${attachment}`;
+                        const fileName = attachment.split('/').pop() || `Документ ${index + 1}`;
+                        const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
+                        
+                        return (
+                          <div key={index} className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+                            <FileText className="h-8 w-8 text-primary-600 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {fileExtension === 'pdf' ? 'PDF документ' : 
+                                 ['doc', 'docx'].includes(fileExtension) ? 'Word документ' :
+                                 ['xls', 'xlsx'].includes(fileExtension) ? 'Excel таблица' :
+                                 ['txt', 'rtf'].includes(fileExtension) ? 'Текстовый документ' :
+                                 'Файл для скачивания'}
+                              </p>
+                            </div>
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download
+                              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              Скачать
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 

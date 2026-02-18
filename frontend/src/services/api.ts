@@ -379,10 +379,13 @@ export const tasksApi = {
     return response.data;
   },
 
-  uploadTaskFile: async (file: File, fileType: 'listening' | 'reading'): Promise<{ file_path: string; filename: string; size: number; url: string }> => {
+  uploadTaskFile: async (files: File | File[], fileType: 'listening' | 'reading'): Promise<{ message: string; files: Array<{ file_path: string; filename: string; original_filename: string; size: number; url: string }> }> => {
     const formData = new FormData();
-    formData.append('file', file);
-    const response: AxiosResponse<{ file_path: string; filename: string; size: number; url: string }> = await api.post(
+    const filesArray = Array.isArray(files) ? files : [files];
+    filesArray.forEach(file => {
+      formData.append('files', file);
+    });
+    const response: AxiosResponse<{ message: string; files: Array<{ file_path: string; filename: string; original_filename: string; size: number; url: string }> }> = await api.post(
       `/tasks/admin/tasks/upload-file?file_type=${fileType}`,
       formData,
       {

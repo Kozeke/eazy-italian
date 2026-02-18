@@ -581,11 +581,11 @@ def get_uploads_path():
 
 @router.post("/admin/tasks/upload-file")
 async def upload_task_file(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     file_type: str = Query(..., description="Type of file: 'listening' for audio/video, 'reading' for documents"),
     current_user: User = Depends(get_current_teacher)
 ):
-    """Upload a file for listening or reading task"""
+    """Upload one or more files for listening or reading task"""
     
     # Allowed file types for listening (audio/video)
     listening_mime_types = [
@@ -620,51 +620,60 @@ async def upload_task_file(
     else:
         raise HTTPException(status_code=400, detail="Invalid file_type. Must be 'listening' or 'reading'")
     
-    # Validate file type
-    if not file.content_type:
-        if file.filename:
-            file_ext = os.path.splitext(file.filename)[1].lower()
-            if file_ext not in allowed_extensions:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid file type. Allowed formats: {', '.join(allowed_extensions)}"
-                )
-        else:
-            raise HTTPException(status_code=400, detail="File type could not be determined")
-    elif file.content_type not in allowed_mime_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid file type. Allowed formats: {', '.join(allowed_extensions)}"
-        )
-    
     # Get uploads path
     uploads_path = get_uploads_path()
     files_dir = os.path.join(uploads_path, "tasks", subfolder, str(current_user.id))
     os.makedirs(files_dir, exist_ok=True)
     
-    # Generate filename
-    file_ext = os.path.splitext(file.filename or f'file.{allowed_extensions[0][1:]}')[1] or allowed_extensions[0]
-    filename = f"{uuid.uuid4().hex[:16]}{file_ext}"
-    file_path = os.path.join(files_dir, filename)
+    uploaded_files = []
     
-    # Save file
-    try:
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+    # Process each file
+    for file in files:
+        # Validate file type
+        if not file.content_type:
+            if file.filename:
+                file_ext = os.path.splitext(file.filename)[1].lower()
+                if file_ext not in allowed_extensions:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid file type for {file.filename}. Allowed formats: {', '.join(allowed_extensions)}"
+                    )
+            else:
+                raise HTTPException(status_code=400, detail="File type could not be determined")
+        elif file.content_type not in allowed_mime_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type for {file.filename}. Allowed formats: {', '.join(allowed_extensions)}"
+            )
         
-        # Return relative path (relative to uploads directory)
-        relative_path = f"tasks/{subfolder}/{current_user.id}/{filename}"
+        # Generate filename
+        file_ext = os.path.splitext(file.filename or f'file.{allowed_extensions[0][1:]}')[1] or allowed_extensions[0]
+        filename = f"{uuid.uuid4().hex[:16]}{file_ext}"
+        file_path = os.path.join(files_dir, filename)
         
-        return {
-            "message": "File uploaded successfully",
-            "file_path": relative_path,
-            "filename": filename,
-            "size": len(content),
-            "url": f"/api/v1/static/{relative_path}"  # URL to access the file via static mount
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+        # Save file
+        try:
+            with open(file_path, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
+            
+            # Return relative path (relative to uploads directory)
+            relative_path = f"tasks/{subfolder}/{current_user.id}/{filename}"
+            
+            uploaded_files.append({
+                "file_path": relative_path,
+                "filename": filename,
+                "original_filename": file.filename,
+                "size": len(content),
+                "url": f"/api/v1/static/{relative_path}"  # URL to access the file via static mount
+            })
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error uploading file {file.filename}: {str(e)}")
+    
+    return {
+        "message": f"{len(uploaded_files)} file(s) uploaded successfully",
+        "files": uploaded_files
+    }
 
 @router.get("/admin/tasks/{task_id}", response_model=TaskInDB)
 def get_admin_task(
@@ -792,8 +801,9 @@ def delete_task(
             detail="Задание не найдено"
         )
     
-    # Check if task has submissions
-    if task.submissions:
+    # Check if task has submissions by querying the database directly
+    submission_count = db.query(TaskSubmission).filter(TaskSubmission.task_id == task_id).count()
+    if submission_count > 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Нельзя удалить задание с существующими сдачами"
