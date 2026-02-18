@@ -262,11 +262,15 @@ export default function CoursesPage() {
             </select>
           </div>
           <p className="mt-3 text-xs text-gray-500">
-            {t('courses.showing', {
-              start: filteredCourses.length > 0 ? startIndex + 1 : 0,
-              end: Math.min(endIndex, filteredCourses.length),
-              total: filteredCourses.length
-            }) || `Показано ${startIndex + 1}–${Math.min(endIndex, filteredCourses.length)} из ${filteredCourses.length}`}
+            {(() => {
+              const start = filteredCourses.length > 0 ? startIndex + 1 : 0;
+              const end = Math.min(endIndex, filteredCourses.length);
+              const total = filteredCourses.length;
+              if (start === end) {
+                return `Показано ${end} из ${total}`;
+              }
+              return `Показано ${start}–${end} из ${total}`;
+            })()}
           </p>
         </div>
 
@@ -409,11 +413,15 @@ export default function CoursesPage() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-4 bg-white rounded-xl border border-gray-200">
                 <span className="text-sm text-gray-600">
-                  {t('courses.showing', {
-                    start: startIndex + 1,
-                    end: Math.min(endIndex, filteredCourses.length),
-                    total: filteredCourses.length
-                  }) || `Показано ${startIndex + 1}–${Math.min(endIndex, filteredCourses.length)} из ${filteredCourses.length}`}
+                  {(() => {
+                    const start = startIndex + 1;
+                    const end = Math.min(endIndex, filteredCourses.length);
+                    const total = filteredCourses.length;
+                    if (start === end) {
+                      return `Показано ${end} из ${total}`;
+                    }
+                    return `Показано ${start}–${end} из ${total}`;
+                  })()}
                 </span>
 
                 <div className="flex items-center gap-2">

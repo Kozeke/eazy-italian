@@ -48,7 +48,8 @@ export default function AdminUnitsPage() {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [orderSort, setOrderSort] = useState<'asc' | 'desc'>('asc');
+  const [sortField, setSortField] = useState<'order' | 'created_at'>('order');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Mock data for demonstration
   const mockUnits: Unit[] = [
@@ -275,8 +276,16 @@ export default function AdminUnitsPage() {
   });
 
   const sortedUnits = [...filteredUnits].sort((a, b) => {
-    const diff = a.order_index - b.order_index;
-    return orderSort === 'asc' ? diff : -diff;
+    if (sortField === 'order') {
+      const diff = a.order_index - b.order_index;
+      return sortDirection === 'asc' ? diff : -diff;
+    } else if (sortField === 'created_at') {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      const diff = dateA - dateB;
+      return sortDirection === 'asc' ? diff : -diff;
+    }
+    return 0;
   });
 
   if (loading) {
@@ -448,23 +457,49 @@ export default function AdminUnitsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       <button
                         type="button"
-                        onClick={() => setOrderSort(prev => (prev === 'asc' ? 'desc' : 'asc'))}
+                        onClick={() => {
+                          if (sortField === 'order') {
+                            setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+                          } else {
+                            setSortField('order');
+                            setSortDirection('asc');
+                          }
+                        }}
                         className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
                         aria-label="Сортировать по порядку"
                       >
                         Порядок
-                        {orderSort === 'asc' ? (
+                        {sortField === 'order' && (sortDirection === 'asc' ? (
                           <ChevronUp className="h-3.5 w-3.5" />
                         ) : (
                           <ChevronDown className="h-3.5 w-3.5" />
-                        )}
+                        ))}
                       </button>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Контент
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Обновлено
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (sortField === 'created_at') {
+                            setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+                          } else {
+                            setSortField('created_at');
+                            setSortDirection('desc');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                        aria-label="Сортировать по дате создания"
+                      >
+                        Создано
+                        {sortField === 'created_at' && (sortDirection === 'asc' ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ))}
+                      </button>
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200">
                       Действия
@@ -519,23 +554,23 @@ export default function AdminUnitsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(unit.updated_at)}
+                        {formatDate(unit.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
-                        <div className="flex items-center justify-end space-x-2">
+                        <div className="flex items-center justify-end gap-4 md:gap-3 lg:gap-2">
                           <Link
                             to={`/admin/units/${unit.id}/edit`}
-                            className="text-gray-600 hover:text-gray-900"
+                            className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                             title="Редактировать"
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Pencil className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                           </Link>
                           <button
                             onClick={() => handleDeleteUnit(unit.id, unit.title)}
-                            className="text-red-600 hover:text-red-900"
+                            className="p-2 md:p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
                             title="Удалить"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                           </button>
                         </div>
                       </td>

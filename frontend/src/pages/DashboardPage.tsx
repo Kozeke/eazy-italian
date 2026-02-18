@@ -194,60 +194,60 @@ export default function DashboardPage() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4 h-full">
+          <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
             <BookOpen className="w-5 h-5 text-primary-600" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
               {t('dashboard.myCourses')}
             </p>
-            <p className="text-2xl font-bold text-gray-900">{myCoursesCount}</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{myCoursesCount}</p>
             <p className="text-xs text-gray-400 mt-0.5">
               Активных курса сейчас
             </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4 h-full">
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
               {t('dashboard.completedUnits')}
             </p>
-            <p className="text-2xl font-bold text-emerald-700">{completedUnits}</p>
+            <p className="text-2xl font-bold text-emerald-700 mt-1">{completedUnits}</p>
             <p className="text-xs text-gray-400 mt-0.5">
               Юнитов успешно завершено
             </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4 h-full">
+          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
             <Percent className="w-5 h-5 text-blue-600" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
               {t('dashboard.averageScore')}
             </p>
-            <p className="text-2xl font-bold text-blue-700">{averageScore}%</p>
+            <p className="text-2xl font-bold text-blue-700 mt-1">{averageScore}%</p>
             <p className="text-xs text-gray-400 mt-0.5">
               Средний результат по тестам
             </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-violet-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4 h-full">
+          <div className="w-10 h-10 rounded-full bg-violet-50 flex items-center justify-center flex-shrink-0">
             <Clock className="w-5 h-5 text-violet-600" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
               {t('dashboard.timeSpent')}
             </p>
-            <p className="text-2xl font-bold text-violet-700">
+            <p className="text-2xl font-bold text-violet-700 mt-1">
               {timeSpentHours % 1 === 0 ? timeSpentHours : timeSpentHours.toFixed(1)}ч
             </p>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -422,10 +422,13 @@ export default function DashboardPage() {
           </div>
 
           {/* Mini progress summary */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">
-              Прогресс по активному курсу
-            </h3>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Прогресс по активному курсу
+              </h3>
+            </div>
+            <div className="px-5 py-4">
             {dashboardData?.active_course_progress ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs">
@@ -479,22 +482,9 @@ export default function DashboardPage() {
                 )}
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600">Нет активного курса</span>
-                </div>
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Начните обучение, чтобы увидеть прогресс
-                </p>
-                <Link
-                  to="/courses"
-                  className="text-[11px] text-primary-600 hover:text-primary-700 font-medium inline-flex items-center"
-                >
-                  Выбрать курс
-                  <ArrowRight className="w-3 h-3 ml-1" />
-                </Link>
-              </div>
+              <p className="text-sm text-gray-500">Нет активного курса</p>
             )}
+            </div>
           </div>
         </div>
       </div>

@@ -136,7 +136,7 @@
     "start": "Начать тест",
     "continue": "Продолжить",
     "viewResult": "Посмотреть результат",
-    "passingScore": "Проходной балл",
+    "passingScore": "Проходной порог",
     "completed": "Завершено",
     "score": "Балл",
     "searchPlaceholder": "Поиск по названию или описанию",

@@ -4,12 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { 
   Plus, 
-  Search, 
-  Filter, 
   Edit, 
   Trash2, 
   Eye, 
-  Copy,
   Calendar,
   FileText,
   ChevronDown,
@@ -18,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Task } from '../../types';
 import { tasksApi } from '../../services/api';
+import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
 
 const statuses = ['draft', 'published', 'scheduled', 'archived'];
 const types = ['writing', 'listening', 'reading'];
@@ -250,120 +248,108 @@ export default function AdminTasksPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Задания
-          </h1>
-          <p className="text-gray-600">
-            Управление заданиями
-          </p>
-        </div>
-        <button
-          onClick={() => navigate('/admin/tasks/new')}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Создать задание
-        </button>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Поиск по названию или описанию..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Sticky top bar */}
+      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileText className="h-6 w-6 text-primary-600" />
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                Задания
+              </h1>
+              {tasks.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  {tasks.length} заданий
+                </span>
+              )}
             </div>
-
-            {/* Filter Toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              Фильтры
-              {showFilters ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
-            </button>
+            <p className="mt-1 text-xs md:text-sm text-gray-500">
+              Управление заданиями
+            </p>
           </div>
 
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Unit Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Юнит
-                  </label>
-                  <select
-                    value={selectedUnit}
-                    onChange={(e) => setSelectedUnit(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все юниты</option>
-                    {/* Units will be loaded dynamically */}
-                  </select>
-                </div>
-
-                {/* Status Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Статус
-                  </label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все статусы</option>
-                    {statuses.map(status => (
-                      <option key={status} value={status}>
-                        {status === 'draft' ? 'Черновик' : 
-                         status === 'published' ? 'Опубликовано' :
-                         status === 'scheduled' ? 'Запланировано' : 'Архивировано'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Type Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Тип
-                  </label>
-                  <select
-                    value={selectedType}
-                    onChange={(e) => setSelectedType(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Все типы</option>
-                    {types.map(type => (
-                      <option key={type} value={type}>
-                        {type === 'writing' ? 'Письмо' :
-                         type === 'listening' ? 'Аудирование' :
-                         type === 'reading' ? 'Чтение' : type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={() => navigate('/admin/tasks/new')}
+            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Создать задание
+          </button>
         </div>
       </div>
+
+      {/* Main content */}
+      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
+
+        {/* Search and Filters */}
+        <AdminSearchFilters
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Поиск по названию или описанию..."
+          showFilters={showFilters}
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          filters={
+            <>
+              {/* Unit Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Юнит
+                </label>
+                <select
+                  value={selectedUnit}
+                  onChange={(e) => setSelectedUnit(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все юниты</option>
+                  {/* Units will be loaded dynamically */}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Статус
+                </label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все статусы</option>
+                  {statuses.map(status => (
+                    <option key={status} value={status}>
+                      {status === 'draft' ? 'Черновик' : 
+                       status === 'published' ? 'Опубликовано' :
+                       status === 'scheduled' ? 'Запланировано' : 'Архивировано'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Тип
+                </label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Все типы</option>
+                  {types.map(type => (
+                    <option key={type} value={type}>
+                      {type === 'writing' ? 'Письмо' :
+                       type === 'listening' ? 'Аудирование' :
+                       type === 'reading' ? 'Чтение' : type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          }
+        />
 
       {/* Bulk Actions */}
       {selectedTasks.length > 0 && (
@@ -552,34 +538,27 @@ export default function AdminTasksPage() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
-                    <div className="flex items-center justify-end space-x-2">
+                    <div className="flex items-center justify-end gap-4 md:gap-3 lg:gap-2">
                       <button
                         onClick={() => navigate(`/admin/tasks/${task.id}`)}
-                        className="text-primary-600 hover:text-primary-900"
+                        className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
                         title="Просмотр"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
                         onClick={() => navigate(`/admin/tasks/${task.id}/edit`)}
-                        className="text-gray-600 hover:text-gray-900"
+                        className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                         title="Редактировать"
                       >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleBulkAction('duplicate')}
-                        className="text-gray-600 hover:text-gray-900"
-                        title="Дублировать"
-                      >
-                        <Copy className="w-4 h-4" />
+                        <Edit className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteTask(task.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="p-2 md:p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
                         title="Удалить"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                       </button>
                     </div>
                   </td>
@@ -614,6 +593,7 @@ export default function AdminTasksPage() {
           </div>
         )}
       </div>
+      </main>
     </div>
   );
 }

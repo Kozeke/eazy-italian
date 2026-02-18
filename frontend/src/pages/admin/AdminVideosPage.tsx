@@ -402,64 +402,75 @@ export default function AdminVideosPage() {
 
           {/* Pagination */}
           {showPagination && (
-            <div className="flex items-center justify-between px-4 py-4 bg-white rounded-2xl border border-gray-200">
-              <span className="text-sm text-gray-600">
-                Показано {startIndex + 1}–{Math.min(endIndex, sortedVideos.length)} из {sortedVideos.length}
-              </span>
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 px-2 sm:px-4 py-3 sm:py-4">
+                <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
+                  Показано {startIndex + 1}–{Math.min(endIndex, sortedVideos.length)} из {sortedVideos.length}
+                </span>
 
-              <div className="flex items-center space-x-2">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Назад
-                </button>
+                <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-center sm:justify-end overflow-x-auto">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="inline-flex items-center px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                  >
+                    <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Назад</span>
+                  </button>
 
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                    // Show first page, last page, current page, and pages around current
-                    if (
-                      page === 1 ||
-                      page === totalPages ||
-                      (page >= currentPage - 1 && page <= currentPage + 1)
-                    ) {
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                            currentPage === page
-                              ? 'bg-primary-600 text-white'
-                              : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    } else if (
-                      page === currentPage - 2 ||
-                      page === currentPage + 2
-                    ) {
-                      return (
-                        <span key={page} className="px-2 text-gray-500">
-                          ...
-                        </span>
-                      );
-                    }
-                    return null;
-                  })}
+                  <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto max-w-full">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      // On mobile (≤375px), only show first, last, and current page
+                      // On larger screens, show pages around current too
+                      const shouldShowOnMobile = 
+                        page === 1 ||
+                        page === totalPages ||
+                        page === currentPage;
+                      
+                      const shouldShowOnDesktop = 
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1);
+                      
+                      if (shouldShowOnDesktop) {
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors flex-shrink-0 ${
+                              currentPage === page
+                                ? 'bg-primary-600 text-white'
+                                : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                            } ${
+                              shouldShowOnMobile ? '' : 'hidden sm:inline-flex'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      } else if (
+                        page === currentPage - 2 ||
+                        page === currentPage + 2
+                      ) {
+                        return (
+                          <span key={page} className="px-1 sm:px-2 text-gray-500 text-xs sm:text-sm flex-shrink-0 hidden sm:inline">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="inline-flex items-center px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                  >
+                    <span className="hidden sm:inline">Вперед</span>
+                    <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 sm:ml-1" />
+                  </button>
                 </div>
-
-                <button
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Вперед
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </button>
               </div>
             </div>
           )}

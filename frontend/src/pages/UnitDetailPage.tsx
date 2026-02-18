@@ -517,7 +517,7 @@ export default function UnitDetailPage() {
             {/* Video Player */}
             {selectedVideo && (
               <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div className="aspect-video bg-gray-900">
+                <div className="aspect-video lg:aspect-video max-h-[300px] lg:max-h-none bg-gray-900">
                   <VideoPlayer 
                     video={{
                       id: selectedVideo.id,

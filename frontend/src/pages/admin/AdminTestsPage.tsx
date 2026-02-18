@@ -10,7 +10,6 @@ import {
   Edit, 
   Trash2, 
   Eye, 
-  Copy,
   Calendar,
   ClipboardList,
   ChevronDown,
@@ -451,29 +450,29 @@ export default function AdminTestsPage() {
 
                       {/* Actions */}
                       <div 
-                        className="flex items-center gap-2 flex-shrink-0 ml-4"
+                        className="flex items-center gap-4 md:gap-3 lg:gap-2 flex-shrink-0 ml-4"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
                           onClick={() => navigate(`/admin/tests/${test.id}`)}
-                          className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
                           title="Просмотр"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                         </button>
                         <button
                           onClick={() => navigate(`/admin/tests/${test.id}/edit`)}
-                          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                           title="Редактировать"
                         >
-                          <Edit className="w-4 h-4" />
+                          <Edit className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteTest(test.id)}
-                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-2 md:p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
                           title="Удалить"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                         </button>
                       </div>
                     </div>
@@ -566,32 +565,8 @@ export default function AdminTestsPage() {
                           </div>
                         </div>
 
-                        {/* Action Buttons */}
+                        {/* Action Buttons - Only unique actions not in main row */}
                         <div className="flex flex-wrap items-center gap-2 pt-2">
-                          <button
-                            onClick={() => navigate(`/admin/tests/${test.id}`)}
-                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            <Eye className="w-4 h-4 mr-2" />
-                            Просмотр
-                          </button>
-                          <button
-                            onClick={() => navigate(`/admin/tests/${test.id}/edit`)}
-                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            <Edit className="w-4 h-4 mr-2" />
-                            Редактировать
-                          </button>
-                          <button
-                            onClick={() => {
-                              // TODO: Implement duplicate functionality
-                              toast('Функция дублирования будет реализована', { icon: 'ℹ️' });
-                            }}
-                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            <Copy className="w-4 h-4 mr-2" />
-                            Дублировать
-                          </button>
                           <button
                             onClick={() => {
                               // TODO: Implement archive functionality
@@ -601,13 +576,6 @@ export default function AdminTestsPage() {
                           >
                             <Archive className="w-4 h-4 mr-2" />
                             Архивировать
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTest(test.id)}
-                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Удалить
                           </button>
                         </div>
                       </div>

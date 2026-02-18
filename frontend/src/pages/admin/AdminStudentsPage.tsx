@@ -7,7 +7,6 @@ import {
   Edit, 
   Trash2, 
   Eye, 
-  Copy,
   Calendar,
   Users,
   Mail,
@@ -536,34 +535,27 @@ export default function AdminStudentsPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
-                    <div className="flex items-center justify-end space-x-2">
+                    <div className="flex items-center justify-end gap-4 md:gap-3 lg:gap-2">
                       <button
                         onClick={() => navigate(`/admin/students/${student.id}`)}
-                        className="text-primary-600 hover:text-primary-900"
+                        className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
                         title="Просмотр"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
                         onClick={() => navigate(`/admin/students/${student.id}/edit`)}
-                        className="text-gray-600 hover:text-gray-900"
+                        className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                         title="Редактировать"
                       >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleBulkAction('duplicate')}
-                        className="text-gray-600 hover:text-gray-900"
-                        title="Дублировать"
-                      >
-                        <Copy className="w-4 h-4" />
+                        <Edit className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteStudent(student.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="p-2 md:p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
                         title="Удалить"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                       </button>
                     </div>
                   </td>

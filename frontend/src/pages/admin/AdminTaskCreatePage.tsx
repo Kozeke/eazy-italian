@@ -48,8 +48,8 @@ export default function AdminTaskCreatePage() {
   // Content for listening/reading
   const [content, setContent] = useState('');
   const [contentSource, setContentSource] = useState<'url' | 'file' | 'text'>('url'); // 'url' for listening, 'text' for reading, 'file' for both
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ file_path: string; filename: string; original_filename: string; size: number; url: string }>>([]);
   const [uploading, setUploading] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   
@@ -170,8 +170,8 @@ export default function AdminTaskCreatePage() {
     }
 
     if ((taskType === 'listening' || taskType === 'reading')) {
-      if (contentSource === 'file' && !uploadedFilePath) {
-        toast.error('Загрузите файл или выберите другой способ ввода');
+      if (contentSource === 'file' && uploadedFiles.length === 0) {
+        toast.error('Загрузите хотя бы один файл или выберите другой способ ввода');
         return;
       }
       if ((contentSource === 'url' || contentSource === 'text') && !content.trim()) {
@@ -232,6 +232,9 @@ export default function AdminTaskCreatePage() {
         late_penalty_percent: allowLateSubmissions ? latePenaltyPercent : undefined,
         max_attempts: maxAttempts || undefined,
         content: (taskType === 'listening' || taskType === 'reading') ? content.trim() : undefined,
+        attachments: (taskType === 'listening' || taskType === 'reading') && contentSource === 'file' && uploadedFiles.length > 0 
+          ? uploadedFiles.map(f => f.file_path) 
+          : undefined,
         questions: (taskType === 'listening' || taskType === 'reading') ? questions.map(q => ({
           question: q.question,
           type: q.type,
@@ -331,8 +334,8 @@ export default function AdminTaskCreatePage() {
                         setContent('');
                         setQuestions([]);
                         setContentSource('url');
-                        setSelectedFile(null);
-                        setUploadedFilePath(null);
+                        setSelectedFiles([]);
+                        setUploadedFiles([]);
                       } else {
                         // Listening/Reading can be automatic or manual
                         // Set default source based on type
@@ -411,8 +414,8 @@ export default function AdminTaskCreatePage() {
                           type="button"
                           onClick={() => {
                             setContentSource('url');
-                            setSelectedFile(null);
-                            setUploadedFilePath(null);
+                            setSelectedFiles([]);
+                            setUploadedFiles([]);
                           }}
                           className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                             contentSource === 'url'
@@ -443,8 +446,8 @@ export default function AdminTaskCreatePage() {
                           type="button"
                           onClick={() => {
                             setContentSource('text');
-                            setSelectedFile(null);
-                            setUploadedFilePath(null);
+                            setSelectedFiles([]);
+                            setUploadedFiles([]);
                           }}
                           className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                             contentSource === 'text'
@@ -513,18 +516,19 @@ export default function AdminTaskCreatePage() {
                   {(contentSource === 'file') && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {taskType === 'listening' ? 'Аудио или видео файл *' : 'Документ для чтения *'}
+                        {taskType === 'listening' ? 'Аудио или видео файлы *' : 'Документы для чтения *'}
                       </label>
                       
-                      {!selectedFile && !uploadedFilePath && (
+                      {selectedFiles.length === 0 && uploadedFiles.length === 0 && (
                         <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-primary-400 transition-colors">
                           <div className="space-y-1 text-center">
                             <Upload className="mx-auto h-12 w-12 text-gray-400" />
                             <div className="flex text-sm text-gray-600">
                               <label className="relative cursor-pointer rounded-md font-medium text-primary-600 hover:text-primary-500">
-                                <span>Выберите файл</span>
+                                <span>Выберите файлы</span>
                                 <input
                                   type="file"
+                                  multiple
                                   className="sr-only"
                                   accept={
                                     taskType === 'listening'
@@ -532,9 +536,9 @@ export default function AdminTaskCreatePage() {
                                       : '.pdf,.doc,.docx,.txt,.html,.rtf'
                                   }
                                   onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      setSelectedFile(file);
+                                    const files = Array.from(e.target.files || []);
+                                    if (files.length > 0) {
+                                      setSelectedFiles(files);
                                     }
                                   }}
                                 />
@@ -543,94 +547,141 @@ export default function AdminTaskCreatePage() {
                             </div>
                             <p className="text-xs text-gray-500">
                               {taskType === 'listening'
-                                ? 'MP3, WAV, OGG, MP4, MOV, AVI и другие аудио/видео форматы'
-                                : 'PDF, DOC, DOCX, TXT, HTML, RTF'}
+                                ? 'MP3, WAV, OGG, MP4, MOV, AVI и другие аудио/видео форматы (можно выбрать несколько)'
+                                : 'PDF, DOC, DOCX, TXT, HTML, RTF (можно выбрать несколько)'}
                             </p>
                           </div>
                         </div>
                       )}
 
-                      {selectedFile && !uploadedFilePath && (
-                        <div className="mt-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <FileText className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                                <p className="text-xs text-gray-500">
-                                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
+                      {selectedFiles.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          {selectedFiles.map((file, index) => (
+                            <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <FileText className="w-5 h-5 text-gray-400" />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedFiles(selectedFiles.filter((_, i) => i !== index));
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-red-600"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (!selectedFile) return;
-                                  setUploading(true);
-                                  try {
-                                    const result = await tasksApi.uploadTaskFile(selectedFile, taskType);
-                                    setUploadedFilePath(result.file_path);
-                                    setContent(result.url);
-                                    toast.success('Файл успешно загружен');
-                                  } catch (error: any) {
-                                    console.error('Error uploading file:', error);
-                                    toast.error(error.response?.data?.detail || 'Ошибка при загрузке файла');
-                                  } finally {
-                                    setUploading(false);
+                          ))}
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (selectedFiles.length === 0) return;
+                                setUploading(true);
+                                try {
+                                  const result = await tasksApi.uploadTaskFile(selectedFiles, taskType);
+                                  setUploadedFiles([...uploadedFiles, ...result.files]);
+                                  setSelectedFiles([]);
+                                  toast.success(`${result.files.length} файл(ов) успешно загружено`);
+                                } catch (error: any) {
+                                  console.error('Error uploading files:', error);
+                                  toast.error(error.response?.data?.detail || 'Ошибка при загрузке файлов');
+                                } finally {
+                                  setUploading(false);
+                                }
+                              }}
+                              disabled={uploading || selectedFiles.length === 0}
+                              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
+                            >
+                              {uploading ? (
+                                <>
+                                  <Loader className="w-4 h-4 mr-2 animate-spin" />
+                                  Загрузка...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="w-4 h-4 mr-2" />
+                                  Загрузить все ({selectedFiles.length})
+                                </>
+                              )}
+                            </button>
+                            <label className="relative cursor-pointer inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
+                              <span>Добавить еще</span>
+                              <input
+                                type="file"
+                                multiple
+                                className="sr-only"
+                                accept={
+                                  taskType === 'listening'
+                                    ? 'audio/*,video/*,.mp3,.wav,.ogg,.webm,.aac,.flac,.mp4,.mov,.avi,.mkv'
+                                    : '.pdf,.doc,.docx,.txt,.html,.rtf'
+                                }
+                                onChange={(e) => {
+                                  const files = Array.from(e.target.files || []);
+                                  if (files.length > 0) {
+                                    setSelectedFiles([...selectedFiles, ...files]);
                                   }
                                 }}
-                                disabled={uploading}
-                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
-                              >
-                                {uploading ? (
-                                  <>
-                                    <Loader className="w-4 h-4 mr-2 animate-spin" />
-                                    Загрузка...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    Загрузить
-                                  </>
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedFile(null);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-red-600"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
+                              />
+                            </label>
                           </div>
                         </div>
                       )}
 
-                      {uploadedFilePath && (
-                        <div className="mt-2 p-4 bg-green-50 rounded-lg border border-green-200">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <FileText className="w-5 h-5 text-green-600" />
-                              <div>
-                                <p className="text-sm font-medium text-green-900">Файл загружен</p>
-                                <p className="text-xs text-green-700">{uploadedFilePath}</p>
+                      {uploadedFiles.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          <p className="text-sm font-medium text-gray-700">
+                            Загруженные файлы ({uploadedFiles.length}):
+                          </p>
+                          {uploadedFiles.map((file, index) => (
+                            <div key={index} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <FileText className="w-5 h-5 text-green-600" />
+                                  <div>
+                                    <p className="text-sm font-medium text-green-900">{file.original_filename}</p>
+                                    <p className="text-xs text-green-700">{file.file_path}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
+                                  }}
+                                  className="p-1.5 text-green-600 hover:text-red-600"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedFile(null);
-                                setUploadedFilePath(null);
-                                setContent('');
+                          ))}
+                          <label className="relative cursor-pointer inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
+                            <span>Добавить еще файлы</span>
+                            <input
+                              type="file"
+                              multiple
+                              className="sr-only"
+                              accept={
+                                taskType === 'listening'
+                                  ? 'audio/*,video/*,.mp3,.wav,.ogg,.webm,.aac,.flac,.mp4,.mov,.avi,.mkv'
+                                  : '.pdf,.doc,.docx,.txt,.html,.rtf'
+                              }
+                              onChange={(e) => {
+                                const files = Array.from(e.target.files || []);
+                                if (files.length > 0) {
+                                  setSelectedFiles([...selectedFiles, ...files]);
+                                }
                               }}
-                              className="p-1.5 text-green-600 hover:text-red-600"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
+                            />
+                          </label>
                         </div>
                       )}
                     </div>
