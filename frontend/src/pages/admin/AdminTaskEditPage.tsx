@@ -494,8 +494,8 @@ export default function AdminTaskEditPage() {
                           type="button"
                           onClick={() => {
                             setContentSource('url');
-                            setSelectedFile(null);
-                            setUploadedFilePath(null);
+                            setSelectedFiles([]);
+                            setUploadedFiles([]);
                           }}
                           className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                             contentSource === 'url'
@@ -526,8 +526,8 @@ export default function AdminTaskEditPage() {
                           type="button"
                           onClick={() => {
                             setContentSource('text');
-                            setSelectedFile(null);
-                            setUploadedFilePath(null);
+                            setSelectedFiles([]);
+                            setUploadedFiles([]);
                           }}
                           className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                             contentSource === 'text'
