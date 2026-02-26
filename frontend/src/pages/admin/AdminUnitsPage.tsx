@@ -1,21 +1,22 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Pencil,
-  Archive,
   Trash2,
-  Check,
-  X,
-  Layers,
-  ChevronUp,
-  ChevronDown
+  Search,
+  Filter,
+  Folder,
+  Video,
+  FileText,
+  Users,
+  ChevronRight,
+  CheckSquare
 } from 'lucide-react';
 import { unitsApi } from '../../services/api';
 import toast from 'react-hot-toast';
-import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
+import './AdminUnitsPage.css';
 
 interface Unit {
   id: number;
@@ -41,82 +42,16 @@ interface Unit {
 
 export default function AdminUnitsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [sortField, setSortField] = useState<'order' | 'created_at'>('order');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-
-  // Mock data for demonstration
-  const mockUnits: Unit[] = [
-    {
-      id: 1,
-      title: 'Приветствие и знакомство',
-      level: 'A1',
-      status: 'published',
-      publish_at: '2024-01-15T10:00:00Z',
-      order_index: 1,
-      created_by: 1,
-      created_at: '2024-01-10T10:00:00Z',
-      updated_at: '2024-01-15T10:00:00Z',
-      course_id: 1,
-      course_title: 'Итальянский A1',
-      content_count: {
-        videos: 2,
-        tasks: 3,
-        tests: 1,
-        published_videos: 2,
-        published_tasks: 3,
-        published_tests: 1
-      }
-    },
-    {
-      id: 2,
-      title: 'Основы грамматики',
-      level: 'A1',
-      status: 'draft',
-      publish_at: null,
-      order_index: 2,
-      created_by: 1,
-      created_at: '2024-01-12T10:00:00Z',
-      updated_at: '2024-01-12T10:00:00Z',
-      course_id: 1,
-      course_title: 'Итальянский A1',
-      content_count: {
-        videos: 1,
-        tasks: 2,
-        tests: 0,
-        published_videos: 0,
-        published_tasks: 0,
-        published_tests: 0
-      }
-    },
-    {
-      id: 3,
-      title: 'Повседневные фразы',
-      level: 'A2',
-      status: 'scheduled',
-      publish_at: '2024-02-01T10:00:00Z',
-      order_index: 3,
-      created_by: 1,
-      created_at: '2024-01-14T10:00:00Z',
-      updated_at: '2024-01-14T10:00:00Z',
-      course_id: 2,
-      course_title: 'Итальянский A2',
-      content_count: {
-        videos: 3,
-        tasks: 4,
-        tests: 2,
-        published_videos: 3,
-        published_tasks: 4,
-        published_tests: 2
-      }
-    }
-  ];
+  const [sortField, setSortField] = useState<'order' | 'created_at'>('created_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     const fetchUnits = async () => {
@@ -127,8 +62,7 @@ export default function AdminUnitsPage() {
       } catch (error: any) {
         console.error('Error fetching units:', error);
         toast.error('Ошибка при загрузке юнитов');
-        // Fallback to mock data if API fails
-        setUnits(mockUnits);
+        setUnits([]);
       } finally {
         setLoading(false);
       }
@@ -137,89 +71,75 @@ export default function AdminUnitsPage() {
     fetchUnits();
   }, []);
 
-  // Refresh units when component becomes visible (e.g., when navigating back)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        refreshUnits();
-      }
-    };
+  // Calculate summary statistics
+  const summaryStats = useMemo(() => {
+    const totalUnits = units.length;
+    const totalVideos = units.reduce((sum, unit) => sum + (unit.content_count?.videos || 0), 0);
+    const totalTests = units.reduce((sum, unit) => sum + (unit.content_count?.tests || 0), 0);
+    const totalStudents = 2; // TODO: Get from API
+    
+    return { totalUnits, totalVideos, totalTests, totalStudents };
+  }, [units]);
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+  // Get unique courses for filter
+  const uniqueCourses = useMemo(() => {
+    const courses = new Set<string>();
+    units.forEach(unit => {
+      if (unit.course_title) {
+        courses.add(unit.course_title);
+      }
+    });
+    return Array.from(courses).sort();
+  }, [units]);
+
+  // Group units by course
+  const groupedUnits = useMemo(() => {
+    const groups: Record<string, Unit[]> = {};
+    units.forEach(unit => {
+      const courseKey = unit.course_title || 'Без курса';
+      if (!groups[courseKey]) {
+        groups[courseKey] = [];
+      }
+      groups[courseKey].push(unit);
+    });
+    return groups;
+  }, [units]);
 
   const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { color: 'bg-gray-100 text-gray-800', text: 'Черновик' },
-      scheduled: { color: 'bg-blue-100 text-blue-800', text: 'Запланировано' },
-      published: { color: 'bg-green-100 text-green-800', text: 'Опубликовано' },
-      archived: { color: 'bg-red-100 text-red-800', text: 'Архив' }
-    };
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.text}
-      </span>
-    );
+    if (status === 'published') {
+      return (
+        <span className="badge badge-published">
+          <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Опубл.
+        </span>
+      );
+    } else if (status === 'draft') {
+      return <span className="badge badge-draft">Черновик</span>;
+    } else if (status === 'scheduled') {
+      return <span className="badge badge-published">Запланировано</span>;
+    }
+    return <span className="badge badge-draft">{status}</span>;
   };
 
   const getLevelBadge = (level: string) => {
-    const levelColors = {
-      A1: 'bg-purple-100 text-purple-800',
-      A2: 'bg-blue-100 text-blue-800',
-      B1: 'bg-green-100 text-green-800',
-      B2: 'bg-yellow-100 text-yellow-800',
-      C1: 'bg-orange-100 text-orange-800',
-      C2: 'bg-red-100 text-red-800'
-    };
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${levelColors[level as keyof typeof levelColors]}`}>
-        {level}
-      </span>
-    );
+    if (level === 'A1') {
+      return <span className="badge badge-a1">A1</span>;
+    } else if (level === 'A2') {
+      return <span className="badge badge-a2">A2</span>;
+    }
+    return <span className="badge badge-a1">{level}</span>;
   };
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('ru-RU');
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
-  const handleSelectAll = () => {
-    if (selectedUnits.length === units.length) {
-      setSelectedUnits([]);
-    } else {
-      setSelectedUnits(units.map(unit => unit.id));
-    }
-  };
-
-  const handleSelectUnit = (unitId: number) => {
-    setSelectedUnits(prev => 
-      prev.includes(unitId) 
-        ? prev.filter(id => id !== unitId)
-        : [...prev, unitId]
-    );
-  };
-
-  const refreshUnits = async () => {
-    try {
-      setLoading(true);
-      const fetchedUnits = await unitsApi.getAdminUnits();
-      setUnits(fetchedUnits as any);
-    } catch (error: any) {
-      console.error('Error refreshing units:', error);
-      toast.error('Ошибка при обновлении списка юнитов');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteUnit = async (unitId: number, unitTitle: string) => {
+  const handleDeleteUnit = async (unitId: number, unitTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!window.confirm(`Вы уверены, что хотите удалить юнит "${unitTitle}"? Это действие нельзя отменить.`)) {
       return;
     }
@@ -227,386 +147,373 @@ export default function AdminUnitsPage() {
     try {
       await unitsApi.deleteUnit(unitId);
       toast.success('Юнит успешно удален');
-      await refreshUnits();
+      const fetchedUnits = await unitsApi.getAdminUnits();
+      setUnits(fetchedUnits as any);
     } catch (error: any) {
       console.error('Error deleting unit:', error);
       toast.error(error.response?.data?.detail || 'Ошибка при удалении юнита');
     }
   };
 
-  const handleBulkAction = async (action: string) => {
-    if (selectedUnits.length === 0) return;
-    
-    try {
-      if (action === 'delete') {
-        if (!window.confirm(`Вы уверены, что хотите удалить ${selectedUnits.length} юнитов? Это действие нельзя отменить.`)) {
-          return;
-        }
-        
-        // Delete each unit
-        for (const unitId of selectedUnits) {
-          await unitsApi.deleteUnit(unitId);
-        }
-        
-        toast.success(`${selectedUnits.length} юнитов успешно удалено`);
-      } else {
-        // Here you would call the API for other bulk actions
-        console.log(`Bulk action: ${action}`, selectedUnits);
-        
-        // For now, just show a success message
-        toast.success(`Действие "${action}" применено к ${selectedUnits.length} юнитам`);
-      }
+  // Filter and sort units
+  const filteredAndSortedUnits = useMemo(() => {
+    let filtered = units.filter(unit => {
+      const matchesSearch = !searchQuery || 
+        unit.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (unit.course_title && unit.course_title.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesLevel = !selectedLevel || unit.level === selectedLevel;
+      const matchesStatus = !selectedStatus || unit.status === selectedStatus;
+      const matchesCourse = !selectedCourse || unit.course_title === selectedCourse;
       
-      // Refresh the units list
-      await refreshUnits();
-    } catch (error: any) {
-      console.error('Error performing bulk action:', error);
-      toast.error('Ошибка при выполнении действия');
-    } finally {
-      setSelectedUnits([]);
-    }
-  };
+      return matchesSearch && matchesLevel && matchesStatus && matchesCourse;
+    });
 
-  const filteredUnits = units.filter(unit => {
-    const matchesSearch = unit.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesLevel = !selectedLevel || unit.level === selectedLevel;
-    const matchesStatus = !selectedStatus || unit.status === selectedStatus;
-    
-    return matchesSearch && matchesLevel && matchesStatus;
-  });
+    // Sort
+    filtered.sort((a, b) => {
+      if (sortField === 'order') {
+        const diff = a.order_index - b.order_index;
+        return sortDirection === 'asc' ? diff : -diff;
+      } else if (sortField === 'created_at') {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        const diff = dateA - dateB;
+        return sortDirection === 'asc' ? diff : -diff;
+      }
+      return 0;
+    });
 
-  const sortedUnits = [...filteredUnits].sort((a, b) => {
-    if (sortField === 'order') {
-      const diff = a.order_index - b.order_index;
-      return sortDirection === 'asc' ? diff : -diff;
-    } else if (sortField === 'created_at') {
-      const dateA = new Date(a.created_at).getTime();
-      const dateB = new Date(b.created_at).getTime();
-      const diff = dateA - dateB;
-      return sortDirection === 'asc' ? diff : -diff;
-    }
-    return 0;
-  });
+    return filtered;
+  }, [units, searchQuery, selectedLevel, selectedStatus, selectedCourse, sortField, sortDirection]);
+
+  // Group filtered units by course
+  const filteredGroupedUnits = useMemo(() => {
+    const groups: Record<string, Unit[]> = {};
+    filteredAndSortedUnits.forEach(unit => {
+      const courseKey = unit.course_title || 'Без курса';
+      if (!groups[courseKey]) {
+        groups[courseKey] = [];
+      }
+      groups[courseKey].push(unit);
+    });
+    return groups;
+  }, [filteredAndSortedUnits]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <div className="admin-units-wrapper min-h-screen bg-[#f5f0e8] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a7070]"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky top bar – Coursera/Udemy style */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+    <div className="admin-units-wrapper">
+      <div className="page-content">
+        {/* Page header */}
+        <div className="page-header">
           <div>
-            <div className="flex items-center gap-2">
-              <Layers className="h-6 w-6 text-primary-600" />
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                {t('admin.nav.units')}
-              </h1>
-              {units.length > 0 && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                  {units.length} юнитов
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs md:text-sm text-gray-500">
-              Управляйте учебными юнитами — как списком курсов на Udemy/Coursera
-            </p>
+            <h1 className="page-title">
+              {t('admin.nav.units')} <em>/ {filteredAndSortedUnits.length} {filteredAndSortedUnits.length === 1 ? 'юнит' : filteredAndSortedUnits.length < 5 ? 'юнита' : 'юнитов'}</em>
+            </h1>
+            <p className="page-meta">Управляйте учебными юнитами — как списком курсов на Udemy/Coursera</p>
           </div>
-
-          <Link
-            to="/admin/units/new"
-            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Создать юнит
-          </Link>
         </div>
-      </div>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-        {/* Search & filters */}
-        <AdminSearchFilters
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder="Поиск по названию или описанию"
-          showFilters={showFilters}
-          onToggleFilters={() => setShowFilters(!showFilters)}
-          filters={
-            <>
-              {/* Level */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Уровень
-                </label>
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все уровни</option>
-                  <option value="A1">A1</option>
-                  <option value="A2">A2</option>
-                  <option value="B1">B1</option>
-                  <option value="B2">B2</option>
-                  <option value="C1">C1</option>
-                  <option value="C2">C2</option>
-                </select>
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Статус
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все статусы</option>
-                  <option value="draft">Черновик</option>
-                  <option value="scheduled">Запланировано</option>
-                  <option value="published">Опубликовано</option>
-                  <option value="archived">Архив</option>
-                </select>
-              </div>
-            </>
-          }
-        />
-
-        {/* Bulk actions bar */}
-        {selectedUnits.length > 0 && (
-          <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
-                {selectedUnits.length}
-              </span>
-              <div>
-                <p className="text-sm font-medium text-gray-900">
-                  Выбрано юнитов: {selectedUnits.length}
-                </p>
-                <p className="text-xs text-gray-600">
-                  Примените массовое действие — как для курса на платформе.
-                </p>
-              </div>
+        {/* Summary chips */}
+        <div className="summary-bar">
+          <div className="summary-chip">
+            <div className="summary-chip-icon">
+              <Folder className="w-3 h-3" />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleBulkAction('publish')}
-                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700"
-              >
-                <Check className="h-4 w-4 mr-1" />
-                Опубликовать
-              </button>
-              <button
-                onClick={() => handleBulkAction('archive')}
-                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-red-600 hover:bg-red-700"
-              >
-                Архивировать
-              </button>
-              <button
-                onClick={() => handleBulkAction('delete')}
-                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-red-800 hover:bg-red-900"
-              >
-                Удалить
-              </button>
-              <button
-                onClick={() => setSelectedUnits([])}
-                className="inline-flex items-center px-3 py-1 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <X className="h-4 w-4 mr-1" />
-                Снять выделение
-              </button>
+            <div>
+              <div className="summary-chip-val">{summaryStats.totalUnits}</div>
+              <div className="summary-chip-lbl">Юнитов</div>
             </div>
           </div>
-        )}
+          <div className="summary-chip">
+            <div className="summary-chip-icon" style={{background: 'rgba(201,150,42,0.1)'}}>
+              <Video className="w-3 h-3" style={{stroke: 'var(--gold)'}} />
+            </div>
+            <div>
+              <div className="summary-chip-val" style={{color: 'var(--gold)'}}>{summaryStats.totalVideos}</div>
+              <div className="summary-chip-lbl">Видео</div>
+            </div>
+          </div>
+          <div className="summary-chip">
+            <div className="summary-chip-icon" style={{background: 'rgba(201,74,42,0.08)'}}>
+              <FileText className="w-3 h-3" style={{stroke: 'var(--rust)'}} />
+            </div>
+            <div>
+              <div className="summary-chip-val" style={{color: 'var(--rust)'}}>{summaryStats.totalTests}</div>
+              <div className="summary-chip-lbl">Тестов</div>
+            </div>
+          </div>
+          <div className="summary-chip">
+            <div className="summary-chip-icon">
+              <Users className="w-3 h-3" />
+            </div>
+            <div>
+              <div className="summary-chip-val">{summaryStats.totalStudents}</div>
+              <div className="summary-chip-lbl">Студентов</div>
+            </div>
+          </div>
+        </div>
 
-        {/* Units table / empty state */}
-        {filteredUnits.length > 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left">
-                      <input
-                        type="checkbox"
-                        checked={selectedUnits.length === units.length && units.length > 0}
-                        onChange={handleSelectAll}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                      />
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Курс
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Название
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Уровень
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Статус
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (sortField === 'order') {
-                            setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
-                          } else {
-                            setSortField('order');
-                            setSortDirection('asc');
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                        aria-label="Сортировать по порядку"
-                      >
-                        Порядок
-                        {sortField === 'order' && (sortDirection === 'asc' ? (
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        ))}
-                      </button>
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Контент
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (sortField === 'created_at') {
-                            setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
-                          } else {
-                            setSortField('created_at');
-                            setSortDirection('desc');
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                        aria-label="Сортировать по дате создания"
-                      >
-                        Создано
-                        {sortField === 'created_at' && (sortDirection === 'asc' ? (
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        ))}
-                      </button>
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200">
-                      Действия
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {sortedUnits.map((unit) => (
-                    <tr key={unit.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={selectedUnits.includes(unit.id)}
-                          onChange={() => handleSelectUnit(unit.id)}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                      </td>
-                      <td className="px-6 py-4">
-                        {unit.course_title ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 break-words">
-                            {unit.course_title}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900 break-words max-w-xs">
-                          {unit.title}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getLevelBadge(unit.level)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(unit.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {unit.order_index}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-wrap gap-1 text-xs">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800">
-                            {unit.content_count.videos} видео
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800">
-                            {unit.content_count.tasks} заданий
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-purple-100 text-purple-800">
-                            {unit.content_count.tests} тестов
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(unit.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
-                        <div className="flex items-center justify-end gap-4 md:gap-3 lg:gap-2">
-                          <Link
-                            to={`/admin/units/${unit.id}/edit`}
-                            className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Редактировать"
-                          >
-                            <Pencil className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                          </Link>
-                          <button
-                            onClick={() => handleDeleteUnit(unit.id, unit.title)}
-                            className="p-2 md:p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Удалить"
-                          >
-                            <Trash2 className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                          </button>
+        {/* Toolbar */}
+        <div className="toolbar">
+          <div className="search-wrap">
+            <Search className="w-4 h-4" />
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Поиск по названию или описанию…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <button
+            className="filter-btn"
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              background: showFilters ? 'var(--warm)' : '',
+              borderColor: showFilters ? 'var(--ink)' : '',
+              color: showFilters ? 'var(--ink)' : ''
+            }}
+          >
+            <Filter className="w-3 h-3" />
+            Фильтры
+          </button>
+        </div>
+
+        {/* Filter panel */}
+        <div className={`filter-panel ${showFilters ? 'open' : ''}`}>
+          <div className="filter-group">
+            <label>Курс</label>
+            <select
+              value={selectedCourse}
+              onChange={(e) => setSelectedCourse(e.target.value)}
+            >
+              <option value="">Все курсы</option>
+              {uniqueCourses.map(course => (
+                <option key={course} value={course}>{course}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Статус</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+            >
+              <option value="">Все статусы</option>
+              <option value="published">Опубликовано</option>
+              <option value="draft">Черновик</option>
+              <option value="scheduled">Запланировано</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Уровень</label>
+            <select
+              value={selectedLevel}
+              onChange={(e) => setSelectedLevel(e.target.value)}
+            >
+              <option value="">Все уровни</option>
+              <option value="A1">A1</option>
+              <option value="A2">A2</option>
+              <option value="B1">B1</option>
+              <option value="B2">B2</option>
+              <option value="C1">C1</option>
+              <option value="C2">C2</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Сортировка</label>
+            <select
+              value={`${sortField}_${sortDirection}`}
+              onChange={(e) => {
+                const [field, dir] = e.target.value.split('_');
+                setSortField(field as 'order' | 'created_at');
+                setSortDirection(dir as 'asc' | 'desc');
+              }}
+            >
+              <option value="created_at_desc">По дате создания</option>
+              <option value="order_asc">По порядку</option>
+              <option value="order_desc">По порядку (обратно)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Table */}
+        {filteredAndSortedUnits.length > 0 ? (
+          <div className="table-wrap">
+            <table className="units-table">
+              <thead>
+                <tr>
+                  <th style={{width: '34%'}}>
+                    Название юнита{' '}
+                    <span className="sort-arrow">↕</span>
+                  </th>
+                  <th style={{width: '8%'}}>Уровень</th>
+                  <th style={{width: '10%'}}>Статус</th>
+                  <th style={{width: '6%', textAlign: 'center'}}>Порядок</th>
+                  <th style={{width: '18%'}}>Контент</th>
+                  <th 
+                    style={{width: '9%', cursor: 'pointer'}}
+                    onClick={() => {
+                      if (sortField === 'created_at') {
+                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('created_at');
+                        setSortDirection('desc');
+                      }
+                    }}
+                  >
+                    Создано{' '}
+                    <span className={`sort-arrow ${sortField === 'created_at' ? 'sorted' : ''}`}>
+                      {sortField === 'created_at' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </th>
+                  <th style={{width: '15%', textAlign: 'right'}}>Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(filteredGroupedUnits).map(([courseTitle, courseUnits]) => (
+                  <>
+                    {/* Group row */}
+                    <tr key={`group-${courseTitle}`} className="group-row">
+                      <td colSpan={7}>
+                        <div className="group-label">
+                          <div className="group-dot" style={{background: 'var(--teal)'}}></div>
+                          <span className="group-name">{courseTitle}</span>
+                          <span className="group-count">{courseUnits.length} юнитов</span>
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                    {/* Data rows */}
+                    {courseUnits.map((unit) => (
+                      <tr
+                        key={unit.id}
+                        className="data-row"
+                        onClick={() => navigate(`/admin/units/${unit.id}/edit`)}
+                      >
+                        <td>
+                          <div className="unit-name-cell">
+                            <div className={`unit-order-badge ${unit.order_index === 1 ? 'first' : ''}`}>
+                              {unit.order_index || 0}
+                            </div>
+                            <div className="unit-name-info">
+                              <div className="unit-title">{unit.title}</div>
+                              <div className="unit-course-ref">{unit.course_title || 'Без курса'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>{getLevelBadge(unit.level)}</td>
+                        <td>{getStatusBadge(unit.status)}</td>
+                        <td style={{textAlign: 'center'}}>
+                          <span style={{fontFamily: "'Space Mono', monospace", fontSize: '0.7rem', fontWeight: 700, color: unit.order_index === 1 ? 'var(--teal)' : 'var(--muted)'}}>
+                            {unit.order_index || 0}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="content-chips">
+                            {unit.content_count?.videos > 0 && (
+                              <span className="content-chip video">
+                                <Video className="w-2.5 h-2.5" />
+                                {unit.content_count.videos} {unit.content_count.videos === 1 ? 'видео' : 'видео'}
+                              </span>
+                            )}
+                            {unit.content_count?.tasks > 0 && (
+                              <span className="content-chip task">
+                                <CheckSquare className="w-2.5 h-2.5" />
+                                {unit.content_count.tasks} {unit.content_count.tasks === 1 ? 'задание' : unit.content_count.tasks < 5 ? 'задания' : 'заданий'}
+                              </span>
+                            )}
+                            {unit.content_count?.tests > 0 && (
+                              <span className="content-chip test">
+                                <FileText className="w-2.5 h-2.5" />
+                                {unit.content_count.tests} {unit.content_count.tests === 1 ? 'тест' : unit.content_count.tests < 5 ? 'теста' : 'тестов'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="date-cell">{formatDate(unit.created_at)}</div>
+                        </td>
+                        <td>
+                          <div className="row-actions" style={{justifyContent: 'flex-end'}}>
+                            <button
+                              className="icon-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/admin/units/${unit.id}/edit`);
+                              }}
+                              title="Редактировать"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              className="icon-btn danger"
+                              onClick={(e) => handleDeleteUnit(unit.id, unit.title, e)}
+                              title="Удалить"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                            <Link
+                              to={`/admin/units/${unit.id}/edit`}
+                              className="open-btn"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Открыть{' '}
+                              <ChevronRight className="w-2.5 h-2.5" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Table footer */}
+            <div className="table-footer">
+              <div className="table-footer-count">
+                Показано {filteredAndSortedUnits.length} из {units.length} юнитов
+              </div>
+              <div className="table-footer-nav">
+                <button className="page-btn active">1</button>
+                {/* TODO: Add pagination logic */}
+              </div>
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-12 px-4 text-center">
-            <Archive className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-3 text-sm font-medium text-gray-900">
-              {searchQuery || selectedLevel || selectedStatus
-                ? 'Нет результатов'
+          <div className="empty-state">
+            <div className="empty-icon">
+              <Folder className="w-7 h-7" />
+            </div>
+            <h3 style={{fontSize: '1.1rem', fontWeight: 500, color: 'var(--ink)', marginBottom: '0.5rem'}}>
+              {searchQuery || selectedLevel || selectedStatus || selectedCourse
+                ? 'Юниты не найдены'
                 : 'Нет юнитов'}
             </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || selectedLevel || selectedStatus
-                ? 'Попробуйте изменить параметры поиска или фильтры.'
-                : 'Начните с создания первого юнита.'}
+            <p style={{fontSize: '0.88rem', color: 'var(--muted)', marginBottom: '1.5rem'}}>
+              {searchQuery || selectedLevel || selectedStatus || selectedCourse
+                ? 'Попробуйте изменить параметры поиска или фильтры'
+                : 'Создайте первый юнит, чтобы начать организовывать учебные материалы'}
             </p>
-            {!searchQuery && !selectedLevel && !selectedStatus && (
-              <div className="mt-6">
-                <Link
-                  to="/admin/units/new"
-                  className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Создать юнит
-                </Link>
-              </div>
+            {!searchQuery && !selectedLevel && !selectedStatus && !selectedCourse && (
+              <Link
+                to="/admin/units/new"
+                className="open-btn"
+                style={{display: 'inline-flex'}}
+              >
+                <Plus className="w-3 h-3" />
+                Создать юнит
+              </Link>
             )}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

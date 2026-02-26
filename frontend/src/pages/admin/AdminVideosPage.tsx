@@ -1,60 +1,60 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
-  Edit, 
-  Trash2, 
+  Pencil,
+  Trash2,
   Video,
-  ChevronLeft,
-  ChevronRight,
-  Youtube
+  Search,
+  Filter,
+  Grid3x3,
+  List,
+  Folder,
+  Eye
 } from 'lucide-react';
 import { videosApi } from '../../services/api';
 import toast from 'react-hot-toast';
-import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
+import './AdminVideosPage.css';
 
-const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+interface VideoItem {
+  id: number;
+  title: string;
+  description?: string;
+  unit_id: number | null;
+  unit_title: string | null;
+  source_type: string;
+  duration_sec?: number;
+  status: string;
+  publish_at: string | null;
+  thumbnail_path?: string;
+  is_visible_to_students: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string | null;
+}
 
 export default function AdminVideosPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [videos, setVideos] = useState<any[]>([]);
+  const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState('');
-  const [selectedVideos, setSelectedVideos] = useState<number[]>([]);
+  const [selectedUnit, setSelectedUnit] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [sortOption, setSortOption] = useState<'order_asc' | 'order_desc' | 'date_desc' | 'date_asc'>('order_asc');
-  const pageSize = 9;
-  
-  // Load videos on mount
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortOption, setSortOption] = useState<'updated_at' | 'created_at' | 'title' | 'order'>('updated_at');
+
   useEffect(() => {
     loadVideos();
   }, []);
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedLevel, sortOption]);
-  
   const loadVideos = async () => {
     try {
       setLoading(true);
       const videosData = await videosApi.getAdminVideos({ limit: 100 });
       setVideos(videosData || []);
-      console.log('Loaded videos:', videosData?.length);
-      // Debug: Log thumbnail paths
-      videosData?.forEach((video: any) => {
-        if (video.thumbnail_path) {
-          const thumbnailUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/${video.thumbnail_path}`;
-          console.log(`Video ${video.id} thumbnail:`, {
-            path: video.thumbnail_path,
-            fullUrl: thumbnailUrl
-          });
-        }
-      });
     } catch (error) {
       console.error('Error loading videos:', error);
       toast.error('Ошибка при загрузке видео');
@@ -64,31 +64,26 @@ export default function AdminVideosPage() {
     }
   };
 
-  const handleSelectVideo = (videoId: number) => {
-    setSelectedVideos(prev => 
-      prev.includes(videoId) 
-        ? prev.filter(id => id !== videoId)
-        : [...prev, videoId]
-    );
-  };
+  // Get unique units for filter
+  const uniqueUnits = useMemo(() => {
+    const units = new Set<string>();
+    videos.forEach(video => {
+      if (video.unit_title) {
+        units.add(video.unit_title);
+      }
+    });
+    return Array.from(units).sort();
+  }, [videos]);
 
-  const handleBulkAction = (action: string) => {
-    if (selectedVideos.length === 0) return;
-    console.log(`Bulk action: ${action} on videos:`, selectedVideos);
-    // TODO: implement real bulk actions via API
-    toast.success(`Действие "${action}" применено к ${selectedVideos.length} видео`);
-    setSelectedVideos([]);
-  };
-
-  const handleDeleteVideo = async (videoId: number) => {
+  const handleDeleteVideo = async (videoId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!window.confirm('Вы уверены, что хотите удалить это видео? Это действие нельзя отменить.')) {
       return;
     }
     
     try {
       await videosApi.deleteVideo(videoId);
-      // Remove from local state
-      setVideos(prev => prev.filter(video => video.id !== videoId));
+      setVideos(prev => prev.filter(v => v.id !== videoId));
       toast.success('Видео успешно удалено');
     } catch (error: any) {
       console.error('Error deleting video:', error);
@@ -96,412 +91,284 @@ export default function AdminVideosPage() {
     }
   };
 
-  const filteredVideos = videos.filter(video => {
-    const title = (video.title || '').toLowerCase();
-    const description = (video.description || '').toLowerCase();
-    const query = searchQuery.toLowerCase();
+  // Filter and sort videos
+  const filteredAndSortedVideos = useMemo(() => {
+    let filtered = videos.filter(video => {
+      const matchesSearch = !searchQuery || 
+        video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (video.unit_title && video.unit_title.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesUnit = !selectedUnit || video.unit_title === selectedUnit;
+      const matchesOrder = !selectedOrder || 
+        (selectedOrder === '0' && video.order_index === 0) ||
+        (selectedOrder === '1+' && video.order_index > 0);
+      
+      return matchesSearch && matchesUnit && matchesOrder;
+    });
 
-    const matchesSearch = !query || title.includes(query) || description.includes(query);
-    const matchesLevel = !selectedLevel || video.level === selectedLevel;
-    
-    return matchesSearch && matchesLevel;
-  });
+    // Sort
+    filtered.sort((a, b) => {
+      if (sortOption === 'order') {
+        return (a.order_index || 0) - (b.order_index || 0);
+      } else if (sortOption === 'title') {
+        return a.title.localeCompare(b.title);
+      } else if (sortOption === 'created_at') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      } else { // updated_at
+        const aDate = new Date(a.updated_at || a.created_at).getTime();
+        const bDate = new Date(b.updated_at || b.created_at).getTime();
+        return bDate - aDate; // Descending for updated_at
+      }
+    });
 
-  const sortedVideos = [...filteredVideos].sort((a, b) => {
-    if (sortOption === 'order_asc' || sortOption === 'order_desc') {
-      const aValue = a.order_index || a.orderIndex || 0;
-      const bValue = b.order_index || b.orderIndex || 0;
-      const diff = aValue - bValue;
-      return sortOption === 'order_asc' ? diff : -diff;
+    return filtered;
+  }, [videos, searchQuery, selectedUnit, selectedOrder, sortOption]);
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const getThumbnailUrl = (video: VideoItem) => {
+    if (video.thumbnail_path) {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+      return `${apiBase}/static/${video.thumbnail_path}`;
     }
-
-    const aDate = new Date(a.updated_at || a.created_at || 0).getTime();
-    const bDate = new Date(b.updated_at || b.created_at || 0).getTime();
-    const diff = aDate - bDate;
-    return sortOption === 'date_asc' ? diff : -diff;
-  });
-
-  // Calculate pagination
-  const totalPages = Math.ceil(sortedVideos.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedVideos = sortedVideos.slice(startIndex, endIndex);
-  const showPagination = sortedVideos.length > pageSize;
+    return null;
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          <p className="text-sm text-gray-500">Загрузка видео...</p>
-        </div>
+      <div className="admin-videos-wrapper min-h-screen bg-[#f5f0e8] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a7070]"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky top bar – Coursera/Udemy style */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+    <div className="admin-videos-wrapper">
+      <div className="page-content">
+        {/* Page header */}
+        <div className="page-header">
           <div>
-            <div className="flex items-center gap-2">
-              <Video className="h-6 w-6 text-primary-600" />
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                {t('admin.nav.videos') || 'Видео-уроки'}
-              </h1>
-              {videos.length > 0 && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                  {videos.length} видео
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs md:text-sm text-gray-500">
-              Управляйте видео-уроками и плейлистами — как лекциями в курсах на Udemy/Coursera.
-            </p>
+            <h1 className="page-title">
+              {t('admin.nav.videos')} <em>/ {filteredAndSortedVideos.length} {filteredAndSortedVideos.length === 1 ? 'видео' : filteredAndSortedVideos.length < 5 ? 'видео' : 'видео'}</em>
+            </h1>
+            <p className="page-meta">Управляйте видео-уроками и плейлистами — как лекциями в курсах на Udemy/Coursera</p>
           </div>
-
-          <button
-            onClick={() => navigate('/admin/videos/new')}
-            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Добавить видео
-          </button>
         </div>
-      </div>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-        {/* Search & filters */}
-        <AdminSearchFilters
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder="Поиск по названию или описанию"
-          showFilters={showFilters}
-          onToggleFilters={() => setShowFilters(!showFilters)}
-          filters={
-            <>
-              {/* Level */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Уровень
-                </label>
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все уровни</option>
-                  {levels.map(level => (
-                    <option key={level} value={level}>
-                      {level}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Sorting */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Сортировка
-                </label>
-                <select
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as typeof sortOption)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="order_asc">Порядок ↑</option>
-                  <option value="order_desc">Порядок ↓</option>
-                  <option value="date_desc">Дата обновления ↓</option>
-                  <option value="date_asc">Дата обновления ↑</option>
-                </select>
-              </div>
-            </>
-          }
-        />
-
-        {/* Bulk actions bar */}
-        {selectedVideos.length > 0 && (
-          <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
-                {selectedVideos.length}
-              </span>
-            <div>
-              <p className="text-sm font-medium text-gray-900">
-                Выбрано видео: {selectedVideos.length}
-              </p>
-              <p className="text-xs text-gray-600">
-                Примените массовое действие — как управление лекциями в курсе.
-              </p>
-            </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleBulkAction('publish')}
-                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700"
-              >
-                Опубликовать
-              </button>
-              <button
-                onClick={() => handleBulkAction('archive')}
-                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-red-600 hover:bg-red-700"
-              >
-                Архивировать
-              </button>
-              <button
-                onClick={() => setSelectedVideos([])}
-                className="inline-flex items-center px-3 py-1 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Снять выделение
-              </button>
-            </div>
+        {/* Toolbar */}
+        <div className="toolbar">
+          <div className="search-wrap">
+            <Search className="w-4 h-4" />
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Поиск по названию…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-        )}
+          <button
+            className="filter-btn"
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              background: showFilters ? 'var(--warm)' : '',
+              borderColor: showFilters ? 'var(--ink)' : '',
+              color: showFilters ? 'var(--ink)' : ''
+            }}
+          >
+            <Filter className="w-3 h-3" />
+            Фильтры
+          </button>
+          <div className="view-toggle">
+            <button
+              className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => setViewMode('grid')}
+              title="Сетка"
+            >
+              <Grid3x3 className="w-4 h-4" />
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => setViewMode('list')}
+              title="Список"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
-        {/* Videos grid / empty state */}
-        {sortedVideos.length > 0 ? (
-          <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedVideos.map((video) => (
-              <div
-                key={video.id}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all"
-              >
-                {/* Thumbnail */}
-                <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden group">
-                  {video.thumbnail_path ? (
-                    <img
-                      src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/${video.thumbnail_path}?t=${Date.now()}`}
-                      alt={video.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        console.error('Failed to load thumbnail:', {
-                          videoId: video.id,
-                          thumbnailPath: video.thumbnail_path,
-                          triedUrl: (e.target as HTMLImageElement).src
-                        });
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                      onLoad={() => {
-                        console.log('Thumbnail loaded successfully:', video.id, video.thumbnail_path);
-                      }}
-                    />
-                  ) : video.source_type === 'url' && video.external_url ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-red-500 to-red-600">
-                      <Youtube className="w-14 h-14 text-white" />
-                    </div>
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600">
-                      <Video className="w-12 h-12 text-white/80" />
-                    </div>
-                  )}
+        {/* Filter panel */}
+        <div className={`filter-panel ${showFilters ? 'open' : ''}`}>
+          <div className="filter-group">
+            <label>Юнит</label>
+            <select
+              value={selectedUnit}
+              onChange={(e) => setSelectedUnit(e.target.value)}
+            >
+              <option value="">Все юниты</option>
+              {uniqueUnits.map(unit => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Порядок</label>
+            <select
+              value={selectedOrder}
+              onChange={(e) => setSelectedOrder(e.target.value)}
+            >
+              <option value="">Любой</option>
+              <option value="0">Без порядка (0)</option>
+              <option value="1+">Назначен порядок</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Сортировка</label>
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as typeof sortOption)}
+            >
+              <option value="updated_at">По дате обновления</option>
+              <option value="created_at">По дате создания</option>
+              <option value="title">По названию</option>
+              <option value="order">По порядку</option>
+            </select>
+          </div>
+        </div>
 
-                  {/* Overlay gradient for better text visibility */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+        {/* Count bar */}
+        <div className="count-bar">
+          <div className="count-label">
+            Показано <span className="count-num">{filteredAndSortedVideos.length}</span> видео
+          </div>
+        </div>
 
-                  {/* Level badge */}
-                  <div className="absolute top-3 left-3 z-10">
-                    {video.level && (
-                      <span className="inline-flex items-center rounded-lg bg-black/80 backdrop-blur-sm px-2.5 py-1 text-xs font-bold text-white shadow-lg">
-                        {video.level}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Checkbox */}
-                  <div className="absolute top-3 right-3 z-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedVideos.includes(video.id)}
-                      onChange={() => handleSelectVideo(video.id)}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 bg-white/95 shadow-md h-4 w-4"
-                    />
-                  </div>
-
-                  {/* Duration badge */}
-                  {video.duration_sec && (
-                    <div className="absolute bottom-3 right-3 z-10 bg-black/90 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-lg shadow-lg">
-                      {Math.floor(video.duration_sec / 60)}:
-                      {(video.duration_sec % 60).toString().padStart(2, '0')}
-                    </div>
-                  )}
-
-                  {/* Play icon overlay on hover */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
-                      <Video className="w-8 h-8 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">
-                      {video.title}
-                    </h3>
-                  </div>
-
-                  {video.description && (
-                    <p className="text-xs text-gray-600 line-clamp-2">
-                      {video.description}
-                    </p>
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {video.unit_title && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-purple-100 text-purple-800">
-                          {video.unit_title}
-                        </span>
+        {/* Videos grid */}
+        {filteredAndSortedVideos.length > 0 ? (
+          <div className={`videos-grid ${viewMode === 'list' ? 'list-view' : ''}`}>
+            {filteredAndSortedVideos.map((video) => {
+              const thumbnailUrl = getThumbnailUrl(video);
+              
+              return (
+                <div
+                  key={video.id}
+                  className={`video-card ${viewMode === 'list' ? 'list' : ''}`}
+                  onClick={() => navigate(`/admin/videos/${video.id}/edit`)}
+                >
+                  <div className="video-thumb">
+                    <div 
+                      className="video-thumb-bg"
+                      style={thumbnailUrl ? {
+                        backgroundImage: `url(${thumbnailUrl})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                      } : {}}
+                    >
+                      {!thumbnailUrl && (
+                        <div className="video-thumb-title">{video.title}</div>
                       )}
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800">
-                        Порядок: {video.order_index ?? 0}
-                      </span>
+                    </div>
+                    <div className="thumb-order">ПОРЯДОК: {video.order_index || 0}</div>
+                    <div className="play-btn" onClick={(e) => {
+                      e.stopPropagation();
+                      // TODO: Open video preview
+                    }}>
+                      <svg viewBox="0 0 24 24">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                      </svg>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between text-[11px] text-gray-500">
-                    <span>
-                      Создано:{' '}
-                      {video.created_at
-                        ? new Date(video.created_at).toLocaleDateString('ru-RU')
-                        : '-'}
-                    </span>
-                    {video.updated_at && (
-                      <span>Обновлено: {new Date(video.updated_at).toLocaleDateString('ru-RU')}</span>
+                  <div className="video-card-body">
+                    <h3 className="video-title">{video.title}</h3>
+                    {video.unit_title && (
+                      <div className="video-unit-ref">
+                        <Folder className="w-3 h-3" />
+                        <span>{video.unit_title}</span>
+                      </div>
                     )}
+                    <div className="video-meta">
+                      <div className="meta-item">
+                        <div className="meta-label">Порядок</div>
+                        <div className="meta-val order">{video.order_index || 0}</div>
+                      </div>
+                      <div className="meta-item">
+                        <div className="meta-label">Создано</div>
+                        <div className="meta-val">{formatDate(video.created_at)}</div>
+                      </div>
+                      <div className="meta-item" style={{gridColumn: '1/-1'}}>
+                        <div className="meta-label">Обновлено</div>
+                        <div className="meta-val" style={video.updated_at && video.updated_at !== video.created_at ? {color: 'var(--teal)'} : {}}>
+                          {formatDate(video.updated_at || video.created_at)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="pt-2 flex items-center justify-between border-t border-gray-100">
-                    <div className="flex items-center space-x-2">
+                  <div className="card-actions">
+                    <div className="action-group">
                       <button
-                        onClick={() => navigate(`/admin/videos/${video.id}/edit`)}
-                        className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                        title="Редактировать"
+                        className="icon-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // TODO: Open preview
+                        }}
+                        title="Предпросмотр"
                       >
-                        <Edit className="w-3.5 h-3.5 mr-1" />
-                        Править
+                        <Eye className="w-3 h-3" />
+                      </button>
+                      <button
+                        className="icon-btn danger"
+                        onClick={(e) => handleDeleteVideo(video.id, e)}
+                        title="Удалить"
+                      >
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
                     <button
-                      onClick={() => handleDeleteVideo(video.id)}
-                      className="inline-flex items-center justify-center rounded-md text-xs font-medium text-red-600 hover:text-red-700"
-                      title="Удалить"
+                      className="edit-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/admin/videos/${video.id}/edit`);
+                      }}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Pencil className="w-2.5 h-2.5" />
+                      Править
                     </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-
-          {/* Pagination */}
-          {showPagination && (
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 px-2 sm:px-4 py-3 sm:py-4">
-                <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
-                  Показано {startIndex + 1}–{Math.min(endIndex, sortedVideos.length)} из {sortedVideos.length}
-                </span>
-
-                <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-center sm:justify-end overflow-x-auto">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                    className="inline-flex items-center px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                  >
-                    <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
-                    <span className="hidden sm:inline">Назад</span>
-                  </button>
-
-                  <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto max-w-full">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                      // On mobile (≤375px), only show first, last, and current page
-                      // On larger screens, show pages around current too
-                      const shouldShowOnMobile = 
-                        page === 1 ||
-                        page === totalPages ||
-                        page === currentPage;
-                      
-                      const shouldShowOnDesktop = 
-                        page === 1 ||
-                        page === totalPages ||
-                        (page >= currentPage - 1 && page <= currentPage + 1);
-                      
-                      if (shouldShowOnDesktop) {
-                        return (
-                          <button
-                            key={page}
-                            onClick={() => setCurrentPage(page)}
-                            className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors flex-shrink-0 ${
-                              currentPage === page
-                                ? 'bg-primary-600 text-white'
-                                : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-                            } ${
-                              shouldShowOnMobile ? '' : 'hidden sm:inline-flex'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        );
-                      } else if (
-                        page === currentPage - 2 ||
-                        page === currentPage + 2
-                      ) {
-                        return (
-                          <span key={page} className="px-1 sm:px-2 text-gray-500 text-xs sm:text-sm flex-shrink-0 hidden sm:inline">
-                            ...
-                          </span>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-
-                  <button
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    className="inline-flex items-center px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                  >
-                    <span className="hidden sm:inline">Вперед</span>
-                    <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 sm:ml-1" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          </>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-12 px-4 text-center">
-            <Video className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-3 text-sm font-medium text-gray-900">
-              {searchQuery || selectedLevel
-                ? 'Нет результатов'
+          <div className="empty-state">
+            <div className="empty-icon">
+              <Video className="w-7 h-7" />
+            </div>
+            <h3 className="empty-title">
+              {searchQuery || selectedUnit || selectedOrder
+                ? 'Видео не найдены'
                 : 'Нет видео'}
             </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || selectedLevel
-                ? 'Попробуйте изменить параметры поиска или фильтры.'
-                : 'Начните с загрузки первого видео-урока.'}
+            <p className="empty-sub">
+              {searchQuery || selectedUnit || selectedOrder
+                ? 'Попробуйте изменить параметры поиска или фильтры'
+                : 'Начните с загрузки первого видео-урока'}
             </p>
-            {!searchQuery && !selectedLevel && (
-              <div className="mt-6">
-                <button
-                  onClick={() => navigate('/admin/videos/new')}
-                  className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Загрузить видео
-                </button>
-              </div>
+            {!searchQuery && !selectedUnit && !selectedOrder && (
+              <button
+                className="edit-btn"
+                onClick={() => navigate('/admin/videos/new')}
+                style={{marginTop: '1.5rem'}}
+              >
+                <Plus className="w-3 h-3" />
+                Добавить видео
+              </button>
             )}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

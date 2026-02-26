@@ -1,27 +1,46 @@
-import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gradesApi } from '../../services/api';
-import { Eye, Users, ChevronUp, ChevronDown, GraduationCap, FileText, ClipboardList } from 'lucide-react';
-import i18n from '../../i18n';
-import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
+import { 
+  Eye, 
+  Search,
+  Filter,
+  BarChart3,
+  XCircle,
+  CheckCircle2,
+  Heart,
+  Users,
+  FileText,
+  ClipboardList,
+  ArrowRight,
+  RotateCcw,
+  Pencil,
+  ChevronRight
+} from 'lucide-react';
+import './AdminGradesPage.css';
 
 type GradeRow = {
   attempt_id: number;
-  task_id?: number;  // For task submissions
+  task_id?: number;
+  student_id?: number;
   student: string;
+  student_first_name?: string;
+  student_last_name?: string;
   course: string;
   unit: string;
   test: string;
   score: number;
   passing_score: number;
+  max_score?: number;
   passed: boolean;
   status: string;
   submitted_at: string;
   type?: 'test' | 'task';
+  questions_count?: number;
+  grading_type?: 'auto' | 'manual';
 };
+
 export default function AdminGradesPage() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const [grades, setGrades] = useState<GradeRow[]>([]);
   const [allGrades, setAllGrades] = useState<GradeRow[]>([]);
@@ -31,315 +50,573 @@ export default function AdminGradesPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState('');
-  
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState('');
+  const [resultFilter, setResultFilter] = useState<'all' | 'passed' | 'failed'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'test' | 'task'>('all');
+
   useEffect(() => {
     gradesApi.getGrades({
-      page,
-      page_size: 1000, // Get all for filtering
+      page: 1,
+      page_size: 1000,
       sort_by: 'submitted_at',
       sort_dir: sortDir,
     }).then((res) => {
-      setAllGrades(res.items);
+      const mapped = res.items.map((item: any) => ({
+        ...item,
+        student: item.student || `${item.student_first_name || ''} ${item.student_last_name || ''}`.trim(),
+        type: item.task_id ? 'task' : 'test',
+      }));
+      setAllGrades(mapped);
       setTotal(res.total);
-    });
+    }).catch(console.error);
   }, [sortDir]);
 
-  // Filter grades based on search and filters
-  useEffect(() => {
-    let filtered = [...allGrades];
+  // Get unique values for filters
+  const uniqueStudents = useMemo(() => {
+    const students = new Set<string>();
+    allGrades.forEach(g => {
+      if (g.student) students.add(g.student);
+    });
+    return Array.from(students).sort();
+  }, [allGrades]);
 
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((g) =>
-        g.student.toLowerCase().includes(query) ||
-        g.course.toLowerCase().includes(query) ||
-        g.unit.toLowerCase().includes(query) ||
-        g.test.toLowerCase().includes(query)
-      );
-    }
+  const uniqueUnits = useMemo(() => {
+    const units = new Set<string>();
+    allGrades.forEach(g => {
+      if (g.unit) units.add(g.unit);
+    });
+    return Array.from(units).sort();
+  }, [allGrades]);
 
-    // Status filter
-    if (selectedStatus) {
-      filtered = filtered.filter((g) => {
-        if (selectedStatus === 'passed') return g.passed;
-        if (selectedStatus === 'failed') return !g.passed;
-        return true;
-      });
-    }
+  // Calculate summary statistics
+  const summaryStats = useMemo(() => {
+    const total = allGrades.length;
+    const failed = allGrades.filter(g => !g.passed).length;
+    const passed = allGrades.filter(g => g.passed).length;
+    const avgScore = total > 0 
+      ? allGrades.reduce((sum, g) => {
+          const max = g.max_score || g.passing_score || 100;
+          const score = g.score ?? 0;
+          const percent = max > 0 ? (score / max) * 100 : 0;
+          return sum + percent;
+        }, 0) / total
+      : 0;
+    const uniqueStudents = new Set(allGrades.map(g => g.student_id || g.student)).size;
 
-    // Apply pagination
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    setGrades(filtered.slice(startIndex, endIndex));
+    return { total, failed, passed, avgScore, uniqueStudents };
+  }, [allGrades]);
+
+  // Filter and paginate grades
+  const filteredAndPaginatedGrades = useMemo(() => {
+    let filtered = allGrades.filter(g => {
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery ||
+        g.student.toLowerCase().includes(searchLower) ||
+        g.course.toLowerCase().includes(searchLower) ||
+        g.unit.toLowerCase().includes(searchLower) ||
+        g.test.toLowerCase().includes(searchLower);
+      const matchesStudent = !selectedStudent || g.student === selectedStudent;
+      const matchesType = (!selectedType || g.type === selectedType) &&
+                          (typeFilter === 'all' || g.type === typeFilter);
+      const matchesUnit = !selectedUnit || g.unit === selectedUnit;
+      const matchesResult = resultFilter === 'all' || 
+        (resultFilter === 'passed' && g.passed) ||
+        (resultFilter === 'failed' && !g.passed);
+      
+      return matchesSearch && matchesStudent && matchesType && matchesUnit && matchesResult;
+    });
+
     setTotal(filtered.length);
-  }, [allGrades, searchQuery, selectedStatus, page]);
-  
-  
-  // Returns a badge component showing whether a test was passed or failed
-  const getResultBadge = (passed: boolean) => {
-    return passed ? (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-        {t('admin.grades.passed')}
-      </span>
-    ) : (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-        {t('admin.grades.failed')}
-      </span>
-    );
+    const startIndex = (page - 1) * pageSize;
+    return filtered.slice(startIndex, startIndex + pageSize);
+  }, [allGrades, searchQuery, selectedStudent, selectedType, selectedUnit, resultFilter, typeFilter, page]);
+
+  useEffect(() => {
+    setGrades(filteredAndPaginatedGrades);
+  }, [filteredAndPaginatedGrades]);
+
+  const getInitials = (name: string): string => {
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
   };
-  
+
+  const getAvatarColor = (id: number | string | undefined): string => {
+    const colors = ['var(--teal)', 'var(--gold)', 'var(--rust)', '#3a6080', '#4a80a0'];
+    const numId = typeof id === 'number' ? id : (id ? id.toString().charCodeAt(0) : 0);
+    return colors[numId % colors.length];
+  };
+
+  const getScoreClass = (score: number, max: number, passing: number): 'passed' | 'failed' | 'near' | 'zero' => {
+    if (score === 0) return 'zero';
+    const percent = (score / max) * 100;
+    if (percent >= passing) return 'passed';
+    if (percent >= passing - 5) return 'near';
+    return 'failed';
+  };
+
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch {
+      return '—';
+    }
+  };
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  // Animate score bars on mount
+  useEffect(() => {
+    if (grades.length > 0) {
+      setTimeout(() => {
+        const fills = document.querySelectorAll('.score-fill[data-target]');
+        fills.forEach((el) => {
+          const target = (el as HTMLElement).getAttribute('data-target');
+          if (target) {
+            (el as HTMLElement).style.width = target + '%';
+          }
+        });
+      }, 400);
+    }
+  }, [grades]);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+    <div className="admin-grades-wrapper">
+      <div className="page-content">
+        {/* Page header */}
+        <div className="page-header">
           <div>
-            <div className="flex items-center gap-2">
-              <GraduationCap className="h-6 w-6 text-primary-600" />
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                {t('admin.nav.grades')}
-              </h1>
-              {grades.length > 0 && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                  {total} оценок
-                </span>
-              )}
+            <h1 className="page-title">
+              Оценки <em>/ {total} {total === 1 ? 'запись' : total < 5 ? 'записи' : 'записей'}</em>
+            </h1>
+            <p className="page-meta">Просматривайте результаты тестов и заданий, оценки студентов</p>
+          </div>
+        </div>
+
+        {/* Summary chips */}
+        <div className="summary-bar">
+          <div className="summary-chip">
+            <div className="summary-chip-icon" style={{background: 'var(--teal-dim)'}}>
+              <BarChart3 className="w-4 h-4" style={{stroke: 'var(--teal)'}} />
             </div>
-            <p className="mt-1 text-xs md:text-sm text-gray-500">
-              Просматривайте результаты тестов и заданий, оценки студентов
-            </p>
+            <div>
+              <div className="summary-chip-val">{summaryStats.total}</div>
+              <div className="summary-chip-lbl">Оценок всего</div>
+            </div>
+          </div>
+          <div className="summary-chip">
+            <div className="summary-chip-icon" style={{background: 'rgba(201,74,42,0.08)'}}>
+              <XCircle className="w-4 h-4" style={{stroke: 'var(--rust)'}} />
+            </div>
+            <div>
+              <div className="summary-chip-val" style={{color: 'var(--rust)'}}>{summaryStats.failed}</div>
+              <div className="summary-chip-lbl">Failed</div>
+            </div>
+          </div>
+          <div className="summary-chip">
+            <div className="summary-chip-icon" style={{background: 'var(--teal-dim)'}}>
+              <CheckCircle2 className="w-4 h-4" style={{stroke: 'var(--teal)'}} />
+            </div>
+            <div>
+              <div className="summary-chip-val" style={{color: 'var(--teal)'}}>{summaryStats.passed}</div>
+              <div className="summary-chip-lbl">Passed</div>
+            </div>
+          </div>
+          <div className="summary-chip">
+            <div className="summary-chip-icon" style={{background: 'rgba(201,150,42,0.1)'}}>
+              <Heart className="w-4 h-4" style={{stroke: 'var(--gold)'}} />
+            </div>
+            <div>
+              <div className="summary-chip-val" style={{color: 'var(--gold)'}}>
+                {Math.round(summaryStats.avgScore)}%
+              </div>
+              <div className="summary-chip-lbl">Ср. балл</div>
+            </div>
+          </div>
+          <div className="summary-chip">
+            <div className="summary-chip-icon" style={{background: 'rgba(201,150,42,0.1)'}}>
+              <Users className="w-4 h-4" style={{stroke: 'var(--gold)'}} />
+            </div>
+            <div>
+              <div className="summary-chip-val">{summaryStats.uniqueStudents}</div>
+              <div className="summary-chip-lbl">Студентов</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <div className="toolbar">
+          <div className="search-wrap">
+            <Search className="w-4 h-4" />
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Поиск по студенту или тесту…"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+          <button
+            className={`filter-btn ${showFilters ? 'active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="w-3 h-3" />
+            Фильтры
+          </button>
+          <div className="result-filters">
+            <div
+              className={`result-chip ${resultFilter === 'all' ? 'active' : ''}`}
+              onClick={() => {
+                setResultFilter('all');
+                setPage(1);
+              }}
+            >
+              <FileText className="w-3 h-3" />
+              Все
+            </div>
+            <div
+              className={`result-chip passed ${resultFilter === 'passed' ? 'active' : ''}`}
+              onClick={() => {
+                setResultFilter('passed');
+                setPage(1);
+              }}
+            >
+              <div className="dot" style={{background: 'var(--teal)'}}></div>
+              Passed
+            </div>
+            <div
+              className={`result-chip failed ${resultFilter === 'failed' ? 'active' : ''}`}
+              onClick={() => {
+                setResultFilter('failed');
+                setPage(1);
+              }}
+            >
+              <div className="dot" style={{background: 'var(--rust)'}}></div>
+              Failed
+            </div>
+          </div>
+          <div className="result-filters">
+            <div
+              className={`result-chip ${typeFilter === 'all' ? 'active' : ''}`}
+              onClick={() => {
+                setTypeFilter('all');
+                setPage(1);
+              }}
+            >
+              <FileText className="w-3 h-3" />
+              Все типы
+            </div>
+            <div
+              className={`result-chip ${typeFilter === 'test' ? 'active' : ''}`}
+              onClick={() => {
+                setTypeFilter('test');
+                setPage(1);
+              }}
+            >
+              <ClipboardList className="w-3 h-3" />
+              Тест
+            </div>
+            <div
+              className={`result-chip ${typeFilter === 'task' ? 'active' : ''}`}
+              onClick={() => {
+                setTypeFilter('task');
+                setPage(1);
+              }}
+            >
+              <FileText className="w-3 h-3" />
+              Задание
+            </div>
+          </div>
+        </div>
+
+        {/* Filter panel */}
+        <div className={`filter-panel ${showFilters ? 'open' : ''}`}>
+          <div className="filter-group">
+            <label>Студент</label>
+            <select
+              value={selectedStudent}
+              onChange={(e) => {
+                setSelectedStudent(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">Все студенты</option>
+              {uniqueStudents.map(student => (
+                <option key={student} value={student}>{student}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Тип</label>
+            <select
+              value={selectedType}
+              onChange={(e) => {
+                setSelectedType(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">Любой</option>
+              <option value="test">Тест</option>
+              <option value="task">Задание</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Юнит</label>
+            <select
+              value={selectedUnit}
+              onChange={(e) => {
+                setSelectedUnit(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">Все юниты</option>
+              {uniqueUnits.map(unit => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Сортировка</label>
+            <select
+              value={sortDir}
+              onChange={(e) => setSortDir(e.target.value as 'asc' | 'desc')}
+            >
+              <option value="desc">По дате (новые)</option>
+              <option value="asc">По дате (старые)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="table-wrap">
+          <table className="grades-table">
+            <thead>
+              <tr>
+                <th style={{width: '4px', padding: 0}}></th>
+                <th style={{width: '14%'}}>
+                  Студент <span className={`sort-arrow ${false ? 'sorted' : ''}`}>↕</span>
+                </th>
+                <th style={{width: '20%'}}>Курс → Юнит</th>
+                <th style={{width: '7%'}}>Тип</th>
+                <th style={{width: '14%'}}>Test / Задание</th>
+                <th style={{width: '18%'}}>Оценка / Результат</th>
+                <th style={{width: '9%'}}>Итог</th>
+                <th 
+                  style={{width: '8%'}}
+                  onClick={() => setSortDir(prev => prev === 'desc' ? 'asc' : 'desc')}
+                >
+                  Дата <span className={`sort-arrow ${true ? 'sorted' : ''}`}>
+                    {sortDir === 'desc' ? '↓' : '↑'}
+                  </span>
+                </th>
+                <th style={{width: '13%', textAlign: 'right'}}>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grades.map((grade) => {
+                const maxScore = grade.max_score || grade.passing_score || 100;
+                const score = grade.score ?? 0;
+                const scorePercent = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                const scoreClass = getScoreClass(score, maxScore, grade.passing_score || 70);
+                const initials = getInitials(grade.student);
+                const avatarColor = getAvatarColor(grade.student_id || grade.attempt_id);
+                const thresholdPercent = maxScore > 0 ? ((grade.passing_score || 70) / maxScore) * 100 : 70;
+                const isTask = grade.type === 'task';
+                const needsGrading = isTask && grade.status !== 'graded';
+
+                return (
+                  <tr key={`${grade.type || 'test'}-${grade.attempt_id}-${grade.task_id || ''}`}>
+                    <td className="result-strip">
+                      <span className={`rstrip ${grade.passed ? 'passed' : 'failed'}`}></span>
+                    </td>
+                    <td>
+                      <div className="student-cell">
+                        <div className="s-avatar" style={{background: avatarColor}}>
+                          {initials}
+                        </div>
+                        <div>
+                          <div className="s-name">{grade.student}</div>
+                          {grade.student_id && (
+                            <div className="s-id">ID: {grade.student_id}</div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="hier-cell">
+                        <div className="hier-course">{grade.course || '—'}</div>
+                        <div className="hier-unit">
+                          <ArrowRight className="w-3 h-3" />
+                          <span>{grade.unit || '—'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`type-badge ${isTask ? 'type-task' : 'type-test'}`}>
+                        {isTask ? (
+                          <>
+                            <FileText className="w-3 h-3" />
+                            Задание
+                          </>
+                        ) : (
+                          <>
+                            <ClipboardList className="w-3 h-3" />
+                            Тест
+                          </>
+                        )}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="assess-cell">
+                        <div className="assess-name">{grade.test || '—'}</div>
+                        <div className="assess-sub">
+                          {isTask 
+                            ? `${grade.grading_type === 'auto' ? 'Авто' : 'Ручная'} · ${maxScore} баллов`
+                            : `Порог: ${grade.passing_score}% · ${grade.questions_count || 0} вопр.`}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="score-cell">
+                      <div className="score-main">
+                        <span className={`score-earned ${scoreClass}`}>
+                          {score.toFixed(2)}
+                        </span>
+                        <span className="score-max">/ {maxScore.toFixed(2)}</span>
+                        <span className="score-pct" style={{
+                          color: scoreClass === 'passed' ? 'var(--teal)' : 
+                                 scoreClass === 'failed' ? 'var(--rust)' : 
+                                 scoreClass === 'near' ? 'var(--gold)' : 'var(--muted)'
+                        }}>
+                          {Math.round(scorePercent)}%
+                        </span>
+                      </div>
+                      <div 
+                        className="score-track" 
+                        style={{'--threshold': `${thresholdPercent}%`} as React.CSSProperties}
+                      >
+                        <div 
+                          className="score-fill" 
+                          data-target={scorePercent}
+                          style={{
+                            width: '0%',
+                            background: scoreClass === 'passed' ? 'var(--teal)' :
+                                       scoreClass === 'failed' ? 'var(--rust)' :
+                                       scoreClass === 'near' ? 'var(--gold)' : 'var(--muted)'
+                          }}
+                        ></div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`result-badge ${grade.passed ? 'result-passed' : 'result-failed'}`}>
+                        {grade.passed ? (
+                          <>
+                            <svg viewBox="0 0 24 24">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Passed
+                          </>
+                        ) : (
+                          <>
+                            <svg viewBox="0 0 24 24">
+                              <line x1="18" y1="6" x2="6" y2="18"/>
+                              <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                            Failed
+                          </>
+                        )}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="date-cell">{formatDate(grade.submitted_at)}</div>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          className="icon-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isTask && grade.task_id) {
+                              navigate(`/admin/tasks/${grade.task_id}/submissions/${grade.attempt_id}`);
+                            } else {
+                              navigate(`/admin/grades/${grade.attempt_id}`);
+                            }
+                          }}
+                          title="Просмотр"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
+                        {!isTask && (
+                          <button
+                            className="icon-btn warn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // TODO: Implement regrade
+                            }}
+                            title="Пересмотреть"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </button>
+                        )}
+                        {isTask && needsGrading && (
+                          <button
+                            className="grade-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (grade.task_id) {
+                                navigate(`/admin/tasks/${grade.task_id}/submissions/${grade.attempt_id}`);
+                              }
+                            }}
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Оценить
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="table-footer">
+            <div className="table-footer-count">
+              Показано <span>{grades.length}</span> из {total} оценок
+            </div>
+            {totalPages > 1 && (
+              <div className="page-btns">
+                {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    className={`page-btn ${page === p ? 'active' : ''}`}
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+                {totalPages > 3 && (
+                  <button
+                    className="page-btn"
+                    style={{width: 'auto', padding: '0 0.6rem', fontSize: '0.6rem'}}
+                    onClick={() => setPage(Math.min(page + 1, totalPages))}
+                    disabled={page >= totalPages}
+                  >
+                    →
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-        {/* Search & filters */}
-        <AdminSearchFilters
-          searchQuery={searchQuery}
-          onSearchChange={(value) => {
-            setSearchQuery(value);
-            setPage(1); // Reset to first page when search changes
-          }}
-          searchPlaceholder="Поиск по студенту, курсу, юниту, тесту или заданию..."
-          showFilters={showFilters}
-          onToggleFilters={() => setShowFilters(!showFilters)}
-          filters={
-            <>
-              {/* Status Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Результат
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => {
-                    setSelectedStatus(e.target.value);
-                    setPage(1); // Reset to first page when filter changes
-                  }}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все результаты</option>
-                  <option value="passed">Пройдено</option>
-                  <option value="failed">Не пройдено</option>
-                </select>
-              </div>
-            </>
-          }
-        />
-
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-  <div className="overflow-x-auto">
-    <table className="min-w-full divide-y divide-gray-200">
-      <thead className="bg-gray-50">
-        <tr>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            {t('admin.grades.student')}
-          </th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            {t('admin.grades.course')}
-          </th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            {t('admin.grades.unit')}
-          </th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Тип
-          </th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            {t('admin.grades.test')} / Задание
-          </th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Оценка / Результат
-          </th>
-          <th
-            onClick={() =>
-              setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-            }            
-            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-          >
-            <div className="flex items-center">
-              {t('admin.grades.date')}
-              {sortDir === 'asc' ? (
-                <ChevronUp className="w-4 h-4 ml-1" />
-              ) : (
-                <ChevronDown className="w-4 h-4 ml-1" />
-              )}
-            </div>
-          </th>
-          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200 w-16">
-            {t('admin.grades.actions')}
-          </th>
-          
-        </tr>
-      </thead>
-
-      <tbody className="bg-white divide-y divide-gray-200">
-        {grades.map((g) => (
-          <tr key={g.attempt_id} className="hover:bg-gray-50">
-            <td className="px-6 py-4 whitespace-nowrap">
-              <div className="text-sm font-medium text-gray-900">
-                {g.student}
-              </div>
-            </td>
-
-            <td className="px-6 py-4 whitespace-nowrap">
-              <div 
-                className="text-sm font-semibold text-gray-900 truncate max-w-[200px]" 
-                title={g.course}
-              >
-                {g.course}
-              </div>
-            </td>
-
-            <td className="px-6 py-4 whitespace-nowrap">
-              <span 
-                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 truncate max-w-[150px]" 
-                title={g.unit}
-              >
-                {g.unit}
-              </span>
-            </td>
-
-            <td className="px-6 py-4 whitespace-nowrap">
-              {g.type === 'task' ? (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                  <FileText className="w-3 h-3 mr-1" />
-                  Задание
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  <ClipboardList className="w-3 h-3 mr-1" />
-                  Тест
-                </span>
-              )}
-            </td>
-
-            <td className="px-6 py-4 text-sm text-gray-900">
-              <div 
-                className="truncate max-w-[250px]" 
-                title={g.test}
-              >
-                {g.test}
-              </div>
-            </td>
-
-            <td className="px-6 py-4 whitespace-nowrap sticky right-16 bg-white z-10 border-l border-gray-200">
-              <div className="flex flex-col gap-2">
-                <div className="text-sm text-gray-900">
-                  {g.type === 'task' ? (
-                    <span>
-                      {Number(g.score || 0).toFixed(1)} / {Number(g.passing_score || 100).toFixed(0)} 
-                      <span className="text-gray-500 ml-1">
-                        ({((Number(g.score || 0) / Number(g.passing_score || 100)) * 100).toFixed(0)}%)
-                      </span>
-                    </span>
-                  ) : (
-                    <span>
-                      {Number(g.score).toFixed(2)} / {Number(g.passing_score).toFixed(2)}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  {getResultBadge(g.passed)}
-                </div>
-              </div>
-            </td>
-
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {g.submitted_at
-                ? new Date(g.submitted_at).toLocaleDateString(i18n.language === 'ru' ? 'ru-RU' : 'en-US')
-                : t('admin.grades.emptyAnswer')}
-            </td>
-
-            <td className="px-6 py-4 whitespace-nowrap text-center sticky right-0 bg-white z-10 border-l border-gray-200 w-16">
-              {g.type === 'task' && g.task_id ? (
-                <button
-                  onClick={() => navigate(`/admin/tasks/${g.task_id}/submissions/${g.attempt_id}`)}
-                  className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
-                  title="Просмотреть задание"
-                >
-                  <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => navigate(`/admin/grades/${g.attempt_id}`)}
-                  className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
-                  title={t('admin.grades.viewErrors')}
-                >
-                  <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                </button>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    <div className="flex items-center justify-between px-6 py-4 border-t">
-  <span className="text-sm text-gray-600">
-    {t('admin.grades.showing', {
-      start: grades.length > 0 ? (page - 1) * pageSize + 1 : 0,
-      end: Math.min(page * pageSize, total),
-      total: total
-    })}
-  </span>
-
-  <div className="flex space-x-2">
-    <button
-      disabled={page === 1}
-      onClick={() => setPage(page - 1)}
-      className="px-3 py-1 border rounded disabled:opacity-50"
-    >
-      ←
-    </button>
-
-    <button
-      disabled={page * pageSize >= total || grades.length === 0}
-      onClick={() => setPage(page + 1)}
-      className="px-3 py-1 border rounded disabled:opacity-50"
-    >
-      →
-    </button>
-  </div>
-</div>
-
-  </div>
-
-  {/* Empty State (same UX as students) */}
-  {grades.length === 0 && (
-    <div className="text-center py-12">
-      <Users className="mx-auto h-12 w-12 text-gray-400" />
-      <h3 className="mt-2 text-sm font-medium text-gray-900">
-        {t('admin.grades.noGrades')}
-      </h3>
-      <p className="mt-1 text-sm text-gray-500">
-        {t('admin.grades.noGradesDescription')}
-      </p>
-    </div>
-  )}
-        </div>
-      </main>
     </div>
   );
 }

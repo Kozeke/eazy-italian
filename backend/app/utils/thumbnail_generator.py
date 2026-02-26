@@ -22,6 +22,55 @@ FONT_DIR = "assets/fonts"  # add fonts here
 TITLE_FONT = os.path.join(FONT_DIR, "Inter-Bold.ttf")
 SUB_FONT = os.path.join(FONT_DIR, "Inter-Regular.ttf")
 
+# Fonts ordered by preference.
+# DejaVu is listed first among system fonts because it has full Cyrillic support.
+# The custom Inter fonts are tried first, but if they are missing or don't render
+# Cyrillic correctly the system will fall back to DejaVu automatically.
+_BOLD_FONT_CANDIDATES = [
+    TITLE_FONT,
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",       # Linux – Cyrillic ✓
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",           # macOS
+    "/System/Library/Fonts/Helvetica.ttc",
+    "C:/Windows/Fonts/arialbd.ttf",                                # Windows
+]
+
+_REGULAR_FONT_CANDIDATES = [
+    SUB_FONT,
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",             # Linux – Cyrillic ✓
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",                # macOS
+    "/System/Library/Fonts/Helvetica.ttc",
+    "C:/Windows/Fonts/arial.ttf",                                  # Windows
+]
+
+
+def _load_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
+    """Return a TrueType font at *size* with Cyrillic support.
+
+    Tries candidates in order; the first readable file wins.  Falls back to
+    Pillow's built-in bitmap font only as a last resort (will look small and
+    won't render Cyrillic – a warning is printed so the operator knows to
+    install a proper font).
+    """
+    candidates = _BOLD_FONT_CANDIDATES if bold else _REGULAR_FONT_CANDIDATES
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                font = ImageFont.truetype(path, size)
+                print(f"[THUMBNAIL] Loaded font ({size}px): {path}")
+                return font
+            except Exception as exc:
+                print(f"[THUMBNAIL] Could not load {path}: {exc}")
+    print(
+        f"[THUMBNAIL] WARNING: No TrueType font found – falling back to bitmap default. "
+        "Text will be tiny and Cyrillic will not render. "
+        "Install fonts (e.g. fonts-dejavu-core) or place Inter-*.ttf in assets/fonts/."
+    )
+    return ImageFont.load_default()
+
 
 def _vertical_gradient(size, top_color, bottom_color):
     """Create a vertical gradient from top_color to bottom_color"""
@@ -46,88 +95,8 @@ def generate_default_thumbnail(level: str, output_path: str, title: str = "Video
 
     draw = ImageDraw.Draw(img)
 
-    # Load fonts with fallbacks
-    title_font = None
-    sub_font = None
-    
-    # Try to load custom fonts
-    font_paths = [
-        TITLE_FONT,
-        SUB_FONT,
-        '/System/Library/Fonts/Helvetica.ttc',  # macOS
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux
-        'C:/Windows/Fonts/arial.ttf',  # Windows
-    ]
-    
-    # Try to load title font
-    for font_path in [TITLE_FONT] + font_paths[2:]:
-        if os.path.exists(font_path):
-            try:
-                title_font = ImageFont.truetype(font_path, 72)
-                print(f"[THUMBNAIL] Loaded title font: {font_path}")
-                break
-            except Exception as e:
-                continue
-    
-    if title_font is None:
-        # Use default font but try to load a larger size from common system fonts
-        try:
-            default_fonts = [
-                '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',  # Linux common
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux Debian/Ubuntu
-                '/System/Library/Fonts/Supplemental/Arial Bold.ttf',  # macOS
-                'C:/Windows/Fonts/arialbd.ttf',  # Windows Arial Bold
-            ]
-            for font_path in default_fonts:
-                if os.path.exists(font_path):
-                    try:
-                        title_font = ImageFont.truetype(font_path, 72)
-                        print(f"[THUMBNAIL] Loaded title font (fallback): {font_path}")
-                        break
-                    except:
-                        continue
-            if title_font is None:
-                # Last resort: use default font (will be small but better than nothing)
-                print("[THUMBNAIL] WARNING: Using default font for title (text will be small!)")
-                title_font = ImageFont.load_default()
-        except Exception as e:
-            print(f"[THUMBNAIL] Error loading fonts: {e}")
-            title_font = ImageFont.load_default()
-    
-    # Try to load subtitle font
-    for font_path in [SUB_FONT] + font_paths[2:]:
-        if os.path.exists(font_path):
-            try:
-                sub_font = ImageFont.truetype(font_path, 40)
-                print(f"[THUMBNAIL] Loaded subtitle font: {font_path}")
-                break
-            except Exception as e:
-                continue
-    
-    if sub_font is None:
-        # Use default font but try to load a larger size from common system fonts
-        try:
-            default_fonts = [
-                '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',  # Linux common
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Linux Debian/Ubuntu
-                '/System/Library/Fonts/Supplemental/Arial.ttf',  # macOS
-                'C:/Windows/Fonts/arial.ttf',  # Windows Arial
-            ]
-            for font_path in default_fonts:
-                if os.path.exists(font_path):
-                    try:
-                        sub_font = ImageFont.truetype(font_path, 40)
-                        print(f"[THUMBNAIL] Loaded subtitle font (fallback): {font_path}")
-                        break
-                    except:
-                        continue
-            if sub_font is None:
-                # Last resort: use default font (will be small but better than nothing)
-                print("[THUMBNAIL] WARNING: Using default font for subtitle (text will be small!)")
-                sub_font = ImageFont.load_default()
-        except Exception as e:
-            print(f"[THUMBNAIL] Error loading fonts: {e}")
-            sub_font = ImageFont.load_default()
+    title_font = _load_font(72, bold=True)
+    sub_font   = _load_font(40, bold=False)
 
     # Card
     card_margin = 80
@@ -205,74 +174,10 @@ def generate_course_thumbnail(level: str, output_path: str, title: str = "Course
 
     draw = ImageDraw.Draw(img)
 
-    # Load fonts with fallbacks
-    title_font = None
-    sub_font = None
-    
-    # Try to load custom fonts
-    font_paths = [
-        TITLE_FONT,
-        SUB_FONT,
-        '/System/Library/Fonts/Helvetica.ttc',  # macOS
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux
-        'C:/Windows/Fonts/arial.ttf',  # Windows
-    ]
-    
-    # Try to load title font
-    for font_path in [TITLE_FONT] + font_paths[2:]:
-        if os.path.exists(font_path):
-            try:
-                title_font = ImageFont.truetype(font_path, 72)
-                break
-            except:
-                continue
-    
-    if title_font is None:
-        # Use default font but try to load a larger size from common system fonts
-        try:
-            default_fonts = [
-                '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',  # Linux common
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux Debian/Ubuntu
-                '/System/Library/Fonts/Supplemental/Arial Bold.ttf',  # macOS
-                'C:/Windows/Fonts/arialbd.ttf',  # Windows Arial Bold
-            ]
-            for font_path in default_fonts:
-                if os.path.exists(font_path):
-                    title_font = ImageFont.truetype(font_path, 72)
-                    break
-            else:
-                # Last resort: use default font (will be small but better than nothing)
-                title_font = ImageFont.load_default()
-        except:
-            title_font = ImageFont.load_default()
-    
-    # Try to load subtitle font
-    for font_path in [SUB_FONT] + font_paths[2:]:
-        if os.path.exists(font_path):
-            try:
-                sub_font = ImageFont.truetype(font_path, 40)
-                break
-            except:
-                continue
-    
-    if sub_font is None:
-        # Use default font but try to load a larger size from common system fonts
-        try:
-            default_fonts = [
-                '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',  # Linux common
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Linux Debian/Ubuntu
-                '/System/Library/Fonts/Supplemental/Arial.ttf',  # macOS
-                'C:/Windows/Fonts/arial.ttf',  # Windows Arial
-            ]
-            for font_path in default_fonts:
-                if os.path.exists(font_path):
-                    sub_font = ImageFont.truetype(font_path, 40)
-                    break
-            else:
-                # Last resort: use default font (will be small but better than nothing)
-                sub_font = ImageFont.load_default()
-        except:
-            sub_font = ImageFont.load_default()
+    title_font  = _load_font(180, bold=True)   # Increased from 140 to 180
+    sub_font    = _load_font(90,  bold=False)  # Increased from 70 to 90
+    badge_font  = _load_font(72,  bold=True)   # Increased from 56 to 72
+    footer_font = _load_font(65,  bold=False)  # Increased from 50 to 65
 
     # Card
     card_margin = 80
@@ -296,8 +201,8 @@ def generate_course_thumbnail(level: str, output_path: str, title: str = "Course
     img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    # LEVEL badge
-    badge_w, badge_h = 140, 64
+    # LEVEL badge - increased size for better visibility
+    badge_w, badge_h = 220, 100  # Increased from 180x80 to 220x100
     badge_x = card_box[0] + 40
     badge_y = card_box[1] + 40
 
@@ -307,18 +212,22 @@ def generate_course_thumbnail(level: str, output_path: str, title: str = "Course
         fill=(255, 255, 255)
     )
 
+    # Center text in badge
+    bbox = draw.textbbox((0, 0), level, font=badge_font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
     draw.text(
-        (badge_x + 36, badge_y + 12),
+        (badge_x + (badge_w - text_w) // 2, badge_y + (badge_h - text_h) // 2 - 4),
         level,
         fill=(0, 0, 0),
-        font=sub_font
+        font=badge_font
     )
 
-    # Title
-    max_width = 28
+    # Title - adjusted for larger font
+    max_width = 22  # Reduced to account for larger font
     lines = wrap(title, max_width)[:2]
 
-    y = THUMB_SIZE[1] // 2 - 80
+    y = THUMB_SIZE[1] // 2 - 40  # Moved up slightly for better positioning
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=title_font)
         w = bbox[2] - bbox[0]
@@ -329,27 +238,26 @@ def generate_course_thumbnail(level: str, output_path: str, title: str = "Course
             fill=(255, 255, 255),
             font=title_font
         )
-        y += h + 10
+        y += h + 25  # Increased spacing between lines
 
     # Subtitle if provided
     if subtitle:
-        subtitle_lines = wrap(subtitle, 40)[:1]
+        subtitle_lines = wrap(subtitle, 30)[:1]  # Adjusted for larger font
         if subtitle_lines:
             bbox = draw.textbbox((0, 0), subtitle_lines[0], font=sub_font)
             w = bbox[2] - bbox[0]
             draw.text(
-                ((THUMB_SIZE[0] - w) // 2, y + 10),
+                ((THUMB_SIZE[0] - w) // 2, y + 20),
                 subtitle_lines[0],
                 fill=(220, 220, 220),
                 font=sub_font
             )
 
-    # Footer text
     draw.text(
-        (card_box[0] + 40, card_box[3] - 70),
+        (card_box[0] + 40, card_box[3] - 80),
         "Eazy Italian · Course",
         fill=(220, 220, 220),
-        font=sub_font
+        font=footer_font
     )
 
     img.save(output_path, "JPEG", quality=92)

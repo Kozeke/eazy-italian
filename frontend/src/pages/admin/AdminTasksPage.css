@@ -1,0 +1,775 @@
+/* Admin Tasks Page Styles - Scoped to .admin-tasks-wrapper */
+
+.admin-tasks-wrapper {
+  --ink: #0e0e0e;
+  --cream: #f5f0e8;
+  --warm: #f0e9d8;
+  --gold: #c9962a;
+  --gold-light: #e8b84b;
+  --rust: #c94a2a;
+  --teal: #1a7070;
+  --teal-light: #2a9898;
+  --teal-dim: rgba(26,112,112,0.1);
+  --muted: #6b6456;
+  --line: rgba(14,14,14,0.1);
+}
+
+.admin-tasks-wrapper {
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+  background: var(--warm);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ═══ PAGE CONTENT ═══ */
+.admin-tasks-wrapper .page-content {
+  padding: 2.25rem 2.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Page header ── */
+.admin-tasks-wrapper .page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.1s forwards;
+}
+
+.admin-tasks-wrapper .page-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.4rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.admin-tasks-wrapper .page-title em {
+  font-style: italic;
+  color: var(--teal);
+}
+
+.admin-tasks-wrapper .page-meta {
+  margin-top: 0.35rem;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+/* ═══ TOOLBAR ═══ */
+.admin-tasks-wrapper .toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.2s forwards;
+  flex-wrap: wrap;
+}
+
+.admin-tasks-wrapper .search-wrap {
+  flex: 1;
+  position: relative;
+  max-width: 360px;
+}
+
+.admin-tasks-wrapper .search-wrap svg {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  stroke: var(--muted);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.admin-tasks-wrapper .search-input {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  font-family: 'Inter', sans-serif;
+  font-size: 1.05rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  border-radius: 0;
+}
+
+.admin-tasks-wrapper .search-input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-dim);
+}
+
+.admin-tasks-wrapper .search-input::placeholder {
+  color: rgba(107,100,86,0.45);
+}
+
+.admin-tasks-wrapper .filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.admin-tasks-wrapper .filter-btn:hover,
+.admin-tasks-wrapper .filter-btn.active {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--warm);
+}
+
+.admin-tasks-wrapper .filter-btn svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ═══ STATUS LEGEND ═══ */
+.admin-tasks-wrapper .status-legend {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.22s forwards;
+}
+
+.admin-tasks-wrapper .legend-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.admin-tasks-wrapper .legend-chip:hover {
+  border-color: var(--ink);
+}
+
+.admin-tasks-wrapper .legend-chip.active-filter {
+  border-color: var(--teal);
+  color: var(--teal);
+  background: var(--teal-dim);
+}
+
+.admin-tasks-wrapper .legend-chip .chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.admin-tasks-wrapper .legend-chip .chip-icon {
+  font-size: 0.96rem;
+}
+
+/* ═══ FILTER PANEL ═══ */
+.admin-tasks-wrapper .filter-panel {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  padding: 1.1rem 1.5rem;
+  display: none;
+  gap: 1.25rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.admin-tasks-wrapper .filter-panel.open {
+  display: flex;
+}
+
+.admin-tasks-wrapper .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.admin-tasks-wrapper .filter-group label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-tasks-wrapper .filter-group select {
+  padding: 0.48rem 2rem 0.48rem 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--warm);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.98rem;
+  color: var(--ink);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b6456'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  border-radius: 0;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.admin-tasks-wrapper .filter-group select:focus {
+  border-color: var(--teal);
+}
+
+/* ═══ TABLE ═══ */
+.admin-tasks-wrapper .table-wrap {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.3s forwards;
+}
+
+.admin-tasks-wrapper .tasks-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1020px;
+}
+
+.admin-tasks-wrapper .tasks-table thead tr {
+  background: var(--ink);
+}
+
+.admin-tasks-wrapper .tasks-table th {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: rgba(245,240,232,0.5);
+  text-align: left;
+  padding: 0.85rem 1rem;
+  white-space: nowrap;
+  font-weight: 400;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  user-select: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.admin-tasks-wrapper .tasks-table th:last-child {
+  border-right: none;
+  cursor: default;
+}
+
+.admin-tasks-wrapper .tasks-table th:hover:not(:last-child) {
+  color: rgba(245,240,232,0.9);
+}
+
+.admin-tasks-wrapper .sort-arrow {
+  margin-left: 0.25rem;
+  opacity: 0.3;
+  font-size: 0.66rem;
+}
+
+.admin-tasks-wrapper .sorted .sort-arrow {
+  opacity: 1;
+  color: var(--teal-light);
+}
+
+/* data rows */
+.admin-tasks-wrapper .tasks-table tbody tr {
+  border-bottom: 1px solid var(--line);
+  transition: background 0.15s;
+  cursor: default;
+}
+
+.admin-tasks-wrapper .tasks-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.admin-tasks-wrapper .tasks-table tbody tr:hover {
+  background: rgba(26,112,112,0.03);
+}
+
+.admin-tasks-wrapper .tasks-table tbody tr:hover .row-actions {
+  opacity: 1;
+}
+
+.admin-tasks-wrapper .tasks-table td {
+  padding: 0.85rem 1rem;
+  vertical-align: middle;
+  font-size: 1.01rem;
+}
+
+/* ── Name cell ── */
+.admin-tasks-wrapper .task-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.admin-tasks-wrapper .task-title {
+  font-weight: 500;
+  color: var(--ink);
+  font-size: 1.04rem;
+}
+
+.admin-tasks-wrapper .task-sub {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.67rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  display: flex;
+  gap: 0.75rem;
+}
+
+.admin-tasks-wrapper .task-sub span {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ── Unit cell ── */
+.admin-tasks-wrapper .unit-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.admin-tasks-wrapper .unit-cell svg {
+  width: 11px;
+  height: 11px;
+  stroke: var(--teal);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.admin-tasks-wrapper .unit-name {
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 160px;
+  line-height: 1.4;
+}
+
+/* ── Type badges ── */
+.admin-tasks-wrapper .type-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-tasks-wrapper .type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.admin-tasks-wrapper .type-reading {
+  background: rgba(26,112,112,0.1);
+  color: var(--teal);
+}
+
+.admin-tasks-wrapper .type-audio {
+  background: rgba(201,150,42,0.12);
+  color: var(--gold);
+}
+
+.admin-tasks-wrapper .type-manual {
+  background: rgba(107,100,86,0.1);
+  color: var(--muted);
+}
+
+.admin-tasks-wrapper .type-auto {
+  background: rgba(26,112,112,0.12);
+  color: var(--teal-light);
+}
+
+/* ── Order cell ── */
+.admin-tasks-wrapper .order-cell {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.admin-tasks-wrapper .order-cell.has-order {
+  color: var(--teal);
+}
+
+.admin-tasks-wrapper .order-cell.no-order {
+  color: var(--muted);
+  opacity: 0.5;
+}
+
+/* ── Status badge ── */
+.admin-tasks-wrapper .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.6rem;
+  border-radius: 2px;
+}
+
+.admin-tasks-wrapper .status-pub {
+  background: var(--teal-dim);
+  color: var(--teal);
+}
+
+.admin-tasks-wrapper .status-draft {
+  background: rgba(107,100,86,0.1);
+  color: var(--muted);
+}
+
+.admin-tasks-wrapper .status-badge svg {
+  width: 7px;
+  height: 7px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Stats cell ── */
+.admin-tasks-wrapper .stats-cell {
+  min-width: 130px;
+}
+
+.admin-tasks-wrapper .stat-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.admin-tasks-wrapper .stat-line:last-child {
+  margin-bottom: 0;
+}
+
+.admin-tasks-wrapper .stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.admin-tasks-wrapper .stat-dot.green {
+  background: var(--teal);
+}
+
+.admin-tasks-wrapper .stat-dot.amber {
+  background: var(--gold);
+}
+
+.admin-tasks-wrapper .stat-dot.grey {
+  background: var(--muted);
+  opacity: 0.4;
+}
+
+.admin-tasks-wrapper .stat-dot.warn {
+  background: var(--rust);
+}
+
+.admin-tasks-wrapper .stat-text {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.admin-tasks-wrapper .stat-text strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.admin-tasks-wrapper .stat-avg {
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+}
+
+.admin-tasks-wrapper .stat-avg-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.admin-tasks-wrapper .stat-avg-lbl {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* score color helpers */
+.admin-tasks-wrapper .score-good {
+  color: var(--teal);
+}
+
+.admin-tasks-wrapper .score-mid {
+  color: var(--gold);
+}
+
+.admin-tasks-wrapper .score-bad {
+  color: var(--rust);
+}
+
+.admin-tasks-wrapper .score-none {
+  color: var(--muted);
+  opacity: 0.5;
+}
+
+/* ── Review status indicator (leftmost) ── */
+.admin-tasks-wrapper .review-indicator {
+  width: 4px;
+  padding: 0 !important;
+}
+
+.admin-tasks-wrapper .review-bar {
+  width: 4px;
+  height: 100%;
+  min-height: 60px;
+  display: block;
+}
+
+.admin-tasks-wrapper .review-bar.all-graded {
+  background: var(--teal);
+}
+
+.admin-tasks-wrapper .review-bar.needs-grade {
+  background: var(--rust);
+}
+
+.admin-tasks-wrapper .review-bar.no-sub {
+  background: var(--line);
+}
+
+/* ── Deadline cell ── */
+.admin-tasks-wrapper .deadline-cell {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+
+.admin-tasks-wrapper .deadline-cell.past {
+  color: var(--rust);
+}
+
+.admin-tasks-wrapper .deadline-cell.soon {
+  color: var(--gold);
+}
+
+.admin-tasks-wrapper .deadline-cell.normal {
+  color: var(--muted);
+}
+
+.admin-tasks-wrapper .deadline-cell.none {
+  color: var(--muted);
+  opacity: 0.45;
+  font-style: italic;
+}
+
+/* ── Row actions ── */
+.admin-tasks-wrapper .row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+  justify-content: flex-end;
+}
+
+.admin-tasks-wrapper .icon-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.admin-tasks-wrapper .icon-btn:hover {
+  border-color: var(--teal);
+  color: var(--teal);
+  background: var(--teal-dim);
+}
+
+.admin-tasks-wrapper .icon-btn.danger:hover {
+  border-color: var(--rust);
+  color: var(--rust);
+  background: rgba(201,74,42,0.07);
+}
+
+.admin-tasks-wrapper .icon-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.admin-tasks-wrapper .open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.8rem;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.admin-tasks-wrapper .open-btn:hover {
+  background: var(--teal);
+}
+
+.admin-tasks-wrapper .open-btn svg {
+  width: 10px;
+  height: 10px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Table footer ── */
+.admin-tasks-wrapper .table-footer {
+  background: var(--warm);
+  border-top: 1px solid var(--line);
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-tasks-wrapper .table-footer-count {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.admin-tasks-wrapper .page-btns {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.admin-tasks-wrapper .page-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  cursor: pointer;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.admin-tasks-wrapper .page-btn.active {
+  background: var(--ink);
+  color: var(--cream);
+  border-color: var(--ink);
+}
+
+.admin-tasks-wrapper .page-btn:hover:not(.active) {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+/* ── Mini inline progress bar ── */
+.admin-tasks-wrapper .mini-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  margin-top: 0.3rem;
+  overflow: hidden;
+}
+
+.admin-tasks-wrapper .mini-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 900px) {
+  .admin-tasks-wrapper .page-content {
+    padding: 1.5rem;
+  }
+}

@@ -1,24 +1,25 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { 
   Plus, 
-  Edit, 
-  Trash2, 
+  Pencil,
+  Trash2,
   Eye, 
-  Calendar,
-  FileText,
-  ChevronDown,
-  ChevronUp,
-  Users
+  Search,
+  Filter,
+  Folder,
+  BookOpen,
+  Headphones,
+  CheckCircle2,
+  ArrowRight,
+  List
 } from 'lucide-react';
 import { Task } from '../../types';
 import { tasksApi } from '../../services/api';
-import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
+import './AdminTasksPage.css';
 
-const statuses = ['draft', 'published', 'scheduled', 'archived'];
-const types = ['writing', 'listening', 'reading'];
+type ReviewStatus = 'all' | 'graded' | 'ungraded' | 'nosub';
 
 export default function AdminTasksPage() {
   const navigate = useNavigate();
@@ -26,37 +27,13 @@ export default function AdminTasksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedType, setSelectedType] = useState('');
-  const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
-  const [sortField, setSortField] = useState('created_at');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [selectedCheck, setSelectedCheck] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const handleSelectAll = () => {
-    if (selectedTasks.length === tasks.length) {
-      setSelectedTasks([]);
-    } else {
-      setSelectedTasks(tasks.map(task => task.id));
-    }
-  };
-
-  const handleSelectTask = (taskId: number) => {
-    setSelectedTasks(prev => 
-      prev.includes(taskId) 
-        ? prev.filter(id => id !== taskId)
-        : [...prev, taskId]
-    );
-  };
+  const [reviewFilter, setReviewFilter] = useState<ReviewStatus>('all');
+  const [sortField, setSortField] = useState<'deadline' | 'title'>('deadline');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Load tasks
   useEffect(() => {
@@ -68,8 +45,6 @@ export default function AdminTasksPage() {
           unit_id: selectedUnit || undefined,
           type: selectedType || undefined,
           status: selectedStatus || undefined,
-          sort_by: sortField,
-          sort_order: sortDirection,
           skip: 0,
           limit: 100
         };
@@ -85,515 +60,475 @@ export default function AdminTasksPage() {
     };
 
     loadTasks();
-  }, [searchQuery, selectedUnit, selectedType, selectedStatus, sortField, sortDirection]);
+  }, [searchQuery, selectedUnit, selectedType, selectedStatus]);
 
-  const handleBulkAction = async (action: string) => {
-    if (selectedTasks.length === 0) return;
+  // Get unique units for filter
+  const uniqueUnits = useMemo(() => {
+    const units = new Set<string>();
+    tasks.forEach(task => {
+      if (task.unit_title) {
+        units.add(task.unit_title);
+      }
+    });
+    return Array.from(units).sort();
+  }, [tasks]);
+
+  const handleDeleteTask = async (taskId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('Вы уверены, что хотите удалить это задание?')) {
+      return;
+    }
     
     try {
-      await tasksApi.bulkActionTasks({
-        task_ids: selectedTasks,
-        action
-      });
-      
-      toast.success(`Действие "${action}" выполнено успешно`);
-      setSelectedTasks([]);
-      
-      // Reload tasks
-      const params: any = {
-        search: searchQuery || undefined,
-        unit_id: selectedUnit || undefined,
-        type: selectedType || undefined,
-        status: selectedStatus || undefined,
-        sort_by: sortField,
-        sort_order: sortDirection,
-        skip: 0,
-        limit: 100
-      };
-      const tasksData = await tasksApi.getAdminTasks(params);
-      setTasks(tasksData);
+      await tasksApi.deleteTask(taskId);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      toast.success('Задание удалено');
     } catch (error) {
-      console.error('Bulk action failed:', error);
-      toast.error('Ошибка при выполнении действия');
+      console.error('Failed to delete task:', error);
+      toast.error('Ошибка при удалении задания');
     }
   };
 
-  const handleDeleteTask = async (taskId: number) => {
-    if (window.confirm('Вы уверены, что хотите удалить это задание?')) {
-      try {
-        await tasksApi.deleteTask(taskId);
-        setTasks(prev => prev.filter(task => task.id !== taskId));
-        toast.success('Задание удалено');
-      } catch (error) {
-        console.error('Failed to delete task:', error);
-        toast.error('Ошибка при удалении задания');
+  // Determine review status for a task
+  const getReviewStatus = (task: Task): 'all-graded' | 'needs-grade' | 'no-sub' => {
+    if (!task.submission_stats) return 'no-sub';
+    const submitted = task.submission_stats.submitted || 0;
+    const graded = task.submission_stats.graded || 0;
+    
+    if (submitted === 0) return 'no-sub';
+    if (submitted === graded) return 'all-graded';
+    return 'needs-grade';
+  };
+
+  // Filter and sort tasks
+  const filteredAndSortedTasks = useMemo(() => {
+    let filtered = tasks.filter(task => {
+      const matchesSearch = !searchQuery || 
+        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (task.unit_title && task.unit_title.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesUnit = !selectedUnit || task.unit_title === selectedUnit;
+      const matchesType = !selectedType || task.type === selectedType;
+      const matchesCheck = !selectedCheck || 
+        (selectedCheck === 'manual' && (task.type === 'writing' || (task.auto_check_config?.grading_type || 'manual') === 'manual')) ||
+        (selectedCheck === 'auto' && (task.auto_check_config?.grading_type || 'manual') === 'automatic');
+      const matchesStatus = !selectedStatus || task.status === selectedStatus;
+      
+      // Review filter
+      const reviewStatus = getReviewStatus(task);
+      const matchesReview = reviewFilter === 'all' ||
+        (reviewFilter === 'graded' && reviewStatus === 'all-graded') ||
+        (reviewFilter === 'ungraded' && reviewStatus === 'needs-grade') ||
+        (reviewFilter === 'nosub' && reviewStatus === 'no-sub');
+      
+      return matchesSearch && matchesUnit && matchesType && matchesCheck && matchesStatus && matchesReview;
+    });
+
+    // Sort
+    filtered.sort((a, b) => {
+      if (sortField === 'deadline') {
+        const aDate = a.due_at ? new Date(a.due_at).getTime() : 0;
+        const bDate = b.due_at ? new Date(b.due_at).getTime() : 0;
+        return sortDirection === 'desc' ? bDate - aDate : aDate - bDate;
+      } else { // title
+        return sortDirection === 'desc' 
+          ? b.title.localeCompare(a.title)
+          : a.title.localeCompare(b.title);
       }
+    });
+
+    return filtered;
+  }, [tasks, searchQuery, selectedUnit, selectedType, selectedCheck, selectedStatus, reviewFilter, sortField, sortDirection]);
+
+  const getTypeBadgeClass = (type: string): string => {
+    if (type === 'reading') return 'type-badge type-reading';
+    if (type === 'listening') return 'type-badge type-audio';
+    return 'type-badge type-reading'; // Default to reading style
+  };
+
+  const getTypeIcon = (type: string) => {
+    if (type === 'reading') return <BookOpen className="w-3 h-3" />;
+    if (type === 'listening') return <Headphones className="w-3 h-3" />;
+    return <BookOpen className="w-3 h-3" />;
+  };
+
+  const getTypeLabel = (type: string): string => {
+    if (type === 'reading') return 'Чтение';
+    if (type === 'listening') return 'Аудирование';
+    if (type === 'writing') return 'Чтение'; // Using reading style for writing
+    return type;
+  };
+
+  const getGradingTypeBadge = (task: Task) => {
+    if (task.type === 'writing') {
+      return <span className="type-badge type-manual">Ручная</span>;
+    }
+    
+    const autoCheckConfig = task.auto_check_config || {};
+    const gradingType = autoCheckConfig.grading_type || 
+      (task.questions && task.questions.length > 0 ? 'automatic' : 'manual');
+    
+    if (gradingType === 'automatic') {
+      return <span className="type-badge type-auto">Авто</span>;
+    } else {
+      return <span className="type-badge type-manual">Ручная</span>;
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { color: 'bg-gray-100 text-gray-800', label: 'Черновик' },
-      published: { color: 'bg-green-100 text-green-800', label: 'Опубликовано' },
-      scheduled: { color: 'bg-blue-100 text-blue-800', label: 'Запланировано' },
-      archived: { color: 'bg-red-100 text-red-800', label: 'Архивировано' }
-    };
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
-
-  const getTypeBadge = (type: string) => {
-    const typeConfig = {
-      writing: { color: 'bg-purple-100 text-purple-800', label: 'Письмо', icon: '✍️' },
-      listening: { color: 'bg-blue-100 text-blue-800', label: 'Аудирование', icon: '🎧' },
-      reading: { color: 'bg-green-100 text-green-800', label: 'Чтение', icon: '📖' }
-    };
-    
-    const config = typeConfig[type as keyof typeof typeConfig] || { color: 'bg-gray-100 text-gray-800', label: type, icon: '' };
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.icon && <span className="mr-1">{config.icon}</span>}
-        {config.label}
-      </span>
-    );
-  };
-
-  const isTaskFullyGraded = (task: Task): boolean => {
-    // Task is fully graded if all submitted work is graded
-    if (!task.submission_stats) return false;
-    const submitted = task.submission_stats.submitted || 0;
-    const graded = task.submission_stats.graded || 0;
-    return submitted > 0 && submitted === graded;
-  };
-
-  const hasPendingGrading = (task: Task): boolean => {
-    // Task has pending grading if there are submitted but not graded
-    if (!task.submission_stats) return false;
-    const submitted = task.submission_stats.submitted || 0;
-    const graded = task.submission_stats.graded || 0;
-    return submitted > graded;
-  };
-
-  const getRowClassName = (task: Task): string => {
-    const baseClass = "transition-colors";
-    
-    if (isTaskFullyGraded(task)) {
-      return `${baseClass} bg-green-100 hover:bg-green-200 border-l-4 border-green-500`;
-    } else if (hasPendingGrading(task)) {
-      return `${baseClass} bg-yellow-100 hover:bg-yellow-200 border-l-4 border-yellow-500`;
-    }
-    
-    return `${baseClass} hover:bg-gray-50`;
-  };
-
-  const getGradingTypeBadge = (task: Task) => {
-    // Writing tasks are always manual
-    if (task.type === 'writing') {
+    if (status === 'published') {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-          Ручная
-        </span>
-      );
-    }
-    
-    // For listening/reading, check auto_check_config
-    // Handle both cases: auto_check_config might be undefined, null, empty object, or have grading_type
-    const autoCheckConfig = task.auto_check_config || {};
-    let gradingType = autoCheckConfig.grading_type;
-    
-    // Fallback: if no grading_type is set but task has questions, assume automatic
-    // (for backward compatibility with tasks created before grading_type was added)
-    if (!gradingType && (task.type === 'listening' || task.type === 'reading')) {
-      if (task.questions && task.questions.length > 0) {
-        gradingType = 'automatic';
-      } else {
-        gradingType = 'manual';
-      }
-    }
-    
-    gradingType = gradingType || 'manual';
-    
-    if (gradingType === 'automatic') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          ⚡ Автоматическая
+        <span className="status-badge status-pub">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Опубл.
         </span>
       );
     } else {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-          ✋ Ручная
+        <span className="status-badge status-draft">
+          Черновик
         </span>
       );
     }
   };
 
-  // Loading state
+  const getScoreClass = (score: number | undefined): string => {
+    if (!score) return 'score-none';
+    if (score >= 80) return 'score-good';
+    if (score >= 50) return 'score-mid';
+    return 'score-bad';
+  };
+
+  const formatDeadline = (dueAt: string | undefined): { text: string; class: string } => {
+    if (!dueAt) {
+      return { text: 'Не установлен', class: 'deadline-cell none' };
+    }
+    
+    const dueDate = new Date(dueAt);
+    const now = new Date();
+    const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      return { text: dueDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }), class: 'deadline-cell past' };
+    } else if (diffDays <= 3) {
+      return { text: dueDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }), class: 'deadline-cell soon' };
+    } else {
+      return { text: dueDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }), class: 'deadline-cell normal' };
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Загрузка заданий...</p>
-        </div>
+      <div className="admin-tasks-wrapper min-h-screen bg-[#f5f0e8] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a7070]"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+    <div className="admin-tasks-wrapper">
+      <div className="page-content">
+        {/* Page header */}
+        <div className="page-header">
           <div>
-            <div className="flex items-center gap-2">
-              <FileText className="h-6 w-6 text-primary-600" />
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                Задания
-              </h1>
-              {tasks.length > 0 && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                  {tasks.length} заданий
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs md:text-sm text-gray-500">
-              Управление заданиями
-            </p>
+            <h1 className="page-title">
+              Задания <em>/ {filteredAndSortedTasks.length} {filteredAndSortedTasks.length === 1 ? 'задание' : filteredAndSortedTasks.length < 5 ? 'задания' : 'заданий'}</em>
+            </h1>
+            <p className="page-meta">Управление заданиями — отслеживайте сдачи, оценки и дедлайны</p>
           </div>
+        </div>
 
-          <button
-            onClick={() => navigate('/admin/tasks/new')}
-            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+        {/* Status legend */}
+        <div className="status-legend">
+          <div 
+            className={`legend-chip ${reviewFilter === 'all' ? 'active-filter' : ''}`}
+            onClick={() => setReviewFilter('all')}
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Создать задание
+            <List className="w-3 h-3" />
+            Все задания
+          </div>
+          <div 
+            className={`legend-chip ${reviewFilter === 'graded' ? 'active-filter' : ''}`}
+            onClick={() => setReviewFilter('graded')}
+          >
+            <div className="chip-dot" style={{background: 'var(--teal)'}}></div>
+            Все сдачи оценены
+          </div>
+          <div 
+            className={`legend-chip ${reviewFilter === 'ungraded' ? 'active-filter' : ''}`}
+            onClick={() => setReviewFilter('ungraded')}
+          >
+            <div className="chip-dot" style={{background: 'var(--rust)'}}></div>
+            Есть неоценённые
+          </div>
+          <div 
+            className={`legend-chip ${reviewFilter === 'nosub' ? 'active-filter' : ''}`}
+            onClick={() => setReviewFilter('nosub')}
+          >
+            <div className="chip-dot" style={{background: 'var(--muted)', opacity: 0.4}}></div>
+            Нет сдач
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <div className="toolbar">
+          <div className="search-wrap">
+            <Search className="w-4 h-4" />
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Поиск по названию…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <button
+            className={`filter-btn ${showFilters ? 'active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="w-3 h-3" />
+            Фильтры
           </button>
         </div>
-      </div>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
+        {/* Filter panel */}
+        <div className={`filter-panel ${showFilters ? 'open' : ''}`}>
+          <div className="filter-group">
+            <label>Юнит</label>
+            <select
+              value={selectedUnit}
+              onChange={(e) => setSelectedUnit(e.target.value)}
+            >
+              <option value="">Все юниты</option>
+              {uniqueUnits.map(unit => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Тип задания</label>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+            >
+              <option value="">Любой тип</option>
+              <option value="reading">Чтение</option>
+              <option value="listening">Аудирование</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Проверка</label>
+            <select
+              value={selectedCheck}
+              onChange={(e) => setSelectedCheck(e.target.value)}
+            >
+              <option value="">Любая</option>
+              <option value="manual">Ручная</option>
+              <option value="auto">Автоматическая</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Статус</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+            >
+              <option value="">Все</option>
+              <option value="published">Опубликован</option>
+              <option value="draft">Черновик</option>
+            </select>
+          </div>
+        </div>
 
-        {/* Search and Filters */}
-        <AdminSearchFilters
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder="Поиск по названию или описанию..."
-          showFilters={showFilters}
-          onToggleFilters={() => setShowFilters(!showFilters)}
-          filters={
-            <>
-              {/* Unit Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Юнит
-                </label>
-                <select
-                  value={selectedUnit}
-                  onChange={(e) => setSelectedUnit(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+        {/* Table */}
+        <div className="table-wrap">
+          <table className="tasks-table">
+            <thead>
+              <tr>
+                <th style={{width: '3px', padding: 0}}></th>
+                <th style={{width: '22%'}}>
+                  Название <span className="sort-arrow">↕</span>
+                </th>
+                <th style={{width: '18%'}}>Юнит</th>
+                <th style={{width: '14%'}}>Тип задания</th>
+                <th style={{width: '13%'}}>Проверка</th>
+                <th style={{width: '5%', textAlign: 'center'}}>Порядок</th>
+                <th style={{width: '8%'}}>Статус</th>
+                <th style={{width: '14%'}}>Статистика</th>
+                <th 
+                  style={{width: '10%'}}
+                  onClick={() => {
+                    if (sortField === 'deadline') {
+                      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+                    } else {
+                      setSortField('deadline');
+                      setSortDirection('desc');
+                    }
+                  }}
                 >
-                  <option value="">Все юниты</option>
-                  {/* Units will be loaded dynamically */}
-                </select>
-              </div>
+                  Дедлайн <span className={`sort-arrow ${sortField === 'deadline' ? 'sorted' : ''}`}>
+                    {sortField === 'deadline' ? (sortDirection === 'desc' ? '↓' : '↑') : '↕'}
+                  </span>
+                </th>
+                <th style={{width: '13%', textAlign: 'right'}}>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAndSortedTasks.map((task) => {
+                const reviewStatus = getReviewStatus(task);
+                const stats = task.submission_stats || { submitted: 0, graded: 0 };
+                const avgScore = task.average_score;
+                const deadline = formatDeadline(task.due_at);
+                
+                return (
+                  <tr key={task.id}>
+                    <td className="review-indicator">
+                      <span className={`review-bar ${reviewStatus}`}></span>
+                    </td>
+                    <td>
+                      <div className="task-name-cell">
+                        <div className="task-title">{task.title}</div>
+                        <div className="task-sub">
+                          <span>Порядок: {task.order_index || 0}</span>
+                          <span>{task.max_score || 100} баллов</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="unit-cell">
+                        <Folder className="w-3 h-3" />
+                        <span className="unit-name">{task.unit_title || 'Без юнита'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="type-wrap">
+                        <span className={getTypeBadgeClass(task.type)}>
+                          {getTypeIcon(task.type)}
+                          {getTypeLabel(task.type)}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      {getGradingTypeBadge(task)}
+                    </td>
+                    <td className={`order-cell ${task.order_index && task.order_index > 0 ? 'has-order' : 'no-order'}`}>
+                      {task.order_index || 0}
+                    </td>
+                    <td>
+                      {getStatusBadge(task.status)}
+                    </td>
+                    <td className="stats-cell">
+                      {stats.submitted > 0 ? (
+                        <>
+                          <div className="stat-line">
+                            <div className={`stat-dot ${stats.submitted > 0 ? 'amber' : 'grey'}`}></div>
+                            <div className="stat-text">
+                              <strong>{stats.submitted}</strong> {stats.submitted === 1 ? 'сдача' : stats.submitted < 5 ? 'сдачи' : 'сдач'}
+                            </div>
+                          </div>
+                          <div className="stat-line">
+                            <div className={`stat-dot ${stats.graded === stats.submitted ? 'green' : 'warn'}`}></div>
+                            <div className="stat-text" style={stats.graded < stats.submitted ? {color: 'var(--rust)'} : {}}>
+                              <strong>{stats.graded}</strong> оценено
+                            </div>
+                          </div>
+                          {avgScore !== undefined ? (
+                            <div className="stat-avg">
+                              <div className={`stat-avg-val ${getScoreClass(avgScore)}`}>
+                                {Math.round(avgScore)}%
+                              </div>
+                              <div className="stat-avg-lbl">Средний балл</div>
+                              <div className="mini-bar">
+                                <div 
+                                  className="mini-bar-fill" 
+                                  style={{
+                                    width: `${Math.round(avgScore)}%`,
+                                    background: avgScore >= 80 ? 'var(--teal)' : avgScore >= 50 ? 'var(--gold)' : 'var(--rust)'
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="stat-avg">
+                              <div className="stat-avg-val score-none">—</div>
+                              <div className="stat-avg-lbl">Нет данных</div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="stat-line">
+                            <div className="stat-dot grey"></div>
+                            <div className="stat-text">0 сдач</div>
+                          </div>
+                          <div className="stat-line">
+                            <div className="stat-dot grey"></div>
+                            <div className="stat-text">0 оценено</div>
+                          </div>
+                        </>
+                      )}
+                    </td>
+                    <td>
+                      <div className={deadline.class}>{deadline.text}</div>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          className="icon-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/tasks/${task.id}`);
+                          }}
+                          title="Просмотр сдач"
+                          style={reviewStatus === 'needs-grade' ? {borderColor: 'var(--rust)', color: 'var(--rust)'} : {}}
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
+                        <button
+                          className="icon-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/tasks/${task.id}/edit`);
+                          }}
+                          title="Редактировать"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          className="icon-btn danger"
+                          onClick={(e) => handleDeleteTask(task.id, e)}
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          className="open-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/tasks/${task.id}`);
+                          }}
+                        >
+                          Открыть <ArrowRight className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
 
-              {/* Status Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Статус
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все статусы</option>
-                  {statuses.map(status => (
-                    <option key={status} value={status}>
-                      {status === 'draft' ? 'Черновик' : 
-                       status === 'published' ? 'Опубликовано' :
-                       status === 'scheduled' ? 'Запланировано' : 'Архивировано'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Type Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Тип
-                </label>
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все типы</option>
-                  {types.map(type => (
-                    <option key={type} value={type}>
-                      {type === 'writing' ? 'Письмо' :
-                       type === 'listening' ? 'Аудирование' :
-                       type === 'reading' ? 'Чтение' : type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          }
-        />
-
-      {/* Bulk Actions */}
-      {selectedTasks.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-blue-800">
-              Выбрано {selectedTasks.length} заданий
-            </span>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => handleBulkAction('publish')}
-                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200"
-              >
-                Опубликовать
-              </button>
-              <button
-                onClick={() => handleBulkAction('archive')}
-                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-red-700 bg-red-100 hover:bg-red-200"
-              >
-                Архивировать
-              </button>
-              <button
-                onClick={() => setSelectedTasks([])}
-                className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Отменить
-              </button>
+          <div className="table-footer">
+            <div className="table-footer-count">
+              Показано <span>{filteredAndSortedTasks.length}</span> из {filteredAndSortedTasks.length} заданий
+            </div>
+            <div className="page-btns">
+              <button className="page-btn active">1</button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Tasks Table */}
-      {/* Legend */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <div className="flex items-center gap-6 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-green-200 border-2 border-green-400"></div>
-            <span className="text-sm text-gray-700">Все сдачи оценены</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-yellow-200 border-2 border-yellow-400"></div>
-            <span className="text-sm text-gray-700">Есть неоцененные сдачи</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-gray-100 border-2 border-gray-300"></div>
-            <span className="text-sm text-gray-700">Нет сдач</span>
-          </div>
-        </div>
       </div>
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedTasks.length === tasks.length}
-                    onChange={handleSelectAll}
-                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('title')}
-                >
-                  <div className="flex items-center">
-                    Название
-                    {sortField === 'title' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('unit_id')}
-                >
-                  <div className="flex items-center">
-                    Юнит
-                    {sortField === 'unit_id' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип задания
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип проверки
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Назначено
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('status')}
-                >
-                  <div className="flex items-center">
-                    Статус
-                    {sortField === 'status' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статистика
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('due_at')}
-                >
-                  <div className="flex items-center">
-                    Дедлайн
-                    {sortField === 'due_at' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10">
-                  Действия
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {tasks.map((task) => (
-                <tr key={task.id} className={getRowClassName(task)}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={selectedTasks.includes(task.id)}
-                      onChange={() => handleSelectTask(task.id)}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {task.title}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {task.description}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        Порядок: {task.order_index} | {task.max_score} баллов
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {task.unit_title || 'Без юнита'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getTypeBadge(task.type)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getGradingTypeBadge(task)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-1">
-                      <Users className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-900">
-                        {task.assigned_student_count || 0}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(task.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {task.submission_stats?.submitted || 0} сдач
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {task.average_score ? `${task.average_score.toFixed(1)}%` : 'Нет данных'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {task.due_at ? (
-                      <div className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        {new Date(task.due_at).toLocaleDateString('ru-RU')}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">Не установлен</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
-                    <div className="flex items-center justify-end gap-4 md:gap-3 lg:gap-2">
-                      <button
-                        onClick={() => navigate(`/admin/tasks/${task.id}`)}
-                        className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
-                        title="Просмотр"
-                      >
-                        <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/tasks/${task.id}/edit`)}
-                        className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="Редактировать"
-                      >
-                        <Edit className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTask(task.id)}
-                        className="p-2 md:p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Удалить"
-                      >
-                        <Trash2 className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Empty State */}
-        {tasks.length === 0 && (
-          <div className="text-center py-12">
-            <FileText className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Нет заданий</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || selectedUnit || selectedStatus || selectedType
-                ? 'Попробуйте изменить фильтры поиска.'
-                : 'Начните с создания первого задания.'
-              }
-            </p>
-            {!searchQuery && !selectedUnit && !selectedStatus && !selectedType && (
-              <div className="mt-6">
-                <button
-                  onClick={() => navigate('/admin/tasks/new')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Создать задание
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      </main>
     </div>
   );
 }

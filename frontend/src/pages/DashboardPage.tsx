@@ -137,18 +137,17 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Hero / welcome */}
-      <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-2xl px-6 py-6 md:px-8 md:py-7 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="bg-gradient-to-r from-[#1a7070] to-[#2a9898] rounded-2xl px-6 py-6 md:px-8 md:py-7 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="inline-flex items-center px-3 py-1 rounded-full bg-white/15 text-xs font-medium mb-2">
             <Sparkles className="w-4 h-4 mr-1" />
             <span>{t('dashboard.welcome')}, {user?.first_name}!</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold leading-tight">
-            Добро пожаловать в EZ Italian
+            {t('dashboard.welcome')}, {user?.first_name}!
           </h1>
           <p className="mt-2 text-sm md:text-base text-primary-100 max-w-xl">
-            Продолжайте обучение там, где остановились, следите за прогрессом и
-            управляйте своими заданиями и тестами в единой панели.
+            {t('dashboard.welcomeSubtitle') || 'Continue your learning journey, track your progress, and manage your tasks and tests in one place.'}
           </p>
         </div>
         <div className="bg-white/10 rounded-xl p-4 sm:p-5 flex flex-col justify-between min-w-[230px] max-w-xs">

@@ -49,7 +49,7 @@ export default function Layout({ children }: LayoutProps) {
     (href !== '/dashboard' && location.pathname.startsWith(href));
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#f5f0e8] flex">
       {/* Mobile overlay for sidebar */}
       {sidebarOpen && (
         <div
@@ -61,21 +61,23 @@ export default function Layout({ children }: LayoutProps) {
       {/* Sidebar – student nav */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-slate-200 shadow-sm
+          fixed inset-y-0 left-0 z-40 w-64 bg-[#f5f0e8] border-r border-[rgba(14,14,14,0.12)] shadow-sm
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:static
         `}
       >
         {/* Brand / logo */}
-        <div className="h-16 border-b border-slate-200 px-4 flex items-center gap-3">
+        <div className="h-16 border-b border-slate-200 px-4 flex items-center gap-3 bg-[#f5f0e8]">
           <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-600 to-primary-400 text-white shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1a7070] text-white shadow-sm">
               <GraduationCap className="h-5 w-5" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold text-slate-900">EZ Italian</span>
-              <span className="text-[11px] font-medium uppercase tracking-wide text-primary-500">
+              <span className="text-sm font-bold text-[#0e0e0e]" style={{ fontFamily: "'Playfair Display', serif" }}>
+                Teach<span className="text-[#1a7070]">Flow</span>
+              </span>
+              <span className="text-[11px] font-medium uppercase tracking-wide text-[#6b6456]" style={{ fontFamily: "'Space Mono', monospace" }}>
                 Student
               </span>
             </div>
@@ -92,15 +94,15 @@ export default function Layout({ children }: LayoutProps) {
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive(item.href)
-                    ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-200'
-                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                    ? 'bg-[#1a7070] text-white'
+                    : 'text-[#6b6456] hover:bg-[#f0e9d8] hover:text-[#0e0e0e]'
                 }`}
               >
                 <item.icon
                   className={`h-5 w-5 ${
                     isActive(item.href)
-                      ? 'text-primary-600'
-                      : 'text-slate-400 group-hover:text-slate-500'
+                      ? 'text-white'
+                      : 'text-[#6b6456] group-hover:text-[#0e0e0e]'
                   }`}
                 />
                 <span className="truncate">{item.name}</span>
@@ -110,7 +112,7 @@ export default function Layout({ children }: LayoutProps) {
         )}
 
         {/* Sidebar footer – small hint or version */}
-        <div className="border-t border-slate-200 px-4 py-3 text-[11px] text-slate-400">
+        <div className="border-t border-[rgba(14,14,14,0.12)] px-4 py-3 text-[11px] text-[#6b6456]" style={{ fontFamily: "'Space Mono', monospace" }}>
           {t('layout.studentHint') ||
             'Follow your Italian course step by step: dashboard, units, tasks and tests.'}
         </div>
@@ -119,17 +121,17 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar – compact */}
-        <header className="sticky top-0 z-20 h-14 bg-white border-b border-slate-200 flex items-center">
+        <header className="sticky top-0 z-20 h-14 bg-[#f5f0e8] border-b border-[rgba(14,14,14,0.12)] flex items-center backdrop-blur-sm bg-opacity-95">
           <div className="flex w-full items-center justify-between px-4 sm:px-6 lg:px-8">
             {/* Left: burger + page title placeholder */}
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden rounded-md p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                className="lg:hidden rounded-md p-2 text-[#6b6456] hover:bg-[#f0e9d8] hover:text-[#0e0e0e]"
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <span className="text-sm font-semibold text-slate-800 hidden sm:inline">
+              <span className="text-sm font-semibold text-[#0e0e0e] hidden sm:inline" style={{ fontFamily: "'Playfair Display', serif" }}>
                 {t('layout.studentArea') || 'Student area'}
               </span>
             </div>
@@ -143,7 +145,7 @@ export default function Layout({ children }: LayoutProps) {
                   const newLang = currentLang === 'ru' ? 'en' : 'ru';
                   i18n.changeLanguage(newLang);
                 }}
-                className="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                className="hidden sm:inline-flex items-center gap-2 rounded-full border border-[rgba(14,14,14,0.12)] bg-[#f0e9d8] px-3 py-1.5 text-xs font-medium text-[#0e0e0e] hover:bg-[#f5f0e8]" style={{ fontFamily: "'Space Mono', monospace" }}
                 title={
                   i18n.language === 'ru'
                     ? 'Switch to English'
@@ -156,29 +158,29 @@ export default function Layout({ children }: LayoutProps) {
               {user && (
                 <>
                   <div className="hidden sm:flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1a7070] text-xs font-semibold text-white">
                       {user.first_name?.[0]}
                       {user.last_name?.[0]}
                     </div>
                     <div className="flex flex-col leading-tight">
-                      <span className="text-xs font-medium text-slate-900">
+                      <span className="text-xs font-medium text-[#0e0e0e]">
                         {user.first_name} {user.last_name}
                       </span>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-[#6b6456]" style={{ fontFamily: "'Space Mono', monospace" }}>
                         {t('layout.roleStudent') || 'Student'}
                       </span>
                     </div>
                   </div>
 
                   {/* Mobile initials only */}
-                  <div className="sm:hidden flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                  <div className="sm:hidden flex h-8 w-8 items-center justify-center rounded-full bg-[#1a7070] text-xs font-semibold text-white">
                     {user.first_name?.[0]}
                     {user.last_name?.[0]}
                   </div>
 
                   <button
                     onClick={logout}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[rgba(14,14,14,0.12)] text-[#6b6456] hover:bg-[#f0e9d8] hover:text-[#0e0e0e]"
                     title={t('nav.logout')}
                   >
                     <LogOut className="h-4 w-4" />

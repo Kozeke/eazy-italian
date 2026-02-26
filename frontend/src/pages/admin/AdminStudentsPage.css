@@ -1,0 +1,768 @@
+/* Admin Students Page Styles - Scoped to .admin-students-wrapper */
+
+.admin-students-wrapper {
+  --ink: #0e0e0e;
+  --cream: #f5f0e8;
+  --warm: #f0e9d8;
+  --gold: #c9962a;
+  --gold-light: #e8b84b;
+  --rust: #c94a2a;
+  --teal: #1a7070;
+  --teal-light: #2a9898;
+  --teal-dim: rgba(26,112,112,0.1);
+  --muted: #6b6456;
+  --line: rgba(14,14,14,0.1);
+}
+
+.admin-students-wrapper {
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+  background: var(--warm);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ═══ PAGE CONTENT ═══ */
+.admin-students-wrapper .page-content {
+  padding: 2.25rem 2.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Page header ── */
+.admin-students-wrapper .page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.1s forwards;
+}
+
+.admin-students-wrapper .page-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.4rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.admin-students-wrapper .page-title em {
+  font-style: italic;
+  color: var(--teal);
+}
+
+.admin-students-wrapper .page-meta {
+  margin-top: 0.35rem;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+/* ═══ TOOLBAR ═══ */
+.admin-students-wrapper .toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.2s forwards;
+  flex-wrap: wrap;
+}
+
+.admin-students-wrapper .search-wrap {
+  flex: 1;
+  position: relative;
+  max-width: 360px;
+}
+
+.admin-students-wrapper .search-wrap svg {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  stroke: var(--muted);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.admin-students-wrapper .search-input {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  font-family: 'Inter', sans-serif;
+  font-size: 1.05rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  border-radius: 0;
+}
+
+.admin-students-wrapper .search-input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-dim);
+}
+
+.admin-students-wrapper .search-input::placeholder {
+  color: rgba(107,100,86,0.45);
+}
+
+.admin-students-wrapper .filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.admin-students-wrapper .filter-btn:hover,
+.admin-students-wrapper .filter-btn.active {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--warm);
+}
+
+.admin-students-wrapper .filter-btn svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ═══ SUMMARY BAR ═══ */
+.admin-students-wrapper .summary-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.22s forwards;
+}
+
+.admin-students-wrapper .summary-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  padding: 0.5rem 1rem;
+}
+
+.admin-students-wrapper .summary-chip-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--teal-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-students-wrapper .summary-chip-icon svg {
+  width: 13px;
+  height: 13px;
+  stroke: var(--teal);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.admin-students-wrapper .summary-chip-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.32rem;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.admin-students-wrapper .summary-chip-lbl {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* ═══ FILTER PANEL ═══ */
+.admin-students-wrapper .filter-panel {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  padding: 1.1rem 1.5rem;
+  display: none;
+  gap: 1.25rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.admin-students-wrapper .filter-panel.open {
+  display: flex;
+}
+
+.admin-students-wrapper .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.admin-students-wrapper .filter-group label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-students-wrapper .filter-group select {
+  padding: 0.48rem 2rem 0.48rem 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--warm);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.98rem;
+  color: var(--ink);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b6456'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  border-radius: 0;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.admin-students-wrapper .filter-group select:focus {
+  border-color: var(--teal);
+}
+
+/* ═══ TABLE ═══ */
+.admin-students-wrapper .table-wrap {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.3s forwards;
+}
+
+.admin-students-wrapper .students-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1000px;
+}
+
+.admin-students-wrapper .students-table thead tr {
+  background: var(--ink);
+}
+
+.admin-students-wrapper .students-table th {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: rgba(245,240,232,0.5);
+  text-align: left;
+  padding: 0.85rem 1.1rem;
+  white-space: nowrap;
+  font-weight: 400;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  user-select: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.admin-students-wrapper .students-table th:last-child {
+  border-right: none;
+  cursor: default;
+}
+
+.admin-students-wrapper .students-table th:hover:not(:last-child) {
+  color: rgba(245,240,232,0.9);
+}
+
+.admin-students-wrapper .sort-arrow {
+  margin-left: 0.25rem;
+  opacity: 0.3;
+  font-size: 0.62rem;
+}
+
+.admin-students-wrapper .sorted .sort-arrow {
+  opacity: 1;
+  color: var(--teal-light);
+}
+
+/* data rows */
+.admin-students-wrapper .students-table tbody tr {
+  border-bottom: 1px solid var(--line);
+  transition: background 0.15s;
+}
+
+.admin-students-wrapper .students-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.admin-students-wrapper .students-table tbody tr:hover {
+  background: rgba(26,112,112,0.03);
+}
+
+.admin-students-wrapper .students-table tbody tr:hover .row-actions {
+  opacity: 1;
+}
+
+.admin-students-wrapper .students-table td {
+  padding: 1rem 1.1rem;
+  vertical-align: middle;
+}
+
+/* ── Course count badge ── */
+.admin-students-wrapper .course-count-col {
+  vertical-align: middle;
+}
+
+.admin-students-wrapper .course-count-badge {
+  width: 36px;
+  height: 36px;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.admin-students-wrapper .course-count-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--cream);
+  line-height: 1;
+}
+
+.admin-students-wrapper .course-count-lbl {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(245,240,232,0.4);
+  margin-top: 1px;
+}
+
+/* ── Student cell ── */
+.admin-students-wrapper .student-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.admin-students-wrapper .student-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Playfair Display', serif;
+  font-size: 1.08rem;
+  font-weight: 900;
+  color: #fff;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.admin-students-wrapper .online-dot {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2ecc71;
+  border: 2px solid var(--cream);
+}
+
+.admin-students-wrapper .student-name {
+  font-weight: 500;
+  color: var(--ink);
+  font-size: 1.08rem;
+  line-height: 1.25;
+}
+
+.admin-students-wrapper .student-id {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  margin-top: 0.1rem;
+}
+
+/* ── Contact cell ── */
+.admin-students-wrapper .contact-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.admin-students-wrapper .contact-email {
+  font-size: 0.96rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-students-wrapper .contact-email svg {
+  width: 10px;
+  height: 10px;
+  stroke: var(--muted);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.admin-students-wrapper .contact-phone {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.45;
+  font-style: italic;
+}
+
+/* ── Level & Status ── */
+.admin-students-wrapper .badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.admin-students-wrapper .badge-none {
+  background: rgba(107,100,86,0.1);
+  color: var(--muted);
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.admin-students-wrapper .badge-active {
+  background: var(--teal-dim);
+  color: var(--teal);
+}
+
+.admin-students-wrapper .badge-inactive {
+  background: rgba(107,100,86,0.1);
+  color: var(--muted);
+}
+
+.admin-students-wrapper .badge-active svg {
+  width: 7px;
+  height: 7px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Progress cell ── */
+.admin-students-wrapper .progress-cell {
+  min-width: 160px;
+}
+
+.admin-students-wrapper .prog-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+}
+
+.admin-students-wrapper .prog-row:last-child {
+  margin-bottom: 0;
+}
+
+.admin-students-wrapper .prog-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  width: 52px;
+  flex-shrink: 0;
+}
+
+.admin-students-wrapper .prog-track {
+  flex: 1;
+  height: 4px;
+  background: var(--warm);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.admin-students-wrapper .prog-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1.2s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+.admin-students-wrapper .prog-fill.teal {
+  background: var(--teal);
+}
+
+.admin-students-wrapper .prog-fill.gold {
+  background: var(--gold);
+}
+
+.admin-students-wrapper .prog-val {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Subscription cell ── */
+.admin-students-wrapper .sub-cell {
+  min-width: 100px;
+}
+
+.admin-students-wrapper .sub-select {
+  width: 100%;
+  padding: 0.35rem 1.8rem 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--warm);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b6456'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  margin-bottom: 0.35rem;
+}
+
+.admin-students-wrapper .sub-select:focus {
+  border-color: var(--teal);
+}
+
+.admin-students-wrapper .sub-expires {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  opacity: 0.5;
+}
+
+/* ── Dates cell ── */
+.admin-students-wrapper .dates-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.admin-students-wrapper .date-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-students-wrapper .date-row svg {
+  width: 10px;
+  height: 10px;
+  stroke: var(--muted);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.admin-students-wrapper .date-row span {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.admin-students-wrapper .date-row .date-val {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ── Row actions ── */
+.admin-students-wrapper .row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+  justify-content: flex-end;
+}
+
+.admin-students-wrapper .icon-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.admin-students-wrapper .icon-btn:hover {
+  border-color: var(--teal);
+  color: var(--teal);
+  background: var(--teal-dim);
+}
+
+.admin-students-wrapper .icon-btn.danger:hover {
+  border-color: var(--rust);
+  color: var(--rust);
+  background: rgba(201,74,42,0.07);
+}
+
+.admin-students-wrapper .icon-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.admin-students-wrapper .open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.8rem;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.admin-students-wrapper .open-btn:hover {
+  background: var(--teal);
+}
+
+.admin-students-wrapper .open-btn svg {
+  width: 10px;
+  height: 10px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Table footer ── */
+.admin-students-wrapper .table-footer {
+  background: var(--warm);
+  border-top: 1px solid var(--line);
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-students-wrapper .table-footer-count {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+/* ── Enrolled courses pill ── */
+.admin-students-wrapper .courses-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 2px;
+  background: var(--teal-dim);
+  color: var(--teal);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.admin-students-wrapper .courses-pill:hover {
+  background: rgba(26,112,112,0.2);
+}
+
+.admin-students-wrapper .courses-pill svg {
+  width: 9px;
+  height: 9px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 900px) {
+  .admin-students-wrapper .page-content {
+    padding: 1.5rem;
+  }
+}

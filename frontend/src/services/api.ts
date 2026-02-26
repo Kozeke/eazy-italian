@@ -75,6 +75,45 @@ export const authApi = {
     console.log('getCurrentUser response received:', response.data);
     return response.data;
   },
+
+  // Google OAuth: Try to login with email, if fails, register then login
+  loginWithGoogle: async (googleUser: {
+    email: string;
+    given_name: string;
+    family_name: string;
+  }): Promise<TokenResponse> => {
+    // First try to login (user might already exist)
+    try {
+      // Since we don't have password, we'll need to register if login fails
+      // For now, we'll register the user with a random password
+      // In production, you'd want a proper backend endpoint for Google OAuth
+      const userData: RegisterData = {
+        email: googleUser.email,
+        first_name: googleUser.given_name,
+        last_name: googleUser.family_name,
+        password: `google_${Date.now()}_${Math.random()}`, // Temporary password
+        role: 'student', // Default role, can be changed later
+      };
+
+      // Try to register (will fail if user exists)
+      try {
+        await api.post('/auth/register', userData);
+      } catch (error: any) {
+        // User might already exist, that's okay
+        if (error.response?.status !== 400 || !error.response?.data?.detail?.includes('already registered')) {
+          throw error;
+        }
+      }
+
+      // Now try to login
+      // Note: This won't work with the random password. 
+      // You need a backend endpoint that handles Google OAuth properly.
+      // For now, we'll use a workaround: try to login, if it fails, the user needs to set a password
+      throw new Error('Google OAuth requires backend support. Please use email/password login or contact support.');
+    } catch (error: any) {
+      throw error;
+    }
+  },
 };
 
 // Courses API
@@ -410,6 +449,21 @@ export const usersApi = {
     await api.put(`/admin/students/${studentId}/subscription`, {
       subscription,
     });
+  },
+  getCurrentUser: async (): Promise<User> => {
+    const response: AxiosResponse<User> = await api.get('/users/me');
+    return response.data;
+  },
+  updateProfile: async (userData: { email?: string; first_name?: string; last_name?: string; locale?: string }) => {
+    const response: AxiosResponse<User> = await api.put('/users/me', userData);
+    return response.data;
+  },
+  changePassword: async (oldPassword: string, newPassword: string) => {
+    const response: AxiosResponse<{ message: string }> = await api.post('/users/me/change-password', {
+      old_password: oldPassword,
+      new_password: newPassword,
+    });
+    return response.data;
   },
 };
 // Tests API

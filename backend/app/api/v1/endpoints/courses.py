@@ -33,6 +33,25 @@ from app.schemas.course import (
 
 router = APIRouter()
 
+def get_uploads_path():
+    """Get the uploads directory path - same logic as main.py and videos.py"""
+    # __file__ is backend/app/api/v1/endpoints/courses.py
+    # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
+    current_file = os.path.abspath(__file__)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
+    
+    # Check if we're in Docker
+    is_docker = (os.name != 'nt' and
+                 os.path.exists("/app") and 
+                 os.getcwd() == "/app" and 
+                 backend_dir == "/app")
+    
+    if is_docker:
+        return "/app/uploads"
+    else:
+        # Local development - uploads is inside backend directory
+        return os.path.join(backend_dir, "uploads")
+
 # Test endpoint to verify router is working
 @router.get("/admin/test")
 async def test_admin_route():
@@ -381,24 +400,8 @@ async def upload_course_thumbnail(
     if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
     
-    # Get uploads path - same logic as videos
-    # __file__ is backend/app/api/v1/endpoints/courses.py
-    # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
-    current_file = os.path.abspath(__file__)
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
-    
-    # Check if we're in Docker
-    is_docker = (os.name != 'nt' and
-                 os.path.exists("/app") and 
-                 os.getcwd() == "/app" and 
-                 backend_dir == "/app")
-    
-    if is_docker:
-        uploads_path = "/app/uploads"
-    else:
-        # Local development - uploads is inside backend directory
-        uploads_path = os.path.join(backend_dir, "uploads")
-    
+    # Get uploads path using helper function
+    uploads_path = get_uploads_path()
     upload_dir = os.path.join(uploads_path, "thumbnails")
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -454,12 +457,9 @@ async def generate_course_thumbnail(
         
         thumbnail_path = get_course_thumbnail_path(course.id, level)
         
-        # Get backend directory and use backend/uploads
-        # __file__ is backend/app/api/v1/endpoints/courses.py
-        # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
-        current_file = os.path.abspath(__file__)
-        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
-        full_path = os.path.join(backend_dir, "uploads", thumbnail_path)
+        # Get uploads path using helper function
+        uploads_path = get_uploads_path()
+        full_path = os.path.join(uploads_path, thumbnail_path)
         
         # Generate subtitle from description if available
         subtitle = course.description[:50] if course.description else ""

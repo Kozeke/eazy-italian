@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
@@ -8,8 +8,11 @@ import {
   BookMarked,
   Clock,
   Tag,
-  Globe,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Check,
+  Save,
+  Sparkles,
+  Image as ImageIcon
 } from 'lucide-react';
 import { coursesApi } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -45,6 +48,8 @@ export default function AdminCourseCreatePage() {
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string>('');
+  const [createdCourseId, setCreatedCourseId] = useState<number | null>(null);
+  const [thumbnailPath, setThumbnailPath] = useState<string>('');
 
   const [formData, setFormData] = useState<CourseFormData>({
     title: '',
@@ -107,24 +112,37 @@ export default function AdminCourseCreatePage() {
         toast.error('Пожалуйста, выберите файл изображения');
         return;
       }
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      if (file.size > 10 * 1024 * 1024) {
         toast.error('Размер файла не должен превышать 10MB');
         return;
       }
       setThumbnailFile(file);
-      // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       setThumbnailPreviewUrl(previewUrl);
     }
   };
 
+  const getThumbnailUrl = (): string => {
+    if (thumbnailPreviewUrl) return thumbnailPreviewUrl;
+    if (formData.thumbnail_url) return formData.thumbnail_url;
+    if (thumbnailPath) {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+      return `${apiBase}/static/${thumbnailPath}`;
+    }
+    return '';
+  };
+
   const handleRemoveThumbnail = () => {
     setThumbnailFile(null);
     if (thumbnailPreviewUrl) {
-      URL.revokeObjectURL(thumbnailPreviewUrl);
+      if (thumbnailPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(thumbnailPreviewUrl);
+      }
       setThumbnailPreviewUrl('');
     }
+    setThumbnailPath('');
     handleInputChange('thumbnail_path', '');
+    handleInputChange('thumbnail_url', '');
   };
 
   const validateForm = (): boolean => {
@@ -143,8 +161,7 @@ export default function AdminCourseCreatePage() {
     setSaving(true);
     
     try {
-      // Prepare course data for API
-      const courseData = {
+      const courseData: any = {
         title: formData.title.trim(),
         description: formData.description.trim() || undefined,
         level: formData.level as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'mixed',
@@ -160,41 +177,47 @@ export default function AdminCourseCreatePage() {
         settings: Object.keys(formData.settings).length > 0 ? formData.settings : undefined
       };
 
-      console.log('Saving course:', courseData);
+      if (formData.thumbnail_path) {
+        courseData.thumbnail_path = formData.thumbnail_path;
+      }
+
+      let savedCourse;
       
-      // Call the API to create course
-      const savedCourse = await coursesApi.createCourse(courseData);
+      if (createdCourseId) {
+        savedCourse = await coursesApi.updateCourse(createdCourseId, courseData);
+      } else {
+        savedCourse = await coursesApi.createCourse(courseData);
+        setCreatedCourseId(savedCourse.id);
+      }
       
-      console.log('Course saved successfully:', savedCourse);
-      
-      // Upload thumbnail if file is selected
       if (thumbnailFile && savedCourse.id) {
         try {
           const uploadedThumbnail = await coursesApi.uploadThumbnail(savedCourse.id, thumbnailFile);
           if (uploadedThumbnail.thumbnail_path) {
-            // Update course with new thumbnail path
             await coursesApi.updateCourse(savedCourse.id, {
               thumbnail_path: uploadedThumbnail.thumbnail_path
             });
+            const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+            setThumbnailPreviewUrl(`${apiBase}/static/${uploadedThumbnail.thumbnail_path}`);
+            setThumbnailPath(uploadedThumbnail.thumbnail_path);
           }
         } catch (error) {
           console.error('Error uploading thumbnail:', error);
           toast.error('Не удалось загрузить обложку');
         }
-      }
-      // Generate thumbnail if no file is uploaded but title and level are set
-      else if (savedCourse.id && formData.title && formData.level) {
+      } else if (savedCourse.id && formData.title && formData.level && !formData.thumbnail_path) {
         try {
           const thumbnailResult = await coursesApi.generateThumbnail(savedCourse.id);
           if (thumbnailResult.thumbnail_path) {
-            // Update the saved course with thumbnail path
             await coursesApi.updateCourse(savedCourse.id, {
               thumbnail_path: thumbnailResult.thumbnail_path
             });
+            const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+            setThumbnailPreviewUrl(`${apiBase}/static/${thumbnailResult.thumbnail_path}`);
+            setThumbnailPath(thumbnailResult.thumbnail_path);
           }
         } catch (error) {
           console.error('Error generating thumbnail:', error);
-          // Don't fail the whole operation if thumbnail generation fails
         }
       }
       
@@ -204,7 +227,6 @@ export default function AdminCourseCreatePage() {
           : 'Курс успешно сохранен как черновик!'
       );
       
-      // Navigate to course detail page or back to courses list
       navigate(`/admin/courses/${savedCourse.id}`);
     } catch (error: any) {
       console.error('Error saving course:', error);
@@ -214,589 +236,1288 @@ export default function AdminCourseCreatePage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { color: string; text: string }> = {
-      draft: { color: 'bg-gray-100 text-gray-800', text: 'Черновик' },
-      scheduled: { color: 'bg-blue-100 text-blue-800', text: 'Запланировано' },
-      published: { color: 'bg-green-100 text-green-800', text: 'Опубликовано' },
-      archived: { color: 'bg-red-100 text-red-800', text: 'Архив' }
-    };
+  const handleGenerateThumbnail = async () => {
+    if (!formData.title.trim()) {
+      toast.error('Сначала введите название курса');
+      return;
+    }
     
-    const config = statusConfig[status] || statusConfig.draft;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.text}
-      </span>
-    );
+    setGeneratingThumbnail(true);
+    try {
+      let courseId = createdCourseId;
+      
+      if (!courseId) {
+        const courseData = {
+          title: formData.title.trim(),
+          description: formData.description.trim() || undefined,
+          level: formData.level as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'mixed',
+          status: 'draft' as 'draft' | 'scheduled' | 'published' | 'archived',
+          order_index: formData.order_index,
+          duration_hours: formData.duration_hours || undefined,
+          tags: formData.tags.length > 0 ? formData.tags : undefined,
+          is_visible_to_students: formData.is_visible_to_students,
+          settings: Object.keys(formData.settings).length > 0 ? formData.settings : undefined
+        };
+        
+        const savedCourse = await coursesApi.createCourse(courseData);
+        courseId = savedCourse.id;
+        setCreatedCourseId(courseId);
+      }
+      
+      const thumbnailResult = await coursesApi.generateThumbnail(courseId);
+      
+      if (thumbnailResult.thumbnail_path) {
+        setThumbnailPath(thumbnailResult.thumbnail_path);
+        const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+        const thumbnailUrl = `${apiBase}/static/${thumbnailResult.thumbnail_path}`;
+        setThumbnailPreviewUrl(thumbnailUrl);
+        setFormData(prev => ({
+          ...prev,
+          thumbnail_path: thumbnailResult.thumbnail_path
+        }));
+        toast.success('Обложка успешно сгенерирована!');
+      }
+    } catch (error: any) {
+      console.error('Error generating thumbnail:', error);
+      toast.error(error.response?.data?.detail || 'Ошибка при генерации обложки');
+    } finally {
+      setGeneratingThumbnail(false);
+    }
   };
 
-  // @ts-ignore - Function is used in JSX (line 697), TypeScript false positive
-  const getLevelBadge = (level: string) => {
-    const levelColors: Record<string, string> = {
-      A1: 'bg-purple-100 text-purple-800',
-      A2: 'bg-blue-100 text-blue-800',
-      B1: 'bg-green-100 text-green-800',
-      B2: 'bg-yellow-100 text-yellow-800',
-      C1: 'bg-orange-100 text-orange-800',
-      C2: 'bg-red-100 text-red-800',
-      mixed: 'bg-indigo-100 text-indigo-800'
-    };
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${levelColors[level] || levelColors.A1}`}>
-        {level}
-      </span>
-    );
+  const previewCoverUrl = (url: string) => {
+    if (url && url.startsWith('http')) {
+      setThumbnailPreviewUrl(url);
+      handleInputChange('thumbnail_url', url);
+    }
+  };
+
+  const stepNumber = (field: 'duration_hours' | 'order_index', delta: number) => {
+    const currentValue = field === 'duration_hours' 
+      ? (formData.duration_hours || 0)
+      : formData.order_index;
+    const newValue = Math.max(0, currentValue + delta);
+    if (field === 'duration_hours') {
+      handleInputChange('duration_hours', newValue);
+    } else {
+      handleInputChange('order_index', newValue);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top sticky bar */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-3 sm:py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-              <button
-                onClick={() => navigate('/admin/courses')}
-                className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 flex-shrink-0"
-              >
-                <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Назад к курсам</span>
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-                  <BookMarked className="h-5 w-5 sm:h-6 sm:w-6 text-primary-600 flex-shrink-0" />
-                  <h1 className="text-base sm:text-xl md:text-2xl font-semibold text-gray-900 truncate">
-                    Создать новый курс
-                  </h1>
-                  {getStatusBadge(formData.status)}
-                </div>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">
-                  Курс — это контейнер для организации учебных юнитов
-                </p>
-              </div>
-            </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap');
+        
+        .tf-root {
+          --ink: #0e0e0e;
+          --cream: #f5f0e8;
+          --warm: #f0e9d8;
+          --gold: #c9962a;
+          --gold-light: #e8b84b;
+          --rust: #c94a2a;
+          --teal: #1a7070;
+          --teal-light: #2a9898;
+          --teal-dim: rgba(26,112,112,0.1);
+          --muted: #6b6456;
+          --line: rgba(14,14,14,0.1);
+        }
 
-            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-              {/* <button
-                type="button"
-                onClick={() => setShowPreview(!showPreview)}
-                className="hidden sm:inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр'}
-              </button> */}
+        .tf-page {
+          min-height: 100vh;
+          background: var(--warm);
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 300;
+          color: var(--ink);
+        }
 
-              {/* <button
-                onClick={() => handleSave(false)}
-                disabled={saving}
-                className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? 'Сохранение...' : 'Сохранить черновик'}
-              </button> */}
+        .tf-topbar {
+          background: var(--cream);
+          border-bottom: 1px solid var(--line);
+          padding: 0 2.5rem;
+          height: 64px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          position: sticky;
+          top: 0;
+          z-index: 50;
+        }
 
-              <button
-                onClick={() => handleSave(true)}
-                disabled={saving}
-                className="inline-flex items-center justify-center rounded-lg border border-transparent bg-green-600 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 flex-1 sm:flex-initial whitespace-nowrap"
-              >
-                {saving ? 'Публикация...' : 'Сохранить и опубликовать'}
-              </button>
+        .tf-topbar-left {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .tf-back-link {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.65rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--muted);
+          text-decoration: none;
+          transition: color 0.2s;
+        }
+
+        .tf-back-link:hover {
+          color: var(--teal);
+        }
+
+        .tf-topbar-divider {
+          width: 1px;
+          height: 18px;
+          background: var(--line);
+        }
+
+        .tf-breadcrumb {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.65rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .tf-breadcrumb .sep {
+          opacity: 0.35;
+        }
+
+        .tf-breadcrumb .current {
+          color: var(--ink);
+        }
+
+        .tf-status-pill {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          padding: 0.4rem 0.85rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          font-family: 'Space Mono', monospace;
+          font-size: 0.62rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--muted);
+          cursor: pointer;
+          transition: all 0.2s;
+          user-select: none;
+        }
+
+        .tf-status-pill.published {
+          border-color: var(--teal);
+          color: var(--teal);
+          background: var(--teal-dim);
+        }
+
+        .tf-status-pill.published .pill-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: var(--teal);
+          box-shadow: 0 0 0 3px rgba(26,112,112,0.2);
+        }
+
+        .tf-btn-outline {
+          background: none;
+          border: 1px solid var(--line);
+          padding: 0.48rem 1rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.65rem;
+          letter-spacing: 0.07em;
+          cursor: pointer;
+          color: var(--muted);
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .tf-btn-outline:hover {
+          border-color: var(--ink);
+          color: var(--ink);
+        }
+
+        .tf-btn-primary {
+          background: var(--teal);
+          color: #fff;
+          border: none;
+          padding: 0.52rem 1.25rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.68rem;
+          letter-spacing: 0.07em;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          transition: background 0.2s;
+        }
+
+        .tf-btn-primary:hover {
+          background: var(--teal-light);
+        }
+
+        .tf-btn-primary:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .tf-page-content {
+          padding: 2.5rem 2.5rem 4rem;
+        }
+
+        .tf-page-header {
+          margin-bottom: 2.25rem;
+        }
+
+        .tf-page-title {
+          font-family: 'Playfair Display', serif;
+          font-size: 2rem;
+          font-weight: 900;
+          line-height: 1.1;
+        }
+
+        .tf-page-title em {
+          font-style: italic;
+          color: var(--teal);
+        }
+
+        .tf-page-meta {
+          margin-top: 0.4rem;
+          font-size: 0.85rem;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .tf-form-layout {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 1.75rem;
+          align-items: start;
+        }
+
+        .tf-form-card {
+          background: var(--cream);
+          border: 1px solid var(--line);
+        }
+
+        .tf-card-header {
+          padding: 1.1rem 1.5rem;
+          border-bottom: 1px solid var(--line);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: var(--warm);
+        }
+
+        .tf-card-title {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.68rem;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--ink);
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+        }
+
+        .tf-card-title-num {
+          width: 22px;
+          height: 22px;
+          background: var(--teal);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.62rem;
+          font-weight: 700;
+          color: #fff;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        .tf-card-body {
+          padding: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1.35rem;
+        }
+
+        .tf-field {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+
+        .tf-field-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+        }
+
+        .tf-field-label {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.62rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--ink);
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
+
+        .tf-required-star {
+          color: var(--rust);
+          font-size: 0.8rem;
+        }
+
+        .tf-field-hint {
+          font-size: 0.78rem;
+          color: var(--muted);
+          margin-top: -0.2rem;
+        }
+
+        .tf-field-input {
+          width: 100%;
+          padding: 0.7rem 0.9rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.9rem;
+          font-weight: 300;
+          color: var(--ink);
+          outline: none;
+          transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+          border-radius: 0;
+          resize: none;
+        }
+
+        .tf-field-input:focus {
+          border-color: var(--teal);
+          background: var(--cream);
+          box-shadow: 0 0 0 3px var(--teal-dim);
+        }
+
+        .tf-field-input::placeholder {
+          color: rgba(107,100,86,0.4);
+        }
+
+        textarea.tf-field-input {
+          min-height: 110px;
+          line-height: 1.6;
+        }
+
+        .tf-input-wrap {
+          position: relative;
+        }
+
+        .tf-char-counter {
+          position: absolute;
+          bottom: 0.55rem;
+          right: 0.7rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.55rem;
+          color: var(--muted);
+          opacity: 0.5;
+          pointer-events: none;
+        }
+
+        .tf-level-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 0.5rem;
+        }
+
+        .tf-level-option {
+          display: none;
+        }
+
+        .tf-level-label {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 0.65rem 0.4rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: center;
+          gap: 0.3rem;
+        }
+
+        .tf-level-label:hover {
+          border-color: var(--teal);
+          background: var(--cream);
+        }
+
+        .tf-level-option:checked + .tf-level-label {
+          border-color: var(--teal);
+          background: var(--teal-dim);
+          color: var(--teal);
+        }
+
+        .tf-level-code {
+          font-family: 'Playfair Display', serif;
+          font-size: 1.05rem;
+          font-weight: 900;
+          line-height: 1;
+        }
+
+        .tf-level-option:checked + .tf-level-label .tf-level-code {
+          color: var(--teal);
+        }
+
+        .tf-level-name {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.5rem;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+          color: var(--muted);
+        }
+
+        .tf-level-option:checked + .tf-level-label .tf-level-name {
+          color: var(--teal);
+          opacity: 0.7;
+        }
+
+        .tf-level-label.mixed {
+          grid-column: span 2;
+          flex-direction: row;
+          justify-content: flex-start;
+          gap: 0.6rem;
+          padding: 0.6rem 0.75rem;
+        }
+
+        .tf-level-label.mixed .tf-level-code {
+          font-size: 0.85rem;
+        }
+
+        .tf-cover-area {
+          border: 2px dashed var(--line);
+          background: var(--warm);
+          transition: all 0.2s;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .tf-cover-area:hover {
+          border-color: var(--teal);
+          background: var(--cream);
+        }
+
+        .tf-cover-area.has-preview {
+          border-style: solid;
+          border-color: var(--line);
+        }
+
+        .tf-cover-placeholder {
+          padding: 2rem 1.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.75rem;
+          cursor: pointer;
+        }
+
+        .tf-cover-placeholder-icon {
+          width: 44px;
+          height: 44px;
+          background: var(--line);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .tf-cover-placeholder-text {
+          font-size: 0.82rem;
+          color: var(--muted);
+          text-align: center;
+          line-height: 1.5;
+        }
+
+        .tf-cover-placeholder-sub {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.57rem;
+          color: var(--muted);
+          opacity: 0.55;
+        }
+
+        .tf-cover-actions {
+          display: flex;
+          gap: 0.6rem;
+        }
+
+        .tf-cover-btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.4rem;
+          padding: 0.6rem 1rem;
+          border: 1px solid var(--line);
+          background: var(--cream);
+          font-family: 'Space Mono', monospace;
+          font-size: 0.62rem;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+          color: var(--muted);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .tf-cover-btn:hover {
+          border-color: var(--teal);
+          color: var(--teal);
+          background: var(--teal-dim);
+        }
+
+        .tf-cover-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .tf-cover-preview {
+          width: 100%;
+          aspect-ratio: 16/9;
+          object-fit: cover;
+          display: block;
+        }
+
+        .tf-tags-wrap {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          align-items: center;
+        }
+
+        .tf-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          background: var(--ink);
+          color: var(--cream);
+          font-family: 'Space Mono', monospace;
+          font-size: 0.6rem;
+          font-weight: 700;
+          letter-spacing: 0.07em;
+          padding: 0.25rem 0.7rem;
+          border-radius: 2px;
+          cursor: default;
+        }
+
+        .tf-tag-remove {
+          background: none;
+          border: none;
+          color: rgba(245,240,232,0.5);
+          cursor: pointer;
+          font-size: 0.9rem;
+          line-height: 1;
+          padding: 0;
+          transition: color 0.15s;
+          display: flex;
+          align-items: center;
+        }
+
+        .tf-tag-remove:hover {
+          color: var(--cream);
+        }
+
+        .tf-tag-add-wrap {
+          display: flex;
+          gap: 0.5rem;
+          flex: 1;
+          min-width: 140px;
+        }
+
+        .tf-tag-input {
+          flex: 1;
+          padding: 0.42rem 0.7rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.82rem;
+          color: var(--ink);
+          outline: none;
+          transition: border-color 0.2s;
+          border-radius: 0;
+        }
+
+        .tf-tag-input:focus {
+          border-color: var(--teal);
+        }
+
+        .tf-tag-input::placeholder {
+          color: rgba(107,100,86,0.4);
+        }
+
+        .tf-tag-add-btn {
+          padding: 0.42rem 0.8rem;
+          background: var(--ink);
+          color: var(--cream);
+          border: none;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.6rem;
+          cursor: pointer;
+          transition: background 0.2s;
+          white-space: nowrap;
+          letter-spacing: 0.06em;
+        }
+
+        .tf-tag-add-btn:hover {
+          background: var(--teal);
+        }
+
+        .tf-sidebar-cards {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+
+        .tf-advanced-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.85rem 1.5rem;
+          background: var(--warm);
+          border: 1px solid var(--line);
+          cursor: pointer;
+          user-select: none;
+          transition: background 0.2s;
+        }
+
+        .tf-advanced-toggle:hover {
+          background: var(--cream);
+        }
+
+        .tf-advanced-toggle-label {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.65rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .tf-advanced-chevron {
+          width: 16px;
+          height: 16px;
+          stroke: var(--muted);
+          fill: none;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          transition: transform 0.3s;
+        }
+
+        .tf-advanced-toggle.open .tf-advanced-chevron {
+          transform: rotate(180deg);
+        }
+
+        .tf-advanced-panel {
+          display: none;
+        }
+
+        .tf-advanced-panel.open {
+          display: block;
+        }
+
+        .tf-advanced-panel .tf-form-card {
+          border-top: none;
+        }
+
+        .tf-toggle-field {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+        }
+
+        .tf-toggle-info {
+          flex: 1;
+        }
+
+        .tf-toggle-name {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.62rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--ink);
+        }
+
+        .tf-toggle-desc {
+          font-size: 0.75rem;
+          color: var(--muted);
+          margin-top: 0.2rem;
+          line-height: 1.4;
+        }
+
+        .tf-toggle-switch {
+          position: relative;
+          width: 44px;
+          height: 24px;
+          flex-shrink: 0;
+          cursor: pointer;
+        }
+
+        .tf-toggle-switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        .tf-ts-inner {
+          position: relative;
+          width: 44px;
+          height: 24px;
+        }
+
+        .tf-ts-inner input {
+          opacity: 0;
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          cursor: pointer;
+          z-index: 2;
+          margin: 0;
+        }
+
+        .tf-ts-track {
+          position: absolute;
+          inset: 0;
+          border-radius: 12px;
+          background: rgba(107,100,86,0.2);
+          border: 1px solid var(--line);
+          transition: background 0.2s, border-color 0.2s;
+        }
+
+        .tf-ts-thumb {
+          position: absolute;
+          top: 3px;
+          left: 3px;
+          width: 16px;
+          height: 16px;
+          background: #fff;
+          border-radius: 50%;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+          transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        .tf-ts-inner input:checked ~ .tf-ts-track {
+          background: var(--teal);
+          border-color: var(--teal);
+        }
+
+        .tf-ts-inner input:checked ~ .tf-ts-thumb {
+          transform: translateX(20px);
+        }
+
+        .tf-number-input-wrap {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .tf-number-input-wrap .tf-field-input {
+          padding-right: 2.5rem;
+          -moz-appearance: textfield;
+        }
+
+        .tf-number-input-wrap .tf-field-input::-webkit-inner-spin-button,
+        .tf-number-input-wrap .tf-field-input::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+        }
+
+        .tf-num-arrows {
+          position: absolute;
+          right: 1px;
+          top: 1px;
+          bottom: 1px;
+          display: flex;
+          flex-direction: column;
+          width: 28px;
+          border-left: 1px solid var(--line);
+        }
+
+        .tf-num-arrow {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--warm);
+          border: none;
+          cursor: pointer;
+          color: var(--muted);
+          transition: background 0.15s, color 0.15s;
+          font-size: 0.6rem;
+        }
+
+        .tf-num-arrow:hover {
+          background: var(--cream);
+          color: var(--teal);
+        }
+
+        .tf-num-arrow + .tf-num-arrow {
+          border-top: 1px solid var(--line);
+        }
+
+        .tf-field-input[type="date"],
+        .tf-field-input[type="datetime-local"] {
+          color-scheme: light;
+        }
+
+        @media (max-width: 1100px) {
+          .tf-form-layout {
+            grid-template-columns: 1fr;
+          }
+          .tf-sidebar-cards {
+            display: contents;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .tf-page-content {
+            padding: 1.5rem 1.5rem 3rem;
+          }
+          .tf-topbar {
+            padding: 0 1.5rem;
+          }
+          .tf-level-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+      `}</style>
+
+      <div className="tf-page tf-root">
+        <header className="tf-topbar">
+          <div className="tf-topbar-left">
+            <button onClick={() => navigate('/admin/courses')} className="tf-back-link">
+              <ArrowLeft className="w-3 h-3" />
+              Назад к курсам
+            </button>
+            <div className="tf-topbar-divider"></div>
+            <div className="tf-breadcrumb">
+              <span>Курсы</span>
+              <span className="sep">›</span>
+              <span className="current">Создать новый курс</span>
             </div>
           </div>
-        </div>
-      </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className={`tf-status-pill ${formData.status === 'published' ? 'published' : ''}`}>
+              <div className="pill-dot"></div>
+              <span>{formData.status === 'published' ? 'Опубликовано' : 'Черновик'}</span>
+            </div>
+            <button className="tf-btn-outline" onClick={() => handleSave(false)} disabled={saving}>
+              <Save className="w-3 h-3" />
+              Черновик
+            </button>
+            <button className="tf-btn-primary" onClick={() => handleSave(true)} disabled={saving}>
+              <Check className="w-3 h-3" />
+              {saving ? 'Публикация...' : 'Сохранить и опубликовать'}
+            </button>
+          </div>
+        </header>
 
-      {/* Main content */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* MAIN COLUMN – form fields */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Basic Information */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <BookMarked className="h-5 w-5 mr-2 text-primary-600" />
-                Основная информация
-              </h2>
+        <div className="tf-page-content">
+          <div className="tf-page-header">
+            <h1 className="tf-page-title">Создать <em>новый курс</em></h1>
+            <p className="tf-page-meta">
+              <Clock className="w-3 h-3" />
+              Курс — это контейнер для организации учебных юнитов
+            </p>
+          </div>
 
-              <div className="space-y-4">
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Название курса *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    placeholder="Например: Полный курс итальянского языка для начинающих"
-                    required
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Придумайте понятное и привлекательное название курса
-                  </p>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Описание курса
-                  </label>
-                  <RichTextEditor
-                    value={formData.description}
-                    onChange={(value) => handleInputChange('description', value)}
-                    placeholder="Опишите, что студенты будут изучать в этом курсе, какие навыки получат..."
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Подробное описание поможет студентам понять содержание курса
-                  </p>
-                </div>
-
-                {/* Level and Duration */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Level */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Уровень сложности *
-                    </label>
-                    <select
-                      value={formData.level}
-                      onChange={(e) => handleInputChange('level', e.target.value)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      required
-                    >
-                      <option value="A1">A1 – Начальный</option>
-                      <option value="A2">A2 – Элементарный</option>
-                      <option value="B1">B1 – Средний</option>
-                      <option value="B2">B2 – Выше среднего</option>
-                      <option value="C1">C1 – Продвинутый</option>
-                      <option value="C2">C2 – В совершенстве</option>
-                      <option value="mixed">Смешанный (разные уровни)</option>
-                    </select>
-                  </div>
-
-                  {/* Duration */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                      <Clock className="h-4 w-4 mr-1 text-gray-400" />
-                      Продолжительность (часы)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.duration_hours || ''}
-                      onChange={(e) => handleInputChange('duration_hours', e.target.value ? parseInt(e.target.value) : null)}
-                      min="0"
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      placeholder="Например: 40"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Примерная общая продолжительность курса
-                    </p>
+          <div className="tf-form-layout">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* CARD 1: Основная информация */}
+              <div className="tf-form-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <div className="tf-card-title-num">1</div>
+                    Основная информация
                   </div>
                 </div>
-
-                {/* Thumbnail */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Обложка курса
-                  </label>
-                  
-                  {(thumbnailPreviewUrl || formData.thumbnail_url) ? (
-                    <div className="relative inline-block">
-                      <img
-                        src={thumbnailPreviewUrl || formData.thumbnail_url || ''}
-                        alt="Course thumbnail"
-                        className="w-full max-w-md rounded-xl shadow border mb-3"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleRemoveThumbnail}
-                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="h-48 max-w-md rounded-xl border border-dashed flex items-center justify-center text-gray-400 mb-3">
-                      {thumbnailFile ? 'Обложка будет загружена при сохранении' : 'Загрузите обложку или она будет сгенерирована автоматически'}
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <label className="inline-flex items-center px-4 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
-                      <Upload className="w-4 h-4 mr-2" />
-                      Загрузить файл
+                <div className="tf-card-body">
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="course-title">
+                      Название курса <span className="tf-required-star">*</span>
+                    </label>
+                    <p className="tf-field-hint">Придумайте понятное и привлекательное название курса</p>
+                    <div className="tf-input-wrap">
                       <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleThumbnailFileChange}
-                        className="hidden"
+                        type="text"
+                        id="course-title"
+                        className="tf-field-input"
+                        placeholder="Например: Итальянский с нуля — А1 за 30 дней"
+                        maxLength={100}
+                        value={formData.title}
+                        onChange={(e) => handleInputChange('title', e.target.value)}
                       />
-                    </label>
+                      <span className="tf-char-counter">{formData.title.length} / 100</span>
+                    </div>
+                  </div>
 
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!formData.title.trim()) {
-                          toast.error('Сначала введите название курса');
-                          return;
-                        }
-                        
-                        setGeneratingThumbnail(true);
-                        try {
-                          // For new courses, we'll generate after creation
-                          // For now, show a preview based on title and level
-                          toast.success('Обложка будет сгенерирована после сохранения курса');
-                        } catch (error: any) {
-                          toast.error('Ошибка при генерации обложки');
-                        } finally {
-                          setGeneratingThumbnail(false);
-                        }
-                      }}
-                      disabled={generatingThumbnail || !formData.title.trim()}
-                      className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="course-desc">Описание курса</label>
+                    <p className="tf-field-hint">Подробное описание поможет студентам понять содержание курса</p>
+                    <div className="tf-input-wrap">
+                      <RichTextEditor
+                        value={formData.description}
+                        onChange={(value) => handleInputChange('description', value)}
+                        placeholder="Расскажите о целях курса, что студенты узнают, какие навыки получат…"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="tf-field-row">
+                    <div className="tf-field">
+                      <label className="tf-field-label">Уровень сложности <span className="tf-required-star">*</span></label>
+                      <div className="tf-level-grid">
+                        <input type="radio" name="level" id="l-a1" value="A1" className="tf-level-option" checked={formData.level === 'A1'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                        <label htmlFor="l-a1" className="tf-level-label"><span className="tf-level-code">A1</span><span className="tf-level-name">Начальный</span></label>
+
+                        <input type="radio" name="level" id="l-a2" value="A2" className="tf-level-option" checked={formData.level === 'A2'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                        <label htmlFor="l-a2" className="tf-level-label"><span className="tf-level-code">A2</span><span className="tf-level-name">Элемент.</span></label>
+
+                        <input type="radio" name="level" id="l-b1" value="B1" className="tf-level-option" checked={formData.level === 'B1'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                        <label htmlFor="l-b1" className="tf-level-label"><span className="tf-level-code">B1</span><span className="tf-level-name">Средний</span></label>
+
+                        <input type="radio" name="level" id="l-b2" value="B2" className="tf-level-option" checked={formData.level === 'B2'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                        <label htmlFor="l-b2" className="tf-level-label"><span className="tf-level-code">B2</span><span className="tf-level-name">Выше ср.</span></label>
+
+                        <input type="radio" name="level" id="l-c1" value="C1" className="tf-level-option" checked={formData.level === 'C1'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                        <label htmlFor="l-c1" className="tf-level-label"><span className="tf-level-code">C1</span><span className="tf-level-name">Продвинут.</span></label>
+
+                        <input type="radio" name="level" id="l-c2" value="C2" className="tf-level-option" checked={formData.level === 'C2'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                        <label htmlFor="l-c2" className="tf-level-label"><span className="tf-level-code">C2</span><span className="tf-level-name">Мастерство</span></label>
+
+                        <input type="radio" name="level" id="l-mix" value="mixed" className="tf-level-option" checked={formData.level === 'mixed'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                        <label htmlFor="l-mix" className="tf-level-label mixed"><span className="tf-level-code">±</span><span className="tf-level-name">Смешанный уровень</span></label>
+                      </div>
+                    </div>
+
+                    <div className="tf-field" style={{ alignSelf: 'start' }}>
+                      <label className="tf-field-label" htmlFor="course-hours">Продолжительность (часы)</label>
+                      <p className="tf-field-hint">Примерная общая длительность курса</p>
+                      <div className="tf-number-input-wrap">
+                        <input
+                          type="number"
+                          id="course-hours"
+                          className="tf-field-input"
+                          placeholder="0"
+                          min="0"
+                          max="999"
+                          value={formData.duration_hours || ''}
+                          onChange={(e) => handleInputChange('duration_hours', e.target.value ? parseInt(e.target.value) : null)}
+                        />
+                        <div className="tf-num-arrows">
+                          <button type="button" className="tf-num-arrow" onClick={() => stepNumber('duration_hours', 1)}>▲</button>
+                          <button type="button" className="tf-num-arrow" onClick={() => stepNumber('duration_hours', -1)}>▼</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 2: Обложка курса */}
+              <div className="tf-form-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <div className="tf-card-title-num">2</div>
+                    Обложка курса
+                  </div>
+                </div>
+                <div className="tf-card-body">
+                  <p className="tf-field-hint" style={{ marginTop: '-0.25rem' }}>Загрузите обложку или она будет сгенерирована автоматически</p>
+
+                  <div className={`tf-cover-area ${getThumbnailUrl() ? 'has-preview' : ''}`}>
+                    {getThumbnailUrl() ? (
+                      <>
+                        <img src={getThumbnailUrl()} alt="Course cover" className="tf-cover-preview" />
+                        <button
+                          type="button"
+                          onClick={handleRemoveThumbnail}
+                          style={{
+                            position: 'absolute',
+                            top: '0.5rem',
+                            right: '0.5rem',
+                            background: 'var(--rust)',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="tf-cover-placeholder" onClick={() => document.getElementById('cover-file')?.click()}>
+                        <div className="tf-cover-placeholder-icon">
+                          <ImageIcon className="w-5 h-5" style={{ stroke: 'var(--muted)' }} />
+                        </div>
+                        <div className="tf-cover-placeholder-text">
+                          Нажмите, чтобы загрузить обложку<br />
+                          <span className="tf-cover-placeholder-sub">PNG, JPG, WebP · до 5 MB · рекомендуется 1280×720px</span>
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      id="cover-file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={handleThumbnailFileChange}
+                    />
+                  </div>
+
+                  <div className="tf-cover-actions">
+                    <button className="tf-cover-btn" onClick={() => document.getElementById('cover-file')?.click()}>
+                      <Upload className="w-3 h-3" />
+                      Загрузить файл
+                    </button>
+                    <button className="tf-cover-btn" onClick={handleGenerateThumbnail} disabled={generatingThumbnail}>
+                      <Sparkles className="w-3 h-3" />
                       {generatingThumbnail ? 'Генерация...' : 'Сгенерировать обложку'}
                     </button>
                   </div>
 
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Или укажите URL обложки курса
-                    </label>
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="cover-url">Или укажите URL обложки</label>
+                    <p className="tf-field-hint">Ссылка на изображение (рекомендуется 1280×720px)</p>
                     <input
                       type="url"
+                      id="cover-url"
+                      className="tf-field-input"
+                      placeholder="https://example.com/cover.jpg"
                       value={formData.thumbnail_url}
-                      onChange={(e) => handleInputChange('thumbnail_url', e.target.value)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      placeholder="https://example.com/course-thumbnail.jpg"
+                      onChange={(e) => {
+                        handleInputChange('thumbnail_url', e.target.value);
+                        previewCoverUrl(e.target.value);
+                      }}
                     />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Ссылка на изображение обложки курса (рекомендуется 1280x720px)
-                    </p>
                   </div>
                 </div>
+              </div>
 
-                {/* Tags */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                    <Tag className="h-4 w-4 mr-1 text-gray-400" />
+              {/* CARD 3: Теги */}
+              <div className="tf-form-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <div className="tf-card-title-num">3</div>
                     Теги курса
-                  </label>
-                  <div className="flex flex-wrap gap-2 mb-2">
+                  </div>
+                </div>
+                <div className="tf-card-body">
+                  <p className="tf-field-hint" style={{ marginTop: '-0.25rem' }}>Теги помогают студентам находить курс по теме</p>
+                  <div className="tf-tags-wrap">
                     {formData.tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-800"
-                      >
+                      <span key={index} className="tf-tag">
                         {tag}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="ml-1 text-primary-600 hover:text-primary-800"
-                        >
-                          <X className="h-3 w-3" />
+                        <button className="tf-tag-remove" onClick={() => handleRemoveTag(tag)} type="button">
+                          <X className="w-2 h-2" />
                         </button>
                       </span>
                     ))}
+                    <div className="tf-tag-add-wrap">
+                      <input
+                        type="text"
+                        className="tf-tag-input"
+                        id="tag-input"
+                        placeholder="Новый тег…"
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddTag();
+                          }
+                        }}
+                      />
+                      <button className="tf-tag-add-btn" type="button" onClick={handleAddTag}>
+                        Добавить
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newTag}
-                      onChange={(e) => setNewTag(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      placeholder="Добавить тег (например: грамматика, разговорный, A1)"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddTag}
-                      className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Добавить
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN */}
+            <div className="tf-sidebar-cards">
+              {/* Quick Stats Card */}
+              {/* <div className="tf-form-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <BookMarked className="w-3.5 h-3.5" style={{ stroke: 'var(--teal)' }} />
+                    Статус курса
+                  </div>
+                </div>
+                <div className="tf-card-body" style={{ gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>Статус</span>
+                    <div className={`tf-status-pill ${formData.status === 'published' ? 'published' : ''}`} style={{ fontSize: '0.6rem', padding: '0.3rem 0.65rem' }}>
+                      <div className="pill-dot"></div>
+                      <span>{formData.status === 'published' ? 'Опубликовано' : 'Черновик'}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>Юнитов</span>
+                    <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1rem', fontWeight: 900, color: 'var(--muted)' }}>0</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>Студентов</span>
+                    <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1rem', fontWeight: 900, color: 'var(--muted)' }}>0</span>
+                  </div>
+                  <div style={{ borderTop: '1px solid var(--line)', paddingTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    <button className="tf-btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => handleSave(true)} disabled={saving}>
+                      <Check className="w-3 h-3" />
+                      Сохранить и опубликовать
+                    </button>
+                    <button className="tf-btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={() => handleSave(false)} disabled={saving}>
+                      <Save className="w-3 h-3" />
+                      Сохранить черновик
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
+              </div> */}
 
-            {/* Advanced Settings */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full flex items-center justify-between text-left"
-              >
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <SettingsIcon className="h-5 w-5 mr-2 text-primary-600" />
+              {/* Advanced toggle */}
+              <div className={`tf-advanced-toggle ${showAdvanced ? 'open' : ''}`} onClick={() => setShowAdvanced(!showAdvanced)}>
+                <span className="tf-advanced-toggle-label">
+                  <SettingsIcon className="w-3 h-3" style={{ stroke: 'var(--muted)' }} />
                   Расширенные настройки
-                </h2>
-                <span className="text-sm text-gray-500">
-                  {showAdvanced ? 'Скрыть' : 'Показать'}
                 </span>
-              </button>
+                <svg className="tf-advanced-chevron" viewBox="0 0 24 24">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
 
-              {showAdvanced && (
-                <div className="mt-6 space-y-6">
-                  {/* Course Settings */}
-                  <div>
-                    <h3 className="text-md font-semibold text-gray-900 mb-4">
-                      Настройки курса
-                    </h3>
-                    <div className="space-y-4">
-                      {/* Allow Enrollment */}
-                      <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            Разрешить запись на курс
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Студенты смогут записаться на этот курс
-                          </p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={formData.settings.allow_enrollment ?? true}
-                          onChange={(e) => handleSettingsChange('allow_enrollment', e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
-                      </div>
-
-                      {/* Certificate Available */}
-                      <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            Сертификат доступен
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Студенты получат сертификат после завершения курса
-                          </p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={formData.settings.certificate_available ?? false}
-                          onChange={(e) => handleSettingsChange('certificate_available', e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
-                      </div>
-
-                      {/* Max Students */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Максимальное количество студентов
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.settings.max_students || ''}
-                          onChange={(e) => handleSettingsChange('max_students', e.target.value ? parseInt(e.target.value) : null)}
-                          min="0"
-                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="Оставьте пустым для неограниченного количества"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Ограничение на количество студентов (опционально)
-                        </p>
-                      </div>
+              {/* Advanced panel */}
+              <div className={`tf-advanced-panel ${showAdvanced ? 'open' : ''}`}>
+                <div className="tf-form-card">
+                  <div className="tf-card-header">
+                    <div className="tf-card-title">
+                      <SettingsIcon className="w-3.5 h-3.5" style={{ stroke: 'var(--teal)' }} />
+                      Публикация и порядок
                     </div>
                   </div>
+                  <div className="tf-card-body">
+                    <div className="tf-field">
+                      <label className="tf-field-label" htmlFor="pub-date">Дата публикации</label>
+                      <p className="tf-field-hint">Если не указано, курс будет опубликован сразу</p>
+                      <input
+                        type="datetime-local"
+                        id="pub-date"
+                        className="tf-field-input"
+                        value={formData.publish_at}
+                        onChange={(e) => handleInputChange('publish_at', e.target.value)}
+                      />
+                    </div>
 
-                  {/* Status & Visibility */}
-                  <div>
-                    <h3 className="text-md font-semibold text-gray-900 mb-4">
-                      Статус и доступ
-                    </h3>
-                    <div className="space-y-4">
-                      {/* Status - Hidden but still in form data */}
-                      {/* <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Статус
-                        </label>
-                        <select
-                          value={formData.status}
-                          onChange={(e) => handleInputChange('status', e.target.value)}
-                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                        >
-                          <option value="draft">Черновик</option>
-                          <option value="scheduled">Запланировано</option>
-                          <option value="published">Опубликовано</option>
-                          <option value="archived">Архив</option>
-                        </select>
-                      </div> */}
-
-                      {/* Publish at */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Дата публикации (опционально)
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={formData.publish_at}
-                          onChange={(e) => handleInputChange('publish_at', e.target.value)}
-                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Если не указано, курс будет опубликован сразу
-                        </p>
-                      </div>
-
-                      {/* Order index */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Порядок отображения
-                        </label>
+                    <div className="tf-field">
+                      <label className="tf-field-label" htmlFor="sort-order">Порядок отображения</label>
+                      <p className="tf-field-hint">Номер для сортировки курсов (меньше = выше в списке)</p>
+                      <div className="tf-number-input-wrap">
                         <input
                           type="number"
+                          id="sort-order"
+                          className="tf-field-input"
+                          placeholder="0"
+                          min="0"
+                          max="9999"
                           value={formData.order_index}
                           onChange={(e) => handleInputChange('order_index', Number(e.target.value))}
-                          min="0"
-                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="0"
                         />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Номер для сортировки курсов (меньше = выше в списке)
-                        </p>
-                      </div>
-
-                      {/* Visibility */}
-                      <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            Видимость для студентов
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Если выключено, курс не будет отображаться в списке
-                          </p>
+                        <div className="tf-num-arrows">
+                          <button type="button" className="tf-num-arrow" onClick={() => stepNumber('order_index', 1)}>▲</button>
+                          <button type="button" className="tf-num-arrow" onClick={() => stepNumber('order_index', -1)}>▼</button>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={formData.is_visible_to_students}
-                          onChange={(e) => handleInputChange('is_visible_to_students', e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
                       </div>
                     </div>
-                  </div>
 
-                  {/* SEO Settings */}
-                  <div>
-                    <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
-                      <Globe className="h-5 w-5 mr-2 text-primary-600" />
-                      SEO настройки
-                    </h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Meta заголовок
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.meta_title}
-                          onChange={(e) => handleInputChange('meta_title', e.target.value)}
-                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="SEO заголовок для поисковых систем"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          {formData.meta_title.length}/60 символов
-                        </p>
+                    <div className="tf-toggle-field">
+                      <div className="tf-toggle-info">
+                        <div className="tf-toggle-name">Видимость для студентов</div>
+                        <div className="tf-toggle-desc">Если выключено, курс не будет отображаться в каталоге</div>
                       </div>
+                      <label className="tf-toggle-switch">
+                        <div className="tf-ts-inner">
+                          <input
+                            type="checkbox"
+                            id="visibility-toggle"
+                            checked={formData.is_visible_to_students}
+                            onChange={(e) => handleInputChange('is_visible_to_students', e.target.checked)}
+                          />
+                          <div className="tf-ts-track"></div>
+                          <div className="tf-ts-thumb"></div>
+                        </div>
+                      </label>
+                    </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Meta описание
-                        </label>
-                        <textarea
-                          value={formData.meta_description}
-                          onChange={(e) => handleInputChange('meta_description', e.target.value)}
-                          rows={3}
-                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="Краткое описание для поисковых систем"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          {formData.meta_description.length}/160 символов
-                        </p>
+                    {/* <div className="tf-toggle-field">
+                      <div className="tf-toggle-info">
+                        <div className="tf-toggle-name">Выдавать сертификат</div>
+                        <div className="tf-toggle-desc">Студент получит сертификат при завершении курса</div>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+                      <label className="tf-toggle-switch">
+                        <div className="tf-ts-inner">
+                          <input
+                            type="checkbox"
+                            id="cert-toggle"
+                            checked={formData.settings.certificate_available || false}
+                            onChange={(e) => handleSettingsChange('certificate_available', e.target.checked)}
+                          />
+                          <div className="tf-ts-track"></div>
+                          <div className="tf-ts-thumb"></div>
+                        </div>
+                      </label>
+                    </div> */}
 
-            {/* Preview - commented out */}
-            {/* {showPreview && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  Предпросмотр курса
-                </h2>
-                <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-primary-50 to-white p-6">
-                  {formData.thumbnail_url && (
-                    <img 
-                      src={formData.thumbnail_url} 
-                      alt="Course thumbnail" 
-                      className="w-full h-48 object-cover rounded-lg mb-4"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  )}
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">
-                        {formData.title || 'Без названия'}
-                      </h3>
-                      <p className="text-sm text-gray-600 line-clamp-3 mb-3">
-                        {formData.description || 'Описание курса пока не заполнено.'}
-                      </p>
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        {formData.duration_hours && (
-                          <span className="flex items-center">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {formData.duration_hours} часов
-                          </span>
-                        )}
-                        {getLevelBadge(formData.level)}
+                    {/* <div className="tf-toggle-field">
+                      <div className="tf-toggle-info">
+                        <div className="tf-toggle-name">Свободный доступ</div>
+                        <div className="tf-toggle-desc">Любой студент может записаться без подписки</div>
                       </div>
-                    </div>
+                      <label className="tf-toggle-switch">
+                        <div className="tf-ts-inner">
+                          <input
+                            type="checkbox"
+                            id="free-toggle"
+                            checked={formData.settings.allow_enrollment ?? true}
+                            onChange={(e) => handleSettingsChange('allow_enrollment', e.target.checked)}
+                          />
+                          <div className="tf-ts-track"></div>
+                          <div className="tf-ts-thumb"></div>
+                        </div>
+                      </label>
+                    </div> */}
                   </div>
-                  {formData.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {formData.tags.map((tag, i) => (
-                        <span
-                          key={i}
-                          className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-600 border border-gray-200"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
-            )} */}
-          </div>
-
-          {/* SIDEBAR – removed, moved to advanced settings */}
-          <div className="space-y-6">
-            {/* Info Box - commented out */}
-            {/* <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-              <h3 className="text-sm font-semibold text-blue-900 mb-2">
-                💡 Совет
-              </h3>
-              <p className="text-xs text-blue-800">
-                После создания курса вы сможете добавить к нему учебные юниты. 
-                Юниты можно создавать отдельно и затем привязывать к курсу.
-              </p>
-            </div> */}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

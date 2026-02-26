@@ -79,16 +79,87 @@
     "registerError": "Registration error",
     "loginSuccess": "Successfully logged in!",
     "loginError": "Login error",
+    "googleOAuthNotConfigured": "Google Sign-In requires backend configuration. Please use email/password login or contact support.",
+    "googleSignInError": "Google Sign-In failed. Please try again or use email/password.",
+    "googleUserExists": "An account with this email already exists. Please use email/password login or contact support to link your Google account.",
     "loginHeroTitle": "Learn Italian like on the best online platforms",
     "loginHeroSubtitle": "Access to interactive lessons, tasks and tests in one convenient dashboard.",
     "loginHeroRating": "Average student rating",
     "loginHeroNote": "Teacher and student demo accounts available on the right — login and test the platform.",
     "registerHeroTitle": "Create an account and start learning Italian today",
     "registerHeroSubtitle": "Access to video lessons, interactive tasks, tests and progress tracking — all in one place.",
-    "registerHeroNote": "You can register as a student or teacher. The role can be changed by an administrator later."
+    "registerHeroNote": "You can register as a student or teacher. The role can be changed by an administrator later.",
+    "authPanel": {
+      "headline": "Your classroom.<br>Your rules.<br><em>Your school.</em>",
+      "subtitle": "Join thousands of teachers who stopped juggling tools and started running real digital schools.",
+      "stats": {
+        "courses": "12,400+ Courses Created",
+        "coursesDesc": "Across all subjects and formats",
+        "students": "98,000+ Active Students",
+        "studentsDesc": "Learning every single day",
+        "timeSaved": "4.7 hrs saved per week",
+        "timeSavedDesc": "Average per teacher on admin"
+      },
+      "footer": "© 2025 TeachFlow — No marketplace. Just teaching."
+    },
+    "authForm": {
+      "signIn": "Sign In",
+      "createAccount": "Create Account",
+      "welcomeBack": "Welcome <em>back</em>",
+      "welcomeSubtitle": "Sign in to your TeachFlow account",
+      "startSchool": "Start your <em>school</em>",
+      "startSubtitle": "Create your free TeachFlow account",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "you@school.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "••••••••",
+      "forgotPassword": "Forgot password?",
+      "signInButton": "Sign In →",
+      "continueWith": "or continue with",
+      "continueGoogle": "Continue with Google",
+      "dontHaveAccount": "Don't have an account?",
+      "createOneFree": "Create one free",
+      "alreadyHaveAccount": "Already have an account?",
+      "signInLink": "Sign in",
+      "firstNameLabel": "First Name",
+      "firstNamePlaceholder": "Maria",
+      "lastNameLabel": "Last Name",
+      "lastNamePlaceholder": "Rossi",
+      "schoolLabel": "School or Organisation",
+      "schoolPlaceholder": "e.g. Rossi Language Studio",
+      "teachLabel": "What do you teach?",
+      "teachPlaceholder": "Select a subject…",
+      "teachOptions": {
+        "languages": "Languages",
+        "mathematics": "Mathematics",
+        "science": "Science",
+        "music": "Music",
+        "arts": "Arts & Design",
+        "coding": "Coding & Technology",
+        "business": "Business & Finance",
+        "health": "Health & Fitness",
+        "other": "Other"
+      },
+      "passwordHint": "Use 8+ characters with a mix of letters & numbers",
+      "passwordStrength": {
+        "weak": "Too weak",
+        "medium": "Getting there",
+        "good": "Good password",
+        "strong": "Strong password!"
+      },
+      "agreeTerms": "I agree to the",
+      "terms": "Terms of Service",
+      "and": "and",
+      "privacy": "Privacy Policy",
+      "createAccountButton": "Create My Account →",
+      "createTeacherButton": "Create My Teacher Account →",
+      "signUpWith": "or sign up with",
+      "signUpGoogle": "Sign up with Google"
+    }
   },
   "dashboard": {
     "welcome": "Welcome",
+    "welcomeSubtitle": "Continue your learning journey, track your progress, and manage your tasks and tests in one place.",
     "myCourses": "My Courses",
     "completedUnits": "Completed Units",
     "averageScore": "Average Score",
@@ -228,7 +299,8 @@
       "progress": "Progress",
       "settings": "Settings",
       "auditLog": "Audit Log",
-      "sectionMain": "Teaching tools"
+      "sectionMain": "Teaching Tools",
+      "sectionPeople": "People"
     },
     "search": {
       "placeholder": "Search everything..."
@@ -245,6 +317,43 @@
     },
     "dashboard": {
       "title": "Dashboard",
+      "welcomeBack": "Welcome back, {{name}} — here's what's happening today.",
+      "thisMonth": "recently",
+      "placeholder": "Placeholder",
+      "avgScore": "Average Score",
+      "allTests": "Across all tests",
+      "completion": "Completion",
+      "avgPercent": "Average percentage",
+      "quickActions": {
+        "title": "Quick Actions",
+        "createCourse": "Create Course",
+        "createUnit": "Create Unit",
+        "createVideo": "Create Video",
+        "createTest": "Create Test",
+        "createTask": "Create Task",
+        "newEmailCampaign": "New Email Campaign"
+      },
+      "stats": "Statistics",
+      "coursesCount": "courses",
+      "unitsCount": "units",
+      "videosCount": "videos",
+      "testsCount": "tests",
+      "studentsByCourse": "Students by Course",
+      "all": "All",
+      "total": "Total",
+      "noCourses": "No courses",
+      "avgScoreByCourse": "Average Score by Course",
+      "overallAvg": "Overall Average Score",
+      "manage": "Manage",
+      "unitsTests": "Units / Tests",
+      "student": "student",
+      "studentsPlural": "s",
+      "open": "Open",
+      "tabs": {
+        "overview": "Quick Actions",
+        "performance": "Statistics"
+      },
+      "noData": "No data",
       "kpi": {
         "activeStudents": "Active Students",
         "pendingSubmissions": "Pending Submissions",
@@ -405,6 +514,147 @@
       "blog": "Blog",
       "careers": "Careers",
       "copyright": "© 2024 EZ Italian. All rights reserved."
+    },
+    "teachflow": {
+      "nav": {
+        "startTrial": "Start Free Trial"
+      },
+      "hero": {
+        "eyebrow": "Your Online Classroom Platform",
+        "title": "Build Your Own",
+        "titleEmphasis": "Online School —",
+        "titleItalic": "Without the Chaos",
+        "subtitle": "Organize your online teaching in one structured system. Run your entire teaching business from one professional platform.",
+        "startTrial": "Start Free Trial →",
+        "seeHow": "See how it works",
+        "trust": "No marketplace. No chaos. Just teaching."
+      },
+      "marquee": {
+        "courses": "Courses",
+        "videoLessons": "Video Lessons",
+        "autoGrading": "Auto-Grading",
+        "progressTracking": "Progress Tracking",
+        "studentAnalytics": "Student Analytics",
+        "assignments": "Assignments",
+        "customBranding": "Custom Branding",
+        "noCommissions": "No Commissions"
+      },
+      "features": {
+        "label": "Everything in One Place",
+        "title": "Finally — a platform that thinks like a",
+        "titleEmphasis": "teacher",
+        "ownStudents": {
+          "title": "You Own Your Students",
+          "desc": "No marketplace. No competing with thousands of courses. No commissions eating your income.",
+          "desc2": "Your students. Your brand. Your rules."
+        },
+        "courseStructure": {
+          "title": "Real Course Structure",
+          "desc": "Design a real learning journey — not just upload videos.",
+          "items": {
+            "courses": "Courses & Units",
+            "videos": "Video lessons",
+            "assignments": "Assignments with deadlines",
+            "tests": "Auto-graded tests"
+          }
+        },
+        "saveTime": {
+          "title": "Save Hours Every Week",
+          "desc": "Less admin work. More teaching.",
+          "items": {
+            "grading": "Automatic grading",
+            "deadlines": "Homework deadlines",
+            "reminders": "Email reminders",
+            "overview": "Student performance overview"
+          }
+        },
+        "tracking": {
+          "title": "See Exactly Who Is Progressing",
+          "desc": "No more guessing. Track everything in real time.",
+          "items": {
+            "watched": "Who watched the lesson",
+            "submitted": "Who submitted homework",
+            "passed": "Who passed or failed",
+            "completion": "Overall course completion"
+          }
+        }
+      },
+      "howItWorks": {
+        "label": "Simple Process",
+        "title": "How It",
+        "titleEmphasis": "Works",
+        "step1": {
+          "title": "Create Your Course",
+          "desc": "Upload videos and organize them into units and structured learning paths."
+        },
+        "step2": {
+          "title": "Add Tasks & Tests",
+          "desc": "Set deadlines, scores, and passing rules. Automatic grading handles the rest."
+        },
+        "step3": {
+          "title": "Invite Students",
+          "desc": "Share a private link and enroll them into your branded digital classroom."
+        },
+        "step4": {
+          "title": "Track & Grow",
+          "desc": "Monitor progress, improve your courses, and scale your teaching business."
+        }
+      },
+      "forWho": {
+        "label": "Perfect For",
+        "title": "Built for teachers who mean",
+        "titleEmphasis": "business",
+        "subtitle": "Whether you're a solo tutor or running a small school, TeachFlow gives you the infrastructure to grow professionally.",
+        "languageTeachers": "Language Teachers",
+        "tutors": "Tutors",
+        "smallSchools": "Small Online Schools",
+        "coaches": "Coaches with Structured Programs",
+        "personalBrand": "Teachers Building a Personal Brand"
+      },
+      "pricing": {
+        "label": "Simple & Transparent",
+        "title": "One price.",
+        "titleEmphasis": "No surprises.",
+        "starter": {
+          "name": "Starter",
+          "price": "€19",
+          "period": "per month",
+          "students": "Up to 100 students",
+          "courses": "3 courses",
+          "videos": "Unlimited videos",
+          "analytics": "Basic analytics"
+        },
+        "professional": {
+          "name": "Professional",
+          "price": "€39",
+          "period": "per month",
+          "badge": "Most Popular",
+          "courses": "Unlimited courses",
+          "students": "Up to 500 students",
+          "analytics": "Advanced analytics",
+          "branding": "Custom branding"
+        },
+        "school": {
+          "name": "School",
+          "price": "€79",
+          "period": "per month",
+          "students": "Unlimited students",
+          "teachers": "Multi-teacher access",
+          "reporting": "Advanced reporting",
+          "support": "Priority support"
+        },
+        "getStarted": "Get Started"
+      },
+      "cta": {
+        "title": "Your Digital School",
+        "titleEmphasis": "Starts Here",
+        "subtitle": "Stop managing tools. Start managing your classroom.",
+        "button": "Start Your Free Trial →",
+        "fine": "No marketplace. No chaos. Just teaching."
+      },
+      "footer": {
+        "copyright": "© 2025 TeachFlow. All rights reserved."
+      }
     }
   }
 }

@@ -6,12 +6,13 @@
  * and quick actions. Matches instructor dashboard style.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationCenter from './NotificationCenter';
+import { coursesApi, tasksApi, gradesApi } from '../../services/api';
 import {
   LayoutDashboard,
   BookOpen,
@@ -19,7 +20,6 @@ import {
   ClipboardList,
   Users,
   BarChart3,
-  Search,
   LogOut,
   Menu,
   X,
@@ -27,26 +27,24 @@ import {
   GraduationCap,
   BookMarked,
   FileText,
+  Folder,
+  CheckSquare,
+  File,
+  Settings,
 } from 'lucide-react';
+import './AdminLayout.css';
 
 interface AdminLayoutProps {}
 
-// Navigation items for instructor/admin panel
-const navigation = [
-  { name: 'dashboard', href: '/admin', icon: LayoutDashboard },
-  { name: 'courses', href: '/admin/courses', icon: BookMarked },
-  { name: 'units', href: '/admin/units', icon: BookOpen },
-  { name: 'videos', href: '/admin/videos', icon: Video },
-  { name: 'tasks', href: '/admin/tasks', icon: FileText },
-  { name: 'tests', href: '/admin/tests', icon: ClipboardList },
-  // { name: 'questionBank', href: '/admin/questions', icon: Database },
-  { name: 'students', href: '/admin/students', icon: Users },
-  // { name: 'emailCampaigns', href: '/admin/email-campaigns', icon: Mail },
-  { name: 'grades', href: '/admin/grades', icon: BarChart3 },
-  // { name: 'progress', href: '/admin/progress', icon: TrendingUp },
-  // { name: 'settings', href: '/admin/settings', icon: Settings },
-  // { name: 'auditLog', href: '/admin/audit-log', icon: AuditLog },
-];
+interface DashboardStats {
+  courses_count: number;
+  units_count: number;
+  videos_count: number;
+  tests_count: number;
+  students_count: number;
+  tasks_count: number;
+  grades_count: number;
+}
 
 export default function AdminLayout({}: AdminLayoutProps) {
   const { t } = useTranslation();
@@ -55,8 +53,49 @@ export default function AdminLayout({}: AdminLayoutProps) {
   const navigate = useNavigate();
   // Sidebar open/close state for mobile
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // Search query state for quick search functionality
-  const [searchQuery, setSearchQuery] = useState('');
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  // Fetch dashboard statistics for sidebar counts
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [dashboardData, tasksData, gradesData] = await Promise.all([
+          coursesApi.getDashboardStatistics(),
+          tasksApi.getTasks().catch(() => []), // Fallback to empty array if fails
+          gradesApi.getGrades({ page: 1, page_size: 1 }).catch(() => ({ total: 0, items: [] })), // Just get total count
+        ]);
+
+        setStats({
+          courses_count: dashboardData.courses_count,
+          units_count: dashboardData.units_count,
+          videos_count: dashboardData.videos_count,
+          tests_count: dashboardData.tests_count,
+          students_count: dashboardData.students_count,
+          tasks_count: Array.isArray(tasksData) ? tasksData.length : 0,
+          grades_count: (gradesData as { total?: number; items?: any[] })?.total || 0,
+        });
+      } catch (error) {
+        console.error('Failed to fetch dashboard statistics:', error);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  // Navigation items with dynamic badges based on stats
+  const teachingTools = [
+    { name: 'dashboard', href: '/admin', icon: LayoutDashboard, getBadge: () => null },
+    { name: 'courses', href: '/admin/courses', icon: BookOpen, getBadge: () => stats?.courses_count },
+    { name: 'units', href: '/admin/units', icon: Folder, getBadge: () => stats?.units_count },
+    { name: 'videos', href: '/admin/videos', icon: Video, getBadge: () => stats?.videos_count },
+    { name: 'tasks', href: '/admin/tasks', icon: CheckSquare, getBadge: () => stats?.tasks_count },
+    { name: 'tests', href: '/admin/tests', icon: File, getBadge: () => stats?.tests_count },
+  ];
+
+  const people = [
+    { name: 'students', href: '/admin/students', icon: Users, getBadge: () => stats?.students_count },
+    { name: 'grades', href: '/admin/grades', icon: BarChart3, getBadge: () => stats?.grades_count },
+  ];
 
   // Handle user logout and redirect to login
   const handleLogout = () => {
@@ -67,12 +106,26 @@ export default function AdminLayout({}: AdminLayoutProps) {
     }
   };
 
-  // Handle quick search on Enter key press
-  const handleQuickSearch = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
-      // Implement quick search functionality
-      console.log('Quick search:', searchQuery);
+  // Get breadcrumb label based on current path
+  const getBreadcrumbLabel = (pathname: string, t: any): string => {
+    if (pathname === '/admin') {
+      return t('admin.nav.dashboard') || 'Dashboard';
+    } else if (pathname.includes('/courses')) {
+      return t('admin.nav.courses') || 'Courses';
+    } else if (pathname.includes('/units')) {
+      return t('admin.nav.units') || 'Units';
+    } else if (pathname.includes('/videos')) {
+      return t('admin.nav.videos') || 'Videos';
+    } else if (pathname.includes('/tasks')) {
+      return t('admin.nav.tasks') || 'Tasks';
+    } else if (pathname.includes('/tests')) {
+      return t('admin.nav.tests') || 'Tests';
+    } else if (pathname.includes('/students')) {
+      return t('admin.nav.students') || 'Students';
+    } else if (pathname.includes('/grades')) {
+      return t('admin.nav.grades') || 'Grades';
     }
+    return 'Admin';
   };
 
   // Handle new item creation based on current route context
@@ -102,7 +155,7 @@ export default function AdminLayout({}: AdminLayoutProps) {
     (href !== '/admin' && location.pathname.startsWith(href));
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#f5f0e8] flex">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -113,95 +166,148 @@ export default function AdminLayout({}: AdminLayoutProps) {
         </div>
       )}
 
-      {/* Sidebar – instructor panel style */}
+      {/* Sidebar – new dark design */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white/95 backdrop-blur shadow-lg ring-1 ring-slate-100 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:inset-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        className={`admin-sidebar ${
+          sidebarOpen ? 'open' : ''
         }`}
       >
-        <div className="flex h-16 flex-shrink-0 items-center justify-between border-b border-slate-200 px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-600 to-primary-400 text-white shadow-sm">
-              <GraduationCap className="h-5 w-5" />
+        <div className="admin-sidebar-inner">
+          {/* Logo */}
+          <Link to="/admin" className="admin-sidebar-logo">
+            <div className="admin-sidebar-logo-mark">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+              </svg>
             </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold text-slate-900">EZ Italian</span>
-              <span className="text-[11px] font-medium uppercase tracking-wide text-primary-500">
-                Instructor
+            <span className="admin-sidebar-logo-text">
+              Teach<span>Flow</span>
+            </span>
+          </Link>
+
+          {/* User */}
+          <div className="admin-sidebar-user">
+            <div className="admin-user-avatar">
+              {user?.first_name?.[0] || 'U'}
+            </div>
+            <div className="admin-user-info">
+              <span className="admin-user-name">
+                {user?.first_name} {user?.last_name || ''}
+              </span>
+              <span className="admin-user-role">
+                {t('admin.role') || 'Instructor'}
               </span>
             </div>
           </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden rounded-md p-1 text-slate-400 hover:text-slate-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
 
-        <nav className="mt-4 flex-1 overflow-y-auto px-2 pb-4">
-          <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            {t('admin.nav.sectionMain') || 'Teaching tools'}
-          </p>
-          <div className="space-y-1">
-            {navigation.map((item) => (
-              <Link
-                key={item.name}
-                to={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={`group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive(item.href)
-                    ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-200'
-                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <item.icon
-                  className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                    isActive(item.href)
-                      ? 'text-primary-600'
-                      : 'text-slate-400 group-hover:text-slate-500'
-                  }`}
-                />
-                <span className="truncate">{t(`admin.nav.${item.name}`)}</span>
-              </Link>
-            ))}
+          {/* Nav */}
+          <nav style={{ flex: 1 }}>
+            {/* Teaching Tools */}
+            <div className="admin-nav-section">
+              <div className="admin-nav-section-label">
+                {t('admin.nav.sectionMain') || 'Teaching Tools'}
+              </div>
+              {teachingTools.map((item) => {
+                const badge = item.getBadge();
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`admin-nav-item ${isActive(item.href) ? 'active' : ''}`}
+                  >
+                    <span className="admin-nav-icon">
+                      <item.icon />
+                    </span>
+                    {t(`admin.nav.${item.name}`)}
+                    {badge !== null && badge !== undefined && (
+                      <span className="admin-nav-badge">{badge}</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* People */}
+            <div className="admin-nav-section">
+              <div className="admin-nav-section-label">
+                {t('admin.nav.sectionPeople') || 'People'}
+              </div>
+              {people.map((item) => {
+                const badge = item.getBadge();
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`admin-nav-item ${isActive(item.href) ? 'active' : ''}`}
+                  >
+                    <span className="admin-nav-icon">
+                      <item.icon />
+                    </span>
+                    {t(`admin.nav.${item.name}`)}
+                    {badge !== null && badge !== undefined && (
+                      <span className="admin-nav-badge">{badge}</span>
+                    )}
+                    {item.hasNotification && (
+                      <div className="admin-notif-dot"></div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Bottom */}
+          <div className="admin-sidebar-bottom">
+            <Link to="/admin/settings" className="admin-nav-item">
+              <span className="admin-nav-icon">
+                <Settings />
+              </span>
+              {t('admin.nav.settings') || 'Settings'}
+            </Link>
+            <button onClick={handleLogout} className="admin-nav-item">
+              <span className="admin-nav-icon">
+                <LogOut />
+              </span>
+              {t('nav.logout') || 'Sign Out'}
+            </button>
           </div>
-        </nav>
-
-        {/* Sidebar bottom – small hint */}
-        <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-400">
-          {t('admin.footer.hint') ||
-            'Manage your content, students and analytics from this instructor panel.'}
         </div>
+        
+        {/* Mobile close button */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="lg:hidden absolute top-4 right-4 text-white/60 hover:text-white z-10"
+        >
+          <X className="h-6 w-6" />
+        </button>
       </aside>
 
       {/* Main content */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col admin-layout-main" style={{ marginLeft: '260px' }}>
         {/* Top bar – like an instructor dashboard header */}
-        <header className="sticky top-0 z-30 flex flex-shrink-0 items-center border-b border-slate-200 bg-white/95 backdrop-blur shadow-sm">
+        <header className="sticky top-0 z-30 flex flex-shrink-0 items-center border-b border-[rgba(14,14,14,0.12)] bg-[#f5f0e8]/95 backdrop-blur shadow-sm">
           <div className="flex w-full items-center justify-between px-4 sm:px-6 lg:px-8 h-14 sm:h-16">
             {/* Left side */}
             <div className="flex flex-1 items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                className="lg:hidden rounded-md p-2 text-[#6b6456] hover:bg-[#f0e9d8] hover:text-[#0e0e0e]"
               >
                 <Menu className="h-5 w-5" />
               </button>
 
-              {/* Quick search */}
-              <div className="flex-1 max-w-lg">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder={t('admin.search.placeholder')}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={handleQuickSearch}
-                    className="w-full rounded-full border border-slate-200 bg-slate-50 px-9 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
-                  />
-                </div>
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-[#6b6456] uppercase tracking-wide" style={{ fontFamily: "'Space Mono', monospace" }}>
+                  TeachFlow
+                </span>
+                <span className="text-[#6b6456] opacity-35">›</span>
+                <span className="text-xs font-medium text-[#0e0e0e]" style={{ fontFamily: "'Space Mono', monospace" }}>
+                  {getBreadcrumbLabel(location.pathname, t)}
+                </span>
               </div>
             </div>
 
@@ -210,7 +316,7 @@ export default function AdminLayout({}: AdminLayoutProps) {
               {/* Quick actions */}
               <button
                 onClick={handleNewItem}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-primary-600 px-3 py-1.5 text-xs sm:text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-[#1a7070] px-3 py-1.5 text-xs sm:text-sm font-medium text-white shadow-sm hover:bg-[#2a9898] focus:outline-none focus:ring-2 focus:ring-[#1a7070]/40 focus:ring-offset-1" style={{ fontFamily: "'Space Mono', monospace" }}
               >
                 <Plus className="h-4 w-4" />
                 {t('admin.actions.new')}
@@ -226,7 +332,7 @@ export default function AdminLayout({}: AdminLayoutProps) {
                   const newLang = currentLang === 'ru' ? 'en' : 'ru';
                   i18n.changeLanguage(newLang);
                 }}
-                className="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                className="hidden sm:inline-flex items-center gap-2 rounded-full border border-[rgba(14,14,14,0.12)] bg-[#f0e9d8] px-3 py-1.5 text-xs font-medium text-[#0e0e0e] hover:bg-[#f5f0e8]" style={{ fontFamily: "'Space Mono', monospace" }}
                 title={
                   i18n.language === 'ru'
                     ? 'Switch to English'
@@ -234,31 +340,6 @@ export default function AdminLayout({}: AdminLayoutProps) {
                 }
               >
                 <span>{i18n.language === 'ru' ? '🇷🇺 RU' : '🇺🇸 EN'}</span>
-              </button>
-
-              {/* Profile bubble */}
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
-                  {user?.first_name?.[0]}
-                  {user?.last_name?.[0]}
-                </div>
-                <div className="hidden sm:flex flex-col leading-tight">
-                  <span className="text-xs font-medium text-slate-900">
-                    {user?.first_name} {user?.last_name}
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    {t('admin.role') || 'Instructor'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Logout */}
-              <button
-                onClick={handleLogout}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                title={t('nav.logout')}
-              >
-                <LogOut className="h-4 w-4" />
               </button>
             </div>
           </div>

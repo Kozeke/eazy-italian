@@ -1,0 +1,808 @@
+/* Admin Grades Page Styles - Scoped to .admin-grades-wrapper */
+
+.admin-grades-wrapper {
+  --ink: #0e0e0e;
+  --cream: #f5f0e8;
+  --warm: #f0e9d8;
+  --gold: #c9962a;
+  --gold-light: #e8b84b;
+  --rust: #c94a2a;
+  --teal: #1a7070;
+  --teal-light: #2a9898;
+  --teal-dim: rgba(26,112,112,0.1);
+  --muted: #6b6456;
+  --line: rgba(14,14,14,0.1);
+}
+
+.admin-grades-wrapper {
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+  background: var(--warm);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ═══ PAGE CONTENT ═══ */
+.admin-grades-wrapper .page-content {
+  padding: 2.25rem 2.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Page header ── */
+.admin-grades-wrapper .page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.1s forwards;
+}
+
+.admin-grades-wrapper .page-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.4rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.admin-grades-wrapper .page-title em {
+  font-style: italic;
+  color: var(--teal);
+}
+
+.admin-grades-wrapper .page-meta {
+  margin-top: 0.35rem;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+/* ═══ SUMMARY CHIPS ═══ */
+.admin-grades-wrapper .summary-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.18s forwards;
+}
+
+.admin-grades-wrapper .summary-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  padding: 0.5rem 1rem;
+}
+
+.admin-grades-wrapper .summary-chip-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-grades-wrapper .summary-chip-icon svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.admin-grades-wrapper .summary-chip-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.32rem;
+  font-weight: 900;
+}
+
+.admin-grades-wrapper .summary-chip-lbl {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* ═══ TOOLBAR ═══ */
+.admin-grades-wrapper .toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.22s forwards;
+  flex-wrap: wrap;
+}
+
+.admin-grades-wrapper .search-wrap {
+  flex: 1;
+  position: relative;
+  max-width: 360px;
+}
+
+.admin-grades-wrapper .search-wrap svg {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  stroke: var(--muted);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.admin-grades-wrapper .search-input {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  font-family: 'Inter', sans-serif;
+  font-size: 1.05rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  border-radius: 0;
+}
+
+.admin-grades-wrapper .search-input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-dim);
+}
+
+.admin-grades-wrapper .search-input::placeholder {
+  color: rgba(107,100,86,0.45);
+}
+
+.admin-grades-wrapper .filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.admin-grades-wrapper .filter-btn:hover,
+.admin-grades-wrapper .filter-btn.active {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--warm);
+}
+
+.admin-grades-wrapper .filter-btn svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* result quick filters */
+.admin-grades-wrapper .result-filters {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-grades-wrapper .result-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.48rem 0.85rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.admin-grades-wrapper .result-chip .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.admin-grades-wrapper .result-chip.active {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--warm);
+}
+
+.admin-grades-wrapper .result-chip.passed.active {
+  border-color: var(--teal);
+  color: var(--teal);
+  background: var(--teal-dim);
+}
+
+.admin-grades-wrapper .result-chip.failed.active {
+  border-color: var(--rust);
+  color: var(--rust);
+  background: rgba(201,74,42,0.07);
+}
+
+/* ═══ FILTER PANEL ═══ */
+.admin-grades-wrapper .filter-panel {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  padding: 1.1rem 1.5rem;
+  display: none;
+  gap: 1.25rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.admin-grades-wrapper .filter-panel.open {
+  display: flex;
+}
+
+.admin-grades-wrapper .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.admin-grades-wrapper .filter-group label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-grades-wrapper .filter-group select {
+  padding: 0.48rem 2rem 0.48rem 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--warm);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.98rem;
+  color: var(--ink);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b6456'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  border-radius: 0;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.admin-grades-wrapper .filter-group select:focus {
+  border-color: var(--teal);
+}
+
+/* ═══ TABLE ═══ */
+.admin-grades-wrapper .table-wrap {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.32s forwards;
+}
+
+.admin-grades-wrapper .grades-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.admin-grades-wrapper .grades-table thead tr {
+  background: var(--ink);
+}
+
+.admin-grades-wrapper .grades-table th {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(245,240,232,0.5);
+  text-align: left;
+  padding: 0.85rem 1.1rem;
+  white-space: nowrap;
+  font-weight: 400;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  user-select: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.admin-grades-wrapper .grades-table th:last-child {
+  border-right: none;
+  cursor: default;
+}
+
+.admin-grades-wrapper .grades-table th:hover:not(:last-child) {
+  color: rgba(245,240,232,0.9);
+}
+
+.admin-grades-wrapper .sort-arrow {
+  margin-left: 0.25rem;
+  opacity: 0.3;
+  font-size: 0.74rem;
+}
+
+.admin-grades-wrapper .sorted .sort-arrow {
+  opacity: 1;
+  color: var(--teal-light);
+}
+
+/* ── Result indicator strip ── */
+.admin-grades-wrapper .result-strip {
+  width: 4px;
+  padding: 0 !important;
+}
+
+.admin-grades-wrapper .rstrip {
+  width: 4px;
+  display: block;
+  min-height: 56px;
+}
+
+.admin-grades-wrapper .rstrip.passed {
+  background: var(--teal);
+}
+
+.admin-grades-wrapper .rstrip.failed {
+  background: var(--rust);
+}
+
+.admin-grades-wrapper .rstrip.pending {
+  background: var(--gold);
+}
+
+/* data rows */
+.admin-grades-wrapper .grades-table tbody tr {
+  border-bottom: 1px solid var(--line);
+  transition: background 0.15s;
+  cursor: default;
+}
+
+.admin-grades-wrapper .grades-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.admin-grades-wrapper .grades-table tbody tr:hover {
+  background: rgba(26,112,112,0.03);
+}
+
+.admin-grades-wrapper .grades-table tbody tr:hover .row-actions {
+  opacity: 1;
+}
+
+.admin-grades-wrapper .grades-table td {
+  padding: 0.9rem 1.1rem;
+  vertical-align: middle;
+}
+
+/* ── Student cell ── */
+.admin-grades-wrapper .student-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.admin-grades-wrapper .s-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Playfair Display', serif;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.admin-grades-wrapper .s-name {
+  font-weight: 500;
+  font-size: 1.04rem;
+  color: var(--ink);
+}
+
+.admin-grades-wrapper .s-id {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.66rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+/* ── Hierarchy breadcrumb ── */
+.admin-grades-wrapper .hier-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.admin-grades-wrapper .hier-course {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 180px;
+}
+
+.admin-grades-wrapper .hier-unit {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--teal);
+}
+
+.admin-grades-wrapper .hier-unit svg {
+  width: 9px;
+  height: 9px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.admin-grades-wrapper .hier-unit span {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 160px;
+}
+
+/* ── Type badge ── */
+.admin-grades-wrapper .type-badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.6rem;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.admin-grades-wrapper .type-test {
+  background: rgba(26,112,112,0.1);
+  color: var(--teal);
+}
+
+.admin-grades-wrapper .type-task {
+  background: rgba(201,150,42,0.12);
+  color: var(--gold);
+}
+
+.admin-grades-wrapper .type-badge svg {
+  width: 9px;
+  height: 9px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Assessment name ── */
+.admin-grades-wrapper .assess-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.admin-grades-wrapper .assess-name {
+  font-weight: 500;
+  font-size: 1.03rem;
+  color: var(--ink);
+}
+
+.admin-grades-wrapper .assess-sub {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.67rem;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+
+/* ── Score cell ── */
+.admin-grades-wrapper .score-cell {
+  min-width: 160px;
+}
+
+.admin-grades-wrapper .score-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+}
+
+.admin-grades-wrapper .score-earned {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.56rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.admin-grades-wrapper .score-earned.passed {
+  color: var(--teal);
+}
+
+.admin-grades-wrapper .score-earned.failed {
+  color: var(--rust);
+}
+
+.admin-grades-wrapper .score-earned.near {
+  color: var(--gold);
+}
+
+.admin-grades-wrapper .score-earned.zero {
+  color: var(--muted);
+  opacity: 0.5;
+}
+
+.admin-grades-wrapper .score-max {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.admin-grades-wrapper .score-pct {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.74rem;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.admin-grades-wrapper .score-track {
+  width: 100%;
+  height: 5px;
+  background: var(--warm);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.admin-grades-wrapper .score-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1.2s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+/* threshold marker on bar */
+.admin-grades-wrapper .score-track::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: rgba(14,14,14,0.3);
+  border-radius: 1px;
+  left: var(--threshold, 70%);
+}
+
+/* ── Result badge ── */
+.admin-grades-wrapper .result-badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.65rem;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.admin-grades-wrapper .result-passed {
+  background: var(--teal-dim);
+  color: var(--teal);
+}
+
+.admin-grades-wrapper .result-failed {
+  background: rgba(201,74,42,0.1);
+  color: var(--rust);
+}
+
+.admin-grades-wrapper .result-pending {
+  background: rgba(201,150,42,0.12);
+  color: var(--gold);
+}
+
+.admin-grades-wrapper .result-badge svg {
+  width: 8px;
+  height: 8px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Date cell ── */
+.admin-grades-wrapper .date-cell {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.74rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ── Row actions ── */
+.admin-grades-wrapper .row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+  justify-content: flex-end;
+}
+
+.admin-grades-wrapper .icon-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.admin-grades-wrapper .icon-btn:hover {
+  border-color: var(--teal);
+  color: var(--teal);
+  background: var(--teal-dim);
+}
+
+.admin-grades-wrapper .icon-btn.warn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(201,150,42,0.08);
+}
+
+.admin-grades-wrapper .icon-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.admin-grades-wrapper .grade-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.8rem;
+  background: var(--teal);
+  color: #fff;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.admin-grades-wrapper .grade-btn:hover {
+  background: var(--teal-light);
+}
+
+.admin-grades-wrapper .grade-btn svg {
+  width: 10px;
+  height: 10px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Table footer ── */
+.admin-grades-wrapper .table-footer {
+  background: var(--warm);
+  border-top: 1px solid var(--line);
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-grades-wrapper .table-footer-count {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.74rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.admin-grades-wrapper .page-btns {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.admin-grades-wrapper .page-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  cursor: pointer;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.admin-grades-wrapper .page-btn.active {
+  background: var(--ink);
+  color: var(--cream);
+  border-color: var(--ink);
+}
+
+.admin-grades-wrapper .page-btn:hover:not(.active) {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 900px) {
+  .admin-grades-wrapper .page-content {
+    padding: 1.5rem;
+  }
+}

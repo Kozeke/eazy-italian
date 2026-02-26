@@ -7,13 +7,20 @@ import {
   Trash2,
   Check,
   X,
-  BookMarked,
+  BookOpen,
   Users,
-  FileText
+  FileText,
+  Search,
+  Filter,
+  Grid3x3,
+  List,
+  ChevronRight,
+  Clock,
+  Folder
 } from 'lucide-react';
 import { coursesApi } from '../../services/api';
 import toast from 'react-hot-toast';
-import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
+import './AdminCoursesPage.css';
 
 // Helper function to strip HTML tags from description
 const stripHtml = (html: string): string => {
@@ -55,6 +62,7 @@ export default function AdminCoursesPage() {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedCourses, setSelectedCourses] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -74,43 +82,64 @@ export default function AdminCoursesPage() {
     fetchCourses();
   }, []);
 
+  // Animate progress bars on load
+  useEffect(() => {
+    if (!loading && courses.length > 0) {
+      setTimeout(() => {
+        document.querySelectorAll('.progress-fill[data-target]').forEach((el) => {
+          const target = el.getAttribute('data-target');
+          if (target) {
+            (el as HTMLElement).style.width = target + '%';
+          }
+        });
+      }, 400);
+    }
+  }, [loading, courses]);
+
   const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { color: 'bg-gray-100 text-gray-800', text: 'Черновик' },
-      scheduled: { color: 'bg-blue-100 text-blue-800', text: 'Запланировано' },
-      published: { color: 'bg-green-100 text-green-800', text: 'Опубликовано' },
-      archived: { color: 'bg-red-100 text-red-800', text: 'Архив' }
+    const statusConfig: Record<string, { className: string; text: string }> = {
+      draft: { className: 'badge badge-draft', text: 'Черновик' },
+      scheduled: { className: 'badge badge-scheduled', text: 'Запланировано' },
+      published: { className: 'badge badge-published', text: 'Опубликовано' },
+      archived: { className: 'badge badge-archived', text: 'Архив' }
     };
     
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
+    const config = statusConfig[status] || statusConfig.draft;
     
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+      <span className={config.className}>
+        {status === 'published' && (
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{display:'inline',marginRight:'3px'}}>
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+        )}
         {config.text}
       </span>
     );
   };
 
   const getLevelBadge = (level: string) => {
-    const levelColors: Record<string, string> = {
-      A1: 'bg-purple-100 text-purple-800',
-      A2: 'bg-blue-100 text-blue-800',
-      B1: 'bg-green-100 text-green-800',
-      B2: 'bg-yellow-100 text-yellow-800',
-      C1: 'bg-orange-100 text-orange-800',
-      C2: 'bg-red-100 text-red-800',
-      mixed: 'bg-indigo-100 text-indigo-800'
-    };
-    
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${levelColors[level] || levelColors.A1}`}>
+      <span className="badge badge-level">
         {level}
       </span>
     );
   };
 
+  const getStripColor = (status: string, level: string) => {
+    if (status === 'published') {
+      return 'linear-gradient(90deg, var(--teal), var(--teal-light))';
+    } else if (status === 'scheduled') {
+      return 'linear-gradient(90deg, var(--gold), var(--gold-light))';
+    } else if (status === 'archived') {
+      return 'linear-gradient(90deg, var(--rust), #d95a3a)';
+    }
+    return 'linear-gradient(90deg, var(--muted), #7a7161)';
+  };
 
-  const handleSelectCourse = (courseId: number) => {
+  const handleSelectCourse = (courseId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     setSelectedCourses(prev => 
       prev.includes(courseId) 
         ? prev.filter(id => id !== courseId)
@@ -131,7 +160,9 @@ export default function AdminCoursesPage() {
     }
   };
 
-  const handleDeleteCourse = async (courseId: number, courseTitle: string) => {
+  const handleDeleteCourse = async (courseId: number, courseTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (!window.confirm(`Вы уверены, что хотите удалить курс "${courseTitle}"? Это действие нельзя отменить.`)) {
       return;
     }
@@ -183,146 +214,172 @@ export default function AdminCoursesPage() {
     return matchesSearch && matchesLevel && matchesStatus;
   });
 
+  // Calculate progress percentage
+  const getUnitsProgress = (course: Course) => {
+    if (course.units_count === 0) return 0;
+    return Math.round((course.published_units_count / course.units_count) * 100);
+  };
+
+  // Get average score (placeholder for now)
+  const getAverageScore = (course: Course) => {
+    // TODO: Fetch actual average test scores from API
+    return null; // Return null to show "—"
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <div className="admin-courses-wrapper min-h-screen bg-[#f5f0e8] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a7070]"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
+    <div className="admin-courses-wrapper">
+      <div className="page-content">
+        {/* Page header */}
+        <div className="page-header">
           <div>
-            <div className="flex items-center gap-2">
-              <BookMarked className="h-6 w-6 text-primary-600" />
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                {t('admin.nav.courses')}
-              </h1>
-              {courses.length > 0 && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                  {courses.length} курсов
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs md:text-sm text-gray-500">
-              Управляйте курсами — контейнерами для учебных юнитов
-            </p>
+            <h1 className="page-title">
+              {t('admin.nav.courses')} <em>/ {filteredCourses.length} {filteredCourses.length === 1 ? 'курс' : filteredCourses.length < 5 ? 'курса' : 'курсов'}</em>
+            </h1>
+            <p className="page-meta">Управляйте курсами — контейнерами для учебных юнитов</p>
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <div className="toolbar">
+          <div className="search-wrap">
+            <Search className="w-4 h-4" />
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Поиск по названию или описанию…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
 
-          <Link
-            to="/admin/courses/new"
-            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          <button
+            className="filter-btn"
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              background: showFilters ? 'var(--warm)' : '',
+              borderColor: showFilters ? 'var(--ink)' : '',
+              color: showFilters ? 'var(--ink)' : ''
+            }}
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Создать курс
-          </Link>
+            <Filter className="w-4 h-4" />
+            Фильтры
+          </button>
+
+          <div className="view-toggle">
+            <button
+              className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => setViewMode('grid')}
+              title="Grid"
+            >
+              <Grid3x3 className="w-4 h-4" />
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => setViewMode('list')}
+              title="List"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-        {/* Search & filters */}
-        <AdminSearchFilters
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder="Поиск по названию или описанию"
-          showFilters={showFilters}
-          onToggleFilters={() => setShowFilters(!showFilters)}
-          filters={
-            <>
-              {/* Level */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Уровень
-                </label>
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все уровни</option>
-                  <option value="A1">A1</option>
-                  <option value="A2">A2</option>
-                  <option value="B1">B1</option>
-                  <option value="B2">B2</option>
-                  <option value="C1">C1</option>
-                  <option value="C2">C2</option>
-                  <option value="mixed">Смешанный</option>
-                </select>
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Статус
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все статусы</option>
-                  <option value="draft">Черновик</option>
-                  <option value="scheduled">Запланировано</option>
-                  <option value="published">Опубликовано</option>
-                  <option value="archived">Архив</option>
-                </select>
-              </div>
-            </>
-          }
-        />
+        {/* Filter panel */}
+        <div className={`filter-panel ${showFilters ? 'open' : ''}`} id="filter-panel">
+          <div className="filter-group">
+            <label>Статус</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+            >
+              <option value="">Все статусы</option>
+              <option value="published">Опубликовано</option>
+              <option value="draft">Черновик</option>
+              <option value="scheduled">Запланировано</option>
+              <option value="archived">Архив</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Уровень</label>
+            <select
+              value={selectedLevel}
+              onChange={(e) => setSelectedLevel(e.target.value)}
+            >
+              <option value="">Все уровни</option>
+              <option value="A1">A1</option>
+              <option value="A2">A2</option>
+              <option value="B1">B1</option>
+              <option value="B2">B2</option>
+              <option value="C1">C1</option>
+              <option value="C2">C2</option>
+              <option value="mixed">Смешанный</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Сортировка</label>
+            <select>
+              <option>По дате создания</option>
+              <option>По названию</option>
+              <option>По студентам</option>
+              <option>По прогрессу</option>
+            </select>
+          </div>
+        </div>
 
         {/* Bulk actions bar */}
         {selectedCourses.length > 0 && (
-          <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+          <div className="bulk-actions-bar">
+            <div className="bulk-actions-left">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1a7070]/20 text-xs font-semibold text-[#1a7070]">
                 {selectedCourses.length}
               </span>
               <div>
-                <p className="text-sm font-medium text-gray-900">
+                <p style={{fontSize: '0.88rem', fontWeight: 500, color: 'var(--ink)'}}>
                   Выбрано курсов: {selectedCourses.length}
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="bulk-actions-right">
               <button
+                className="bulk-btn"
                 onClick={() => handleBulkAction('publish')}
-                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700"
               >
-                <Check className="h-4 w-4 mr-1" />
+                <Check className="w-3 h-3" style={{display: 'inline', marginRight: '4px'}} />
                 Опубликовать
               </button>
               <button
+                className="bulk-btn"
                 onClick={() => handleBulkAction('archive')}
-                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-red-600 hover:bg-red-700"
               >
                 Архивировать
               </button>
               <button
+                className="bulk-btn danger"
                 onClick={() => handleBulkAction('delete')}
-                className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-white bg-red-800 hover:bg-red-900"
               >
                 Удалить
               </button>
               <button
+                className="bulk-btn"
                 onClick={() => setSelectedCourses([])}
-                className="inline-flex items-center px-3 py-1 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
               >
-                <X className="h-4 w-4 mr-1" />
+                <X className="w-3 h-3" style={{display: 'inline', marginRight: '4px'}} />
                 Снять выделение
               </button>
             </div>
           </div>
         )}
 
-        {/* Courses cards / empty state */}
+        {/* Courses grid / empty state */}
         {filteredCourses.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={`courses-grid ${viewMode === 'list' ? 'grid-template-columns: 1fr' : ''}`} style={viewMode === 'list' ? {gridTemplateColumns: '1fr'} : {}}>
             {filteredCourses.map((course) => {
               const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
               
@@ -330,129 +387,196 @@ export default function AdminCoursesPage() {
               let thumbnailUrl = '/placeholder-course.jpg';
               
               if (course.thumbnail_url) {
-                // Use thumbnail_url if it exists
                 thumbnailUrl = course.thumbnail_url;
               } else if (course.thumbnail_path) {
-                // Fall back to thumbnail_path if thumbnail_url doesn't exist
                 const thumbnailFilename = course.thumbnail_path.split('/').pop();
                 thumbnailUrl = `${apiBase}/static/thumbnails/${thumbnailFilename}`;
               }
-              
-              // Debug logging
-              if (course.thumbnail_path || course.thumbnail_url) {
-                console.log(`Course ${course.id} thumbnail:`, {
-                  thumbnail_url: course.thumbnail_url,
-                  thumbnail_path: course.thumbnail_path,
-                  finalUrl: thumbnailUrl
-                });
-              }
+
+              const unitsProgress = getUnitsProgress(course);
+              const avgScore = getAverageScore(course);
               
               return (
-                <Link
+                <div
                   key={course.id}
-                  to={`/admin/courses/${course.id}/edit`}
-                  className="bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden"
+                  className="course-card"
+                  onClick={() => navigate(`/admin/courses/${course.id}/edit`)}
                 >
-                  <div className="aspect-video bg-gray-100 relative">
-                    <img
-                      src={thumbnailUrl}
-                      alt={course.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/placeholder-course.jpg';
+                  <div className="course-card-strip" style={{background: getStripColor(course.status, course.level)}}></div>
+
+                  <div className="course-card-head">
+                    <div className="course-thumb">
+                      {course.thumbnail_url || course.thumbnail_path ? (
+                        <img
+                          src={thumbnailUrl}
+                          alt={course.title}
+                          style={{width: '100%', height: '100%', objectFit: 'cover'}}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            if (target.parentElement) {
+                              target.parentElement.textContent = '📖';
+                            }
+                          }}
+                        />
+                      ) : (
+                        '📖'
+                      )}
+                    </div>
+                    <div className="course-head-info">
+                      <div className="course-badges">
+                        {getLevelBadge(course.level)}
+                        {getStatusBadge(course.status)}
+                      </div>
+                      <h2 className="course-title">{course.title}</h2>
+                      {course.description && (
+                        <p className="course-desc">{stripHtml(course.description)}</p>
+                      )}
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={selectedCourses.includes(course.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleSelectCourse(course.id, e);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        position: 'absolute',
+                        top: '1.5rem',
+                        right: '1.5rem',
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer',
+                        zIndex: 10
                       }}
                     />
-                    <div className="absolute top-2 right-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedCourses.includes(course.id)}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          handleSelectCourse(course.id);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                      />
+                  </div>
+
+                  <div className="course-card-divider"></div>
+
+                  <div className="course-card-stats">
+                    <div className="cstat">
+                      <div className="cstat-value">{course.units_count}</div>
+                      <div className="cstat-label">Юнитов</div>
+                    </div>
+                    <div className="cstat">
+                      <div className="cstat-value" style={{color: 'var(--teal)'}}>
+                        {course.content_summary?.total_tests || 0}
+                      </div>
+                      <div className="cstat-label">Тестов</div>
+                    </div>
+                    <div className="cstat">
+                      <div className="cstat-value">{course.enrolled_students_count || 0}</div>
+                      <div className="cstat-label">Студентов</div>
+                    </div>
+                    <div className="cstat">
+                      <div className="cstat-value" style={{color: 'var(--gold)'}}>
+                        {avgScore !== null ? `${avgScore}%` : '—'}
+                      </div>
+                      <div className="cstat-label">Ср. балл</div>
                     </div>
                   </div>
 
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-primary-600">
-                        {getLevelBadge(course.level)}
-                      </span>
-                      {getStatusBadge(course.status)}
-                    </div>
+                  <div className="course-card-divider"></div>
 
-                    <h3 className="font-semibold text-gray-900 line-clamp-2">
-                      {course.title}
-                    </h3>
-
-                    {course.description && (
-                      <p className="text-sm text-gray-500 line-clamp-2">
-                        {stripHtml(course.description)}
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1">
-                          <BookMarked className="h-3.5 w-3.5" />
-                          {course.published_units_count}/{course.units_count}
+                  <div className="course-card-progress">
+                    <div style={{marginBottom: '0.75rem', marginTop: '0.75rem'}}>
+                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem'}}>
+                        <span style={{fontFamily: "'Space Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)'}}>
+                          Юниты пройдены
                         </span>
-                        {course.enrolled_students_count !== undefined && (
-                          <span className="flex items-center gap-1" title="Зарегистрированных студентов">
-                            <Users className="h-3.5 w-3.5" />
-                            {course.enrolled_students_count}
-                          </span>
-                        )}
-                        {course.content_summary && course.content_summary.total_tests > 0 && (
-                          <span className="flex items-center gap-1" title="Количество тестов">
-                            <FileText className="h-3.5 w-3.5" />
-                            {course.content_summary.total_tests}
-                          </span>
-                        )}
+                        <span style={{fontFamily: "'Space Mono', monospace", fontSize: '0.65rem', fontWeight: 700, color: 'var(--teal)'}}>
+                          {course.published_units_count} / {course.units_count}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            navigate(`/admin/courses/${course.id}/edit`);
-                          }}
-                          className="text-gray-600 hover:text-gray-900"
-                          title="Редактировать"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handleDeleteCourse(course.id, course.title);
-                          }}
-                          className="text-red-600 hover:text-red-900"
-                          title="Удалить"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                      <div className="progress-track" style={{height: '6px'}}>
+                        <div
+                          className="progress-fill teal"
+                          data-target={unitsProgress}
+                          style={{width: '0%'}}
+                        ></div>
                       </div>
                     </div>
+                    {avgScore !== null && (
+                      <div>
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem'}}>
+                          <span style={{fontFamily: "'Space Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)'}}>
+                            Средний балл
+                          </span>
+                          <span style={{fontFamily: "'Space Mono', monospace", fontSize: '0.65rem', fontWeight: 700, color: 'var(--gold)'}}>
+                            {avgScore}%
+                          </span>
+                        </div>
+                        <div className="progress-track" style={{height: '6px'}}>
+                          <div
+                            className="progress-fill gold"
+                            data-target={avgScore}
+                            style={{width: '0%'}}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </Link>
+
+                  <div className="course-card-footer">
+                    <div className="footer-meta">
+                      <div className="footer-meta-item">
+                        <Users className="w-3 h-3" />
+                        {course.enrolled_students_count || 0} {course.enrolled_students_count === 1 ? 'студент' : course.enrolled_students_count && course.enrolled_students_count < 5 ? 'студента' : 'студентов'}
+                      </div>
+                      <div className="footer-meta-item">
+                        <Folder className="w-3 h-3" />
+                        {course.published_units_count} / {course.units_count} юнитов
+                      </div>
+                      <div className="footer-meta-item">
+                        <FileText className="w-3 h-3" />
+                        {course.content_summary?.total_tests || 0} тестов
+                      </div>
+                    </div>
+                    <div className="footer-actions">
+                      <button
+                        className="icon-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/admin/courses/${course.id}/edit`);
+                        }}
+                        title="Редактировать"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        className="icon-btn"
+                        onClick={(e) => handleDeleteCourse(course.id, course.title, e)}
+                        title="Удалить"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      <Link
+                        to={`/admin/courses/${course.id}/edit`}
+                        className="open-btn"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Открыть
+                        <ChevronRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
               );
             })}
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-            <BookMarked className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <div className="empty-state">
+            <div className="empty-icon">
+              <BookOpen className="w-7 h-7" />
+            </div>
+            <h3 style={{fontSize: '1.1rem', fontWeight: 500, color: 'var(--ink)', marginBottom: '0.5rem'}}>
               {searchQuery || selectedLevel || selectedStatus 
                 ? 'Курсы не найдены' 
                 : 'Нет курсов'}
             </h3>
-            <p className="text-gray-500 mb-6">
+            <p style={{fontSize: '0.88rem', color: 'var(--muted)', marginBottom: '1.5rem'}}>
               {searchQuery || selectedLevel || selectedStatus
                 ? 'Попробуйте изменить параметры поиска или фильтры'
                 : 'Создайте первый курс, чтобы начать организовывать учебные материалы'}
@@ -460,15 +584,16 @@ export default function AdminCoursesPage() {
             {!searchQuery && !selectedLevel && !selectedStatus && (
               <Link
                 to="/admin/courses/new"
-                className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
+                className="open-btn"
+                style={{display: 'inline-flex'}}
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="w-3 h-3" />
                 Создать курс
               </Link>
             )}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

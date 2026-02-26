@@ -19,18 +19,18 @@ export default function AdminSearchFilters({
   filters,
 }: AdminSearchFiltersProps) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
+    <div className="bg-white rounded-2xl shadow-sm border border-[rgba(14,14,14,0.12)] p-4 md:p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
         {/* Search */}
         <div className="flex-1">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6b6456]" />
             <input
               type="text"
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="block w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 py-2 text-sm leading-5 placeholder-gray-500 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="block w-full rounded-lg border border-[rgba(14,14,14,0.12)] bg-white pl-10 pr-3 py-2 text-sm leading-5 placeholder-[#6b6456] shadow-sm focus:border-[#1a7070] focus:outline-none focus:ring-1 focus:ring-[#1a7070]"
             />
           </div>
         </div>
@@ -38,7 +38,7 @@ export default function AdminSearchFilters({
         {/* Filter toggle */}
         <button
           onClick={onToggleFilters}
-          className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          className="inline-flex items-center justify-center rounded-lg border border-[rgba(14,14,14,0.12)] bg-white px-3 py-2 text-sm font-medium text-[#0e0e0e] shadow-sm hover:bg-[#f5f0e8]"
         >
           <Filter className="h-4 w-4 mr-2" />
           Фильтры
@@ -52,7 +52,7 @@ export default function AdminSearchFilters({
 
       {/* Filters panel */}
       {showFilters && filters && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-4 pt-4 border-t border-[rgba(14,14,14,0.12)]">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filters}
           </div>

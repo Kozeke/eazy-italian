@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ArrowLeft,
@@ -6,13 +6,22 @@ import {
   X,
   Pencil,
   Trash2,
-  ExternalLink,
   BookMarked,
-  AlertTriangle
+  Check,
+  AlertCircle,
+  GripVertical,
+  Video,
+  FileText,
+  ClipboardList
 } from 'lucide-react';
 import { unitsApi, tasksApi, testsApi, videosApi, coursesApi } from '../../services/api';
 import toast from 'react-hot-toast';
 import RichTextEditor from '../../components/admin/RichTextEditor';
+
+interface LearningGoal {
+  id: string;
+  text: string;
+}
 
 interface UnitFormData {
   title: string;
@@ -45,6 +54,9 @@ export default function AdminUnitEditPage() {
   const [saving, setSaving] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [learningGoals, setLearningGoals] = useState<LearningGoal[]>([]);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const [formData, setFormData] = useState<UnitFormData>({
     title: '',
@@ -131,11 +143,17 @@ export default function AdminUnitEditPage() {
         setLoading(true);
         const unitData = await unitsApi.getAdminUnit(parseInt(id));
         
+        const goalsText = (unitData as any).goals || '';
+        const goalsList = goalsText ? goalsText.split('\n').filter((g: string) => g.trim()).map((g: string, idx: number) => ({
+          id: `goal-${idx}-${Date.now()}`,
+          text: g.trim()
+        })) : [];
+
         setFormData({
           title: unitData.title || '',
           level: unitData.level || 'A1',
           description: unitData.description || '',
-          goals: (unitData as any).goals || '',
+          goals: goalsText,
           tags: (unitData as any).tags || [],
           status: unitData.status || 'draft',
           publish_at: (unitData as any).publish_at ? (unitData as any).publish_at.slice(0, 16) : '',
@@ -145,6 +163,8 @@ export default function AdminUnitEditPage() {
           meta_title: (unitData as any).meta_title || '',
           meta_description: (unitData as any).meta_description || ''
         });
+
+        setLearningGoals(goalsList);
 
         // Load videos, tasks, tests for this unit
         try {
@@ -232,6 +252,14 @@ export default function AdminUnitEditPage() {
     const content = availableContent.find(item => item.id === contentId);
     
     if (!content) return;
+
+    // Check if already added
+    const allItems = type === 'video' ? videos : type === 'task' ? tasks : tests;
+    if (allItems.some(item => item.id === content.id)) {
+      toast.error(`${content.title} уже добавлен`);
+      setOpenDropdown(null);
+      return;
+    }
     
     const newItem: ContentItem = {
       id: content.id,
@@ -249,6 +277,9 @@ export default function AdminUnitEditPage() {
     } else {
       setTests(prev => [...prev, newItem]);
     }
+    
+    toast.success(`${content.title} добавлен`);
+    setOpenDropdown(null);
   };
 
   const handleRemoveContent = async (type: 'video' | 'task' | 'test', id: number) => {
@@ -312,9 +343,13 @@ export default function AdminUnitEditPage() {
       const status = publish ? 'published' : 'draft';
       const is_visible_to_students = publish; // Always true when published
       
+      // Convert learning goals to string
+      const goalsText = learningGoals.map(g => g.text.trim()).filter(Boolean).join('\n');
+      
       // Save unit data
       const unitData = {
         ...formData,
+        goals: goalsText || formData.goals,
         order_index: formData.order_index === '' ? 0 : formData.order_index,
         status: status,
         is_visible_to_students: is_visible_to_students,
@@ -396,313 +431,1557 @@ export default function AdminUnitEditPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { color: 'bg-gray-100 text-gray-800', text: 'Черновик' },
-      scheduled: { color: 'bg-blue-100 text-blue-800', text: 'Запланировано' },
-      published: { color: 'bg-green-100 text-green-800', text: 'Опубликовано' },
-      archived: { color: 'bg-red-100 text-red-800', text: 'Архив' }
-    };
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.text}
-      </span>
-    );
-  };
 
-  const renderContentSection = (
-    title: string,
-    items: ContentItem[],
-    type: 'video' | 'task' | 'test',
-    icon: React.ReactNode
-  ) => {
-    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : type === 'test' ? availableTests : [];
-    const unusedContent = availableContent.filter(content => 
-      !items.some(item => item.id === content.id)
-    );
-    
-    const createPageUrl = type === 'video' ? '/admin/videos/new' : 
-                          type === 'task' ? '/admin/tasks/new' : 
-                          '/admin/tests/new';
-    
-    return (
-      <div className="bg-gray-50 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            {icon}
-            <span className="ml-2">{title}</span>
-            <span className="ml-2 text-sm text-gray-500">({items.length})</span>
-          </h3>
-          <div className="flex items-center space-x-2">
-            {unusedContent.length > 0 && (
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleAddExistingContent(type, parseInt(e.target.value));
-                    e.target.value = '';
-                  }
-                }}
-                className="text-sm px-3 py-1 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="">Добавить существующий...</option>
-                {unusedContent.map(content => (
-                  <option key={content.id} value={content.id}>
-                    {content.title}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              onClick={() => navigate(createPageUrl)}
-              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-              title={`Создать новый ${type === 'video' ? 'видео' : type === 'task' ? 'задание' : 'тест'}`}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Создать новый
-            </button>
-          </div>
-        </div>
-        
-        {availableContent.length === 0 && !loadingContent ? (
-          <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
-            <p className="text-gray-500 mb-3">
-              Нет доступных {type === 'video' ? 'видео' : type === 'task' ? 'заданий' : 'тестов'}
-            </p>
-            <button
-              onClick={() => navigate(createPageUrl)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Создать первый {type === 'video' ? 'видео' : type === 'task' ? 'задание' : 'тест'}
-            </button>
-          </div>
-        ) : items.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>В этом юните нет {type === 'video' ? 'видео' : type === 'task' ? 'заданий' : 'тестов'}</p>
-            <p className="text-sm mt-1">Выберите существующий или создайте новый выше</p>
-          </div>
-        ) : (
-        <div className="space-y-2">
-          {items.map((item, index) => {
-            // Check if video is visible to students
-            const isVideo = type === 'video';
-            const isPublished = item.status === 'published';
-            const isVisible = item.is_visible_to_students !== false;
-            const willBeVisibleToStudents = isVideo ? (isPublished && isVisible) : true;
-            
-            return (
-              <div key={item.id} className={`flex items-center justify-between bg-white p-3 rounded-md border ${!willBeVisibleToStudents ? 'border-yellow-300 bg-yellow-50' : ''}`}>
-                <div className="flex items-center space-x-3 flex-1">
-                  <span className="text-sm text-gray-500">#{index + 1}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium text-gray-900">{item.title}</div>
-                      {!willBeVisibleToStudents && (
-                        <div className="flex items-center gap-1 text-yellow-700 text-xs" title="Это видео не будет видно студентам. Опубликуйте его и включите видимость для студентов.">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span>Не видно студентам</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2 mt-1">
-                      {getStatusBadge(item.status)}
-                      {isVideo && !isVisible && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                          Скрыто
-                        </span>
-                      )}
-                      <span className="text-sm text-gray-500">Порядок: {item.order_index}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button 
-                    onClick={() => {
-                      if (type === 'video') {
-                        navigate(`/admin/videos/${item.id}/edit`);
-                      } else if (type === 'task') {
-                        navigate(`/admin/tasks/${item.id}/edit`);
-                      } else if (type === 'test') {
-                        navigate(`/admin/tests/${item.id}/edit`);
-                      }
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                    title="Редактировать"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleRemoveContent(type, item.id)}
-                    className="text-red-400 hover:text-red-600"
-                    title="Удалить из юнита"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-  };
+  const unusedVideos = availableVideos.filter(v => !videos.some(item => item.id === v.id));
+  const unusedTasks = availableTasks.filter(t => !tasks.some(item => item.id === t.id));
+  const unusedTests = availableTests.filter(t => !tests.some(item => item.id === t.id));
+
+  const selectedCourse = availableCourses.find(c => c.id === formData.course_id);
+  const courseName = selectedCourse ? `${selectedCourse.title}${selectedCourse.level ? ` (${selectedCourse.level})` : ''}` : 'Автономный';
+
+  // Checklist items
+  const checklistItems = [
+    {
+      ok: !!formData.title.trim(),
+      label: 'Название юнита',
+      status: formData.title.trim() ? 'Указано' : 'Необходимо добавить название',
+      type: formData.title.trim() ? 'ok' : 'warn'
+    },
+    {
+      ok: videos.length + tasks.length + tests.length > 0,
+      label: 'Контент добавлен',
+      status: videos.length + tasks.length + tests.length > 0 
+        ? `${videos.length} видео, ${tasks.length} заданий, ${tests.length} тестов`
+        : 'Добавьте хотя бы один элемент',
+      type: videos.length + tasks.length + tests.length > 0 ? 'ok' : 'warn'
+    },
+    {
+      ok: !!formData.course_id,
+      label: 'Привязка к курсу',
+      status: formData.course_id ? courseName : 'Не выбрано (автономный юнит)',
+      type: formData.course_id ? 'ok' : 'warn'
+    },
+    {
+      ok: videos.length > 0,
+      label: 'Видео-уроки',
+      status: videos.length > 0 ? `${videos.length} видео добавлено` : 'Рекомендуется добавить хотя бы одно видео',
+      type: videos.length > 0 ? 'ok' : 'warn'
+    }
+  ];
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <div className="tf-unit-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--teal)', margin: '0 auto 1rem' }}></div>
+          <p style={{ color: 'var(--muted)' }}>Загрузка юнита...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky top bar – Udemy/Coursera style */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/admin/units')}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap');
+        
+        .tf-unit-root {
+          --ink: #0e0e0e;
+          --cream: #f5f0e8;
+          --warm: #f0e9d8;
+          --gold: #c9962a;
+          --gold-light: #e8b84b;
+          --gold-dim: rgba(201,150,42,.1);
+          --rust: #c94a2a;
+          --rust-dim: rgba(201,74,42,.1);
+          --teal: #1a7070;
+          --teal-light: #2a9898;
+          --teal-dim: rgba(26,112,112,.1);
+          --violet: #5a3080;
+          --violet-dim: rgba(90,48,128,.1);
+          --muted: #6b6456;
+          --line: rgba(14,14,14,.1);
+        }
+
+        .tf-unit-page {
+          min-height: 100vh;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 300;
+          background: var(--warm);
+          color: var(--ink);
+        }
+
+        .tf-unit-page::after {
+          content: '';
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+          opacity: .25;
+        }
+
+        .tf-topbar {
+          background: var(--cream);
+          border-bottom: 1px solid var(--line);
+          padding: 0 2.5rem;
+          height: 64px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          position: sticky;
+          top: 0;
+          z-index: 50;
+        }
+
+        .tf-tbl {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .tf-back-link {
+          display: flex;
+          align-items: center;
+          gap: .45rem;
+          font-family: 'Space Mono', monospace;
+          font-size: .65rem;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          color: var(--muted);
+          text-decoration: none;
+          transition: color .2s;
+          white-space: nowrap;
+          background: none;
+          border: none;
+          cursor: pointer;
+        }
+
+        .tf-back-link:hover {
+          color: var(--teal);
+        }
+
+        .tf-back-link svg {
+          width: 13px;
+          height: 13px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-tbdiv {
+          width: 1px;
+          height: 18px;
+          background: var(--line);
+        }
+
+        .tf-breadcrumb {
+          font-family: 'Space Mono', monospace;
+          font-size: .65rem;
+          letter-spacing: .1em;
+          text-transform: uppercase;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: .4rem;
+        }
+
+        .tf-breadcrumb .sep {
+          opacity: .35;
+        }
+
+        .tf-breadcrumb .cur {
+          color: var(--ink);
+        }
+
+        .tf-tbr {
+          display: flex;
+          align-items: center;
+          gap: .7rem;
+        }
+
+        .tf-btn-outline {
+          background: none;
+          border: 1px solid var(--line);
+          padding: .48rem .9rem;
+          font-family: 'Space Mono', monospace;
+          font-size: .65rem;
+          letter-spacing: .07em;
+          cursor: pointer;
+          color: var(--muted);
+          transition: all .2s;
+          display: flex;
+          align-items: center;
+          gap: .4rem;
+        }
+
+        .tf-btn-outline:hover {
+          border-color: var(--ink);
+          color: var(--ink);
+        }
+
+        .tf-btn-outline svg {
+          width: 12px;
+          height: 12px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-btn-teal {
+          background: var(--teal);
+          color: #fff;
+          border: none;
+          padding: .52rem 1.25rem;
+          font-family: 'Space Mono', monospace;
+          font-size: .68rem;
+          letter-spacing: .07em;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: .45rem;
+          transition: background .2s;
+          white-space: nowrap;
+        }
+
+        .tf-btn-teal:hover {
+          background: var(--teal-light);
+        }
+
+        .tf-btn-teal:disabled {
+          opacity: .5;
+          cursor: not-allowed;
+        }
+
+        .tf-btn-teal svg {
+          width: 13px;
+          height: 13px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2.2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-page-content {
+          padding: 2.5rem 2.5rem 5rem;
+          flex: 1;
+          position: relative;
+          z-index: 1;
+        }
+
+        .tf-page-header {
+          margin-bottom: 2.25rem;
+          opacity: 0;
+          animation: tfFadeUp .6s .08s forwards;
+        }
+
+        .tf-page-title {
+          font-family: 'Playfair Display', serif;
+          font-size: 2rem;
+          font-weight: 900;
+          line-height: 1.1;
+        }
+
+        .tf-page-title em {
+          font-style: italic;
+          color: var(--teal);
+        }
+
+        .tf-page-meta {
+          margin-top: .4rem;
+          font-size: .85rem;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+        }
+
+        .tf-page-meta svg {
+          width: 13px;
+          height: 13px;
+          stroke: var(--muted);
+          fill: none;
+          stroke-width: 1.8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          opacity: .6;
+          flex-shrink: 0;
+        }
+
+        .tf-form-layout {
+          display: grid;
+          grid-template-columns: 1fr 320px;
+          gap: 1.75rem;
+          align-items: start;
+        }
+
+        .tf-form-card {
+          background: var(--cream);
+          border: 1px solid var(--line);
+          opacity: 0;
+          animation: tfFadeUp .6s forwards;
+          margin-bottom: 1.25rem;
+        }
+
+        .tf-form-card:last-child {
+          margin-bottom: 0;
+        }
+
+        .tf-form-card.fc1 { animation-delay: .12s; }
+        .tf-form-card.fc2 { animation-delay: .18s; }
+        .tf-form-card.fc3 { animation-delay: .24s; }
+        .tf-form-card.fc4 { animation-delay: .30s; }
+
+        .tf-card-header {
+          padding: 1rem 1.5rem;
+          border-bottom: 1px solid var(--line);
+          background: var(--warm);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .tf-card-title {
+          font-family: 'Space Mono', monospace;
+          font-size: .68rem;
+          font-weight: 700;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+          color: var(--ink);
+          display: flex;
+          align-items: center;
+          gap: .6rem;
+        }
+
+        .tf-card-title svg {
+          width: 14px;
+          height: 14px;
+          stroke: var(--teal);
+          fill: none;
+          stroke-width: 1.8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-card-num {
+          width: 22px;
+          height: 22px;
+          background: var(--teal);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: .62rem;
+          font-weight: 700;
+          color: #fff;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        .tf-card-body {
+          padding: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1.35rem;
+        }
+
+        .tf-field {
+          display: flex;
+          flex-direction: column;
+          gap: .45rem;
+        }
+
+        .tf-field-label {
+          font-family: 'Space Mono', monospace;
+          font-size: .62rem;
+          font-weight: 700;
+          letter-spacing: .1em;
+          text-transform: uppercase;
+          color: var(--ink);
+          display: flex;
+          align-items: center;
+          gap: .35rem;
+        }
+
+        .tf-required-star {
+          color: var(--rust);
+          font-size: .8rem;
+        }
+
+        .tf-field-hint {
+          font-size: .78rem;
+          color: var(--muted);
+          line-height: 1.5;
+          margin-top: -.15rem;
+        }
+
+        .tf-field-input {
+          width: 100%;
+          padding: .7rem .9rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          font-family: 'DM Sans', sans-serif;
+          font-size: .9rem;
+          font-weight: 300;
+          color: var(--ink);
+          outline: none;
+          transition: border-color .2s, background .2s, box-shadow .2s;
+          border-radius: 0;
+          resize: none;
+        }
+
+        .tf-field-input:focus {
+          border-color: var(--teal);
+          background: var(--cream);
+          box-shadow: 0 0 0 3px var(--teal-dim);
+        }
+
+        .tf-field-input::placeholder {
+          color: rgba(107,100,86,.4);
+        }
+
+        .tf-field-input.err {
+          border-color: var(--rust) !important;
+        }
+
+        textarea.tf-field-input {
+          min-height: 88px;
+          line-height: 1.6;
+        }
+
+        .tf-input-wrap {
+          position: relative;
+        }
+
+        .tf-char-counter {
+          position: absolute;
+          bottom: .55rem;
+          right: .7rem;
+          font-family: 'Space Mono', monospace;
+          font-size: .55rem;
+          color: var(--muted);
+          opacity: .5;
+          pointer-events: none;
+        }
+
+        .tf-select-wrap {
+          position: relative;
+        }
+
+        .tf-select-wrap::after {
+          content: '';
+          position: absolute;
+          right: .9rem;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 0;
+          height: 0;
+          border-left: 4px solid transparent;
+          border-right: 4px solid transparent;
+          border-top: 5px solid var(--muted);
+          pointer-events: none;
+        }
+
+        .tf-field-input.select {
+          appearance: none;
+          -webkit-appearance: none;
+          cursor: pointer;
+          padding-right: 2.5rem;
+        }
+
+        .tf-level-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: .5rem;
+        }
+
+        .tf-level-option {
+          display: none;
+        }
+
+        .tf-level-label {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: .65rem .5rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          cursor: pointer;
+          transition: all .18s;
+          text-align: center;
+          gap: .2rem;
+        }
+
+        .tf-level-label:hover {
+          background: var(--cream);
+          border-color: var(--muted);
+        }
+
+        .tf-level-option:checked + .tf-level-label {
+          border-color: var(--teal);
+          background: var(--teal-dim);
+        }
+
+        .tf-level-code {
+          font-family: 'Space Mono', monospace;
+          font-size: .72rem;
+          font-weight: 700;
+          letter-spacing: .05em;
+          color: var(--muted);
+          transition: color .18s;
+        }
+
+        .tf-level-name {
+          font-size: .68rem;
+          color: var(--muted);
+          transition: color .18s;
+        }
+
+        .tf-level-option:checked + .tf-level-label .tf-level-code,
+        .tf-level-option:checked + .tf-level-label .tf-level-name {
+          color: var(--teal);
+        }
+
+        .tf-goals-list {
+          display: flex;
+          flex-direction: column;
+          gap: .45rem;
+        }
+
+        .tf-goal-row {
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+          animation: tfGoalIn .25s ease;
+        }
+
+        @keyframes tfGoalIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tf-goal-bullet {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: var(--teal-dim);
+          border: 1px solid var(--teal);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .tf-goal-bullet svg {
+          width: 10px;
+          height: 10px;
+          stroke: var(--teal);
+          fill: none;
+          stroke-width: 2.5;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-goal-input {
+          flex: 1;
+          padding: .45rem .65rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          font-family: 'DM Sans', sans-serif;
+          font-size: .85rem;
+          color: var(--ink);
+          outline: none;
+          transition: border-color .18s;
+          border-radius: 0;
+        }
+
+        .tf-goal-input:focus {
+          border-color: var(--teal);
+        }
+
+        .tf-goal-input::placeholder {
+          color: rgba(107,100,86,.4);
+        }
+
+        .tf-goal-del {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--muted);
+          padding: .2rem;
+          opacity: .35;
+          transition: opacity .15s, color .15s;
+          display: flex;
+        }
+
+        .tf-goal-del:hover {
+          opacity: 1;
+          color: var(--rust);
+        }
+
+        .tf-goal-del svg {
+          width: 11px;
+          height: 11px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2.5;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-add-goal-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: .4rem;
+          background: none;
+          border: 1px dashed var(--line);
+          padding: .42rem .75rem;
+          font-family: 'Space Mono', monospace;
+          font-size: .57rem;
+          letter-spacing: .07em;
+          text-transform: uppercase;
+          color: var(--muted);
+          cursor: pointer;
+          transition: all .18s;
+          align-self: flex-start;
+        }
+
+        .tf-add-goal-btn:hover {
+          border-color: var(--teal);
+          color: var(--teal);
+        }
+
+        .tf-add-goal-btn svg {
+          width: 10px;
+          height: 10px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2.5;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-content-section {
+          border: 1px solid var(--line);
+          background: var(--cream);
+        }
+
+        .tf-content-section + .tf-content-section {
+          border-top: none;
+        }
+
+        .tf-cs-head {
+          display: flex;
+          align-items: center;
+          padding: .85rem 1.25rem;
+          background: var(--warm);
+          border-bottom: 1px solid var(--line);
+          gap: .65rem;
+        }
+
+        .tf-cs-icon {
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .tf-cs-icon svg {
+          width: 14px;
+          height: 14px;
+          stroke: var(--muted);
+          fill: none;
+          stroke-width: 1.8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-cs-title-wrap {
+          flex: 1;
+        }
+
+        .tf-cs-title {
+          font-family: 'Space Mono', monospace;
+          font-size: .65rem;
+          font-weight: 700;
+          letter-spacing: .1em;
+          text-transform: uppercase;
+          color: var(--ink);
+        }
+
+        .tf-cs-count {
+          font-family: 'Space Mono', monospace;
+          font-size: .6rem;
+          color: var(--muted);
+          margin-top: .1rem;
+        }
+
+        .tf-cs-add-wrap {
+          position: relative;
+        }
+
+        .tf-cs-add-btn {
+          display: flex;
+          align-items: center;
+          gap: .4rem;
+          padding: .4rem .8rem;
+          border: 1px solid var(--line);
+          background: var(--cream);
+          font-family: 'Space Mono', monospace;
+          font-size: .58rem;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+          color: var(--muted);
+          cursor: pointer;
+          transition: all .18s;
+        }
+
+        .tf-cs-add-btn:hover {
+          border-color: var(--teal);
+          color: var(--teal);
+        }
+
+        .tf-cs-add-btn svg {
+          width: 11px;
+          height: 11px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-cs-dropdown {
+          position: absolute;
+          right: 0;
+          top: calc(100% + 4px);
+          min-width: 260px;
+          background: var(--cream);
+          border: 1px solid var(--line);
+          box-shadow: 0 8px 24px rgba(0,0,0,.12);
+          z-index: 200;
+          display: none;
+          max-height: 400px;
+          overflow-y: auto;
+        }
+
+        .tf-cs-dropdown.open {
+          display: block;
+        }
+
+        .tf-dd-section {
+          padding: .35rem 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .tf-dd-section:last-child {
+          border-bottom: none;
+        }
+
+        .tf-dd-section-label {
+          font-family: 'Space Mono', monospace;
+          font-size: .54rem;
+          letter-spacing: .1em;
+          text-transform: uppercase;
+          color: var(--muted);
+          padding: .4rem 1rem .2rem;
+          opacity: .6;
+        }
+
+        .tf-dd-item {
+          display: flex;
+          align-items: center;
+          gap: .6rem;
+          padding: .55rem 1rem;
+          cursor: pointer;
+          transition: background .15s;
+          font-size: .85rem;
+          color: var(--ink);
+        }
+
+        .tf-dd-item:hover {
+          background: var(--warm);
+        }
+
+        .tf-dd-item svg {
+          width: 12px;
+          height: 12px;
+          stroke: var(--muted);
+          fill: none;
+          stroke-width: 1.8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          flex-shrink: 0;
+        }
+
+        .tf-dd-item.create {
+          color: var(--teal);
+          font-family: 'Space Mono', monospace;
+          font-size: .62rem;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+          font-weight: 700;
+        }
+
+        .tf-dd-item.create svg {
+          stroke: var(--teal);
+        }
+
+        .tf-cs-body {
+          padding: .75rem 1.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: .5rem;
+        }
+
+        .tf-cs-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: .5rem;
+          padding: 1.5rem;
+          border: 1px dashed var(--line);
+          background: var(--warm);
+          text-align: center;
+        }
+
+        .tf-cs-empty-icon svg {
+          width: 18px;
+          height: 18px;
+          stroke: rgba(14,14,14,.2);
+          fill: none;
+          stroke-width: 1.5;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-cs-empty-title {
+          font-family: 'Space Mono', monospace;
+          font-size: .6rem;
+          letter-spacing: .07em;
+          text-transform: uppercase;
+          color: var(--muted);
+          opacity: .55;
+        }
+
+        .tf-cs-empty-sub {
+          font-size: .73rem;
+          color: var(--muted);
+          opacity: .5;
+        }
+
+        .tf-content-chip {
+          display: flex;
+          align-items: center;
+          gap: .65rem;
+          padding: .6rem .85rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          transition: all .18s;
+          animation: tfGoalIn .25s ease;
+        }
+
+        .tf-content-chip:hover {
+          border-color: var(--teal);
+          background: var(--teal-dim);
+        }
+
+        .tf-chip-drag {
+          cursor: grab;
+          color: var(--muted);
+          opacity: .3;
+          display: flex;
+          align-items: center;
+        }
+
+        .tf-chip-drag svg {
+          width: 12px;
+          height: 12px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 1.8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-chip-icon {
+          width: 26px;
+          height: 26px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .tf-chip-icon svg {
+          width: 12px;
+          height: 12px;
+          stroke: var(--muted);
+          fill: none;
+          stroke-width: 1.8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-chip-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .tf-chip-name {
+          font-size: .84rem;
+          color: var(--ink);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tf-chip-meta {
+          font-family: 'Space Mono', monospace;
+          font-size: .55rem;
+          color: var(--muted);
+          margin-top: .08rem;
+          opacity: .6;
+        }
+
+        .tf-chip-del {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--muted);
+          padding: .22rem;
+          opacity: .35;
+          transition: opacity .15s, color .15s;
+          display: flex;
+        }
+
+        .tf-chip-del:hover {
+          opacity: 1;
+          color: var(--rust);
+        }
+
+        .tf-chip-del svg {
+          width: 11px;
+          height: 11px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2.5;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-adv-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: .85rem 1.5rem;
+          background: var(--warm);
+          border: 1px solid var(--line);
+          cursor: pointer;
+          user-select: none;
+          transition: background .2s;
+          opacity: 0;
+          animation: tfFadeUp .6s .36s forwards;
+        }
+
+        .tf-adv-toggle:hover {
+          background: var(--cream);
+        }
+
+        .tf-adv-toggle-lbl {
+          font-family: 'Space Mono', monospace;
+          font-size: .65rem;
+          font-weight: 700;
+          letter-spacing: .1em;
+          text-transform: uppercase;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+        }
+
+        .tf-adv-toggle-lbl svg {
+          width: 13px;
+          height: 13px;
+          stroke: var(--muted);
+          fill: none;
+          stroke-width: 1.8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-adv-chevron {
+          width: 15px;
+          height: 15px;
+          stroke: var(--muted);
+          fill: none;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          transition: transform .3s;
+        }
+
+        .tf-adv-toggle.open .tf-adv-chevron {
+          transform: rotate(180deg);
+        }
+
+        .tf-adv-panel {
+          display: none;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+
+        .tf-adv-panel.open {
+          display: flex;
+        }
+
+        .tf-adv-panel .tf-form-card {
+          animation: none;
+          opacity: 1;
+          border-top: none;
+          margin-bottom: 0;
+        }
+
+        .tf-tags-wrap {
+          display: flex;
+          flex-wrap: wrap;
+          gap: .4rem;
+          align-items: center;
+        }
+
+        .tf-tag-chip {
+          display: flex;
+          align-items: center;
+          gap: .35rem;
+          background: var(--ink);
+          color: var(--cream);
+          font-family: 'Space Mono', monospace;
+          font-size: .58rem;
+          font-weight: 700;
+          letter-spacing: .05em;
+          text-transform: uppercase;
+          padding: .28rem .6rem;
+        }
+
+        .tf-tag-chip svg {
+          width: 9px;
+          height: 9px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2.5;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          cursor: pointer;
+          opacity: .5;
+          transition: opacity .15s;
+        }
+
+        .tf-tag-chip svg:hover {
+          opacity: 1;
+        }
+
+        .tf-tag-input-row {
+          display: flex;
+          gap: .5rem;
+        }
+
+        .tf-tag-input {
+          flex: 1;
+          padding: .55rem .75rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          font-family: 'DM Sans', sans-serif;
+          font-size: .85rem;
+          color: var(--ink);
+          outline: none;
+          transition: border-color .2s;
+          border-radius: 0;
+        }
+
+        .tf-tag-input:focus {
+          border-color: var(--teal);
+        }
+
+        .tf-tag-add-btn {
+          padding: .52rem 1rem;
+          background: var(--ink);
+          color: var(--cream);
+          border: none;
+          font-family: 'Space Mono', monospace;
+          font-size: .62rem;
+          letter-spacing: .06em;
+          cursor: pointer;
+          transition: background .18s;
+        }
+
+        .tf-tag-add-btn:hover {
+          background: var(--teal);
+        }
+
+        .tf-num-wrap {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .tf-num-wrap .tf-field-input {
+          -moz-appearance: textfield;
+          padding-right: 2.5rem;
+        }
+
+        .tf-num-wrap .tf-field-input::-webkit-inner-spin-button,
+        .tf-num-wrap .tf-field-input::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+        }
+
+        .tf-num-arrows {
+          position: absolute;
+          right: 1px;
+          top: 1px;
+          bottom: 1px;
+          display: flex;
+          flex-direction: column;
+          width: 28px;
+          border-left: 1px solid var(--line);
+        }
+
+        .tf-num-arrow {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--warm);
+          border: none;
+          cursor: pointer;
+          color: var(--muted);
+          font-size: .58rem;
+          transition: background .15s, color .15s;
+        }
+
+        .tf-num-arrow:hover {
+          background: var(--cream);
+          color: var(--teal);
+        }
+
+        .tf-num-arrow + .tf-num-arrow {
+          border-top: 1px solid var(--line);
+        }
+
+        .tf-sidebar-cards {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+          position: sticky;
+          top: 84px;
+        }
+
+        .tf-sidebar-card {
+          background: var(--cream);
+          border: 1px solid var(--line);
+          opacity: 0;
+          animation: tfFadeUp .6s forwards;
+        }
+
+        .tf-sidebar-card.sc1 { animation-delay: .15s; }
+        .tf-sidebar-card.sc2 { animation-delay: .22s; }
+        .tf-sidebar-card.sc3 { animation-delay: .28s; }
+
+        .tf-sc-header {
+          padding: .9rem 1.25rem;
+          border-bottom: 1px solid var(--line);
+          background: var(--warm);
+        }
+
+        .tf-sc-title {
+          font-family: 'Space Mono', monospace;
+          font-size: .65rem;
+          font-weight: 700;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+          color: var(--ink);
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+        }
+
+        .tf-sc-title svg {
+          width: 13px;
+          height: 13px;
+          stroke: var(--teal);
+          fill: none;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-sc-body {
+          padding: 1.1rem 1.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: .85rem;
+        }
+
+        .tf-status-pill {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: .5rem .75rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+        }
+
+        .tf-sp-label {
+          font-family: 'Space Mono', monospace;
+          font-size: .58rem;
+          font-weight: 700;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+
+        .tf-sp-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--muted);
+          transition: all .2s;
+        }
+
+        .tf-status-pill.pub .tf-sp-label {
+          color: var(--teal);
+        }
+
+        .tf-status-pill.pub .tf-sp-dot {
+          background: var(--teal);
+          box-shadow: 0 0 0 2px rgba(26,112,112,.2);
+        }
+
+        .tf-status-pill.draft .tf-sp-label {
+          color: var(--muted);
+        }
+
+        .tf-stat-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .tf-stat-key {
+          font-family: 'Space Mono', monospace;
+          font-size: .58rem;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          color: var(--muted);
+        }
+
+        .tf-stat-val {
+          font-family: 'Playfair Display', serif;
+          font-size: 1.1rem;
+          font-weight: 900;
+          color: var(--ink);
+        }
+
+        .tf-stat-val.small {
+          font-size: .85rem;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 500;
+          color: var(--ink);
+        }
+
+        .tf-stat-val.dim {
+          color: var(--muted);
+          font-style: italic;
+          font-weight: 300;
+          font-size: .78rem;
+          font-family: 'DM Sans', sans-serif;
+        }
+
+        .tf-action-strip {
+          display: flex;
+          flex-direction: column;
+          gap: .55rem;
+          padding-top: .55rem;
+          border-top: 1px solid var(--line);
+        }
+
+        .tf-action-strip .tf-btn-teal {
+          justify-content: center;
+          width: 100%;
+        }
+
+        .tf-action-strip .tf-btn-outline {
+          justify-content: center;
+        }
+
+        .tf-check-item {
+          display: flex;
+          align-items: flex-start;
+          gap: .6rem;
+        }
+
+        .tf-ci-icon {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          margin-top: .1rem;
+        }
+
+        .tf-ci-icon.ok {
+          background: var(--teal-dim);
+        }
+
+        .tf-ci-icon.warn {
+          background: var(--gold-dim);
+        }
+
+        .tf-ci-icon svg {
+          width: 9px;
+          height: 9px;
+          stroke: currentColor;
+          fill: none;
+          stroke-width: 2.5;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .tf-ci-icon.ok svg {
+          stroke: var(--teal);
+        }
+
+        .tf-ci-icon.warn svg {
+          stroke: var(--gold);
+        }
+
+        .tf-ci-text {
+          font-size: .76rem;
+          color: var(--muted);
+          line-height: 1.4;
+        }
+
+        .tf-ci-text strong {
+          color: var(--ink);
+          font-weight: 500;
+        }
+
+        @keyframes tfFadeUp {
+          from { opacity: 0; transform: translateY(18px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 1100px) {
+          .tf-form-layout {
+            grid-template-columns: 1fr;
+          }
+          .tf-sidebar-cards {
+            position: static;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .tf-page-content {
+            padding: 1.5rem 1.5rem 3rem;
+          }
+          .tf-topbar {
+            padding: 0 1.5rem;
+          }
+        }
+      `}</style>
+
+      <div className="tf-unit-page">
+        <header className="tf-topbar">
+          <div className="tf-tbl">
+            <button onClick={() => navigate('/admin/units')} className="tf-back-link">
+              <ArrowLeft className="w-3 h-3" />
               Назад к юнитам
             </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                  Редактирование юнита
-                </h1>
-              </div>
-              <p className="mt-1 text-xs md:text-sm text-gray-500 line-clamp-1">
-                {formData.title || 'Название юнита еще не заполнено'}
-              </p>
+            <div className="tf-tbdiv"></div>
+            <div className="tf-breadcrumb">
+              <span>Units</span>
+              <span className="sep">›</span>
+              <span className="cur">Редактировать юнит</span>
             </div>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => handleSave(false)}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? 'Сохранение...' : 'Сохранить'}
+          <div className="tf-tbr">
+            <button className="tf-btn-outline" onClick={() => handleSave(false)} disabled={saving}>
+              <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Черновик
             </button>
-            <button
-              onClick={() => handleSave(true)}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? 'Публикация...' : 'Опубликовать'}
+            <button className="tf-btn-teal" onClick={() => handleSave(true)} disabled={saving}>
+              <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+              Опубликовать
             </button>
           </div>
-        </div>
-      </div>
+        </header>
 
-      {/* Main Content */}
-        <div className="max-w-4xl mx-auto px-4 lg:px-8 py-8">
-          <div className="space-y-6">
-              {/* Basic information */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  Основная информация
-                </h2>
+        <div className="tf-page-content">
+          <div className="tf-page-header">
+            <h1 className="tf-page-title">Редактировать <em>юнит</em></h1>
+            <p className="tf-page-meta">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Настройте структуру юнита — как модули и лекции на Coursera/Udemy
+            </p>
+          </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Название *
+          <div className="tf-form-layout">
+            {/* LEFT COLUMN */}
+            <div>
+              {/* Card 1: Основная информация */}
+              <div className="tf-form-card fc1">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <div className="tf-card-num">1</div>
+                    Основная информация
+                  </div>
+                </div>
+                <div className="tf-card-body">
+                  {/* Название */}
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="unit-title">
+                      Название <span className="tf-required-star">*</span>
                     </label>
-                    <input
-                      type="text"
-                      value={formData.title}
-                      onChange={(e) => handleInputChange('title', e.target.value)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      placeholder="Введите название юнита"
-                    />
+                    <div className="tf-input-wrap">
+                      <input
+                        type="text"
+                        id="unit-title"
+                        className={`tf-field-input ${!formData.title.trim() && saving ? 'err' : ''}`}
+                        placeholder="Например: знакомство (A1)"
+                        maxLength={100}
+                        value={formData.title}
+                        onChange={(e) => handleInputChange('title', e.target.value)}
+                      />
+                      <span className="tf-char-counter">{formData.title.length} / 100</span>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Уровень *
-                    </label>
-                    <select
-                      value={formData.level}
-                      onChange={(e) => handleInputChange('level', e.target.value)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    >
-                      <option value="A1">A1 - Начальный</option>
-                      <option value="A2">A2 - Элементарный</option>
-                      <option value="B1">B1 - Средний</option>
-                      <option value="B2">B2 - Выше среднего</option>
-                      <option value="C1">C1 - Продвинутый</option>
-                      <option value="C2">C2 - В совершенстве</option>
-                    </select>
+                  {/* Уровень */}
+                  <div className="tf-field">
+                    <label className="tf-field-label">Уровень</label>
+                    <div className="tf-level-grid">
+                      <input type="radio" name="level" id="lv-a1" value="A1" className="tf-level-option" checked={formData.level === 'A1'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                      <label htmlFor="lv-a1" className="tf-level-label">
+                        <span className="tf-level-code">A1</span>
+                        <span className="tf-level-name">Начальный</span>
+                      </label>
+
+                      <input type="radio" name="level" id="lv-a2" value="A2" className="tf-level-option" checked={formData.level === 'A2'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                      <label htmlFor="lv-a2" className="tf-level-label">
+                        <span className="tf-level-code">A2</span>
+                        <span className="tf-level-name">Элементарный</span>
+                      </label>
+
+                      <input type="radio" name="level" id="lv-b1" value="B1" className="tf-level-option" checked={formData.level === 'B1'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                      <label htmlFor="lv-b1" className="tf-level-label">
+                        <span className="tf-level-code">B1</span>
+                        <span className="tf-level-name">Средний</span>
+                      </label>
+
+                      <input type="radio" name="level" id="lv-b2" value="B2" className="tf-level-option" checked={formData.level === 'B2'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                      <label htmlFor="lv-b2" className="tf-level-label">
+                        <span className="tf-level-code">B2</span>
+                        <span className="tf-level-name">Выше среднего</span>
+                      </label>
+
+                      <input type="radio" name="level" id="lv-c1" value="C1" className="tf-level-option" checked={formData.level === 'C1'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                      <label htmlFor="lv-c1" className="tf-level-label">
+                        <span className="tf-level-code">C1</span>
+                        <span className="tf-level-name">Продвинутый</span>
+                      </label>
+
+                      <input type="radio" name="level" id="lv-c2" value="C2" className="tf-level-option" checked={formData.level === 'C2'} onChange={(e) => handleInputChange('level', e.target.value)} />
+                      <label htmlFor="lv-c2" className="tf-level-label">
+                        <span className="tf-level-code">C2</span>
+                        <span className="tf-level-name">В совершенстве</span>
+                      </label>
+                    </div>
                   </div>
 
-                  {/* Course Selection */}
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                      <BookMarked className="h-4 w-4 mr-1 text-gray-400" />
-                      Курс
-                    </label>
-                    <select
-                      value={formData.course_id || ''}
-                      onChange={(e) => handleInputChange('course_id', e.target.value ? parseInt(e.target.value) : null)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    >
-                      <option value="">Без курса (автономный юнит)</option>
-                      {availableCourses.map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {course.title} {course.level && `(${course.level})`}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Выберите курс, к которому будет принадлежать этот юнит. Если не выбран, юнит будет автономным.
-                    </p>
+                  {/* Курс */}
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="unit-course">Курс</label>
+                    <div className="tf-select-wrap">
+                      <select
+                        id="unit-course"
+                        className="tf-field-input select"
+                        value={formData.course_id || ''}
+                        onChange={(e) => handleInputChange('course_id', e.target.value ? parseInt(e.target.value) : null)}
+                      >
+                        <option value="">Без курса (автономный юнит)</option>
+                        {availableCourses.map((course) => (
+                          <option key={course.id} value={course.id}>
+                            {course.title} {course.level && `(${course.level})`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="tf-field-hint">Выберите курс, к которому будет принадлежать этот юнит. Если не выбран, юнит будет автономным.</p>
                     {availableCourses.length === 0 && !loadingContent && (
-                      <p className="mt-2 text-xs text-amber-600">
-                        Нет доступных курсов. <button 
+                      <p style={{ marginTop: '.5rem', fontSize: '.75rem', color: 'var(--rust)' }}>
+                        Нет доступных курсов. <button
                           type="button"
                           onClick={() => navigate('/admin/courses/new')}
-                          className="text-primary-600 hover:text-primary-700 underline"
+                          style={{ color: 'var(--teal)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
                         >
                           Создать курс
                         </button>
                       </p>
                     )}
                   </div>
-                </div>
 
-                {/* Description */}
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Описание
-                  </label>
-                  <RichTextEditor
-                    value={formData.description}
-                    onChange={(value) => handleInputChange('description', value)}
-                    placeholder="Краткое описание юнита"
-                  />
-                </div>
+                  {/* Описание */}
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="unit-desc">Описание</label>
+                    <div className="tf-input-wrap">
+                      <RichTextEditor
+                        value={formData.description}
+                        onChange={(value) => handleInputChange('description', value)}
+                        placeholder="Опишите содержание и цели этого юнита…"
+                      />
+                      <span className="tf-char-counter">{formData.description.length} / 600</span>
+                    </div>
+                  </div>
 
-                {/* Goals */}
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ключевые цели обучения
-                  </label>
-                  <textarea
-                    value={formData.goals}
-                    onChange={(e) => handleInputChange('goals', e.target.value)}
-                    rows={3}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    placeholder="Что студенты должны изучить в этом юните"
-                  />
+                  {/* Learning goals */}
+                  <div className="tf-field">
+                    <label className="tf-field-label">Ключевые цели обучения</label>
+                    <div className="tf-goals-list">
+                      {learningGoals.map((goal) => (
+                        <div key={goal.id} className="tf-goal-row">
+                          <div className="tf-goal-bullet">
+                            <Check className="w-2.5 h-2.5" />
+                          </div>
+                          <input
+                            type="text"
+                            className="tf-goal-input"
+                            placeholder="Студент сможет…"
+                            value={goal.text}
+                            onChange={(e) => handleGoalChange(goal.id, e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="tf-goal-del"
+                            onClick={() => handleRemoveGoal(goal.id)}
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button type="button" className="tf-add-goal-btn" onClick={handleAddGoal}>
+                      <Plus className="w-2.5 h-2.5" />
+                      Добавить цель
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -776,7 +2055,7 @@ export default function AdminUnitEditPage() {
                           onChange={(e) => setNewTag(e.target.value)}
                           onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
                           className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="Добавить тег"
+                          placeholder="Добавить тег (например: грамматика, A1, приветствия)"
                         />
                         <button
                           onClick={handleAddTag}
@@ -791,7 +2070,7 @@ export default function AdminUnitEditPage() {
                     {/* Publish at */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Запланировать публикацию (опционально)
+                        Дата публикации (опционально)
                       </label>
                       <input
                         type="datetime-local"
@@ -800,7 +2079,7 @@ export default function AdminUnitEditPage() {
                         className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                       />
                       <p className="mt-1 text-xs text-gray-500">
-                        Если указано, юнит будет опубликован в указанное время. Если не указано, публикация произойдет сразу.
+                        Если не указано, юнит будет опубликован сразу
                       </p>
                     </div>
 
@@ -843,48 +2122,493 @@ export default function AdminUnitEditPage() {
                 )}
               </div>
 
-              {/* Content structure – use existing renderContentSection */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Контент юнита
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      Управляйте видео, заданиями и тестами как структурой курса.
-                    </p>
+              {/* Card 2: Контент юнита */}
+              <div className="tf-form-card fc2">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <div className="tf-card-num">2</div>
+                    Контент юнита
+                  </div>
+                  <span style={{ fontSize: '.75rem', color: 'var(--muted)' }}>Добавьте видео, задания и тесты</span>
+                </div>
+                <div className="tf-card-body" style={{ padding: 0, gap: 0 }}>
+                  {/* Videos section */}
+                  <div className="tf-content-section">
+                    <div className="tf-cs-head">
+                      <div className="tf-cs-icon">
+                        <Video className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="tf-cs-title-wrap">
+                        <div className="tf-cs-title">Видео-уроки</div>
+                        <div className="tf-cs-count">{videos.length} видео</div>
+                      </div>
+                      <div className="tf-cs-add-wrap" ref={el => dropdownRefs.current['video'] = el}>
+                        <button className="tf-cs-add-btn" onClick={() => toggleDropdown('video')}>
+                          <Plus className="w-2.5 h-2.5" />
+                          Добавить существующий…
+                          <svg viewBox="0 0 24 24" style={{ width: '9px', height: '9px', marginLeft: '.15rem' }}>
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        </button>
+                        <div className={`tf-cs-dropdown ${openDropdown === 'video' ? 'open' : ''}`}>
+                          {unusedVideos.length > 0 && (
+                            <div className="tf-dd-section">
+                              <div className="tf-dd-section-label">Существующие видео</div>
+                              {unusedVideos.map(video => (
+                                <div key={video.id} className="tf-dd-item" onClick={() => handleAddExistingContent('video', video.id)}>
+                                  <Video className="w-3 h-3" />
+                                  {video.title}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="tf-dd-section">
+                            <div className="tf-dd-item create" onClick={() => navigate('/admin/videos/new')}>
+                              <Plus className="w-3 h-3" />
+                              Создать новый
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="tf-cs-body">
+                      {videos.length === 0 ? (
+                        <div className="tf-cs-empty">
+                          <div className="tf-cs-empty-icon">
+                            <Video className="w-4.5 h-4.5" />
+                          </div>
+                          <div className="tf-cs-empty-title">В этом юните нет видео</div>
+                          <div className="tf-cs-empty-sub">Выберите существующий или создайте новый выше</div>
+                        </div>
+                      ) : (
+                        videos.map((item, index) => (
+                          <div key={item.id} className="tf-content-chip">
+                            <div className="tf-chip-drag">
+                              <GripVertical className="w-3 h-3" />
+                            </div>
+                            <div className="tf-chip-icon">
+                              <Video className="w-3 h-3" style={{ stroke: 'var(--teal)' }} />
+                            </div>
+                            <div className="tf-chip-info">
+                              <div className="tf-chip-name">{item.title}</div>
+                              <div className="tf-chip-meta">Видео · №{index + 1}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '.5rem' }}>
+                              <button
+                                type="button"
+                                className="tf-chip-del"
+                                onClick={() => navigate(`/admin/videos/${item.id}/edit`)}
+                                title="Редактировать"
+                              >
+                                <Pencil className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="tf-chip-del"
+                                onClick={() => handleRemoveContent('video', item.id)}
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tasks section */}
+                  <div className="tf-content-section">
+                    <div className="tf-cs-head">
+                      <div className="tf-cs-icon">
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="tf-cs-title-wrap">
+                        <div className="tf-cs-title">Задания</div>
+                        <div className="tf-cs-count">{tasks.length} заданий</div>
+                      </div>
+                      <div className="tf-cs-add-wrap" ref={el => dropdownRefs.current['task'] = el}>
+                        <button className="tf-cs-add-btn" onClick={() => toggleDropdown('task')}>
+                          <Plus className="w-2.5 h-2.5" />
+                          Добавить существующий…
+                          <svg viewBox="0 0 24 24" style={{ width: '9px', height: '9px', marginLeft: '.15rem' }}>
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        </button>
+                        <div className={`tf-cs-dropdown ${openDropdown === 'task' ? 'open' : ''}`}>
+                          {unusedTasks.length > 0 && (
+                            <div className="tf-dd-section">
+                              <div className="tf-dd-section-label">Существующие задания</div>
+                              {unusedTasks.map(task => (
+                                <div key={task.id} className="tf-dd-item" onClick={() => handleAddExistingContent('task', task.id)}>
+                                  <FileText className="w-3 h-3" />
+                                  {task.title}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="tf-dd-section">
+                            <div className="tf-dd-item create" onClick={() => navigate('/admin/tasks/new')}>
+                              <Plus className="w-3 h-3" />
+                              Создать новый
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="tf-cs-body">
+                      {tasks.length === 0 ? (
+                        <div className="tf-cs-empty">
+                          <div className="tf-cs-empty-icon">
+                            <FileText className="w-4.5 h-4.5" />
+                          </div>
+                          <div className="tf-cs-empty-title">В этом юните нет заданий</div>
+                          <div className="tf-cs-empty-sub">Выберите существующий или создайте новый выше</div>
+                        </div>
+                      ) : (
+                        tasks.map((item, index) => (
+                          <div key={item.id} className="tf-content-chip">
+                            <div className="tf-chip-drag">
+                              <GripVertical className="w-3 h-3" />
+                            </div>
+                            <div className="tf-chip-icon">
+                              <FileText className="w-3 h-3" style={{ stroke: 'var(--gold)' }} />
+                            </div>
+                            <div className="tf-chip-info">
+                              <div className="tf-chip-name">{item.title}</div>
+                              <div className="tf-chip-meta">Задание · №{index + 1}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '.5rem' }}>
+                              <button
+                                type="button"
+                                className="tf-chip-del"
+                                onClick={() => navigate(`/admin/tasks/${item.id}/edit`)}
+                                title="Редактировать"
+                              >
+                                <Pencil className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="tf-chip-del"
+                                onClick={() => handleRemoveContent('task', item.id)}
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tests section */}
+                  <div className="tf-content-section">
+                    <div className="tf-cs-head">
+                      <div className="tf-cs-icon">
+                        <ClipboardList className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="tf-cs-title-wrap">
+                        <div className="tf-cs-title">Тесты</div>
+                        <div className="tf-cs-count">{tests.length} тестов</div>
+                      </div>
+                      <div className="tf-cs-add-wrap" ref={el => dropdownRefs.current['test'] = el}>
+                        <button className="tf-cs-add-btn" onClick={() => toggleDropdown('test')}>
+                          <Plus className="w-2.5 h-2.5" />
+                          Добавить существующий…
+                          <svg viewBox="0 0 24 24" style={{ width: '9px', height: '9px', marginLeft: '.15rem' }}>
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        </button>
+                        <div className={`tf-cs-dropdown ${openDropdown === 'test' ? 'open' : ''}`}>
+                          {unusedTests.length > 0 && (
+                            <div className="tf-dd-section">
+                              <div className="tf-dd-section-label">Существующие тесты</div>
+                              {unusedTests.map(test => (
+                                <div key={test.id} className="tf-dd-item" onClick={() => handleAddExistingContent('test', test.id)}>
+                                  <ClipboardList className="w-3 h-3" />
+                                  {test.title}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="tf-dd-section">
+                            <div className="tf-dd-item create" onClick={() => navigate('/admin/tests/new')}>
+                              <Plus className="w-3 h-3" />
+                              Создать новый
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="tf-cs-body">
+                      {tests.length === 0 ? (
+                        <div className="tf-cs-empty">
+                          <div className="tf-cs-empty-icon">
+                            <ClipboardList className="w-4.5 h-4.5" />
+                          </div>
+                          <div className="tf-cs-empty-title">В этом юните нет тестов</div>
+                          <div className="tf-cs-empty-sub">Выберите существующий или создайте новый выше</div>
+                        </div>
+                      ) : (
+                        tests.map((item, index) => (
+                          <div key={item.id} className="tf-content-chip">
+                            <div className="tf-chip-drag">
+                              <GripVertical className="w-3 h-3" />
+                            </div>
+                            <div className="tf-chip-icon">
+                              <ClipboardList className="w-3 h-3" style={{ stroke: 'var(--rust)' }} />
+                            </div>
+                            <div className="tf-chip-info">
+                              <div className="tf-chip-name">{item.title}</div>
+                              <div className="tf-chip-meta">Тест · №{index + 1}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '.5rem' }}>
+                              <button
+                                type="button"
+                                className="tf-chip-del"
+                                onClick={() => navigate(`/admin/tests/${item.id}/edit`)}
+                                title="Редактировать"
+                              >
+                                <Pencil className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="tf-chip-del"
+                                onClick={() => handleRemoveContent('test', item.id)}
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced toggle */}
+              <div className={`tf-adv-toggle ${showAdvanced ? 'open' : ''}`} onClick={() => setShowAdvanced(!showAdvanced)}>
+                <span className="tf-adv-toggle-lbl">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  {showAdvanced ? 'Скрыть' : 'Расширенные настройки'}
+                </span>
+                <svg className="tf-adv-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+
+              <div className={`tf-adv-panel ${showAdvanced ? 'open' : ''}`}>
+                {/* Sort order + Tags */}
+                <div className="tf-form-card" style={{ borderTop: 'none' }}>
+                  <div className="tf-card-header">
+                    <div className="tf-card-title">
+                      <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                      Порядок и теги
+                    </div>
+                  </div>
+                  <div className="tf-card-body">
+                    <div className="tf-field">
+                      <label className="tf-field-label" htmlFor="sort-order">Порядок отображения</label>
+                      <p className="tf-field-hint">Порядок отображения юнита в списке. Меньшие значения отображаются первыми.</p>
+                      <div className="tf-num-wrap">
+                        <input
+                          type="number"
+                          id="sort-order"
+                          className="tf-field-input"
+                          value={formData.order_index === '' ? '' : formData.order_index}
+                          min="0"
+                          max="9999"
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === '') {
+                              handleInputChange('order_index', '');
+                              return;
+                            }
+                            handleInputChange('order_index', parseInt(raw, 10));
+                          }}
+                        />
+                        <div className="tf-num-arrows">
+                          <button type="button" className="tf-num-arrow" onClick={() => stepNumber('order_index', 1)}>▲</button>
+                          <button type="button" className="tf-num-arrow" onClick={() => stepNumber('order_index', -1)}>▼</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="tf-field">
+                      <label className="tf-field-label">Теги</label>
+                      <div className="tf-tags-wrap">
+                        {formData.tags.map((tag, index) => (
+                          <span key={index} className="tf-tag-chip">
+                            {tag}
+                            <X className="w-2.5 h-2.5" onClick={() => handleRemoveTag(tag)} />
+                          </span>
+                        ))}
+                      </div>
+                      <div className="tf-tag-input-row">
+                        <input
+                          type="text"
+                          className="tf-tag-input"
+                          placeholder="Новый тег…"
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                        />
+                        <button type="button" className="tf-tag-add-btn" onClick={handleAddTag}>
+                          Добавить
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {renderContentSection(
-                  'Видео',
-                  videos,
-                  'video',
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/10">
-                    <span className="text-xs font-semibold text-blue-600">V</span>
+                {/* Schedule + SEO */}
+                <div className="tf-form-card" style={{ borderTop: 'none' }}>
+                  <div className="tf-card-header">
+                    <div className="tf-card-title">
+                      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      Публикация и SEO
+                    </div>
                   </div>
-                )}
+                  <div className="tf-card-body">
+                    <div className="tf-field">
+                      <label className="tf-field-label" htmlFor="sched-pub">
+                        Запланировать публикацию <span style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 300, textTransform: 'none', letterSpacing: 0, color: 'var(--muted)' }}>(опционально)</span>
+                      </label>
+                      <p className="tf-field-hint">Если указано, юнит будет опубликован в указанное время. Если не указано, публикация произойдет сразу.</p>
+                      <input
+                        type="datetime-local"
+                        id="sched-pub"
+                        className="tf-field-input"
+                        value={formData.publish_at}
+                        onChange={(e) => handleInputChange('publish_at', e.target.value)}
+                      />
+                    </div>
 
-                {renderContentSection(
-                  'Задания',
-                  tasks,
-                  'task',
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/10">
-                    <span className="text-xs font-semibold text-green-600">T</span>
-                  </div>
-                )}
+                    <div style={{ height: '1px', background: 'var(--line)', margin: '0 -.1rem' }}></div>
 
-                {renderContentSection(
-                  'Тесты',
-                  tests,
-                  'test',
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/10">
-                    <span className="text-xs font-semibold text-purple-600">Q</span>
+                    <div className="tf-field">
+                      <label className="tf-field-label">SEO настройки</label>
+                    </div>
+                    <div className="tf-field">
+                      <label className="tf-field-label" htmlFor="meta-title">Meta заголовок</label>
+                      <div className="tf-input-wrap">
+                        <input
+                          type="text"
+                          id="meta-title"
+                          className="tf-field-input"
+                          placeholder="SEO заголовок страницы юнита…"
+                          maxLength={60}
+                          value={formData.meta_title}
+                          onChange={(e) => handleInputChange('meta_title', e.target.value)}
+                        />
+                        <span className="tf-char-counter">{formData.meta_title.length} / 60</span>
+                      </div>
+                      <p className="tf-field-hint">Рекомендуется до 60 символов для корректного отображения в поисковиках.</p>
+                    </div>
+                    <div className="tf-field">
+                      <label className="tf-field-label" htmlFor="meta-desc">Meta описание</label>
+                      <div className="tf-input-wrap">
+                        <textarea
+                          id="meta-desc"
+                          className="tf-field-input"
+                          placeholder="Краткое описание для поисковых систем…"
+                          rows={2}
+                          maxLength={160}
+                          value={formData.meta_description}
+                          onChange={(e) => handleInputChange('meta_description', e.target.value)}
+                        />
+                        <span className="tf-char-counter">{formData.meta_description.length} / 160</span>
+                      </div>
+                      <p className="tf-field-hint">Рекомендуется до 160 символов.</p>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
+            </div>
+
+            {/* RIGHT SIDEBAR */}
+            <div className="tf-sidebar-cards">
+              {/* Summary card */}
+              <div className="tf-sidebar-card sc1">
+                <div className="tf-sc-header">
+                  <div className="tf-sc-title">
+                    <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    Юнит
+                  </div>
+                </div>
+                <div className="tf-sc-body">
+                  <div className={`tf-status-pill ${formData.status === 'published' ? 'pub' : 'draft'}`}>
+                    <span className="tf-sp-label">{formData.status === 'published' ? 'Опубликовано' : 'Черновик'}</span>
+                    <div className="tf-sp-dot"></div>
+                  </div>
+                  <div className="tf-stat-row">
+                    <span className="tf-stat-key">Название</span>
+                    <span className={`tf-stat-val ${formData.title.trim() ? '' : 'dim'}`} style={formData.title.trim() ? { fontFamily: "'DM Sans',sans-serif", fontWeight: 500, fontSize: '.85rem' } : {}}>
+                      {formData.title.trim() || 'Не указано'}
+                    </span>
+                  </div>
+                  <div className="tf-stat-row">
+                    <span className="tf-stat-key">Уровень</span>
+                    <span className="tf-stat-val small">{formData.level}</span>
+                  </div>
+                  <div className="tf-stat-row">
+                    <span className="tf-stat-key">Курс</span>
+                    <span className={`tf-stat-val ${formData.course_id ? 'small' : 'dim'}`}>
+                      {courseName}
+                    </span>
+                  </div>
+                  <div className="tf-stat-row">
+                    <span className="tf-stat-key">Видео</span>
+                    <span className="tf-stat-val">{videos.length}</span>
+                  </div>
+                  <div className="tf-stat-row">
+                    <span className="tf-stat-key">Задания</span>
+                    <span className="tf-stat-val">{tasks.length}</span>
+                  </div>
+                  <div className="tf-stat-row">
+                    <span className="tf-stat-key">Тесты</span>
+                    <span className="tf-stat-val">{tests.length}</span>
+                  </div>
+                  <div className="tf-action-strip">
+                    <button className="tf-btn-teal" onClick={() => handleSave(true)} disabled={saving}>
+                      <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+                      Опубликовать
+                    </button>
+                    <button className="tf-btn-outline" onClick={() => handleSave(false)} disabled={saving}>
+                      <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                      Сохранить черновик
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Checklist card */}
+              <div className="tf-sidebar-card sc2">
+                <div className="tf-sc-header">
+                  <div className="tf-sc-title">
+                    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    Чеклист
+                  </div>
+                </div>
+                <div className="tf-sc-body">
+                  {checklistItems.map((item, index) => (
+                    <div key={index} className="tf-check-item">
+                      <div className={`tf-ci-icon ${item.type}`}>
+                        {item.type === 'ok' ? (
+                          <Check className="w-2.5 h-2.5" />
+                        ) : (
+                          <AlertCircle className="w-2.5 h-2.5" />
+                        )}
+                      </div>
+                      <div className="tf-ci-text">
+                        <strong>{item.label}</strong><br />
+                        {item.status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-    </div>
+      </div>
+    </>
   );
 }

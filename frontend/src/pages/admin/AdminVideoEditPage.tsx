@@ -8,7 +8,22 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Youtube, Upload, Image as ImageIcon, Sparkles, Settings as SettingsIcon, Trash2, X, Check } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Youtube, 
+  Upload, 
+  X, 
+  Check, 
+  Settings as SettingsIcon, 
+  Image as ImageIcon, 
+  Sparkles,
+  Save,
+  Video,
+  Link as LinkIcon,
+  File,
+  Clock,
+  Info
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { videosApi, unitsApi } from '../../services/api';
 
@@ -71,6 +86,10 @@ export default function AdminVideoEditPage() {
   
   // Local state for order_index input to allow clearing
   const [orderIndexInput, setOrderIndexInput] = useState<string>('0');
+
+  // Video preview state
+  const [videoEmbedUrl, setVideoEmbedUrl] = useState<string>('');
+  const [platformBadge, setPlatformBadge] = useState<{ type: 'youtube' | 'vimeo' | 'other' | null; label: string }>({ type: null, label: '' });
 
   // Load available units on mount
   useEffect(() => {
@@ -378,627 +397,1532 @@ export default function AdminVideoEditPage() {
     }
   };
 
+  const getThumbnailUrl = () => {
+    if (thumbnailPath) {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+      return `${apiBase}/static/${thumbnailPath}`;
+    }
+    return '';
+  };
+
+  const handleVideoUrl = (url: string) => {
+    setFormData(prev => ({ ...prev, external_url: url }));
+    updateVideoPreview(url);
+  };
+
+  const updateVideoPreview = (url: string) => {
+    // Extract video ID and create embed URL
+    let embedUrl = '';
+    let platform: 'youtube' | 'vimeo' | 'other' | null = null;
+    let label = '';
+
+    if (url.includes('youtube.com/watch') || url.includes('youtu.be/')) {
+      let videoId = '';
+      if (url.includes('youtube.com/watch')) {
+        videoId = url.split('v=')[1]?.split('&')[0] || '';
+      } else if (url.includes('youtu.be/')) {
+        videoId = url.split('youtu.be/')[1]?.split('?')[0] || '';
+      }
+      if (videoId) {
+        embedUrl = `https://www.youtube.com/embed/${videoId}`;
+        platform = 'youtube';
+        label = 'YouTube';
+      }
+    } else if (url.includes('vimeo.com/')) {
+      const videoId = url.split('vimeo.com/')[1]?.split('?')[0] || '';
+      if (videoId) {
+        embedUrl = `https://player.vimeo.com/video/${videoId}`;
+        platform = 'vimeo';
+        label = 'Vimeo';
+      }
+    }
+
+    if (embedUrl) {
+      setVideoEmbedUrl(embedUrl);
+      setPlatformBadge({ type: platform, label });
+    } else {
+      setVideoEmbedUrl('');
+      setPlatformBadge({ type: null, label: '' });
+    }
+  };
+
+  const switchSource = (type: 'url' | 'file') => {
+    setFormData(prev => ({ ...prev, source_type: type }));
+    if (type === 'file') {
+      setSelectedFile(null);
+      setUploadedFilePath(null);
+      setVideoEmbedUrl('');
+      setPlatformBadge({ type: null, label: '' });
+    }
+  };
+
+  const stepNumber = (field: 'order_index', delta: number) => {
+    const currentValue = formData.order_index;
+    const newValue = Math.max(0, currentValue + delta);
+    setFormData(prev => ({ ...prev, order_index: newValue }));
+  };
+
+  const selectedUnit = availableUnits.find(u => u.id === formData.unit_id);
+
+  // Initialize video preview when external_url is loaded
+  useEffect(() => {
+    if (formData.external_url) {
+      updateVideoPreview(formData.external_url);
+    }
+  }, [formData.external_url]);
+
   // Loading state UI
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen" style={{ background: '#f0e9d8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          <p className="text-sm text-gray-500">Загрузка данных видео...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#1a7070' }}></div>
+          <p className="text-sm" style={{ color: '#6b6456' }}>Загрузка данных видео...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top sticky bar – Udemy/Coursera style */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/admin/videos')}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap');
+        
+        .tf-root {
+          --ink: #0e0e0e;
+          --cream: #f5f0e8;
+          --warm: #f0e9d8;
+          --gold: #c9962a;
+          --gold-light: #e8b84b;
+          --rust: #c94a2a;
+          --teal: #1a7070;
+          --teal-light: #2a9898;
+          --teal-dim: rgba(26,112,112,0.1);
+          --muted: #6b6456;
+          --line: rgba(14,14,14,0.1);
+        }
+
+        .tf-page {
+          min-height: 100vh;
+          background: var(--warm);
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 300;
+          color: var(--ink);
+        }
+
+        .tf-topbar {
+          background: var(--cream);
+          border-bottom: 1px solid var(--line);
+          padding: 0 2.5rem;
+          height: 64px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          position: sticky;
+          top: 0;
+          z-index: 50;
+        }
+
+        .tf-topbar-left {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .tf-back-link {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.65rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--muted);
+          text-decoration: none;
+          transition: color 0.2s;
+          white-space: nowrap;
+          background: none;
+          border: none;
+          cursor: pointer;
+        }
+
+        .tf-back-link:hover {
+          color: var(--teal);
+        }
+
+        .tf-topbar-divider {
+          width: 1px;
+          height: 18px;
+          background: var(--line);
+          flex-shrink: 0;
+        }
+
+        .tf-breadcrumb {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.65rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .tf-breadcrumb .sep {
+          opacity: 0.35;
+        }
+
+        .tf-breadcrumb .current {
+          color: var(--ink);
+        }
+
+        .tf-btn-outline {
+          background: none;
+          border: 1px solid var(--line);
+          padding: 0.48rem 1rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.65rem;
+          letter-spacing: 0.07em;
+          cursor: pointer;
+          color: var(--muted);
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .tf-btn-outline:hover {
+          border-color: var(--ink);
+          color: var(--ink);
+        }
+
+        .tf-btn-primary {
+          background: var(--teal);
+          color: #fff;
+          border: none;
+          padding: 0.52rem 1.25rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.68rem;
+          letter-spacing: 0.07em;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          transition: background 0.2s;
+          white-space: nowrap;
+        }
+
+        .tf-btn-primary:hover {
+          background: var(--teal-light);
+        }
+
+        .tf-btn-primary:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .tf-page-content {
+          padding: 2.5rem 2.5rem 4rem;
+        }
+
+        .tf-page-header {
+          margin-bottom: 2.25rem;
+        }
+
+        .tf-page-title {
+          font-family: 'Playfair Display', serif;
+          font-size: 2rem;
+          font-weight: 900;
+          line-height: 1.1;
+        }
+
+        .tf-page-title em {
+          font-style: italic;
+          color: var(--teal);
+        }
+
+        .tf-page-meta {
+          margin-top: 0.4rem;
+          font-size: 0.85rem;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .tf-form-layout {
+          display: grid;
+          grid-template-columns: 1fr 320px;
+          gap: 1.75rem;
+          align-items: start;
+        }
+
+        .tf-form-card {
+          background: var(--cream);
+          border: 1px solid var(--line);
+        }
+
+        .tf-card-header {
+          padding: 1.1rem 1.5rem;
+          border-bottom: 1px solid var(--line);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: var(--warm);
+        }
+
+        .tf-card-title {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.68rem;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--ink);
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+        }
+
+        .tf-card-title-num {
+          width: 22px;
+          height: 22px;
+          background: var(--teal);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.62rem;
+          font-weight: 700;
+          color: #fff;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        .tf-card-body {
+          padding: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1.35rem;
+        }
+
+        .tf-field {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+
+        .tf-field-label {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.62rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--ink);
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
+
+        .tf-required-star {
+          color: var(--rust);
+          font-size: 0.8rem;
+        }
+
+        .tf-field-hint {
+          font-size: 0.78rem;
+          color: var(--muted);
+          margin-top: -0.2rem;
+          line-height: 1.5;
+        }
+
+        .tf-field-input {
+          width: 100%;
+          padding: 0.7rem 0.9rem;
+          border: 1px solid var(--line);
+          background: var(--warm);
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.9rem;
+          font-weight: 300;
+          color: var(--ink);
+          outline: none;
+          transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+          border-radius: 0;
+          resize: none;
+        }
+
+        .tf-field-input:focus {
+          border-color: var(--teal);
+          background: var(--cream);
+          box-shadow: 0 0 0 3px var(--teal-dim);
+        }
+
+        .tf-field-input::placeholder {
+          color: rgba(107,100,86,0.4);
+        }
+
+        .tf-field-input.error {
+          border-color: var(--rust);
+        }
+
+        textarea.tf-field-input {
+          min-height: 100px;
+          line-height: 1.6;
+        }
+
+        .tf-input-wrap {
+          position: relative;
+        }
+
+        .tf-char-counter {
+          position: absolute;
+          bottom: 0.55rem;
+          right: 0.7rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.55rem;
+          color: var(--muted);
+          opacity: 0.5;
+          pointer-events: none;
+        }
+
+        .tf-custom-select-wrap {
+          position: relative;
+        }
+
+        .tf-custom-select-wrap::after {
+          content: '';
+          position: absolute;
+          right: 0.9rem;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 0;
+          height: 0;
+          border-left: 4px solid transparent;
+          border-right: 4px solid transparent;
+          border-top: 5px solid var(--muted);
+          pointer-events: none;
+        }
+
+        .tf-field-input.select-field {
+          appearance: none;
+          -webkit-appearance: none;
+          cursor: pointer;
+          padding-right: 2.5rem;
+        }
+
+        .tf-source-tabs {
+          display: flex;
+          border: 1px solid var(--line);
+          overflow: hidden;
+        }
+
+        .tf-source-tab {
+          flex: 1;
+          padding: 0.65rem 0.5rem;
+          border: none;
+          background: var(--warm);
+          font-family: 'Space Mono', monospace;
+          font-size: 0.58rem;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+          color: var(--muted);
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: center;
+          border-right: 1px solid var(--line);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.3rem;
+        }
+
+        .tf-source-tab:last-child {
+          border-right: none;
+        }
+
+        .tf-source-tab:hover {
+          background: var(--cream);
+          color: var(--ink);
+        }
+
+        .tf-source-tab.active {
+          background: var(--ink);
+          color: var(--cream);
+        }
+
+        .tf-source-panel {
+          display: none;
+        }
+
+        .tf-source-panel.active {
+          display: flex;
+          flex-direction: column;
+          gap: 1.1rem;
+        }
+
+        .tf-video-embed-wrap {
+          position: relative;
+          width: 100%;
+          padding-bottom: 56.25%;
+          background: var(--ink);
+          overflow: hidden;
+        }
+
+        .tf-video-embed-wrap iframe {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          border: none;
+        }
+
+        .tf-video-embed-placeholder {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+        }
+
+        .tf-platform-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          padding: 0.3rem 0.7rem;
+          font-family: 'Space Mono', monospace;
+          font-size: 0.6rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .tf-platform-yt {
+          background: rgba(255,0,0,0.1);
+          color: #cc0000;
+        }
+
+        .tf-platform-vimeo {
+          background: rgba(26,120,190,0.1);
+          color: #1a78be;
+        }
+
+        .tf-platform-other {
+          background: var(--teal-dim);
+          color: var(--teal);
+        }
+
+        .tf-file-drop {
+          border: 2px dashed var(--line);
+          background: var(--warm);
+          padding: 2.25rem 1.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.75rem;
+          cursor: pointer;
+          transition: all 0.25s;
+          text-align: center;
+        }
+
+        .tf-file-drop:hover,
+        .tf-file-drop.drag {
+          border-color: var(--teal);
+          background: rgba(26,112,112,0.04);
+        }
+
+        .tf-file-drop-icon {
+          width: 48px;
+          height: 48px;
+          background: var(--ink);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .tf-file-drop-title {
+          font-weight: 500;
+          font-size: 0.9rem;
+          color: var(--ink);
+        }
+
+        .tf-file-drop-sub {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.58rem;
+          color: var(--muted);
+          opacity: 0.6;
+          letter-spacing: 0.06em;
+        }
+
+        .tf-upload-progress {
+          display: none;
+          flex-direction: column;
+          gap: 0.55rem;
+        }
+
+        .tf-upload-progress.active {
+          display: flex;
+        }
+
+        .tf-upload-file-row {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .tf-upload-file-icon {
+          width: 32px;
+          height: 32px;
+          background: var(--teal-dim);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .tf-upload-file-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .tf-upload-file-name {
+          font-size: 0.82rem;
+          font-weight: 500;
+          color: var(--ink);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tf-upload-file-size {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.58rem;
+          color: var(--muted);
+        }
+
+        .tf-upload-cancel {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--muted);
+          padding: 0.25rem;
+          transition: color 0.2s;
+        }
+
+        .tf-upload-cancel:hover {
+          color: var(--rust);
+        }
+
+        .tf-upload-bar-track {
+          height: 4px;
+          background: var(--warm);
+          border: 1px solid var(--line);
+          border-radius: 3px;
+          overflow: hidden;
+        }
+
+        .tf-upload-bar-fill {
+          height: 100%;
+          background: var(--teal);
+          border-radius: 3px;
+          width: 0%;
+          transition: width 0.3s;
+        }
+
+        .tf-upload-pct {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.58rem;
+          color: var(--teal);
+          font-weight: 700;
+        }
+
+        .tf-number-input-wrap {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .tf-number-input-wrap .tf-field-input {
+          -moz-appearance: textfield;
+          padding-right: 2.5rem;
+        }
+
+        .tf-number-input-wrap .tf-field-input::-webkit-inner-spin-button,
+        .tf-number-input-wrap .tf-field-input::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+        }
+
+        .tf-num-arrows {
+          position: absolute;
+          right: 1px;
+          top: 1px;
+          bottom: 1px;
+          display: flex;
+          flex-direction: column;
+          width: 28px;
+          border-left: 1px solid var(--line);
+        }
+
+        .tf-num-arrow {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--warm);
+          border: none;
+          cursor: pointer;
+          color: var(--muted);
+          transition: background 0.15s, color 0.15s;
+          font-size: 0.58rem;
+        }
+
+        .tf-num-arrow:hover {
+          background: var(--cream);
+          color: var(--teal);
+        }
+
+        .tf-num-arrow + .tf-num-arrow {
+          border-top: 1px solid var(--line);
+        }
+
+        .tf-cover-area {
+          border: 2px dashed var(--line);
+          background: var(--warm);
+          transition: all 0.2s;
+          overflow: hidden;
+        }
+
+        .tf-cover-area:hover {
+          border-color: var(--teal);
+        }
+
+        .tf-cover-placeholder {
+          padding: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.6rem;
+          cursor: pointer;
+        }
+
+        .tf-cover-placeholder-text {
+          font-size: 0.78rem;
+          color: var(--muted);
+          text-align: center;
+        }
+
+        .tf-cover-placeholder-sub {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.54rem;
+          color: var(--muted);
+          opacity: 0.5;
+          text-align: center;
+        }
+
+        .tf-cover-preview {
+          width: 100%;
+          aspect-ratio: 16/9;
+          object-fit: cover;
+          display: none;
+        }
+
+        .tf-cover-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .tf-cover-btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+          padding: 0.55rem;
+          border: 1px solid var(--line);
+          background: var(--cream);
+          font-family: 'Space Mono', monospace;
+          font-size: 0.58rem;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: var(--muted);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .tf-cover-btn:hover {
+          border-color: var(--teal);
+          color: var(--teal);
+          background: var(--teal-dim);
+        }
+
+        .tf-cover-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .tf-toggle-field {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+        }
+
+        .tf-toggle-info {
+          flex: 1;
+        }
+
+        .tf-toggle-name {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.62rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--ink);
+        }
+
+        .tf-toggle-desc {
+          font-size: 0.75rem;
+          color: var(--muted);
+          margin-top: 0.2rem;
+          line-height: 1.4;
+        }
+
+        .tf-ts-inner {
+          position: relative;
+          width: 44px;
+          height: 24px;
+          display: block;
+        }
+
+        .tf-ts-inner input {
+          opacity: 0;
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          cursor: pointer;
+          z-index: 2;
+          margin: 0;
+        }
+
+        .tf-ts-track {
+          position: absolute;
+          inset: 0;
+          border-radius: 12px;
+          background: rgba(107,100,86,0.2);
+          border: 1px solid var(--line);
+          transition: background 0.2s, border-color 0.2s;
+        }
+
+        .tf-ts-thumb {
+          position: absolute;
+          top: 3px;
+          left: 3px;
+          width: 16px;
+          height: 16px;
+          background: #fff;
+          border-radius: 50%;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+          transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        .tf-ts-inner input:checked ~ .tf-ts-track {
+          background: var(--teal);
+          border-color: var(--teal);
+        }
+
+        .tf-ts-inner input:checked ~ .tf-ts-thumb {
+          transform: translateX(20px);
+        }
+
+        .tf-advanced-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.85rem 1.5rem;
+          background: var(--warm);
+          border: 1px solid var(--line);
+          cursor: pointer;
+          user-select: none;
+          transition: background 0.2s;
+        }
+
+        .tf-advanced-toggle:hover {
+          background: var(--cream);
+        }
+
+        .tf-advanced-toggle-label {
+          font-family: 'Space Mono', monospace;
+          font-size: 0.65rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .tf-advanced-chevron {
+          width: 16px;
+          height: 16px;
+          stroke: var(--muted);
+          fill: none;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          transition: transform 0.3s;
+        }
+
+        .tf-advanced-toggle.open .tf-advanced-chevron {
+          transform: rotate(180deg);
+        }
+
+        .tf-advanced-panel {
+          display: none;
+        }
+
+        .tf-advanced-panel.open {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+
+        .tf-advanced-panel .tf-form-card {
+          border-top: none;
+        }
+
+        .tf-sidebar-cards {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+
+        .tf-preview-card {
+          background: var(--ink);
+          border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .tf-preview-card .tf-card-header {
+          background: rgba(255,255,255,0.04);
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .tf-preview-card .tf-card-title {
+          color: rgba(245,240,232,0.5);
+        }
+
+        .tf-preview-card .tf-card-body {
+          gap: 0;
+          padding: 0;
+        }
+
+        .tf-unit-chip {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .tf-unit-chip-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        .tf-unit-chip-text {
+          font-size: 0.8rem;
+          color: rgba(245,240,232,0.6);
+          flex: 1;
+        }
+
+        .tf-tips-card {
+          background: var(--cream);
+          border: 1px solid var(--line);
+        }
+
+        .tf-tip-item {
+          display: flex;
+          gap: 0.65rem;
+          padding: 0.75rem 1.25rem;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .tf-tip-item:last-child {
+          border-bottom: none;
+        }
+
+        .tf-tip-icon {
+          width: 24px;
+          height: 24px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-top: 0.1rem;
+        }
+
+        .tf-tip-text {
+          font-size: 0.78rem;
+          color: var(--muted);
+          line-height: 1.5;
+        }
+
+        .tf-tip-text strong {
+          color: var(--ink);
+          font-weight: 500;
+        }
+
+        .tf-field-input[type="date"],
+        .tf-field-input[type="datetime-local"] {
+          color-scheme: light;
+        }
+
+        @media (max-width: 1100px) {
+          .tf-form-layout {
+            grid-template-columns: 1fr;
+          }
+          .tf-sidebar-cards {
+            display: contents;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .tf-page-content {
+            padding: 1.5rem 1.5rem 3rem;
+          }
+          .tf-topbar {
+            padding: 0 1.5rem;
+          }
+        }
+      `}</style>
+
+      <div className="tf-page tf-root">
+        <header className="tf-topbar">
+          <div className="tf-topbar-left">
+            <button onClick={() => navigate('/admin/videos')} className="tf-back-link">
+              <ArrowLeft className="w-3 h-3" />
               Назад к видео
             </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                  Редактирование видео
-                </h1>
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-                  {formData.status === 'published'
-                    ? 'Опубликовано'
-                    : formData.status === 'draft'
-                    ? 'Черновик'
-                    : 'Архивировано'}
-                </span>
-              </div>
-              <p className="mt-1 text-xs md:text-sm text-gray-500 line-clamp-1">
-                {formData.title || 'Название видео еще не заполнено'}
-              </p>
+            <div className="tf-topbar-divider"></div>
+            <div className="tf-breadcrumb">
+              <span>Видео</span>
+              <span className="sep">›</span>
+              <span className="current">Редактирование видео</span>
             </div>
           </div>
-
-          <div className="flex items-center gap-3">
-            {/* <button
-              onClick={() => setShowPreview(!showPreview)}
-              className="hidden sm:inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр'}
-            </button> */}
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Save className="h-4 w-4 mr-2" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button className="tf-btn-outline" onClick={() => handleSave()} disabled={saving}>
+              <Save className="w-3 h-3" />
+              Черновик
+            </button>
+            <button className="tf-btn-primary" onClick={() => handleSave()} disabled={saving}>
+              <Video className="w-3 h-3" />
               {saving ? 'Сохранение...' : 'Сохранить изменения'}
             </button>
           </div>
-        </div>
-      </div>
+        </header>
 
-      {/* Main content */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* MAIN COLUMN – basic info + source */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Basic info */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Основная информация
-              </h2>
-
-              <div className="space-y-4">
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Название видео *
-                  </label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    placeholder="Например: Итальянский A1 – Приветствия и знакомства"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Описание
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    rows={4}
-                    placeholder="Кратко опишите, о чем это видео и что студент выучит."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                  />
-                </div>
-
-                {/* Unit selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Юнит *
-                  </label>
-                  <select
-                    name="unit_id"
-                    value={formData.unit_id}
-                    onChange={handleChange}
-                    disabled={loadingUnits}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value={0}>Выберите юнит</option>
-                    {availableUnits.map(unit => (
-                      <option key={unit.id} value={unit.id}>
-                        {unit.title} ({unit.level})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Выберите юнит, к которому относится это видео.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-
-            {/* Video source */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Источник видео
-              </h2>
-
-              <div className="space-y-4">
-                {/* Source type (readonly-ish, but you can still allow changing if needed) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Тип источника
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, source_type: 'url' }));
-                        // Reset file states when switching to URL
-                        setSelectedFile(null);
-                        setUploadedFilePath(null);
-                      }}
-                      className={`flex flex-col items-center justify-center p-4 border-2 rounded-lg transition-colors ${
-                        formData.source_type === 'url'
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <Youtube className="h-8 w-8 text-red-600 mb-2" />
-                      <span className="text-sm font-medium text-gray-900">
-                        YouTube/Vimeo
-                      </span>
-                      <span className="text-xs text-gray-500 mt-1">
-                        Внешняя ссылка
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, source_type: 'file' }));
-                        // Reset URL when switching to file
-                        setFormData(prev => ({ ...prev, external_url: '' }));
-                      }}
-                      className={`flex flex-col items-center justify-center p-4 border-2 rounded-lg transition-colors ${
-                        formData.source_type === 'file'
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <svg
-                        className="h-8 w-8 text-gray-600 mb-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      <span className="text-sm font-medium text-gray-900">
-                        Файл
-                      </span>
-                      <span className="text-xs text-gray-500 mt-1">
-                        Локально загруженное видео
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* URL input */}
-                {formData.source_type === 'url' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      URL видео (YouTube/Vimeo)
-                    </label>
-                    <input
-                      type="text"
-                      name="external_url"
-                      value={formData.external_url}
-                      onChange={handleChange}
-                      placeholder="https://www.youtube.com/watch?v=..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Поддерживаются ссылки YouTube и Vimeo.
-                    </p>
-                  </div>
-                )}
-
-                {/* File Upload */}
-                {formData.source_type === 'file' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Загрузка видео файла *
-                    </label>
-                    
-                    {!selectedFile && !uploadedFilePath && !formData.file_path ? (
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:bg-gray-100 transition-colors">
-                        <input
-                          type="file"
-                          id="video-upload"
-                          accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/ogg,video/x-flv,video/3gpp,video/x-ms-wmv,.mp4,.webm,.mov,.avi,.mkv,.ogv,.flv,.3gp,.wmv"
-                          onChange={handleFileSelect}
-                          className="hidden"
-                        />
-                        <label
-                          htmlFor="video-upload"
-                          className="cursor-pointer flex flex-col items-center"
-                        >
-                          <Upload className="h-12 w-12 text-gray-400 mb-3" />
-                          <p className="mt-2 text-sm text-gray-600">
-                            <span className="font-medium text-primary-600 hover:text-primary-700">
-                              Нажмите для выбора файла
-                            </span>{' '}
-                            или перетащите файл сюда
-                          </p>
-                          <p className="mt-1 text-xs text-gray-500">
-                            Поддерживаемые форматы: MP4, WebM, MOV, AVI, MKV, OGV, FLV, 3GP, WMV
-                          </p>
-                          <p className="mt-1 text-xs text-gray-400">
-                            Максимальный размер: 2GB
-                          </p>
-                        </label>
-                      </div>
-                    ) : selectedFile && !uploadedFilePath ? (
-                      <div className="border-2 border-gray-300 rounded-lg p-4 bg-white">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="flex-shrink-0">
-                              <svg className="h-10 w-10 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">
-                                {selectedFile.name}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {formatFileSize(selectedFile.size)}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleRemoveFile}
-                            className="ml-2 flex-shrink-0 text-gray-400 hover:text-red-600"
-                            disabled={uploading}
-                          >
-                            <X className="h-5 w-5" />
-                          </button>
-                        </div>
-                        
-                        {uploading && (
-                          <div className="mt-3">
-                            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                              <span>Загрузка...</span>
-                              <span>{uploadProgress}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${uploadProgress}%` }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                        
-                        {!uploading && (
-                          <button
-                            type="button"
-                            onClick={handleFileUpload}
-                            className="w-full mt-3 inline-flex items-center justify-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                          >
-                            <Upload className="h-4 w-4 mr-2" />
-                            Загрузить видео
-                          </button>
-                        )}
-                      </div>
-                    ) : (uploadedFilePath || formData.file_path) ? (
-                      <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="flex-shrink-0">
-                              <Check className="h-10 w-10 text-green-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">
-                                {selectedFile?.name || formData.file_path?.split('/').pop() || 'Видео загружено'}
-                              </p>
-                              <p className="text-xs text-green-600">
-                                {uploadedFilePath ? 'Файл успешно загружен' : 'Текущий файл'}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleRemoveFile}
-                            className="ml-2 flex-shrink-0 text-gray-400 hover:text-red-600"
-                          >
-                            <X className="h-5 w-5" />
-                          </button>
-                        </div>
-                        {formData.file_path && !uploadedFilePath && (
-                          <p className="mt-2 text-xs text-gray-500">
-                            Текущий файл: {formData.file_path}
-                          </p>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </div>
+        <div className="tf-page-content">
+          <div className="tf-page-header">
+            <h1 className="tf-page-title">Редактирование <em>видео</em></h1>
+            <p className="tf-page-meta">
+              <Clock className="w-3 h-3" />
+              Измените видео-урок в юните — как лекцию в онлайн-курсе.
+            </p>
           </div>
 
-          {/* SIDEBAR – advanced settings */}
-          <div className="space-y-6">
-            {/* Advanced Settings */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full flex items-center justify-between text-left"
-              >
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <SettingsIcon className="h-5 w-5 mr-2 text-primary-600" />
-                  Расширенные настройки
-                </h2>
-                <span className="text-sm text-gray-500">
-                  {showAdvanced ? 'Скрыть' : 'Показать'}
-                </span>
-              </button>
-
-              {showAdvanced && (
-                <div className="mt-6 space-y-6">
-                  {/* Status */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Статус
-                    </label>
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                    >
-                      <option value="draft">Черновик</option>
-                      <option value="published">Опубликовано</option>
-                      <option value="archived">Архивировано</option>
-                    </select>
+          <div className="tf-form-layout">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* CARD 1: Основная информация */}
+              <div className="tf-form-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <div className="tf-card-title-num">1</div>
+                    Основная информация
                   </div>
-
-                  {/* Order index */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Порядок
+                </div>
+                <div className="tf-card-body">
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="video-title">
+                      Название видео <span className="tf-required-star">*</span>
                     </label>
-                    <input
-                      type="number"
-                      name="order_index"
-                      value={orderIndexInput}
-                      onChange={handleOrderIndexChange}
-                      onBlur={handleOrderIndexBlur}
-                      min={0}
-                      placeholder="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Определяет порядок видео среди других материалов в юните. Оставьте пустым для значения 0.
-                    </p>
-                  </div>
-
-                  {/* Visibility */}
-                  <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        Видимость для студентов
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Если выключено, видео будет скрыто в интерфейсе студента.
-                      </p>
+                    <div className="tf-input-wrap">
+                      <input
+                        type="text"
+                        id="video-title"
+                        className="tf-field-input"
+                        placeholder="Например: Итальянский А1 — Приветствия и знакомство"
+                        maxLength={120}
+                        value={formData.title}
+                        onChange={handleChange}
+                        name="title"
+                      />
+                      <span className="tf-char-counter">{formData.title.length} / 120</span>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={formData.is_visible_to_students}
-                      onChange={(e) =>
-                        handleCheckboxChange('is_visible_to_students', e.target.checked)
-                      }
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                    />
                   </div>
+                  
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="video-desc">Описание</label>
+                    <div className="tf-input-wrap">
+                      <textarea
+                        id="video-desc"
+                        className="tf-field-input"
+                        placeholder="Опишите содержание видео-урока…"
+                        rows={3}
+                        maxLength={600}
+                        value={formData.description}
+                        onChange={handleChange}
+                        name="description"
+                      />
+                      <span className="tf-char-counter">{formData.description.length} / 600</span>
+                    </div>
+                  </div>
+                  
+                  <div className="tf-field">
+                    <label className="tf-field-label" htmlFor="video-unit">
+                      Юнит <span className="tf-required-star">*</span>
+                    </label>
+                    <div className="tf-custom-select-wrap">
+                      <select
+                        id="video-unit"
+                        className="tf-field-input select-field"
+                        value={formData.unit_id}
+                        onChange={handleChange}
+                        name="unit_id"
+                        disabled={loadingUnits}
+                      >
+                        <option value={0}>Выберите юнит</option>
+                        {availableUnits.map(unit => (
+                          <option key={unit.id} value={unit.id}>
+                            {unit.title} ({unit.level})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="tf-field-hint">Выберите юнит, к которому относится это видео.</p>
+                  </div>
+                </div>
+              </div>
 
-                  {/* Thumbnail */}
-                  <div>
-                    <h3 className="text-md font-semibold text-gray-900 mb-4">
-                      Миниатюра видео
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      {/* Thumbnail preview */}
-                      <div className="relative w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
-                        {thumbnailPath ? (
-                          <>
-                            <img
-                              key={thumbnailKey}
-                              src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/static/${thumbnailPath}?t=${Date.now()}`}
-                              alt="Video thumbnail"
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                              onLoad={() => {
-                                // Image loaded successfully
-                                console.log('Thumbnail loaded successfully');
-                              }}
-                            />
-                            {/* Remove thumbnail button */}
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!id) return;
-                                if (!window.confirm('Вы уверены, что хотите удалить миниатюру?')) {
-                                  return;
-                                }
-                                
-                                setUploadingThumbnail(true);
-                                try {
-                                  // Update video to remove thumbnail_path
-                                  await videosApi.updateVideo(parseInt(id), { thumbnail_path: null } as any);
-                                  setThumbnailPath(null);
-                                  setThumbnailKey(prev => prev + 1);
-                                  toast.success('Миниатюра успешно удалена!');
-                                  
-                                  // Reload video data to ensure we have the latest state
-                                  try {
-                                    const videoData = await videosApi.getAdminVideo(parseInt(id));
-                                    const latestThumbnailPath = (videoData as any).thumbnail_path;
-                                    setThumbnailPath(latestThumbnailPath || null);
-                                  } catch (reloadError) {
-                                    console.error('Error reloading video data:', reloadError);
-                                  }
-                                } catch (error: any) {
-                                  toast.error(error.response?.data?.detail || 'Ошибка при удалении миниатюры');
-                                } finally {
-                                  setUploadingThumbnail(false);
-                                }
-                              }}
-                              disabled={uploadingThumbnail}
-                              className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Удалить миниатюру"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
+              
+              {/* CARD 2: Источник видео */}
+              <div className="tf-form-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <div className="tf-card-title-num">2</div>
+                    Источник видео
+                  </div>
+                  {platformBadge.type && (
+                    <span className={`tf-platform-badge ${
+                      platformBadge.type === 'youtube' ? 'tf-platform-yt' :
+                      platformBadge.type === 'vimeo' ? 'tf-platform-vimeo' :
+                      'tf-platform-other'
+                    }`}>
+                      {platformBadge.label}
+                    </span>
+                  )}
+                </div>
+                <div className="tf-card-body">
+                  <div className="tf-field">
+                    <label className="tf-field-label">Тип источника <span className="tf-required-star">*</span></label>
+                    <div className="tf-source-tabs">
+                      <button
+                        className={`tf-source-tab ${formData.source_type === 'url' ? 'active' : ''}`}
+                        onClick={() => switchSource('url')}
+                        type="button"
+                      >
+                        <Youtube className="w-4 h-4" />
+                        YouTube / Vimeo
+                      </button>
+                      <button
+                        className={`tf-source-tab ${formData.source_type === 'file' ? 'active' : ''}`}
+                        onClick={() => switchSource('file')}
+                        type="button"
+                      >
+                        <File className="w-4 h-4" />
+                        Файл
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Panel: YouTube / Vimeo */}
+                  {formData.source_type === 'url' && (
+                    <div className="tf-source-panel active">
+                      <div className="tf-field">
+                        <label className="tf-field-label" htmlFor="yt-url">
+                          URL видео (YouTube / Vimeo) <span className="tf-required-star">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          id="yt-url"
+                          className="tf-field-input"
+                          placeholder="https://www.youtube.com/watch?v=… или https://vimeo.com/…"
+                          value={formData.external_url || ''}
+                          onChange={(e) => handleVideoUrl(e.target.value)}
+                        />
+                        <p className="tf-field-hint">Поддерживаются ссылки YouTube и Vimeo.</p>
+                      </div>
+
+                      <div className="tf-video-embed-wrap">
+                        {videoEmbedUrl ? (
+                          <iframe
+                            src={videoEmbedUrl}
+                            allowFullScreen
+                            style={{ display: 'block' }}
+                          />
                         ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <ImageIcon className="w-12 h-12 text-gray-400" />
+                          <div className="tf-video-embed-placeholder">
+                            <Video className="w-10 h-10" style={{ stroke: 'rgba(245,240,232,0.2)' }} />
+                            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.2)' }}>
+                              Вставьте ссылку для предпросмотра
+                            </span>
                           </div>
                         )}
                       </div>
-                      
-                      {/* Upload buttons */}
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <label className="flex-1 cursor-pointer">
+                    </div>
+                  )}
+                  
+                  {/* Panel: File upload */}
+                  {formData.source_type === 'file' && (
+                    <div className="tf-source-panel active">
+                      {!selectedFile && !uploadedFilePath && !formData.file_path ? (
+                        <div 
+                          className="tf-file-drop"
+                          onClick={() => document.getElementById('video-file-input')?.click()}
+                          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('drag'); }}
+                          onDragLeave={(e) => { e.currentTarget.classList.remove('drag'); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.remove('drag');
+                            const file = e.dataTransfer.files[0];
+                            if (file) handleFileSelect({ target: { files: [file] } } as any);
+                          }}
+                        >
+                          <div className="tf-file-drop-icon">
+                            <Upload className="w-6 h-6" style={{ stroke: 'rgba(245,240,232,0.6)' }} />
+                          </div>
+                          <div className="tf-file-drop-title">Перетащите видеофайл</div>
+                          <div className="tf-file-drop-sub">MP4 · MOV · AVI · до 2 GB</div>
                           <input
                             type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file || !id) return;
-                              
-                              setUploadingThumbnail(true);
-                              try {
-                                const result = await videosApi.uploadThumbnail(parseInt(id), file);
-                                // Update thumbnail path and force image reload
-                                const newThumbnailPath = result.thumbnail_path;
-                                setThumbnailPath(newThumbnailPath);
-                                setThumbnailKey(prev => prev + 1); // Force image reload
-                                toast.success('Миниатюра успешно загружена!');
-                                
-                                // Reload video data to ensure we have the latest thumbnail path
-                                try {
-                                  const videoData = await videosApi.getAdminVideo(parseInt(id));
-                                  const latestThumbnailPath = (videoData as any).thumbnail_path;
-                                  if (latestThumbnailPath) {
-                                    setThumbnailPath(latestThumbnailPath);
-                                    setThumbnailKey(prev => prev + 1); // Force another reload with latest path
-                                  }
-                                } catch (reloadError) {
-                                  console.error('Error reloading video data:', reloadError);
-                                  // Non-critical, continue with the path from upload response
-                                }
-                              } catch (error: any) {
-                                toast.error(error.response?.data?.detail || 'Ошибка при загрузке миниатюры');
-                              } finally {
-                                setUploadingThumbnail(false);
-                              }
-                            }}
-                            disabled={uploadingThumbnail}
+                            id="video-file-input"
+                            accept="video/*"
+                            style={{ display: 'none' }}
+                            onChange={handleFileSelect}
                           />
-                          <div className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <Upload className="w-4 h-4" />
-                            {uploadingThumbnail ? 'Загрузка...' : 'Загрузить миниатюру'}
+                        </div>
+                      ) : selectedFile && !uploadedFilePath ? (
+                        <div className="tf-upload-progress active">
+                          <div className="tf-upload-file-row">
+                            <div className="tf-upload-file-icon">
+                              <Video className="w-4 h-4" style={{ stroke: 'var(--teal)' }} />
+                            </div>
+                            <div className="tf-upload-file-info">
+                              <div className="tf-upload-file-name">{selectedFile.name}</div>
+                              <div className="tf-upload-file-size">{formatFileSize(selectedFile.size)}</div>
+                            </div>
+                            <button className="tf-upload-cancel" onClick={handleRemoveFile} disabled={uploading}>
+                              <X className="w-3 h-3" />
+                            </button>
                           </div>
-                        </label>
-                        
+                          <div className="tf-upload-bar-track">
+                            <div className="tf-upload-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
+                          </div>
+                          <div className="tf-upload-pct">{uploadProgress}%</div>
+                          {!uploading && (
+                            <button
+                              type="button"
+                              onClick={handleFileUpload}
+                              className="tf-cover-btn"
+                            >
+                              <Upload className="w-3 h-3" />
+                              Загрузить видео
+                            </button>
+                          )}
+                        </div>
+                      ) : (uploadedFilePath || formData.file_path) ? (
+                        <div className="tf-upload-progress active">
+                          <div className="tf-upload-file-row">
+                            <div className="tf-upload-file-icon">
+                              <Check className="w-4 h-4" style={{ stroke: 'var(--teal)' }} />
+                            </div>
+                            <div className="tf-upload-file-info">
+                              <div className="tf-upload-file-name">{selectedFile?.name || formData.file_path?.split('/').pop() || 'Видео загружено'}</div>
+                              <div className="tf-upload-file-size" style={{ color: 'var(--teal)' }}>
+                                {uploadedFilePath ? 'Файл успешно загружен' : 'Текущий файл'}
+                              </div>
+                            </div>
+                            <button className="tf-upload-cancel" onClick={handleRemoveFile}>
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CARD 3: Обложка видео */}
+              <div className="tf-form-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <div className="tf-card-title-num">3</div>
+                    Обложка видео
+                  </div>
+                </div>
+                <div className="tf-card-body">
+                  <p className="tf-field-hint" style={{ marginTop: '-0.25rem' }}>Загрузите обложку или она будет сгенерирована автоматически</p>
+
+                  <div className={`tf-cover-area ${getThumbnailUrl() ? 'has-preview' : ''}`} style={{ position: 'relative' }}>
+                    {getThumbnailUrl() ? (
+                      <>
+                        <img src={getThumbnailUrl()} alt="Video cover" className="tf-cover-preview" style={{ display: 'block' }} />
                         <button
                           type="button"
                           onClick={async () => {
                             if (!id) return;
+                            if (!window.confirm('Вы уверены, что хотите удалить обложку?')) return;
+                            
                             setUploadingThumbnail(true);
                             try {
-                              const result = await videosApi.generateThumbnail(parseInt(id));
-                              // Update thumbnail path and force image reload
-                              const newThumbnailPath = result.thumbnail_path;
-                              setThumbnailPath(newThumbnailPath);
-                              setThumbnailKey(prev => prev + 1); // Force image reload
-                              toast.success('Миниатюра успешно сгенерирована!');
-                              
-                              // Reload video data to ensure we have the latest thumbnail path
-                              try {
-                                const videoData = await videosApi.getAdminVideo(parseInt(id));
-                                const latestThumbnailPath = (videoData as any).thumbnail_path;
-                                if (latestThumbnailPath) {
-                                  setThumbnailPath(latestThumbnailPath);
-                                  setThumbnailKey(prev => prev + 1); // Force another reload with latest path
-                                }
-                              } catch (reloadError) {
-                                console.error('Error reloading video data:', reloadError);
-                                // Non-critical, continue with the path from generate response
-                              }
+                              await videosApi.updateVideo(parseInt(id), { thumbnail_path: null } as any);
+                              setThumbnailPath(null);
+                              setThumbnailKey(prev => prev + 1);
+                              toast.success('Обложка успешно удалена!');
                             } catch (error: any) {
-                              toast.error(error.response?.data?.detail || 'Ошибка при генерации миниатюры');
+                              toast.error(error.response?.data?.detail || 'Ошибка при удалении обложки');
                             } finally {
                               setUploadingThumbnail(false);
                             }
                           }}
-                          disabled={uploadingThumbnail || !formData.unit_id}
-                          className="flex items-center justify-center gap-2 px-4 py-2.5 border border-primary-300 rounded-lg text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={uploadingThumbnail}
+                          style={{
+                            position: 'absolute',
+                            top: '0.5rem',
+                            right: '0.5rem',
+                            background: 'var(--rust)',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
                         >
-                          <Sparkles className="w-4 h-4" />
-                          Сгенерировать автоматически
+                          <X className="w-4 h-4" />
                         </button>
+                      </>
+                    ) : (
+                      <div className="tf-cover-placeholder" onClick={() => document.getElementById('cover-file')?.click()}>
+                        <ImageIcon className="w-5 h-5" style={{ stroke: 'var(--muted)', opacity: 0.5 }} />
+                        <div className="tf-cover-placeholder-text">
+                          Нажмите, чтобы загрузить обложку<br />
+                          <span className="tf-cover-placeholder-sub">PNG, JPG, WebP · до 5 MB · рекомендуется 1280×720px</span>
+                        </div>
+                        <input
+                          type="file"
+                          id="cover-file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file || !id) return;
+                            
+                            setUploadingThumbnail(true);
+                            try {
+                              const result = await videosApi.uploadThumbnail(parseInt(id), file);
+                              setThumbnailPath(result.thumbnail_path);
+                              setThumbnailKey(prev => prev + 1);
+                              toast.success('Обложка успешно загружена!');
+                            } catch (error: any) {
+                              toast.error(error.response?.data?.detail || 'Ошибка при загрузке обложки');
+                            } finally {
+                              setUploadingThumbnail(false);
+                            }
+                          }}
+                        />
                       </div>
-                      
-                      <p className="text-xs text-gray-500">
-                        Загрузите свою миниатюру или сгенерируйте автоматическую на основе уровня юнита.
-                      </p>
-                    </div>
+                    )}
                   </div>
 
-                  {/* Meta info */}
-                  {(formData.created_at || formData.updated_at) && (
-                    <div className="border-t border-gray-100 pt-3 text-xs text-gray-500 space-y-1">
-                      {formData.created_at && (
-                        <p>
-                          Создано:{' '}
-                          {new Date(formData.created_at).toLocaleString('ru-RU')}
-                        </p>
-                      )}
-                      {formData.updated_at && (
-                        <p>
-                          Обновлено:{' '}
-                          {new Date(formData.updated_at).toLocaleString('ru-RU')}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <div className="tf-cover-actions">
+                    <button className="tf-cover-btn" onClick={() => document.getElementById('cover-file')?.click()}>
+                      <Upload className="w-3 h-3" />
+                      Загрузить файл
+                    </button>
+                    <button 
+                      className="tf-cover-btn" 
+                      onClick={async () => {
+                        if (!id) return;
+                        setUploadingThumbnail(true);
+                        try {
+                          const result = await videosApi.generateThumbnail(parseInt(id));
+                          setThumbnailPath(result.thumbnail_path);
+                          setThumbnailKey(prev => prev + 1);
+                          toast.success('Обложка успешно сгенерирована!');
+                        } catch (error: any) {
+                          toast.error(error.response?.data?.detail || 'Ошибка при генерации обложки');
+                        } finally {
+                          setUploadingThumbnail(false);
+                        }
+                      }}
+                      disabled={uploadingThumbnail || !formData.unit_id}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      {uploadingThumbnail ? 'Генерация...' : 'Сгенерировать обложку'}
+                    </button>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
 
-            {/* Preview - commented out */}
-            {/* {showPreview && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  Предпросмотр видео
-                </h2>
-                ...
+            
+            {/* ══ RIGHT COLUMN ══ */}
+            <div className="tf-sidebar-cards">
+              {/* Preview Card */}
+              <div className="tf-preview-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <Video className="w-3 h-3" />
+                    Предпросмотр
+                  </div>
+                </div>
+                <div className="tf-card-body">
+                  {getThumbnailUrl() ? (
+                    <img src={getThumbnailUrl()} alt="Video cover" style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    <div style={{ width: '100%', aspectRatio: '16/9', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Video className="w-10 h-10" style={{ stroke: 'rgba(245,240,232,0.2)' }} />
+                    </div>
+                  )}
+                  <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.2rem', fontWeight: 700, color: 'var(--cream)', lineHeight: 1.3 }}>
+                      {formData.title || 'Название видео'}
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: 'rgba(245,240,232,0.6)', lineHeight: 1.5 }}>
+                      {formData.description || 'Описание видео'}
+                    </p>
+                    {selectedUnit && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+                        <div className="tf-unit-chip">
+                          <div className="tf-unit-chip-dot" style={{ background: 'var(--teal)' }}></div>
+                          <span className="tf-unit-chip-text">{selectedUnit.title}</span>
+                        </div>
+                        <div className="tf-unit-chip">
+                          <div className="tf-unit-chip-dot" style={{ background: 'var(--gold)' }}></div>
+                          <span className="tf-unit-chip-text">Порядок: {formData.order_index}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            )} */}
+
+              {/* Advanced toggle */}
+              <div className={`tf-advanced-toggle ${showAdvanced ? 'open' : ''}`} onClick={() => setShowAdvanced(!showAdvanced)}>
+                <span className="tf-advanced-toggle-label">
+                  <SettingsIcon className="w-3 h-3" />
+                  Расширенные настройки
+                </span>
+                <svg className="tf-advanced-chevron" viewBox="0 0 24 24">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+
+              {/* Advanced panel */}
+              <div className={`tf-advanced-panel ${showAdvanced ? 'open' : ''}`}>
+                <div className="tf-form-card">
+                  <div className="tf-card-header">
+                    <div className="tf-card-title">
+                      <Clock className="w-3 h-3" />
+                      Публикация и порядок
+                    </div>
+                  </div>
+                  <div className="tf-card-body">
+                    {/* Порядок отображения */}
+                    <div className="tf-field">
+                      <label className="tf-field-label" htmlFor="sort-order">Порядок отображения</label>
+                      <p className="tf-field-hint">Номер для сортировки видео (меньше = выше в списке)</p>
+                      <div className="tf-number-input-wrap">
+                        <input
+                          type="number"
+                          id="sort-order"
+                          className="tf-field-input"
+                          placeholder="0"
+                          min="0"
+                          max="9999"
+                          value={formData.order_index}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            setFormData(prev => ({ ...prev, order_index: val }));
+                          }}
+                        />
+                        <div className="tf-num-arrows">
+                          <button className="tf-num-arrow" onClick={() => stepNumber('order_index', 1)}>▲</button>
+                          <button className="tf-num-arrow" onClick={() => stepNumber('order_index', -1)}>▼</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Видимость */}
+                    <div className="tf-toggle-field">
+                      <div className="tf-toggle-info">
+                        <div className="tf-toggle-name">Видимость для студентов</div>
+                        <div className="tf-toggle-desc">Если выключено, видео не будет отображаться в каталоге</div>
+                      </div>
+                      <label className="tf-ts-inner">
+                        <input
+                          type="checkbox"
+                          checked={formData.is_visible_to_students}
+                          onChange={(e) => handleCheckboxChange('is_visible_to_students', e.target.checked)}
+                        />
+                        <div className="tf-ts-track"></div>
+                        <div className="tf-ts-thumb"></div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tips Card */}
+              <div className="tf-tips-card">
+                <div className="tf-card-header">
+                  <div className="tf-card-title">
+                    <Info className="w-3 h-3" />
+                    Советы
+                  </div>
+                </div>
+                <div className="tf-card-body" style={{ padding: 0 }}>
+                  <div className="tf-tip-item">
+                    <div className="tf-tip-icon">
+                      <Check className="w-3 h-3" />
+                    </div>
+                    <div className="tf-tip-text">Всегда добавляйте <strong>описание</strong> к видео. Это улучшает SEO и помогает студентам.</div>
+                  </div>
+                  <div className="tf-tip-item">
+                    <div className="tf-tip-icon">
+                      <Check className="w-3 h-3" />
+                    </div>
+                    <div className="tf-tip-text">Используйте <strong>качественные обложки</strong>. Они привлекают внимание и повышают кликабельность.</div>
+                  </div>
+                  <div className="tf-tip-item">
+                    <div className="tf-tip-icon">
+                      <Check className="w-3 h-3" />
+                    </div>
+                    <div className="tf-tip-text">Разбивайте длинные видео на <strong>короткие юниты</strong> для лучшего усвоения материала.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
