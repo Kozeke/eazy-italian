@@ -28,10 +28,18 @@ from app.schemas.course import (
     CourseResponse, CourseCreate, CourseUpdate, CourseListResponse,
     CourseDetailResponse, CourseReorderRequest, CoursePublishRequest,
     CourseBulkAction, DashboardStatistics, StudentDashboardStats,
-    EnrolledCourseResponse
+    EnrolledCourseResponse, CourseAskRequest,
 )
+from app.services.rag_service import RAGService
+from app.services.ai.providers.ollama import LocalLlamaProvider
+from app.services.ai.answer_synthesizer import AnswerResponse
 
 router = APIRouter()
+
+
+def get_rag_service(db: Session = Depends(get_db)) -> RAGService:
+    """Dependency: RAG service with DB session and default Ollama provider."""
+    return RAGService(db=db, provider=LocalLlamaProvider())
 
 # Test endpoint to verify router is working
 @router.get("/admin/test")
@@ -805,6 +813,52 @@ async def get_course_units(
         "course_title": course.title,
         "units": units_data
     }
+
+
+@router.post("/courses/{course_id}/ask", response_model=AnswerResponse)
+async def ask_course(
+    course_id: int,
+    body: CourseAskRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    rag_service: RAGService = Depends(get_rag_service),
+):
+    """
+    RAG-powered Q&A over course (or unit) content.
+    Requires course access (enrollment for free users / premium or teacher).
+    """
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    if not course.is_available:
+        raise HTTPException(status_code=403, detail="Course is not available")
+
+    check_course_access(db, current_user, course_id)
+
+    lesson_id: Optional[int] = None
+    if body.scope == "unit":
+        if body.unit_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="unit_id is required when scope is 'unit'",
+            )
+        unit = db.query(Unit).filter(
+            Unit.id == body.unit_id,
+            Unit.course_id == course_id,
+        ).first()
+        if not unit:
+            raise HTTPException(
+                status_code=404,
+                detail="Unit not found or does not belong to this course",
+            )
+        lesson_id = body.unit_id
+
+    return await rag_service.aanswer(
+        question=body.question,
+        course_id=course_id,
+        lesson_id=lesson_id,
+    )
+
 
 @router.post("/courses/{course_id}/enroll")
 async def enroll_in_course(

@@ -10,6 +10,7 @@ from .email import EmailCampaign, EmailLog
 from .subscription import Subscription, SubscriptionLevel, UserSubscription
 from .enrollment import CourseEnrollment
 from .notification import Notification, NotificationType
+from .lesson_chunk import LessonChunk
 
 __all__ = [
     "User",
@@ -34,4 +35,5 @@ __all__ = [
     "CourseEnrollment",
     "Notification",
     "NotificationType",
+    "LessonChunk",
 ]

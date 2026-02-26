@@ -2,7 +2,7 @@
 Course schemas for API requests and responses
 """
 from pydantic import BaseModel, validator
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from app.models.course import CourseLevel, CourseStatus
 
@@ -176,3 +176,16 @@ class EnrolledCourseResponse(BaseModel):
     progress_percent: float = 0.0  # Overall course progress percentage
     completed_units: int = 0  # Number of completed units
     last_accessed_at: Optional[datetime] = None  # Last time student accessed this course
+
+
+class CourseAskRequest(BaseModel):
+    """Request body for POST /courses/{course_id}/ask (RAG question answering)."""
+    question: str
+    scope: Literal["unit", "course"] = "course"
+    unit_id: Optional[int] = None
+
+    @validator("unit_id")
+    def unit_id_required_when_scope_unit(cls, v, values):
+        if values.get("scope") == "unit" and v is None:
+            raise ValueError("unit_id is required when scope is 'unit'")
+        return v

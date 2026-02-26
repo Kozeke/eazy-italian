@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (pgvector for RAG)
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     environment:
       POSTGRES_DB: eazy_italian
       POSTGRES_USER: postgres
@@ -30,6 +30,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Ollama for RAG / local LLM
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
 
   # MinIO for file storage
   minio:
@@ -69,6 +77,11 @@ services:
       - SMTP_USER=your-email@gmail.com
       - SMTP_PASSWORD=your-app-password
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002
+      # RAG + Ollama (container on Docker network)
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - EMBEDDING_MODEL=LaBSE
+      - RAG_TOP_K=5
+      - RAG_MIN_SIMILARITY=0.3
     ports:
       - "8000:8000"
     volumes:
@@ -156,3 +169,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  ollama_data:
