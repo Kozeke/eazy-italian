@@ -9,9 +9,9 @@ import {
   Trash2,
   ExternalLink
 } from 'lucide-react';
-import { unitsApi, videosApi, tasksApi, testsApi, coursesApi } from '../../services/api';
+import { unitsApi, videosApi, tasksApi, testsApi, coursesApi, ingestApi, ALLOWED_RAG_EXTENSIONS, MAX_RAG_FILE_BYTES } from '../../services/api';
 import toast from 'react-hot-toast';
-import { BookMarked } from 'lucide-react';
+import { BookMarked, FileText, Upload } from 'lucide-react';
 import RichTextEditor from '../../components/admin/RichTextEditor';
 
 interface UnitFormData {
@@ -79,6 +79,13 @@ export default function AdminUnitCreatePage() {
   const [availableCourses, setAvailableCourses] = useState<any[]>([]);
   const [loadingContent, setLoadingContent] = useState(true);
 
+  // RAG document upload (PDF, DOCX) — uploaded after unit is created
+  const [ragFiles, setRagFiles] = useState<File[]>([]);
+  const [ragUploading, setRagUploading] = useState(false);
+  const maxRagFiles = 10;
+  const allowedRagExtStr = ALLOWED_RAG_EXTENSIONS.join(', ');
+  const maxRagMb = Math.round(MAX_RAG_FILE_BYTES / (1024 * 1024));
+
   // Load available content on mount
   useEffect(() => {
     const loadAvailableContent = async () => {
@@ -145,6 +152,40 @@ export default function AdminUnitCreatePage() {
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
+  };
+
+  const getRagFileExtension = (file: File): string =>
+    (file.name || '').split('.').pop()?.toLowerCase() || '';
+  const isAllowedRagFile = (file: File): boolean =>
+    ALLOWED_RAG_EXTENSIONS.includes(getRagFileExtension(file) as any);
+  const isWithinRagSize = (file: File): boolean => file.size <= MAX_RAG_FILE_BYTES;
+
+  const handleRagFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const chosen = Array.from(e.target.files || []);
+    e.target.value = '';
+    const errors: string[] = [];
+    const toAdd: File[] = [];
+    for (const file of chosen) {
+      if (!isAllowedRagFile(file)) {
+        errors.push(`"${file.name}": допустимы только ${allowedRagExtStr}`);
+        continue;
+      }
+      if (!isWithinRagSize(file)) {
+        errors.push(`"${file.name}": размер не более ${maxRagMb} МБ`);
+        continue;
+      }
+      toAdd.push(file);
+    }
+    if (errors.length) errors.forEach((msg) => toast.error(msg));
+    setRagFiles((prev) => {
+      const next = [...prev, ...toAdd].slice(0, maxRagFiles);
+      if (next.length > maxRagFiles) toast.error(`Максимум ${maxRagFiles} файлов`);
+      return next;
+    });
+  };
+
+  const removeRagFile = (index: number) => {
+    setRagFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
 
@@ -259,11 +300,29 @@ export default function AdminUnitCreatePage() {
         }
       }
       
-      console.log(`✅ Unit created with ${tasksUpdated} tasks and ${testsUpdated} tests`);
+      let ragIngested = 0;
+      const courseId = formData.course_id ?? savedUnit.course_id;
+      if (ragFiles.length > 0 && courseId) {
+        setRagUploading(true);
+        try {
+          const results = await ingestApi.uploadMany(ragFiles, savedUnit.id, courseId);
+          ragIngested = results?.length ?? 0;
+          if (ragIngested > 0) {
+            toast.success(`Загружено документов для RAG: ${ragIngested}`);
+          }
+        } catch (err: any) {
+          toast.error(err.response?.data?.detail || 'Ошибка загрузки документов для RAG');
+        } finally {
+          setRagUploading(false);
+          setRagFiles([]);
+        }
+      }
+
+      console.log(`✅ Unit created with ${tasksUpdated} tasks and ${testsUpdated} tests${ragIngested ? `, ${ragIngested} RAG docs` : ''}`);
       toast.success(
         publish 
-          ? `Юнит опубликован! Добавлено: ${tasksUpdated} заданий, ${testsUpdated} тестов` 
-          : `Юнит сохранен! Добавлено: ${tasksUpdated} заданий, ${testsUpdated} тестов`
+          ? `Юнит опубликован! Добавлено: ${tasksUpdated} заданий, ${testsUpdated} тестов${ragIngested ? `, ${ragIngested} док. для RAG` : ''}` 
+          : `Юнит сохранен! Добавлено: ${tasksUpdated} заданий, ${testsUpdated} тестов${ragIngested ? `, ${ragIngested} док. для RAG` : ''}`
       );
       
       // Navigate back to units list
@@ -565,10 +624,10 @@ export default function AdminUnitCreatePage() {
             <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <button
                 onClick={() => handleSave(true)}
-                disabled={saving}
+                disabled={saving || ragUploading}
                 className="inline-flex items-center justify-center rounded-lg border border-transparent bg-primary-600 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 flex-1 sm:flex-initial whitespace-nowrap"
               >
-                {saving ? 'Публикация...' : 'Опубликовать'}
+                {saving || ragUploading ? (ragUploading ? 'Загрузка документов...' : 'Публикация...') : 'Опубликовать'}
               </button>
             </div>
           </div>
@@ -722,6 +781,56 @@ export default function AdminUnitCreatePage() {
                 )}
               </div>
             </div>
+
+            {/* RAG documents — PDF/DOCX for vector search (only when course selected) */}
+            {formData.course_id && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center">
+                  <FileText className="h-5 w-5 text-gray-500 mr-2" />
+                  Документы для RAG
+                </h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  PDF или DOCX, не более {maxRagMb} МБ на файл. Будут загружены после сохранения юнита и добавлены в поиск по курсу.
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+                    <Upload className="h-4 w-4 mr-2 text-gray-500" />
+                    Выбрать файлы
+                    <input
+                      type="file"
+                      accept=".pdf,.docx"
+                      multiple
+                      className="sr-only"
+                      onChange={handleRagFilesSelect}
+                      disabled={ragFiles.length >= maxRagFiles}
+                    />
+                  </label>
+                  <span className="text-xs text-gray-500">
+                    {ragFiles.length} / {maxRagFiles} файлов
+                  </span>
+                </div>
+                {ragFiles.length > 0 && (
+                  <ul className="mt-3 space-y-2">
+                    {ragFiles.map((file, i) => (
+                      <li key={i} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg text-sm">
+                        <span className="truncate text-gray-800">{file.name}</span>
+                        <span className="text-gray-500 flex-shrink-0 ml-2">
+                          {(file.size / 1024).toFixed(1)} KB
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeRagFile(i)}
+                          className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2"
+                          aria-label="Удалить"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {/* Advanced Settings */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

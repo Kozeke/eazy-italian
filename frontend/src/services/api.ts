@@ -651,6 +651,60 @@ export const notificationsApi = {
   },
 };
 
+// RAG ingest API — document upload for vector store (PDF, DOCX only in UI; backend also supports VTT/SRT)
+export const MAX_RAG_FILE_BYTES = 50 * 1024 * 1024; // 50 MB, must match backend
+export const ALLOWED_RAG_EXTENSIONS = ['pdf', 'docx'] as const;
+export type AllowedRagExtension = typeof ALLOWED_RAG_EXTENSIONS[number];
+
+export interface IngestResponseItem {
+  lesson_id: number;
+  course_id: number;
+  filename: string;
+  source_type: string;
+  title: string;
+  chunk_count: number;
+  message: string;
+}
+
+export const ingestApi = {
+  upload: async (
+    file: File,
+    lessonId: number,
+    courseId: number,
+    options?: { title?: string; language?: string; wipeExisting?: boolean }
+  ): Promise<IngestResponseItem> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('lesson_id', String(lessonId));
+    formData.append('course_id', String(courseId));
+    if (options?.title) formData.append('title', options.title);
+    if (options?.language) formData.append('language', options.language);
+    formData.append('wipe_existing', String(options?.wipeExisting ?? true));
+    const response: AxiosResponse<IngestResponseItem> = await api.post('/ingest/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  uploadMany: async (
+    files: File[],
+    lessonId: number,
+    courseId: number,
+    options?: { language?: string }
+  ): Promise<IngestResponseItem[]> => {
+    if (files.length === 0) return [];
+    const formData = new FormData();
+    files.forEach((f) => formData.append('files', f));
+    formData.append('lesson_id', String(lessonId));
+    formData.append('course_id', String(courseId));
+    if (options?.language) formData.append('language', options.language);
+    const response: AxiosResponse<IngestResponseItem[]> = await api.post('/ingest/upload-many', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+};
+
 // Student Tests API
 export const studentTestsApi = {
   // 1️⃣ List available tests for student
