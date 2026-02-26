@@ -8,7 +8,7 @@
  * - Mobile-responsive design
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { unitsApi, coursesApi } from '../services/api';
 import toast from 'react-hot-toast';
@@ -70,6 +70,37 @@ const Lock = ({ className = "w-6 h-6" }) => (
   </svg>
 );
 
+const MessageCircle = ({ className = "w-6 h-6" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+  </svg>
+);
+
+const Send = ({ className = "w-6 h-6" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+  </svg>
+);
+
+const X = ({ className = "w-6 h-6" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+const Sparkles = ({ className = "w-6 h-6" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+  </svg>
+);
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  enough_context?: boolean;
+  loading?: boolean;
+}
+
 interface Video {
   id: number;
   title: string;
@@ -128,6 +159,77 @@ export default function UnitDetailPage() {
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [courseUnits, setCourseUnits] = useState<any[]>([]);
+
+  // ── Q&A chat state ────────────────────────────────────────────────────────
+  const [qaOpen, setQaOpen]         = useState(false);
+  const [qaInput, setQaInput]       = useState('');
+  const [qaMessages, setQaMessages] = useState<ChatMessage[]>([]);
+  const [qaLoading, setQaLoading]   = useState(false);
+  const messagesEndRef               = useRef<HTMLDivElement>(null);
+  const inputRef                     = useRef<HTMLTextAreaElement>(null);
+
+  // Scroll to bottom whenever messages change
+  useEffect(() => {
+    if (qaOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [qaMessages, qaOpen]);
+
+  // Focus input when panel opens
+  useEffect(() => {
+    if (qaOpen) setTimeout(() => inputRef.current?.focus(), 100);
+  }, [qaOpen]);
+
+  const sendQuestion = async () => {
+    const question = qaInput.trim();
+    if (!question || qaLoading || !unit) return;
+
+    setQaInput('');
+    setQaMessages(prev => [...prev, { role: 'user', text: question }]);
+    setQaLoading(true);
+    // Optimistic loading bubble
+    setQaMessages(prev => [...prev, { role: 'assistant', text: '', loading: true }]);
+
+    try {
+      const res = await fetch('/api/v1/rag/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          course_id: unit.course_id ?? 0,
+          lesson_id: unit.id,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      setQaMessages(prev => [
+        ...prev.slice(0, -1),   // remove loading bubble
+        {
+          role: 'assistant',
+          text: data.answer || 'Не удалось получить ответ.',
+          enough_context: data.enough_context ?? true,
+        },
+      ]);
+    } catch {
+      setQaMessages(prev => [
+        ...prev.slice(0, -1),
+        {
+          role: 'assistant',
+          text: 'Произошла ошибка. Попробуйте ещё раз.',
+          enough_context: false,
+        },
+      ]);
+    } finally {
+      setQaLoading(false);
+    }
+  };
+
+  const handleQaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendQuestion();
+    }
+  };
 
   // Format duration from seconds to MM:SS
   const formatDuration = (seconds?: number): string => {
@@ -489,6 +591,14 @@ export default function UnitDetailPage() {
             className="lg:hidden px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg"
           >
             Прогресс
+          </button>
+          {/* Q&A trigger button — always visible */}
+          <button
+            onClick={() => setQaOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors font-medium"
+          >
+            <Sparkles className="w-4 h-4" />
+            Спросить ИИ
           </button>
         </div>
       </div>
@@ -865,6 +975,155 @@ export default function UnitDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Q&A Drawer ─────────────────────────────────────────────────────── */}
+
+      {/* Backdrop */}
+      {qaOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 lg:bg-transparent"
+          onClick={() => setQaOpen(false)}
+        />
+      )}
+
+      {/* Floating trigger — shown when drawer is closed */}
+      {!qaOpen && (
+        <button
+          onClick={() => setQaOpen(true)}
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center"
+          title="Спросить ИИ об этом уроке"
+        >
+          <MessageCircle className="w-6 h-6" />
+          {/* Pulse dot — hints the feature exists */}
+          <span className="absolute top-1 right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+        </button>
+      )}
+
+      {/* Drawer panel */}
+      <div className={`
+        fixed bottom-0 right-0 z-50
+        w-full sm:w-[400px] lg:w-[420px]
+        h-[85vh] sm:h-[600px]
+        bg-white shadow-2xl
+        flex flex-col
+        rounded-t-2xl sm:rounded-tl-2xl sm:rounded-tr-none sm:rounded-bl-2xl
+        transition-transform duration-300 ease-out
+        ${qaOpen ? 'translate-y-0 sm:translate-x-0' : 'translate-y-full sm:translate-y-0 sm:translate-x-full'}
+      `}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-t-2xl sm:rounded-tl-2xl">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">ИИ-ассистент</p>
+              <p className="text-xs text-indigo-200 truncate max-w-[220px]">{unit?.title}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setQaOpen(false)}
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth">
+          {qaMessages.length === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <div className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center mb-3">
+                <Sparkles className="w-7 h-7 text-indigo-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-700 mb-1">
+                Задайте вопрос по этому уроку
+              </p>
+              <p className="text-xs text-gray-400 mb-5">
+                ИИ отвечает только на основе материалов юнита
+              </p>
+              {/* Suggestion chips */}
+              <div className="flex flex-wrap gap-2 justify-center">
+                {[
+                  'Объясни главную тему',
+                  'Что нужно запомнить?',
+                  'Дай пример',
+                ].map(chip => (
+                  <button
+                    key={chip}
+                    onClick={() => { setQaInput(chip); inputRef.current?.focus(); }}
+                    className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full hover:bg-indigo-100 transition-colors"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {qaMessages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'assistant' && (
+                <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 mt-1 mr-2">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                </div>
+              )}
+              <div className={`max-w-[80%] ${msg.role === 'user' ? '' : ''}`}>
+                <div className={`
+                  px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed
+                  ${msg.role === 'user'
+                    ? 'bg-indigo-600 text-white rounded-br-sm'
+                    : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                  }
+                `}>
+                  {msg.loading ? (
+                    <span className="flex gap-1 items-center py-0.5">
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  ) : (
+                    msg.text
+                  )}
+                </div>
+                {/* Low-confidence notice */}
+                {msg.role === 'assistant' && !msg.loading && msg.enough_context === false && (
+                  <p className="text-xs text-amber-600 mt-1 ml-1">
+                    ⚠️ Ответ может быть неполным — материалы юнита не содержат точного ответа
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="px-3 py-3 border-t border-gray-100 bg-gray-50 rounded-b-none sm:rounded-bl-2xl">
+          <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-200 transition-all">
+            <textarea
+              ref={inputRef}
+              value={qaInput}
+              onChange={e => setQaInput(e.target.value)}
+              onKeyDown={handleQaKeyDown}
+              placeholder="Спросить об этом уроке…"
+              rows={1}
+              className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none max-h-28 leading-relaxed"
+              style={{ scrollbarWidth: 'none' }}
+            />
+            <button
+              onClick={sendQuestion}
+              disabled={!qaInput.trim() || qaLoading}
+              className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors mb-0.5"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-1.5">Enter — отправить · Shift+Enter — новая строка</p>
+        </div>
+      </div>
+
     </div>
   );
 }
