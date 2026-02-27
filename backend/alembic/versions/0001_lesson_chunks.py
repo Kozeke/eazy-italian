@@ -1,78 +1,106 @@
 """
-Migration: lesson_chunks table + pgvector extension + HNSW index for cosine similarity.
-Run with: python -m alembic upgrade head  (if using Alembic)
-Or run this file directly: python alembic/versions/0001_lesson_chunks.py
+Alembic migration: create lesson_chunks table with pgvector HNSW index.
+
+Revision: 0001_lesson_chunks
+Created:  2025-01-01
+
+Run with:
+    alembic upgrade head
+
+Or apply manually:
+    psql -U postgres -d eazy_italian -f this_file.sql
 """
-import os
-import sys
 
-# Allow running as script from backend dir
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
-from sqlalchemy import create_engine, text
-from app.core.config import settings
+# ── identifiers ────────────────────────────────────────────────────────────────
+revision      = "0001_lesson_chunks"
+down_revision = None          # set to your latest migration rev if one exists
+branch_labels = None
+depends_on    = None
 
-REVISION_ID = "0001_lesson_chunks"
-VECTOR_DIM = 768
-
-
-def upgrade():
-    """Create vector extension, lesson_chunks table, and HNSW index."""
-    url = str(settings.DATABASE_URL)
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(url)
-
-    with engine.connect() as conn:
-        # Enable pgvector extension
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
-
-        # Create lesson_chunks table
-        conn.execute(text(f"""
-            CREATE TABLE IF NOT EXISTS lesson_chunks (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                lesson_id VARCHAR(255),
-                content TEXT NOT NULL,
-                embedding vector({VECTOR_DIM}),
-                meta JSONB DEFAULT '{{}}',
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-            );
-        """))
-        conn.commit()
-
-        # Index for lesson_id lookups
-        conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS idx_lesson_chunks_lesson_id
-            ON lesson_chunks(lesson_id);
-        """))
-        conn.commit()
-
-        # HNSW index for cosine distance similarity search (<=> operator)
-        conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS idx_lesson_chunks_embedding_hnsw
-            ON lesson_chunks
-            USING hnsw (embedding vector_cosine_ops)
-            WITH (m = 16, ef_construction = 64);
-        """))
-        conn.commit()
+# HNSW parameters — must match VectorRepository constants
+_HNSW_M               = 16
+_HNSW_EF_CONSTRUCTION = 64
+_INDEX_NAME           = "idx_lesson_chunks_embedding_hnsw"
 
 
-def downgrade():
-    """Drop table and extension (optional; comment out if you want to keep data)."""
-    url = str(settings.DATABASE_URL)
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(url)
-    with engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS lesson_chunks CASCADE"))
-        conn.commit()
-        # conn.execute(text("DROP EXTENSION IF EXISTS vector CASCADE"))
-        # conn.commit()
+def upgrade() -> None:
+    # 1. Enable extensions
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")   # gen_random_uuid()
+
+    # 2. Create table
+    op.create_table(
+        "lesson_chunks",
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "course_id",
+            sa.Integer,
+            sa.ForeignKey("courses.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "lesson_id",
+            sa.Integer,
+            sa.ForeignKey("units.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("chunk_text",  sa.Text,    nullable=False),
+        sa.Column("chunk_index", sa.Integer, nullable=False, server_default="0"),
+        # vector column — raw SQL because Alembic has no native Vector type
+        sa.Column(
+            "embedding",
+            sa.Text,    # placeholder; overridden below
+            nullable=False,
+        ),
+        sa.Column(
+            "metadata",
+            postgresql.JSON,
+            nullable=False,
+            server_default="{}",
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("NOW()"),
+        ),
+    )
+
+    # 3. Alter embedding column to the real vector(768) type
+    #    (Alembic doesn't know about pgvector, so we use raw SQL)
+    op.execute("""
+        ALTER TABLE lesson_chunks
+        ALTER COLUMN embedding TYPE vector(768)
+        USING embedding::vector(768)
+    """)
+
+    # 4. Regular B-tree indexes on FK columns
+    op.create_index("idx_lesson_chunks_course_id", "lesson_chunks", ["course_id"])
+    op.create_index("idx_lesson_chunks_lesson_id", "lesson_chunks", ["lesson_id"])
+
+    # 5. HNSW index — must be CONCURRENTLY outside a transaction block
+    #    Alembic wraps migrations in transactions by default; we break out.
+    op.execute("COMMIT")        # end Alembic's transaction
+    op.execute(f"""
+        CREATE INDEX CONCURRENTLY IF NOT EXISTS {_INDEX_NAME}
+        ON lesson_chunks
+        USING hnsw (embedding vector_cosine_ops)
+        WITH (m = {_HNSW_M}, ef_construction = {_HNSW_EF_CONSTRUCTION})
+    """)
 
 
-if __name__ == "__main__":
-    # Run from repo root: python backend/alembic/versions/0001_lesson_chunks.py
-    # Or from backend: python alembic/versions/0001_lesson_chunks.py
-    upgrade()
-    print("Migration 0001_lesson_chunks: done.")
+def downgrade() -> None:
+    op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {_INDEX_NAME}")
+    op.drop_index("idx_lesson_chunks_lesson_id", table_name="lesson_chunks")
+    op.drop_index("idx_lesson_chunks_course_id", table_name="lesson_chunks")
+    op.drop_table("lesson_chunks")

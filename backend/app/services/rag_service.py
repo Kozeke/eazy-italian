@@ -1,80 +1,194 @@
 """
-RAG service: embed question → retrieve top-k chunks → synthesize answer.
+RAGService — Retrieval-Augmented Generation over course content.
+
+Flow
+----
+  1. question + course_id arrive
+  2. EmbeddingService.embed(question) → 768-dim query vector
+  3. VectorRepository.search(vector, course_id) → top-k ChunkSearchResult
+  4. AnswerSynthesizer.synthesize(question, chunk_texts) → AnswerResponse
+
+The service owns no state between calls; inject it as a FastAPI dependency
+or instantiate once per process.
+
+Environment variables
+---------------------
+RAG_TOP_K              default 5   — number of chunks retrieved
+RAG_MIN_SIMILARITY     default 0.3 — discard chunks below this cosine score
+RAG_INCLUDE_LESSON_ID  optional    — restrict retrieval to one lesson
 """
+
 from __future__ import annotations
 
-from typing import List, Optional
+import asyncio
+import logging
+import os
+from typing import List
 
-from app.services.ai.embedding_service import get_embedding_service
+from sqlalchemy.orm import Session
+
+from app.repositories.vector_repository import VectorRepository, ChunkSearchResult
+from app.services.ai.embedding_service import EmbeddingService, get_embedding_service
 from app.services.ai.answer_synthesizer import AnswerSynthesizer, AnswerResponse
 from app.services.ai.providers.base import AIProvider
-from app.repositories.vector_repository import cosine_search
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_TOP_K          = int(os.environ.get("RAG_TOP_K",          "5"))
+_DEFAULT_MIN_SIMILARITY = float(os.environ.get("RAG_MIN_SIMILARITY","0.3"))
 
 
 class RAGService:
     """
-    Orchestrates: embed(question) → cosine_search → AnswerSynthesizer.asynthesize.
+    Orchestrates the full RAG pipeline for a language-learning platform.
+
+    Parameters
+    ----------
+    db : Session
+        SQLAlchemy session — owns the DB connection lifetime.
+    provider : AIProvider
+        Any concrete provider (LocalLlamaProvider, OpenAIProvider, …).
+    embedding_service : EmbeddingService | None
+        If None, the module-level singleton is used (recommended).
+    top_k : int
+        Number of chunks to retrieve per query.
+    min_similarity : float
+        Minimum cosine similarity [0, 1] to include a chunk.
+
+    Example
+    -------
+    # Sync
+    with SessionLocal() as db:
+        svc = RAGService(db=db, provider=LocalLlamaProvider())
+        result = svc.answer("How do I use the subjunctive?", course_id=3)
+        print(result.answer)
+
+    # Async (FastAPI route)
+    result = await rag_service.aanswer(question, course_id)
     """
 
     def __init__(
         self,
-        embedding_service=None,
-        synthesizer: Optional[AnswerSynthesizer] = None,
-        provider: Optional[AIProvider] = None,
+        db:                Session,
+        provider:          AIProvider,
+        embedding_service: EmbeddingService | None = None,
+        top_k:             int   = _DEFAULT_TOP_K,
+        min_similarity:    float = _DEFAULT_MIN_SIMILARITY,
     ) -> None:
-        self._embedding_service = embedding_service or get_embedding_service()
-        self._provider = provider
-        self._synthesizer = synthesizer or (
-            AnswerSynthesizer(provider) if provider else None
-        )
-        if self._synthesizer is None and provider is None:
-            raise ValueError("RAGService requires either synthesizer or provider")
+        self._db         = db
+        self._embedder   = embedding_service or get_embedding_service()
+        self._synthesizer = AnswerSynthesizer(provider)
+        self._repo       = VectorRepository(db)
+        self._top_k      = top_k
+        self._min_sim    = min_similarity
 
-    @property
-    def synthesizer(self) -> AnswerSynthesizer:
-        if self._synthesizer is None and self._provider is not None:
-            self._synthesizer = AnswerSynthesizer(self._provider)
-        if self._synthesizer is None:
-            raise ValueError("RAGService: no synthesizer or provider set")
-        return self._synthesizer
+    # ── Public API ────────────────────────────────────────────────────────────
 
-    async def ask(
+    def answer(
         self,
-        question: str,
-        top_k: int = 5,
-        lesson_id: Optional[str] = None,
+        question:  str,
+        course_id: int,
+        lesson_id: int | None = None,
     ) -> AnswerResponse:
         """
-        RAG pipeline: embed question, retrieve top_k chunks, synthesize answer.
+        Synchronous RAG pipeline.
+
+        Parameters
+        ----------
+        question : str
+            User's question in English or Russian.
+        course_id : int
+            Scope retrieval to this course.
+        lesson_id : int | None
+            Further restrict to a single lesson/unit (optional).
+
+        Returns
+        -------
+        AnswerResponse
+            Pydantic model with `answer: str` and `enough_context: bool`.
         """
-        if not question or not question.strip():
-            from app.services.ai.answer_synthesizer import AnswerResponse
-            return AnswerResponse(
-                answer="Please ask a question.",
-                enough_context=False,
-            )
+        chunks = self._retrieve(question, course_id, lesson_id)
+        context_texts = self._chunks_to_texts(chunks)
 
-        # 1) Embed question (sync; run in executor if needed to avoid blocking)
-        embedding = self._embedding_service.embed(question.strip())
+        logger.info(
+            "RAG: question=%r course=%d retrieved=%d chunks",
+            question[:60],
+            course_id,
+            len(chunks),
+        )
 
-        # 2) Retrieve top-k by cosine similarity
-        chunks = cosine_search(embedding, top_k=top_k, lesson_id=lesson_id)
-        context_chunks = [c["content"] for c in chunks]
+        return self._synthesizer.synthesize(
+            question=question,
+            context_chunks=context_texts,
+        )
 
-        # 3) Synthesize answer
-        return await self.synthesizer.asynthesize(question.strip(), context_chunks)
-
-    def retrieve(
+    async def aanswer(
         self,
-        question: str,
-        top_k: int = 5,
-        lesson_id: Optional[str] = None,
-    ) -> List[dict]:
+        question:  str,
+        course_id: int,
+        lesson_id: int | None = None,
+    ) -> AnswerResponse:
         """
-        Retrieve only: embed question and return top_k chunks (no LLM call).
-        Each item: {"id", "lesson_id", "content", "meta", "distance"}.
+        Async RAG pipeline — DB retrieval runs in a thread pool so the
+        event loop is never blocked by synchronous SQLAlchemy calls.
         """
-        if not question or not question.strip():
-            return []
-        embedding = self._embedding_service.embed(question.strip())
-        return cosine_search(embedding, top_k=top_k, lesson_id=lesson_id)
+        chunks = await asyncio.to_thread(
+            self._retrieve, question, course_id, lesson_id
+        )
+        context_texts = self._chunks_to_texts(chunks)
+
+        logger.info(
+            "RAG (async): question=%r course=%d retrieved=%d chunks",
+            question[:60],
+            course_id,
+            len(chunks),
+        )
+
+        return await self._synthesizer.asynthesize(
+            question=question,
+            context_chunks=context_texts,
+        )
+
+    # ── Pipeline steps ────────────────────────────────────────────────────────
+
+    def _retrieve(
+        self,
+        question:  str,
+        course_id: int,
+        lesson_id: int | None,
+    ) -> List[ChunkSearchResult]:
+        """Embed the question and run ANN search."""
+        query_vector = self._embedder.embed(question)
+        return self._repo.search(
+            query_embedding = query_vector,
+            k               = self._top_k,
+            course_id       = course_id,
+            lesson_id       = lesson_id,
+            min_similarity  = self._min_sim,
+        )
+
+    @staticmethod
+    def _chunks_to_texts(chunks: List[ChunkSearchResult]) -> List[str]:
+        """
+        Convert search results to plain text strings for the prompt.
+        Chunks are already ranked by similarity; include the score as
+        a lightweight hint so the LLM can weigh evidence.
+        """
+        return [
+            f"[similarity: {c.similarity:.2f}] {c.chunk_text}"
+            for c in chunks
+        ]
+
+    # ── Diagnostics ───────────────────────────────────────────────────────────
+
+    def retrieve_only(
+        self,
+        question:  str,
+        course_id: int,
+        lesson_id: int | None = None,
+    ) -> List[ChunkSearchResult]:
+        """
+        Return raw search results without calling the LLM.
+        Useful for debugging retrieval quality without burning tokens.
+        """
+        return self._retrieve(question, course_id, lesson_id)

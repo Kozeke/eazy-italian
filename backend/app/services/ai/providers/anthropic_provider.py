@@ -1,47 +1,77 @@
 """
-Anthropic Claude API provider (placeholder).
-Configure ANTHROPIC_API_KEY to use Claude for completion.
-"""
-from typing import List, Optional, AsyncIterator
+AnthropicProvider — placeholder implementation.
 
-from .base import AIProvider, AIProviderError
+Swap in a real implementation by:
+  pip install anthropic
+  export ANTHROPIC_API_KEY=sk-ant-...
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+
+from app.services.ai.providers.base import AIProvider, AIProviderError
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_MODEL   = "claude-sonnet-4-20250514"
+_DEFAULT_TIMEOUT = 60.0
+_MAX_TOKENS      = 1024
 
 
 class AnthropicProvider(AIProvider):
-    """Placeholder for Anthropic API. Implement complete/stream using anthropic package."""
+    """
+    Calls the Anthropic Messages API.
+
+    Parameters
+    ----------
+    api_key : str
+        Reads ANTHROPIC_API_KEY env-var when not supplied explicitly.
+    model : str
+        Anthropic model string.
+    temperature : float
+        Sampling temperature.
+    max_tokens : int
+        Maximum tokens in the response.
+
+    Status: PLACEHOLDER — fill in the body of `generate` when ready.
+    """
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model: str = "claude-3-5-sonnet-20241022",
-    ):
-        self._api_key = api_key or ""
-        self._model = model
+        api_key: str | None = None,
+        model: str = _DEFAULT_MODEL,
+        temperature: float = 0.2,
+        max_tokens: int = _MAX_TOKENS,
+        timeout: float = _DEFAULT_TIMEOUT,
+    ) -> None:
+        self.api_key     = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.model       = model
+        self.temperature = temperature
+        self.max_tokens  = max_tokens
+        self.timeout     = timeout
 
-    @property
-    def name(self) -> str:
-        return "anthropic"
+    # ── AIProvider ────────────────────────────────────────────────────────────
 
-    async def complete(
-        self,
-        prompt: str,
-        *,
-        system_prompt: Optional[str] = None,
-        max_tokens: int = 2048,
-        temperature: float = 0.7,
-        stop: Optional[List[str]] = None,
-    ) -> str:
-        # TODO: use anthropic.AsyncAnthropic and messages.create
-        raise NotImplementedError("AnthropicProvider: set ANTHROPIC_API_KEY and implement complete()")
+    def generate(self, prompt: str) -> str:
+        """
+        TODO: replace stub with real Anthropic SDK call.
 
-    async def stream(
-        self,
-        prompt: str,
-        *,
-        system_prompt: Optional[str] = None,
-        max_tokens: int = 2048,
-        temperature: float = 0.7,
-        stop: Optional[List[str]] = None,
-    ) -> AsyncIterator[str]:
-        # TODO: use anthropic.AsyncAnthropic and stream messages
-        raise NotImplementedError("AnthropicProvider: implement stream()")
+        import anthropic
+        client = anthropic.Anthropic(api_key=self.api_key)
+        msg = client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return msg.content[0].text
+        """
+        raise AIProviderError(
+            "AnthropicProvider is a placeholder — "
+            "install `anthropic` and implement generate()."
+        )
+
+    def __repr__(self) -> str:
+        masked = f"{self.api_key[:12]}..." if self.api_key else "(none)"
+        return f"<AnthropicProvider model={self.model!r} key={masked}>"

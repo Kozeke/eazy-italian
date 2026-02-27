@@ -1,53 +1,69 @@
 """
-Base AI provider interface.
+AIProvider — model-agnostic interface for text generation.
+
+Every concrete provider must implement `generate(prompt) -> str`.
+Async variant `agenerate` has a default implementation via
+`asyncio.to_thread` so sync providers work in async FastAPI handlers
+without blocking the event-loop.
 """
+
+from __future__ import annotations
+
+import asyncio
 from abc import ABC, abstractmethod
-from typing import List, Optional, AsyncIterator
-
-
-class AIProviderError(Exception):
-    """Raised when an AI provider request fails."""
-    pass
 
 
 class AIProvider(ABC):
-    """Abstract base class for AI/LLM providers."""
+    """
+    Abstract base class for LLM backends.
 
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Provider identifier (e.g. 'ollama', 'openai')."""
-        pass
+    Implementations
+    ---------------
+    LocalLlamaProvider   — Ollama local LLM via HTTP
+    OpenAIProvider       — OpenAI API (placeholder)
+    AnthropicProvider    — Anthropic API (placeholder)
+    """
 
-    @abstractmethod
-    async def complete(
-        self,
-        prompt: str,
-        *,
-        system_prompt: Optional[str] = None,
-        max_tokens: int = 2048,
-        temperature: float = 0.7,
-        stop: Optional[List[str]] = None,
-    ) -> str:
-        """Generate a single completion. Returns the generated text."""
-        pass
+    # ── required ──────────────────────────────────────────────────────────────
 
     @abstractmethod
-    async def stream(
-        self,
-        prompt: str,
-        *,
-        system_prompt: Optional[str] = None,
-        max_tokens: int = 2048,
-        temperature: float = 0.7,
-        stop: Optional[List[str]] = None,
-    ) -> AsyncIterator[str]:
-        """Stream tokens. Yields text chunks."""
-        pass
-
-    async def embed(self, texts: List[str], model: Optional[str] = None) -> List[List[float]]:
+    def generate(self, prompt: str) -> str:
         """
-        Optional: produce embeddings for a list of texts.
-        Override in providers that support embeddings.
+        Send *prompt* to the underlying model and return the text reply.
+
+        Parameters
+        ----------
+        prompt : str
+            Full prompt string (system + user already merged by caller,
+            or a raw user message — depends on provider).
+
+        Returns
+        -------
+        str
+            Raw text content from the model.
+
+        Raises
+        ------
+        AIProviderError
+            On any network / API / model error.
         """
-        raise NotImplementedError(f"{self.name} does not support embeddings")
+
+    # ── optional async variant ────────────────────────────────────────────────
+
+    async def agenerate(self, prompt: str) -> str:
+        """
+        Async version — defaults to running `generate` in a thread pool.
+        Override for providers that have a native async SDK.
+        """
+        return await asyncio.to_thread(self.generate, prompt)
+
+    # ── dunder ────────────────────────────────────────────────────────────────
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}>"
+
+
+# ── shared exception ──────────────────────────────────────────────────────────
+
+class AIProviderError(RuntimeError):
+    """Raised when a provider cannot fulfil a generation request."""
