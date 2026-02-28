@@ -129,24 +129,22 @@ class RAGService:
         lesson_id: int | None = None,
     ) -> AnswerResponse:
         """
-        Async RAG pipeline — DB retrieval runs in a thread pool so the
-        event loop is never blocked by synchronous SQLAlchemy calls.
+        Async RAG pipeline — the ENTIRE pipeline (embed + DB + Ollama HTTP)
+        runs inside asyncio.to_thread so the event loop is never blocked and
+        there is no interaction between PyTorch's internal thread pool and
+        httpx.AsyncClient.
+
+        Why not use agenerate / httpx.AsyncClient?
+        -------------------------------------------
+        When SentenceTransformers finishes encoding (in a prior to_thread call),
+        PyTorch's thread pool is still winding down.  httpx.AsyncClient's async
+        I/O then competes with those threads for the GIL, which can cause the
+        awaited response to never arrive — the classic "works via curl, hangs
+        via Python" symptom in Docker.  Running the sync httpx.Client inside a
+        dedicated thread avoids the issue entirely.
         """
-        chunks = await asyncio.to_thread(
-            self._retrieve, question, course_id, lesson_id
-        )
-        context_texts = self._chunks_to_texts(chunks)
-
-        logger.info(
-            "RAG (async): question=%r course=%d retrieved=%d chunks",
-            question[:60],
-            course_id,
-            len(chunks),
-        )
-
-        return await self._synthesizer.asynthesize(
-            question=question,
-            context_chunks=context_texts,
+        return await asyncio.to_thread(
+            self.answer, question, course_id, lesson_id
         )
 
     # ── Pipeline steps ────────────────────────────────────────────────────────
@@ -170,14 +168,23 @@ class RAGService:
     @staticmethod
     def _chunks_to_texts(chunks: List[ChunkSearchResult]) -> List[str]:
         """
-        Convert search results to plain text strings for the prompt.
-        Chunks are already ranked by similarity; include the score as
-        a lightweight hint so the LLM can weigh evidence.
+        Convert search results to plain-text strings for the LLM prompt.
+
+        Truncation strategy: each chunk is capped at 120 words before being
+        sent to the LLM.  Full chunks are stored in the DB (good for recall);
+        we trim here because prompt tokens are the main driver of inference
+        latency on CPU — cutting 40% of context words ≈ 30-40% faster output.
+
+        Chunks are already ranked by similarity; the similarity score is
+        included as a lightweight hint so the model can weigh evidence.
         """
-        return [
-            f"[similarity: {c.similarity:.2f}] {c.chunk_text}"
-            for c in chunks
-        ]
+        MAX_WORDS = 120
+        result = []
+        for c in chunks:
+            words = c.chunk_text.split()
+            text  = " ".join(words[:MAX_WORDS]) + ("…" if len(words) > MAX_WORDS else "")
+            result.append(f"[sim:{c.similarity:.2f}] {text}")
+        return result
 
     # ── Diagnostics ───────────────────────────────────────────────────────────
 
