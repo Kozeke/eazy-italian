@@ -102,26 +102,73 @@ QuestionCreate = Union[
 
 # Response schemas
 class QuestionResponse(BaseModel):
-    """Question response schema"""
+    """
+    API response schema for Question ORM objects.
+
+    The DB column is `prompt_rich` but admin editors bind to `prompt`,
+    so we expose both and sync them in from_orm.
+    """
     id: int
     type: QuestionType
-    prompt: str
-    options: List[Dict[str, Any]]
-    correct_answer: Dict[str, Any]
-    points: float
-    shuffle_options: bool
-    autograde: bool
-    manual_review_threshold: Optional[float]
-    expected_answer_config: Dict[str, Any]
-    gaps_config: List[Dict[str, Any]]
-    question_metadata: Dict[str, Any]
-    level: Optional[str]
+    prompt_rich: Optional[str] = None
+    prompt: Optional[str] = None          # populated from prompt_rich in from_orm
+    options: List[Dict[str, Any]] = Field(default_factory=list)
+    correct_answer: Dict[str, Any] = Field(default_factory=dict)
+    explanation_rich: Optional[str] = None
+    points: float = 1.0
+    shuffle_options: bool = False
+    autograde: bool = True
+    manual_review_threshold: Optional[float] = None
+    expected_answer_config: Dict[str, Any] = Field(default_factory=dict)
+    gaps_config: List[Dict[str, Any]] = Field(default_factory=list)
+    question_metadata: Dict[str, Any] = Field(default_factory=dict)
+    level: Optional[str] = None
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
+
+    @validator("options", pre=True, always=True)
+    def normalise_options(cls, v):
+        """
+        Accept options stored as either:
+          - list[str]  →  [{id: "A", text: "..."}, ...]
+          - list[dict] →  passed through as-is
+        """
+        if not v:
+            return []
+        out = []
+        for i, opt in enumerate(v):
+            if isinstance(opt, str):
+                out.append({"id": chr(65 + i), "text": opt})
+            elif isinstance(opt, dict):
+                out.append(opt)
+        return out
+
+    @validator("correct_answer", pre=True, always=True)
+    def normalise_correct_answer(cls, v):
+        return v if isinstance(v, dict) else {}
+
+    @validator("expected_answer_config", "question_metadata", pre=True, always=True)
+    def normalise_dict(cls, v):
+        return v if isinstance(v, dict) else {}
+
+    @validator("gaps_config", pre=True, always=True)
+    def normalise_list(cls, v):
+        return v if isinstance(v, list) else []
 
     class Config:
         from_attributes = True
         populate_by_name = True
+
+    @classmethod
+    def from_orm(cls, obj: Any) -> "QuestionResponse":
+        instance = super().from_orm(obj)
+        # Sync prompt_rich → prompt so admin editor form fields bind correctly
+        if not instance.prompt and instance.prompt_rich:
+            instance.prompt = instance.prompt_rich
+        elif not instance.prompt_rich and instance.prompt:
+            instance.prompt_rich = instance.prompt
+        return instance
+
 
 class TestQuestionResponse(BaseModel):
     """Test question with ordering"""
@@ -129,11 +176,12 @@ class TestQuestionResponse(BaseModel):
     test_id: int
     question_id: int
     order_index: int
-    points: Optional[float]
+    points: Optional[float] = None
     question: QuestionResponse
 
     class Config:
         from_attributes = True
+
 
 class QuestionListResponse(BaseModel):
     """List of questions for a test"""
@@ -141,4 +189,3 @@ class QuestionListResponse(BaseModel):
     total_questions: int
     total_points: float
     questions: List[TestQuestionResponse]
-

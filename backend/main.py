@@ -63,7 +63,6 @@ try:
     os.makedirs(os.path.join(uploads_path, "videos"), exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "tasks", "audio"), exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "tasks", "documents"), exist_ok=True)
-    os.makedirs(os.path.join(uploads_path, "questions"), exist_ok=True)
     
     if os.path.exists(uploads_path):
         # List directories for debugging
@@ -81,14 +80,14 @@ try:
         
         # Mount static files BEFORE API router
         app.mount("/api/v1/static", StaticFiles(directory=uploads_path), name="uploads")
-        print(f"✅ Static files mounted at /api/v1/static from {uploads_path}")
+        print(f"âœ… Static files mounted at /api/v1/static from {uploads_path}")
     else:
-        print(f"⚠️  Warning: Uploads directory does not exist at {uploads_path}")
+        print(f"âš ï¸  Warning: Uploads directory does not exist at {uploads_path}")
 except PermissionError as e:
-    print(f"⚠️  Warning: Permission denied creating uploads directory at {uploads_path}: {e}")
-    print(f"⚠️  Static file serving disabled. Please create the directory manually with proper permissions.")
+    print(f"âš ï¸  Warning: Permission denied creating uploads directory at {uploads_path}: {e}")
+    print(f"âš ï¸  Static file serving disabled. Please create the directory manually with proper permissions.")
 except Exception as e:
-    print(f"⚠️  Warning: Error setting up uploads directory: {e}")
+    print(f"âš ï¸  Warning: Error setting up uploads directory: {e}")
     import traceback
     traceback.print_exc()
 
@@ -97,18 +96,63 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 @app.on_event("startup")
+async def warmup_rag():
+    """
+    Pre-warm LaBSE so the first real user request isn't slow.
+
+    Without this:
+      - LaBSE loads 199 weight tensors on the first /ask → +5-10s cold start
+    With this it happens at container start, invisibly to users.
+    
+    Note: Ollama warmup is not needed when using external Groq API.
+    """
+    import asyncio
+
+    async def _warm_labse():
+        try:
+            from app.services.ai.embedding_service import get_embedding_service
+            svc = get_embedding_service()
+            await asyncio.to_thread(svc.embed, "warmup")
+            print("✅ [warmup] LaBSE loaded and ready", flush=True)
+        except Exception as exc:
+            print(f"⚠️  [warmup] LaBSE failed — {exc}", flush=True)
+
+    # Ollama warmup commented out — not needed when using external Groq API
+    # async def _warm_ollama():
+    #     try:
+    #         import os, httpx
+    #         base_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434").rstrip("/")
+    #         model    = os.environ.get("OLLAMA_MODEL", "llama3.2")
+    #         # num_predict=1 → generate 1 token only; forces model into RAM quickly
+    #         payload  = {"model": model, "prompt": "hi", "stream": False,
+    #                     "options": {"num_predict": 1}}
+    #         timeout  = httpx.Timeout(connect=10.0, write=10.0, read=120.0, pool=5.0)
+    #         async with httpx.AsyncClient(timeout=timeout) as client:
+    #             r = await client.post(f"{base_url}/api/generate", json=payload)
+    #             r.raise_for_status()
+    #         print(f"✅ [warmup] Ollama '{model}' loaded and ready", flush=True)
+    #     except Exception as exc:
+    #         # Non-fatal — will still work on first user request (just slower)
+    #         print(f"⚠️  [warmup] Ollama warmup failed — {exc}", flush=True)
+
+    print("🔥 [warmup] Pre-loading LaBSE in background…", flush=True)
+    # ensure_future = fire and forget, doesn't block startup completion
+    asyncio.ensure_future(asyncio.gather(_warm_labse()))
+
+
+@app.on_event("startup")
 async def startup_event():
     # Debug: Check if admin routes are registered
     print("\n=== Checking Admin Routes ===")
     admin_routes = [r for r in app.routes if hasattr(r, 'path') and '/admin' in str(r.path)]
     if admin_routes:
-        print(f"✅ Found {len(admin_routes)} admin routes")
+        print(f"âœ… Found {len(admin_routes)} admin routes")
         for route in admin_routes[:5]:  # Print first 5
             methods = getattr(route, 'methods', set())
             path = getattr(route, 'path', 'N/A')
             print(f"  {', '.join(methods)} {path}")
     else:
-        print("⚠️  WARNING: No admin routes found! This may indicate a registration issue.")
+        print("âš ï¸  WARNING: No admin routes found! This may indicate a registration issue.")
     print("=== End Route Check ===\n")
     
     # Create migration tracking table for one-time migrations
@@ -130,7 +174,7 @@ async def startup_event():
             """))
             conn.commit()
     except Exception as e:
-        print(f"⚠️  Could not create migration_tracking table: {e}")
+        print(f"âš ï¸  Could not create migration_tracking table: {e}")
     
     max_retries = 5
     retry_delay = 2
@@ -176,7 +220,7 @@ async def startup_event():
                             """)
                             conn.execute(migration_sql)
                             conn.commit()
-                            print(f"✅ Added missing column: questions.{column_name}")
+                            print(f"âœ… Added missing column: questions.{column_name}")
                     
                     # Add missing columns to tasks table if they don't exist
                     task_migrations = [
@@ -200,7 +244,7 @@ async def startup_event():
                             """)
                             conn.execute(migration_sql)
                             conn.commit()
-                            print(f"✅ Added missing column: tasks.{column_name}")
+                            print(f"âœ… Added missing column: tasks.{column_name}")
                     
                     # Handle TaskType enum - check if it exists and what values it has
                     check_tasktype_enum = text("""
@@ -225,30 +269,30 @@ async def startup_event():
                             try:
                                 conn.execute(text("ALTER TYPE tasktype ADD VALUE IF NOT EXISTS 'listening'"))
                                 conn.commit()
-                                print("✅ Added 'listening' to TaskType enum")
+                                print("âœ… Added 'listening' to TaskType enum")
                             except Exception as e:
                                 # IF NOT EXISTS might not be supported in all PostgreSQL versions
                                 try:
                                     conn.execute(text("ALTER TYPE tasktype ADD VALUE 'listening'"))
                                     conn.commit()
-                                    print("✅ Added 'listening' to TaskType enum")
+                                    print("âœ… Added 'listening' to TaskType enum")
                                 except Exception as e2:
-                                    print(f"⚠️  Could not add 'listening' to TaskType enum: {e2}")
+                                    print(f"âš ï¸  Could not add 'listening' to TaskType enum: {e2}")
                         
                         # Add reading if it doesn't exist
                         if 'reading' not in tasktype_labels:
                             try:
                                 conn.execute(text("ALTER TYPE tasktype ADD VALUE IF NOT EXISTS 'reading'"))
                                 conn.commit()
-                                print("✅ Added 'reading' to TaskType enum")
+                                print("âœ… Added 'reading' to TaskType enum")
                             except Exception as e:
                                 # IF NOT EXISTS might not be supported in all PostgreSQL versions
                                 try:
                                     conn.execute(text("ALTER TYPE tasktype ADD VALUE 'reading'"))
                                     conn.commit()
-                                    print("✅ Added 'reading' to TaskType enum")
+                                    print("âœ… Added 'reading' to TaskType enum")
                                 except Exception as e2:
-                                    print(f"⚠️  Could not add 'reading' to TaskType enum: {e2}")
+                                    print(f"âš ï¸  Could not add 'reading' to TaskType enum: {e2}")
                     
                     # Handle TaskStatus enum - check if it exists and what values it has
                     check_taskstatus_enum = text("""
@@ -275,14 +319,14 @@ async def startup_event():
                                 try:
                                     conn.execute(text(f"ALTER TYPE taskstatus ADD VALUE IF NOT EXISTS '{value}'"))
                                     conn.commit()
-                                    print(f"✅ Added '{value}' to TaskStatus enum")
+                                    print(f"âœ… Added '{value}' to TaskStatus enum")
                                 except Exception as e:
                                     try:
                                         conn.execute(text(f"ALTER TYPE taskstatus ADD VALUE '{value}'"))
                                         conn.commit()
-                                        print(f"✅ Added '{value}' to TaskStatus enum")
+                                        print(f"âœ… Added '{value}' to TaskStatus enum")
                                     except Exception as e2:
-                                        print(f"⚠️  Could not add '{value}' to TaskStatus enum: {e2}")
+                                        print(f"âš ï¸  Could not add '{value}' to TaskStatus enum: {e2}")
                     
                     # Since we're using native_enum=False, we need to convert enum columns to VARCHAR
                     # Check if tasks.type is still an enum type
@@ -294,14 +338,14 @@ async def startup_event():
                     type_column_type = conn.execute(check_type_column).scalar()
                     
                     if type_column_type == 'USER-DEFINED':  # It's an enum
-                        print("⚠️  tasks.type is still an enum type. Converting to VARCHAR...")
+                        print("âš ï¸  tasks.type is still an enum type. Converting to VARCHAR...")
                         try:
                             # Convert enum to VARCHAR
                             conn.execute(text("ALTER TABLE tasks ALTER COLUMN type TYPE VARCHAR(50) USING type::text"))
                             conn.commit()
-                            print("✅ Converted tasks.type from enum to VARCHAR")
+                            print("âœ… Converted tasks.type from enum to VARCHAR")
                         except Exception as e:
-                            print(f"⚠️  Could not convert tasks.type: {e}")
+                            print(f"âš ï¸  Could not convert tasks.type: {e}")
                     
                     # Check and convert status column
                     check_status_column = text("""
@@ -312,14 +356,14 @@ async def startup_event():
                     status_column_type = conn.execute(check_status_column).scalar()
                     
                     if status_column_type == 'USER-DEFINED':  # It's an enum
-                        print("⚠️  tasks.status is still an enum type. Converting to VARCHAR...")
+                        print("âš ï¸  tasks.status is still an enum type. Converting to VARCHAR...")
                         try:
                             # Convert enum to VARCHAR
                             conn.execute(text("ALTER TABLE tasks ALTER COLUMN status TYPE VARCHAR(50) USING status::text"))
                             conn.commit()
-                            print("✅ Converted tasks.status from enum to VARCHAR")
+                            print("âœ… Converted tasks.status from enum to VARCHAR")
                         except Exception as e:
-                            print(f"⚠️  Could not convert tasks.status: {e}")
+                            print(f"âš ï¸  Could not convert tasks.status: {e}")
                     
                     # Handle SubscriptionType enum - check if it exists and what values it has
                     check_subscription_enum = text("""
@@ -374,7 +418,7 @@ async def startup_event():
                         """)
                         conn.execute(create_enum)
                         conn.commit()
-                        print("✅ Created SubscriptionType enum")
+                        print("âœ… Created SubscriptionType enum")
                     
                     # Add missing columns to users table
                     # Handle last_login first (simple)
@@ -392,7 +436,7 @@ async def startup_event():
                         """)
                         conn.execute(migration_sql)
                         conn.commit()
-                        print("✅ Added missing column: users.last_login")
+                        print("âœ… Added missing column: users.last_login")
                     
                     # Handle subscription_type (more complex due to enum)
                     check_subscription_type = text("""
@@ -436,7 +480,7 @@ async def startup_event():
                         """)
                         conn.execute(set_default)
                         conn.commit()
-                        print(f"✅ Added subscription_type column with default value '{enum_free_value}'")
+                        print(f"âœ… Added subscription_type column with default value '{enum_free_value}'")
                     
                     # Handle QuestionType enum - ensure all values exist
                     from app.models.test import QuestionType
@@ -467,16 +511,16 @@ async def startup_event():
                                 try:
                                     conn.execute(text(f"ALTER TYPE questiontype ADD VALUE IF NOT EXISTS '{value}'"))
                                     conn.commit()
-                                    print(f"✅ Added enum value: {value}")
+                                    print(f"âœ… Added enum value: {value}")
                                 except Exception as e:
                                     # IF NOT EXISTS might not be supported in all PostgreSQL versions
                                     # Try without it
                                     try:
                                         conn.execute(text(f"ALTER TYPE questiontype ADD VALUE '{value}'"))
                                         conn.commit()
-                                        print(f"✅ Added enum value: {value}")
+                                        print(f"âœ… Added enum value: {value}")
                                     except Exception as e2:
-                                        print(f"⚠️  Could not add enum value {value}: {e2}")
+                                        print(f"âš ï¸  Could not add enum value {value}: {e2}")
                     else:
                         # Create enum type with all values
                         print("Creating QuestionType enum...")
@@ -491,7 +535,7 @@ async def startup_event():
                         """)
                         conn.execute(create_enum)
                         conn.commit()
-                        print(f"✅ Created QuestionType enum with values: {required_values}")
+                        print(f"âœ… Created QuestionType enum with values: {required_values}")
                     
                     # Create courses table if it doesn't exist
                     check_courses_table = text("""
@@ -515,7 +559,7 @@ async def startup_event():
                             conn.execute(create_level_enum)
                             conn.commit()
                         except Exception as e:
-                            print(f"⚠️  Level enum note: {e}")
+                            print(f"âš ï¸  Level enum note: {e}")
                         
                         try:
                             create_status_enum = text("""
@@ -528,7 +572,7 @@ async def startup_event():
                             conn.execute(create_status_enum)
                             conn.commit()
                         except Exception as e:
-                            print(f"⚠️  Status enum note: {e}")
+                            print(f"âš ï¸  Status enum note: {e}")
                         
                         # Create courses table with proper types
                         create_courses_table = text("""
@@ -556,7 +600,7 @@ async def startup_event():
                         """)
                         conn.execute(create_courses_table)
                         conn.commit()
-                        print("✅ Created courses table")
+                        print("âœ… Created courses table")
                     
                     # Add course_id column to units table if it doesn't exist
                     check_course_id = text("""
@@ -583,7 +627,7 @@ async def startup_event():
                             """)
                             conn.execute(add_course_id)
                             conn.commit()
-                            print("✅ Added course_id column to units table")
+                            print("âœ… Added course_id column to units table")
                             
                             # Create index for better performance
                             try:
@@ -592,11 +636,11 @@ async def startup_event():
                                 """)
                                 conn.execute(create_index)
                                 conn.commit()
-                                print("✅ Created index on units.course_id")
+                                print("âœ… Created index on units.course_id")
                             except Exception as idx_error:
-                                print(f"⚠️  Index creation note: {idx_error}")
+                                print(f"âš ï¸  Index creation note: {idx_error}")
                         else:
-                            print("⚠️  Courses table doesn't exist yet, skipping course_id column")
+                            print("âš ï¸  Courses table doesn't exist yet, skipping course_id column")
                     
                     # Add thumbnail_path column to courses table if it doesn't exist
                     check_thumbnail_path = text("""
@@ -614,7 +658,7 @@ async def startup_event():
                         """)
                         conn.execute(add_thumbnail_path)
                         conn.commit()
-                        print("✅ Added thumbnail_path column to courses table")
+                        print("âœ… Added thumbnail_path column to courses table")
                     
                     # Create or migrate video_progress table
                     check_video_progress_table = text("""
@@ -655,7 +699,7 @@ async def startup_event():
                         for idx_sql in create_indexes:
                             conn.execute(idx_sql)
                         conn.commit()
-                        print("✅ Created video_progress table")
+                        print("âœ… Created video_progress table")
                     else:
                         # Table exists - check if it has the correct columns
                         check_user_id = text("""
@@ -680,7 +724,7 @@ async def startup_event():
                                 rename_column = text("ALTER TABLE video_progress RENAME COLUMN student_id TO user_id")
                                 conn.execute(rename_column)
                                 conn.commit()
-                                print("✅ Renamed student_id to user_id in video_progress table")
+                                print("âœ… Renamed student_id to user_id in video_progress table")
                         
                         # Check and add missing columns
                         column_checks = [
@@ -708,7 +752,7 @@ async def startup_event():
                                 add_col = text(f"ALTER TABLE video_progress ADD COLUMN {column_name} {column_def}")
                                 conn.execute(add_col)
                                 conn.commit()
-                                print(f"✅ Added {column_name} column to video_progress table")
+                                print(f"âœ… Added {column_name} column to video_progress table")
                         
                         # Check if unique constraint exists
                         check_constraint = text("""
@@ -728,9 +772,9 @@ async def startup_event():
                             try:
                                 conn.execute(add_constraint)
                                 conn.commit()
-                                print("✅ Added unique constraint to video_progress table")
+                                print("âœ… Added unique constraint to video_progress table")
                             except Exception as e:
-                                print(f"⚠️  Constraint may already exist: {e}")
+                                print(f"âš ï¸  Constraint may already exist: {e}")
                     
                     # Create course_enrollments table if it doesn't exist
                     check_enrollments_table = text("""
@@ -763,7 +807,7 @@ async def startup_event():
                             ON course_enrollments(course_id)
                         """))
                         conn.commit()
-                        print("✅ Created course_enrollments table")
+                        print("âœ… Created course_enrollments table")
                         
                         # Migrate existing enrollments from progress/tasks/tests
                         try:
@@ -823,9 +867,9 @@ async def startup_event():
                                 GROUP BY ta.student_id, u.course_id
                             """))
                             conn.commit()
-                            print("✅ Migrated existing enrollments")
+                            print("âœ… Migrated existing enrollments")
                         except Exception as e:
-                            print(f"⚠️  Enrollment migration note: {e}")
+                            print(f"âš ï¸  Enrollment migration note: {e}")
                     
                     # Add missing columns to task_submissions table
                     task_submission_migrations = [
@@ -848,7 +892,7 @@ async def startup_event():
                             """)
                             conn.execute(migration_sql)
                             conn.commit()
-                            print(f"✅ Added missing column: task_submissions.{column_name}")
+                            print(f"âœ… Added missing column: task_submissions.{column_name}")
                     
                     # Add missing columns to tasks table
                     task_migrations = [
@@ -885,7 +929,7 @@ async def startup_event():
                             """)
                             conn.execute(migration_sql)
                             conn.commit()
-                            print(f"✅ Added missing column: tasks.{column_name}")
+                            print(f"âœ… Added missing column: tasks.{column_name}")
                     
                     # Migrate subscription_type from UserSubscription table (if subscription_type is still 'free' for users with premium subscriptions)
                     try:
@@ -932,12 +976,12 @@ async def startup_event():
                                     AND u.subscription_type = '{enum_free_value}'::subscriptiontype
                                 """))
                                 conn.commit()
-                                print("✅ Migrated subscription types from UserSubscription")
+                                print("âœ… Migrated subscription types from UserSubscription")
                     except Exception as e:
-                        print(f"⚠️  Subscription migration note: {e}")
+                        print(f"âš ï¸  Subscription migration note: {e}")
             except Exception as migration_error:
                 # Don't fail startup if migrations fail - log and continue
-                print(f"⚠️  Migration check failed (non-critical): {migration_error}")
+                print(f"âš ï¸  Migration check failed (non-critical): {migration_error}")
                 import traceback
                 traceback.print_exc()
             

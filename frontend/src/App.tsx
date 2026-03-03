@@ -22,6 +22,7 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUnitsPage from './pages/admin/AdminUnitsPage';
 import AdminUnitCreatePage from './pages/admin/AdminUnitCreatePage';
 import AdminUnitEditPage from './pages/admin/AdminUnitEditPage';
+import AdminUnitDetailPage from './pages/admin/AdminUnitDetailPage';
 import AdminVideosPage from './pages/admin/AdminVideosPage';
 import AdminVideoCreatePage from './pages/admin/AdminVideoCreatePage';
 import AdminVideoEditPage from './pages/admin/AdminVideoEditPage';
@@ -34,6 +35,8 @@ import AdminTaskGradingPage from './pages/admin/AdminTaskGradingPage';
 import AdminTestsPage from './pages/admin/AdminTestsPage';
 import AdminTestCreatePage from './pages/admin/AdminTestCreatePage';
 import AdminTestEditPage from './pages/admin/AdminTestEditPage';
+import AdminTestDetailsPage from './pages/admin/AdminTestDetailsPage';
+import AdminTestAnalyticsPage from './pages/admin/AdminTestAnalyticsPage';
 import AdminQuestionBankPage from './pages/admin/AdminQuestionBankPage';
 import AdminStudentsPage from './pages/admin/AdminStudentsPage';
 import AdminStudentCreatePage from './pages/admin/AdminStudentCreatePage';
@@ -104,6 +107,7 @@ function App() {
          {/* Units routes */}
          <Route path="/admin/units" element={<AdminUnitsPage />} />
          <Route path="/admin/units/new" element={<AdminUnitCreatePage />} />
+         <Route path="/admin/units/:unitId" element={<AdminUnitDetailPage />} />
          <Route path="/admin/units/:id/edit" element={<AdminUnitEditPage />} />
          
          {/* Videos routes */}
@@ -122,8 +126,9 @@ function App() {
          {/* Tests routes */}
          <Route path="/admin/tests" element={<AdminTestsPage />} />
          <Route path="/admin/tests/new" element={<AdminTestCreatePage />} />
-        <Route path="/admin/tests/:id" element={<AdminTestEditPage />} />
+         <Route path="/admin/tests/:id" element={<AdminTestDetailsPage />} />
          <Route path="/admin/tests/:id/edit" element={<AdminTestEditPage />} />
+         <Route path="/admin/tests/:id/analytics" element={<AdminTestAnalyticsPage />} />
          
          {/* Students routes */}
          <Route path="/admin/students" element={<AdminStudentsPage />} />

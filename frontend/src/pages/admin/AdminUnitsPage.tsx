@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Pencil,
@@ -11,7 +11,8 @@ import {
   X,
   Layers,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Eye
 } from 'lucide-react';
 import { unitsApi } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -41,6 +42,7 @@ interface Unit {
 
 export default function AdminUnitsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -508,12 +510,17 @@ export default function AdminUnitsPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {sortedUnits.map((unit) => (
-                    <tr key={unit.id} className="hover:bg-gray-50">
+                    <tr 
+                      key={unit.id} 
+                      onClick={() => navigate(`/admin/units/${unit.id}`)}
+                      className="cursor-pointer hover:bg-slate-50 transition-colors"
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={selectedUnits.includes(unit.id)}
                           onChange={() => handleSelectUnit(unit.id)}
+                          onClick={(e) => e.stopPropagation()}
                           className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                         />
                       </td>
@@ -558,15 +565,29 @@ export default function AdminUnitsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
                         <div className="flex items-center justify-end gap-4 md:gap-3 lg:gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/units/${unit.id}`);
+                            }}
+                            className="p-2 md:p-1.5 text-primary-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                            title="Просмотр"
+                          >
+                            <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
+                          </button>
                           <Link
                             to={`/admin/units/${unit.id}/edit`}
+                            onClick={(e) => e.stopPropagation()}
                             className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                             title="Редактировать"
                           >
                             <Pencil className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                           </Link>
                           <button
-                            onClick={() => handleDeleteUnit(unit.id, unit.title)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteUnit(unit.id, unit.title);
+                            }}
                             className="p-2 md:p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
                             title="Удалить"
                           >
