@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Save,
   ArrowLeft,
@@ -8,7 +8,8 @@ import {
   GripVertical,
   CheckCircle,
   Send,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { testsApi, questionsApi } from '../../services/api';
@@ -68,8 +69,6 @@ type TestStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 const AdminTestEditPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const location = useLocation();
-  const isReadOnly = /^\/admin\/tests\/\d+$/.test(location.pathname);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -92,6 +91,8 @@ const AdminTestEditPage: React.FC = () => {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [regeneratingQuestionId, setRegeneratingQuestionId] = useState<number | string | null>(null);
+  const [isAiGenerated, setIsAiGenerated] = useState(false);
 
   // Load test data
   useEffect(() => {
@@ -124,6 +125,8 @@ const AdminTestEditPage: React.FC = () => {
             deadline = deadline.slice(0, 16); // YYYY-MM-DDTHH:mm
           }
         }
+        
+        setIsAiGenerated(testData.settings.generated_by_ai === true);
         
         setSettings({
           passing_score: testData.settings.passing_score || testData.passing_score || 70,
@@ -310,6 +313,65 @@ const AdminTestEditPage: React.FC = () => {
 
     // Update local state only - don't make API call yet
     setQuestions(questions.map(q => q.id === questionId ? updatedQuestion : q));
+  };
+
+  const handleRegenerateQuestion = async (questionId: number | string) => {
+    if (!id) return;
+    
+    if (status !== 'draft') {
+      toast.error('Вопросы можно регенерировать только в черновиках. Сначала отмените публикацию.');
+      return;
+    }
+
+    if (!isAiGenerated) {
+      toast.error('Регенерация доступна только для AI-сгенерированных тестов.');
+      return;
+    }
+
+    setRegeneratingQuestionId(questionId);
+    try {
+      const response = await testsApi.regenerateQuestion(parseInt(id), Number(questionId));
+      
+      // Update the question with the regenerated data
+      const currentQuestion = questions.find(q => q.id === questionId);
+      const options = Array.isArray(response.options) 
+        ? response.options.map((opt: any, idx: number) => {
+            if (typeof opt === 'string') {
+              return { id: String.fromCharCode(65 + idx), text: opt };
+            }
+            return {
+              id: opt.id || String.fromCharCode(65 + idx),
+              text: opt.text || opt,
+            };
+          })
+        : [];
+      
+      const correctOptionIds = response.correct_answer?.correct_option_ids 
+        || (Array.isArray(response.correct_answer) ? response.correct_answer : []);
+      
+      const updatedQuestion: Question = {
+        id: response.question_id,
+        type: 'multiple_choice', // Regenerate only works for MCQ
+        prompt: response.prompt_rich || response.prompt || '',
+        score: currentQuestion?.score || 1,
+        question_metadata: {
+          ...(currentQuestion?.question_metadata || {}),
+          regen_count: response.regen_count,
+          last_regen_at: new Date().toISOString(),
+          generation_model: response.generation_model,
+        },
+        options,
+        correct_option_ids: correctOptionIds,
+      };
+
+      setQuestions(questions.map(q => q.id === questionId ? updatedQuestion : q));
+      toast.success(response.message || 'Вопрос успешно регенерирован');
+    } catch (error: any) {
+      console.error('Error regenerating question:', error);
+      toast.error(error.response?.data?.detail || 'Ошибка при регенерации вопроса');
+    } finally {
+      setRegeneratingQuestionId(null);
+    }
   };
 
   // Validation
@@ -549,14 +611,13 @@ const AdminTestEditPage: React.FC = () => {
               </button>
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-gray-900">
-                  {isReadOnly ? 'Просмотр теста' : 'Редактировать тест'}
+                  Редактировать тест
                 </h1>
                 <div className="mt-2 flex items-center space-x-4">
                   <select
                     value={selectedUnitId || ''}
                     onChange={(e) => setSelectedUnitId(e.target.value ? parseInt(e.target.value) : null)}
                     className="block w-64 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                    disabled={isReadOnly}
                   >
                     <option value="">Без юнита</option>
                     {units.map(unit => (
@@ -572,7 +633,6 @@ const AdminTestEditPage: React.FC = () => {
                       value={status}
                       onChange={(e) => setStatus(e.target.value as TestStatus)}
                       className={`block rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm ${getStatusColor(status)} px-3 py-1 font-medium`}
-                      disabled={isReadOnly}
                     >
                       <option value="draft">Черновик</option>
                       <option value="scheduled">Запланирован</option>
@@ -594,7 +654,6 @@ const AdminTestEditPage: React.FC = () => {
                 onChange={(e) => setTestTitle(e.target.value)}
                 placeholder="Название теста"
                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-lg"
-                disabled={isReadOnly}
               />
             </div>
             <div>
@@ -606,7 +665,6 @@ const AdminTestEditPage: React.FC = () => {
                   onChange={(e) => setTimeLimit(parseInt(e.target.value) || 0)}
                   min="1"
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                  disabled={isReadOnly}
                 />
                 <span className="text-sm text-gray-500">мин</span>
               </div>
@@ -614,8 +672,7 @@ const AdminTestEditPage: React.FC = () => {
           </div>
 
           {/* Tabs */}
-          {!isReadOnly && (
-            <div className="mt-4 border-b border-gray-200">
+          <div className="mt-4 border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
                 {[
                   { id: 'questions', label: 'Вопросы', count: questions.length },
@@ -646,19 +703,17 @@ const AdminTestEditPage: React.FC = () => {
                 ))}
               </nav>
             </div>
-          )}
         </div>
       </div>
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
         {/* Questions Tab */}
-        {!isReadOnly && activeTab === 'questions' && (
+        {activeTab === 'questions' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold text-gray-900">Вопросы теста</h2>
-              {!isReadOnly && (
-                <div className="flex space-x-2">
+              <div className="flex space-x-2">
                   <button
                     onClick={addMCQQuestion}
                     className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
@@ -681,7 +736,6 @@ const AdminTestEditPage: React.FC = () => {
                     Пропуски
                   </button>
                 </div>
-              )}
             </div>
 
             {questions.length === 0 ? (
@@ -696,11 +750,12 @@ const AdminTestEditPage: React.FC = () => {
                     question={question}
                     index={index}
                     onUpdate={(updates) => {
-                      if (isReadOnly) return;
                       updateQuestion(question.id, updates);
                     }}
                     onRemove={() => handleRemoveQuestion(question.id)}
-                    isReadOnly={isReadOnly}
+                    onRegenerate={() => handleRegenerateQuestion(question.id)}
+                    canRegenerate={isAiGenerated && status === 'draft' && question.type === 'multiple_choice'}
+                    isRegenerating={regeneratingQuestionId === question.id}
                   />
                 ))}
               </div>
@@ -709,18 +764,17 @@ const AdminTestEditPage: React.FC = () => {
         )}
 
         {/* Settings Tab */}
-        {!isReadOnly && activeTab === 'settings' && (
+        {activeTab === 'settings' && (
           <SettingsTab 
             settings={settings} 
             onUpdate={setSettings}
             showAdvanced={showAdvancedSettings}
             onToggleAdvanced={() => setShowAdvancedSettings(!showAdvancedSettings)}
-            isReadOnly={isReadOnly}
           />
         )}
 
         {/* Preview Tab */}
-        {(activeTab === 'preview' || isReadOnly) && (
+        {activeTab === 'preview' && (
           <PreviewTab 
             testTitle={testTitle}
             timeLimit={timeLimit}
@@ -730,7 +784,7 @@ const AdminTestEditPage: React.FC = () => {
         )}
 
         {/* Review Tab */}
-        {!isReadOnly && activeTab === 'review' && (
+        {activeTab === 'review' && (
           <ReviewTab 
             validationErrors={validationErrors}
             testTitle={testTitle}
@@ -741,7 +795,6 @@ const AdminTestEditPage: React.FC = () => {
       </div>
 
       {/* Sticky Footer */}
-      {!isReadOnly && (
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
@@ -784,7 +837,6 @@ const AdminTestEditPage: React.FC = () => {
           </div>
         </div>
       </div>
-      )}
     </div>
   );
 };
@@ -795,10 +847,20 @@ interface QuestionCardProps {
   index: number;
   onUpdate: (updates: Partial<Question>) => void;
   onRemove: () => void;
-  isReadOnly?: boolean;
+  onRegenerate?: () => void;
+  canRegenerate?: boolean;
+  isRegenerating?: boolean;
 }
 
-const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, onRemove, isReadOnly }) => {
+const QuestionCard: React.FC<QuestionCardProps> = ({ 
+  question, 
+  index, 
+  onUpdate, 
+  onRemove, 
+  onRegenerate,
+  canRegenerate = false,
+  isRegenerating = false,
+}) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -836,7 +898,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3 flex-1">
-            {!isReadOnly && <GripVertical className="w-5 h-5 text-gray-400 cursor-move" />}
+            <GripVertical className="w-5 h-5 text-gray-400 cursor-move" />
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-1">
                 <span className="text-sm font-medium text-gray-900">Question {index + 1}</span>
@@ -862,14 +924,22 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
             >
               {isExpanded ? 'Collapse' : 'Expand'}
             </button>
-            {!isReadOnly && (
+            {canRegenerate && onRegenerate && (
               <button
-                onClick={onRemove}
-                className="p-1 text-red-600 hover:text-red-800"
+                onClick={onRegenerate}
+                disabled={isRegenerating}
+                className="p-1 text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Регенерировать вопрос (AI)"
               >
-                <Trash2 className="w-4 h-4" />
+                <RefreshCw className={`w-4 h-4 ${isRegenerating ? 'animate-spin' : ''}`} />
               </button>
             )}
+            <button
+              onClick={onRemove}
+              className="p-1 text-red-600 hover:text-red-800"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -886,7 +956,6 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
               placeholder="Enter question text..."
               rows={3}
               className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
-              disabled={isReadOnly}
             />
           </div>
 
@@ -913,19 +982,18 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
               className="w-20 rounded-md border-gray-300 text-sm"
               step="0.5"
               min="0"
-              disabled={isReadOnly}
             />
           </div>
 
           {/* Type-specific fields */}
           {question.type === 'multiple_choice' && (
-            <MCQFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} isReadOnly={isReadOnly} />
+            <MCQFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
           )}
           {question.type === 'open_answer' && (
-            <OpenAnswerFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} isReadOnly={isReadOnly} />
+            <OpenAnswerFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
           )}
           {question.type === 'cloze' && (
-            <ClozeFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} isReadOnly={isReadOnly} />
+            <ClozeFields question={question} onUpdate={onUpdate} showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)} />
           )}
         </div>
       )}
@@ -934,7 +1002,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, onUpdate, 
 };
 
 // MCQ Fields Component
-const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void; isReadOnly?: boolean }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced, isReadOnly }) => {
+const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced }) => {
 
   const addOption = () => {
     const newId = String.fromCharCode(65 + (question.options?.length || 0));
@@ -961,14 +1029,12 @@ const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Ques
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700">Варианты ответов</label>
-        {!isReadOnly && (
-          <button
-            onClick={addOption}
-            className="text-sm text-primary-600 hover:text-primary-700"
-          >
-            + Добавить вариант
-          </button>
-        )}
+        <button
+          onClick={addOption}
+          className="text-sm text-primary-600 hover:text-primary-700"
+        >
+          + Добавить вариант
+        </button>
       </div>
       {question.options?.map(option => (
         <div key={option.id} className="flex items-center space-x-2">
@@ -977,7 +1043,6 @@ const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Ques
             checked={question.correct_option_ids?.includes(option.id)}
             onChange={() => toggleCorrect(option.id)}
             className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            disabled={isReadOnly}
           />
           <span className="w-8 text-sm font-medium text-gray-500">{option.id}.</span>
           <input
@@ -986,7 +1051,6 @@ const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Ques
             onChange={(e) => updateOption(option.id, e.target.value)}
             placeholder="Текст варианта..."
             className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            disabled={isReadOnly}
           />
         </div>
       ))}
@@ -1010,7 +1074,6 @@ const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Ques
                 checked={question.shuffle_options ?? true}
                 onChange={(e) => onUpdate({ shuffle_options: e.target.checked })}
                 className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                disabled={isReadOnly}
               />
               <label className="ml-2 text-xs text-gray-700">Shuffle options</label>
             </div>
@@ -1022,7 +1085,7 @@ const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Ques
 };
 
 // Open Answer Fields Component
-const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void; isReadOnly?: boolean }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced, isReadOnly }) => {
+const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced }) => {
 
   return (
     <div className="space-y-4">
@@ -1034,7 +1097,6 @@ const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Parti
             expected: { ...question.expected!, mode: e.target.value as 'keywords' | 'regex' }
           })}
           className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-          disabled={isReadOnly}
         >
           <option value="keywords">Ключевые слова</option>
           <option value="regex">Regex паттерн</option>
@@ -1056,7 +1118,6 @@ const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Parti
                 }}
                 placeholder="Слово..."
                 className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                disabled={isReadOnly}
               />
             </div>
           ))}
@@ -1074,7 +1135,6 @@ const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Parti
             })}
             placeholder="^\\s*pattern\\s*$"
             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 font-mono text-sm"
-            disabled={isReadOnly}
           />
         </div>
       )}
@@ -1100,7 +1160,6 @@ const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Parti
                   expected: { ...question.expected!, case_insensitive: e.target.checked }
                 })}
                 className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                disabled={isReadOnly}
               />
               <label className="ml-2 text-xs text-gray-700">Case insensitive</label>
             </div>
@@ -1116,7 +1175,6 @@ const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Parti
                 min="0"
                 max="5"
                 className="block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                disabled={isReadOnly}
               />
             </div>
           </div>
@@ -1127,7 +1185,7 @@ const OpenAnswerFields: React.FC<{ question: Question; onUpdate: (updates: Parti
 };
 
 // Cloze Fields Component
-const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void; isReadOnly?: boolean }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced, isReadOnly }) => {
+const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Question>) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ question, onUpdate, showAdvanced, onToggleAdvanced }) => {
   // Calculate proportional score per gap (total question score / number of gaps)
   const scorePerGap = question.gaps && question.gaps.length > 0 
     ? question.score / question.gaps.length 
@@ -1152,7 +1210,6 @@ const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Qu
               }}
               placeholder="Correct answer..."
               className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
-              disabled={isReadOnly}
             />
           </div>
         ))}
@@ -1185,7 +1242,6 @@ const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Qu
                       onUpdate({ gaps: newGaps });
                     }}
                     className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    disabled={isReadOnly}
                   />
                   <label className="ml-2 text-xs text-gray-700">Case insensitive</label>
                 </div>
@@ -1199,7 +1255,7 @@ const ClozeFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Qu
 };
 
 // Settings Tab Component
-const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestSettings) => void; showAdvanced: boolean; onToggleAdvanced: () => void; isReadOnly?: boolean }> = ({ settings, onUpdate, showAdvanced, onToggleAdvanced, isReadOnly }) => {
+const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestSettings) => void; showAdvanced: boolean; onToggleAdvanced: () => void }> = ({ settings, onUpdate, showAdvanced, onToggleAdvanced }) => {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
       <h2 className="text-lg font-semibold text-gray-900">Настройки теста</h2>
@@ -1217,7 +1273,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
             min="0"
             max="100"
             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            disabled={isReadOnly}
           />
         </div>
 
@@ -1230,7 +1285,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
             value={settings.deadline || ''}
             onChange={(e) => onUpdate({ ...settings, deadline: e.target.value })}
             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            disabled={isReadOnly}
           />
         </div>
       </div>
@@ -1258,7 +1312,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
                 onChange={(e) => onUpdate({ ...settings, max_attempts: parseInt(e.target.value) || 0 })}
                 min="1"
                 className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                disabled={isReadOnly}
               />
             </div>
 
@@ -1269,7 +1322,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
                   checked={settings.shuffle_questions}
                   onChange={(e) => onUpdate({ ...settings, shuffle_questions: e.target.checked })}
                   className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  disabled={isReadOnly}
                 />
                 <label className="ml-2 text-sm text-gray-700">Перемешивать вопросы</label>
               </div>
@@ -1280,7 +1332,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
                   checked={settings.shuffle_options}
                   onChange={(e) => onUpdate({ ...settings, shuffle_options: e.target.checked })}
                   className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  disabled={isReadOnly}
                 />
                 <label className="ml-2 text-sm text-gray-700">Перемешивать варианты ответов (глобально)</label>
               </div>
@@ -1291,7 +1342,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
                   checked={settings.show_results_immediately}
                   onChange={(e) => onUpdate({ ...settings, show_results_immediately: e.target.checked })}
                   className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  disabled={isReadOnly}
                 />
                 <label className="ml-2 text-sm text-gray-700">Показывать результаты сразу</label>
               </div>
@@ -1302,7 +1352,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
                   checked={settings.allow_review}
                   onChange={(e) => onUpdate({ ...settings, allow_review: e.target.checked })}
                   className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  disabled={isReadOnly}
                 />
                 <label className="ml-2 text-sm text-gray-700">Разрешить просмотр ответов</label>
               </div>
@@ -1318,7 +1367,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
                   value={settings.availability_from || ''}
                   onChange={(e) => onUpdate({ ...settings, availability_from: e.target.value })}
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                  disabled={isReadOnly}
                 />
               </div>
 
@@ -1331,7 +1379,6 @@ const SettingsTab: React.FC<{ settings: TestSettings; onUpdate: (settings: TestS
                   value={settings.availability_to || ''}
                   onChange={(e) => onUpdate({ ...settings, availability_to: e.target.value })}
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                  disabled={isReadOnly}
                 />
               </div>
             </div>

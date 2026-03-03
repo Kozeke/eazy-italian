@@ -18,12 +18,16 @@ Endpoints
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import mimetypes
 from typing import List, Optional
 
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form,
     HTTPException, UploadFile, status,
 )
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -69,6 +73,31 @@ class DeleteResponse(BaseModel):
 
 def _get_ingest_service(db: Session = Depends(get_db)) -> IngestionService:
     return IngestionService(db=db)
+
+
+def _get_rag_docs_path(lesson_id: int) -> str:
+    """Returns the directory path for storing original RAG source files."""
+    is_docker = (
+        os.name != "nt"
+        and os.path.exists("/app")
+        and os.getcwd() == "/app"
+    )
+    base = "/app/uploads" if is_docker else os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "../../../../../../uploads"   # up to project root/uploads
+    )
+    path = os.path.join(base, "rag_docs", str(lesson_id))
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _fmt_size(n: int) -> str:
+    """Format bytes as human-readable size."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.0f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
 
 
 async def _read_and_validate(file: UploadFile) -> bytes:
@@ -121,6 +150,17 @@ async def upload_document(
     background task variant (see `/upload-background`).
     """
     data = await _read_and_validate(file)
+
+    # ── Save original file for later download ────────────────────────────────
+    safe_filename = (file.filename or "upload").replace("/", "_").replace("..", "_")
+    docs_dir = _get_rag_docs_path(lesson_id)
+    file_path = os.path.join(docs_dir, safe_filename)
+    try:
+        with open(file_path, "wb") as f:
+            f.write(data)
+    except Exception as e:
+        logger.warning("Could not save RAG source file '%s': %s", safe_filename, e)
+    # ── End save ─────────────────────────────────────────────────────────────
 
     try:
         result: IngestionResult = svc.ingest(
@@ -186,6 +226,18 @@ async def upload_many(
     results = []
     for i, file in enumerate(files):
         data = await _read_and_validate(file)
+        
+        # ── Save original file for later download ────────────────────────────────
+        safe_filename = (file.filename or f"file_{i}").replace("/", "_").replace("..", "_")
+        docs_dir = _get_rag_docs_path(lesson_id)
+        file_path = os.path.join(docs_dir, safe_filename)
+        try:
+            with open(file_path, "wb") as f:
+                f.write(data)
+        except Exception as e:
+            logger.warning("Could not save RAG source file '%s': %s", safe_filename, e)
+        # ── End save ─────────────────────────────────────────────────────────────
+        
         try:
             result = svc.ingest(
                 file_bytes    = data,
@@ -275,3 +327,120 @@ def delete_lesson_chunks(
         deleted_chunks = deleted,
         message        = f"Deleted {deleted} chunks for lesson {lesson_id}.",
     )
+
+
+# ── File download & delete ────────────────────────────────────────────────────
+
+@router.get(
+    "/lesson/{lesson_id}/file/{filename}",
+    summary="Download an original RAG source file",
+)
+def download_rag_file(
+    lesson_id: int,
+    filename:  str,
+    db:        Session = Depends(get_db),
+    _user:     User    = Depends(get_current_teacher),
+):
+    """
+    Serve the original uploaded file (PDF, DOCX, VTT, SRT) for a lesson.
+    Filename must match exactly what was uploaded.
+    """
+    # Sanitise — never allow path traversal
+    safe = filename.replace("/", "_").replace("..", "_").replace("\\", "_")
+    docs_dir = _get_rag_docs_path(lesson_id)
+    file_path = os.path.join(docs_dir, safe)
+
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="File not found. It may have been uploaded before file-saving was enabled.")
+
+    mime, _ = mimetypes.guess_type(file_path)
+    return FileResponse(
+        path         = file_path,
+        media_type   = mime or "application/octet-stream",
+        filename     = safe,          # triggers download with correct name
+    )
+
+
+@router.delete(
+    "/lesson/{lesson_id}/file/{filename}",
+    summary="Delete a specific RAG source file (keeps vector chunks intact)",
+)
+def delete_rag_file(
+    lesson_id: int,
+    filename:  str,
+    db:        Session = Depends(get_db),
+    _user:     User    = Depends(get_current_teacher),
+):
+    """
+    Remove the stored file from disk only.
+    Does NOT delete vector chunks — use DELETE /lesson/{id} for that.
+    """
+    safe = filename.replace("/", "_").replace("..", "_").replace("\\", "_")
+    docs_dir = _get_rag_docs_path(lesson_id)
+    file_path = os.path.join(docs_dir, safe)
+
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    os.remove(file_path)
+    return {"message": f"File '{safe}' deleted from lesson {lesson_id}."}
+
+
+@router.get(
+    "/lesson/{lesson_id}/files",
+    summary="List saved original files for a lesson",
+)
+def list_rag_files(
+    lesson_id: int,
+    db:        Session = Depends(get_db),
+    _user:     User    = Depends(get_current_teacher),
+):
+    """
+    Returns all original files saved for a lesson with their size.
+    Cross-referenced with lesson_chunks metadata to show chunk count per file.
+    """
+    docs_dir = _get_rag_docs_path(lesson_id)
+    saved_files = []
+
+    if os.path.isdir(docs_dir):
+        for fname in sorted(os.listdir(docs_dir)):
+            fpath = os.path.join(docs_dir, fname)
+            if os.path.isfile(fpath):
+                saved_files.append({
+                    "filename": fname,
+                    "size_bytes": os.path.getsize(fpath),
+                    "size_human": _fmt_size(os.path.getsize(fpath)),
+                })
+
+    # Cross-reference chunk counts from DB
+    rows = db.execute(text("""
+        SELECT metadata->>'filename' AS filename, COUNT(*) AS chunks
+        FROM lesson_chunks
+        WHERE lesson_id = :lid
+        GROUP BY metadata->>'filename'
+    """), {"lid": lesson_id}).fetchall()
+    chunk_map = {r.filename: r.chunks for r in rows}
+
+    for f in saved_files:
+        f["chunk_count"] = chunk_map.get(f["filename"], 0)
+        f["has_chunks"]  = f["filename"] in chunk_map
+
+    # Also surface filenames that have chunks but no saved file
+    # (uploaded before this feature was added)
+    saved_names = {f["filename"] for f in saved_files}
+    for fname, chunks in chunk_map.items():
+        if fname and fname not in saved_names:
+            saved_files.append({
+                "filename":   fname,
+                "size_bytes": None,
+                "size_human": None,
+                "chunk_count": chunks,
+                "has_chunks":  True,
+                "file_missing": True,   # uploaded before file-save was enabled
+            })
+
+    return {
+        "lesson_id":   lesson_id,
+        "total_files": len(saved_files),
+        "files":       saved_files,
+    }

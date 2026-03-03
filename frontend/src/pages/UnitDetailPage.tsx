@@ -178,6 +178,92 @@ export default function UnitDetailPage() {
     if (qaOpen) setTimeout(() => inputRef.current?.focus(), 100);
   }, [qaOpen]);
 
+  const askQuestionStreaming = async (
+    question: string,
+    courseId: number,
+    lessonId: number | null,
+    onToken: (token: string) => void,
+    onDone: (enoughContext: boolean) => void
+  ) => {
+    const response = await fetch("/api/v1/rag/ask/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question,
+        course_id: courseId,
+        lesson_id: lessonId ?? null,
+      }),
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Response body is not readable");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    const processBuffer = () => {
+      // SSE lines are separated by \n\n
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() || "";  // last incomplete chunk stays in buffer
+
+      for (const part of parts) {
+        if (!part.startsWith("data: ")) continue;
+        const payload = part.slice(6);  // strip "data: "
+
+        if (payload.startsWith("__DONE__")) {
+          // Extract enough_context from sentinel
+          const json = payload.slice(8, payload.indexOf("__END__"));
+          const meta = JSON.parse(json);
+          onDone(meta.enough_context);
+          return true; // signal that we're done
+        }
+
+        if (payload.startsWith("__ERROR__")) {
+          throw new Error(payload.replace(/__ERROR__|__END__/g, ""));
+        }
+
+        onToken(payload);  // ← render token to DOM
+      }
+      return false;
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (value) {
+        buffer += decoder.decode(value, { stream: true });
+      }
+
+      const isDone = processBuffer();
+      if (isDone) return;
+
+      if (done) {
+        // Process any remaining buffer content when stream ends
+        if (buffer.trim()) {
+          // Try to process remaining content (might be incomplete SSE)
+          const lines = buffer.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const payload = line.slice(6);
+              if (payload.startsWith("__DONE__")) {
+                const json = payload.slice(8, payload.indexOf("__END__"));
+                const meta = JSON.parse(json);
+                onDone(meta.enough_context);
+                return;
+              }
+              if (!payload.startsWith("__ERROR__") && !payload.startsWith("__DONE__")) {
+                onToken(payload);
+              }
+            }
+          }
+        }
+        break;
+      }
+    }
+  };
+
   const sendQuestion = async () => {
     const question = qaInput.trim();
     if (!question || qaLoading || !unit) return;
@@ -185,40 +271,61 @@ export default function UnitDetailPage() {
     setQaInput('');
     setQaMessages(prev => [...prev, { role: 'user', text: question }]);
     setQaLoading(true);
-    // Optimistic loading bubble
+    
+    // Create assistant message for streaming
+    let answerText = "";
     setQaMessages(prev => [...prev, { role: 'assistant', text: '', loading: true }]);
 
     try {
-      const res = await fetch('/api/v1/rag/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question,
-          course_id: unit.course_id ?? 0,
-          lesson_id: unit.id,
-        }),
+      await askQuestionStreaming(
+        question,
+        unit.course_id ?? 0,
+        unit.id,
+        (token) => {
+          answerText += token;
+          setQaMessages(prev => {
+            const newMessages = [...prev];
+            const lastMsg = newMessages[newMessages.length - 1];
+            if (lastMsg && lastMsg.role === 'assistant') {
+              newMessages[newMessages.length - 1] = {
+                ...lastMsg,
+                text: answerText,
+                loading: false,
+              };
+            }
+            return newMessages;
+          });
+        },
+        (enoughContext) => {
+          setQaMessages(prev => {
+            const newMessages = [...prev];
+            const lastMsg = newMessages[newMessages.length - 1];
+            if (lastMsg && lastMsg.role === 'assistant') {
+              newMessages[newMessages.length - 1] = {
+                ...lastMsg,
+                text: answerText,
+                loading: false,
+                enough_context: enoughContext,
+              };
+            }
+            return newMessages;
+          });
+        }
+      );
+    } catch (error) {
+      setQaMessages(prev => {
+        const newMessages = [...prev];
+        const lastMsg = newMessages[newMessages.length - 1];
+        if (lastMsg && lastMsg.role === 'assistant') {
+          newMessages[newMessages.length - 1] = {
+            ...lastMsg,
+            text: 'Произошла ошибка. Попробуйте ещё раз.',
+            loading: false,
+            enough_context: false,
+          };
+        }
+        return newMessages;
       });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      setQaMessages(prev => [
-        ...prev.slice(0, -1),   // remove loading bubble
-        {
-          role: 'assistant',
-          text: data.answer || 'Не удалось получить ответ.',
-          enough_context: data.enough_context ?? true,
-        },
-      ]);
-    } catch {
-      setQaMessages(prev => [
-        ...prev.slice(0, -1),
-        {
-          role: 'assistant',
-          text: 'Произошла ошибка. Попробуйте ещё раз.',
-          enough_context: false,
-        },
-      ]);
     } finally {
       setQaLoading(false);
     }

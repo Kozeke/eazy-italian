@@ -1,363 +1,360 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Mail, Calendar, ArrowLeft, User, CheckCircle, XCircle, TrendingUp, Eye, Award, BookOpen } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { progressApi, usersApi, gradesApi } from '../../services/api';
+// pages/admin/students/AdminStudentViewPage.tsx
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine,
+} from "recharts";
+import { analyticsApi } from "../../services/api";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface ScoreTrendPoint {
+  date: string | null;
+  score: number;
+  test_title: string;
+  unit_title: string | null;
+  attempt_id: number;
+}
+
+interface WeakUnit {
+  unit_id: number;
+  unit_title: string;
+  avg_score: number;
+  attempt_count: number;
+}
+
+interface WeakType {
+  type: string;
+  avg_score_pct: number;
+  question_count: number;
+}
+
+interface StruggleQuestion {
+  question_id: number;
+  prompt: string;
+  type: string;
+  fail_rate: number;
+  attempt_count: number;
+}
+
+interface StudentAnalytics {
+  student_id: number;
+  student_name: string;
+  overall_avg_score: number | null;
+  total_attempts: number;
+  score_trend: ScoreTrendPoint[];
+  weakest_units: WeakUnit[];
+  weakest_question_types: WeakType[];
+  struggle_questions: StruggleQuestion[];
+  message?: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  multiple_choice: "Multiple Choice",
+  open: "Open Answer",
+  cloze: "Fill in the Blank",
+  matching: "Matching",
+  unknown: "Unknown",
+};
+
+function scoreColor(score: number): string {
+  if (score >= 75) return "text-emerald-600";
+  if (score >= 50) return "text-amber-500";
+  return "text-red-500";
+}
+
+function scoreBg(score: number): string {
+  if (score >= 75) return "bg-emerald-50 border-emerald-200";
+  if (score >= 50) return "bg-amber-50 border-amber-200";
+  return "bg-red-50 border-red-200";
+}
+
+function scoreBarColor(score: number): string {
+  if (score >= 75) return "bg-emerald-500";
+  if (score >= 50) return "bg-amber-400";
+  return "bg-red-400";
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  sub,
+  colorClass = "text-gray-900",
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  colorClass?: string;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex flex-col gap-1">
+      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
+      <span className={`text-2xl font-bold ${colorClass}`}>{value}</span>
+      {sub && <span className="text-xs text-gray-400">{sub}</span>}
+    </div>
+  );
+}
+
+function ScoreTrendChart({ data }: { data: ScoreTrendPoint[] }) {
+  const chartData = data.map((p) => ({
+    label: formatDate(p.date),
+    score: p.score,
+    tooltip: p.test_title,
+  }));
+
+  const avg =
+    data.length > 0
+      ? Math.round(data.reduce((s, p) => s + p.score, 0) / data.length)
+      : null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-gray-800">Score Trend</h3>
+        {avg !== null && (
+          <span className={`text-sm font-medium ${scoreColor(avg)}`}>
+            avg {avg}%
+          </span>
+        )}
+      </div>
+
+      {data.length === 0 ? (
+        <p className="text-sm text-gray-400 py-6 text-center">No attempts yet</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+            {avg !== null && (
+              <ReferenceLine
+                y={avg}
+                stroke="#94a3b8"
+                strokeDasharray="4 4"
+                label={{ value: `avg`, position: "insideTopRight", fontSize: 10, fill: "#94a3b8" }}
+              />
+            )}
+            <Tooltip
+              formatter={(val: number, _: string, entry: any) => [
+                `${val}%`,
+                entry.payload.tooltip,
+              ]}
+              labelFormatter={(l) => `Date: ${l}`}
+              contentStyle={{ fontSize: 12 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="score"
+              stroke="#6366f1"
+              strokeWidth={2}
+              dot={{ r: 4, fill: "#6366f1" }}
+              activeDot={{ r: 6 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+function WeakUnitsPanel({ units }: { units: WeakUnit[] }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <h3 className="font-semibold text-gray-800 mb-4">Weak Units</h3>
+      {units.length === 0 ? (
+        <p className="text-sm text-gray-400">No unit data available</p>
+      ) : (
+        <ul className="space-y-3">
+          {units.map((u) => (
+            <li key={u.unit_id}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm text-gray-700 truncate max-w-[70%]">{u.unit_title}</span>
+                <span className={`text-sm font-semibold ${scoreColor(u.avg_score)}`}>
+                  {u.avg_score}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-1.5">
+                <div
+                  className={`h-1.5 rounded-full transition-all ${scoreBarColor(u.avg_score)}`}
+                  style={{ width: `${u.avg_score}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">{u.attempt_count} attempt{u.attempt_count !== 1 ? "s" : ""}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function WeakTopicsPanel({ types }: { types: WeakType[] }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <h3 className="font-semibold text-gray-800 mb-4">Weak Topics by Type</h3>
+      {types.length === 0 ? (
+        <p className="text-sm text-gray-400">No question data available</p>
+      ) : (
+        <ul className="space-y-3">
+          {types.map((t) => (
+            <li key={t.type} className={`rounded-lg border px-4 py-3 ${scoreBg(t.avg_score_pct)}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">
+                  {QUESTION_TYPE_LABELS[t.type] ?? t.type}
+                </span>
+                <span className={`text-sm font-bold ${scoreColor(t.avg_score_pct)}`}>
+                  {t.avg_score_pct}%
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {t.question_count} question{t.question_count !== 1 ? "s" : ""} attempted
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function StruggleQuestionsPanel({ questions }: { questions: StruggleQuestion[] }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <h3 className="font-semibold text-gray-800 mb-1">Struggling Questions</h3>
+      <p className="text-xs text-gray-400 mb-4">Failed more than 50% of attempts</p>
+      {questions.length === 0 ? (
+        <p className="text-sm text-gray-400">No struggling questions — great job!</p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {questions.map((q) => (
+            <li key={q.question_id} className="py-3 first:pt-0 last:pb-0">
+              <p className="text-sm text-gray-700 leading-snug line-clamp-2">{q.prompt}</p>
+              <div className="flex items-center gap-3 mt-1.5">
+                <span className="text-xs bg-gray-100 text-gray-500 rounded px-2 py-0.5">
+                  {QUESTION_TYPE_LABELS[q.type] ?? q.type}
+                </span>
+                <span className="text-xs text-red-500 font-medium">
+                  {q.fail_rate}% fail rate
+                </span>
+                <span className="text-xs text-gray-400">
+                  {q.attempt_count} attempt{q.attempt_count !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminStudentViewPage() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { id } = useParams();
+
+  const [analytics, setAnalytics] = useState<StudentAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [studentProfile, setStudentProfile] = useState<any | null>(null);
-  const [studentProgress, setStudentProgress] = useState<any | null>(null);
-  const [studentStats, setStudentStats] = useState<any | null>(null);
-  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadStudent = async () => {
-      if (!id) {
-        toast.error('ID студента не найден');
-        navigate('/admin/students');
-        return;
-      }
+    if (!id) return;
+    setLoading(true);
+    analyticsApi
+      .getStudentAnalytics(parseInt(id))
+      .then((data: StudentAnalytics) => setAnalytics(data))
+      .catch((err: any) => setError(err?.response?.data?.detail ?? "Failed to load analytics"))
+      .finally(() => setLoading(false));
+  }, [id]);
 
-      setLoading(true);
-      try {
-        const studentId = parseInt(id, 10);
-        const [students, progress, stats, courses] = await Promise.all([
-          usersApi.getStudents(),
-          progressApi.getStudentsProgress(),
-          gradesApi.getStudentStats(studentId),
-          gradesApi.getStudentEnrollments(studentId),
-        ]);
-
-        const profile = (students || []).find((s: any) => s.id === studentId);
-        const progressRow = (progress || []).find((s: any) => s.id === studentId);
-
-        if (!profile && !progressRow) {
-          toast.error('Студент не найден');
-          navigate('/admin/students');
-          return;
-        }
-
-        setStudentProfile(profile || null);
-        setStudentProgress(progressRow || null);
-        setStudentStats(stats || null);
-        setEnrollments(courses || []);
-      } catch (error) {
-        console.error('Error loading student:', error);
-        toast.error('Ошибка загрузки данных студента');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadStudent();
-  }, [id, navigate]);
-
-  const formatDate = (value?: string | null) => {
-    if (!value) return '—';
-    try {
-      return new Date(value).toLocaleDateString('ru-RU');
-    } catch {
-      return '—';
-    }
-  };
-
-  const fullName = [
-    studentProfile?.first_name || studentProgress?.first_name,
-    studentProfile?.last_name || studentProgress?.last_name,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
-
-  const initials = `${studentProfile?.first_name?.[0] || studentProgress?.first_name?.[0] || '?'}${studentProfile?.last_name?.[0] || studentProgress?.last_name?.[0] || '?'}`;
-
-  const isActive = studentProfile?.is_active ?? studentProgress?.is_active ?? false;
-
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <div className="animate-spin h-8 w-8 rounded-full border-4 border-indigo-500 border-t-transparent" />
       </div>
     );
   }
 
+  // ── Error ──────────────────────────────────────────────────────────────────
+  if (error || !analytics) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-red-500 font-medium">{error ?? "No data"}</p>
+        <button
+          onClick={() => navigate(-1)}
+          className="mt-4 text-sm text-indigo-600 hover:underline"
+        >
+          ← Back
+        </button>
+      </div>
+    );
+  }
+
+  const { student_name, overall_avg_score, total_attempts, score_trend,
+          weakest_units, weakest_question_types, struggle_questions } = analytics;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/admin/students')}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад к студентам
-            </button>
-            <div>
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                {fullName || 'Профиль студента'}
-              </h1>
-              <p className="mt-1 text-xs md:text-sm text-gray-500">
-                ID: {id}
-              </p>
-            </div>
-          </div>
-          <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-            isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
-          }`}>
-            {isActive ? (
-              <>
-                <CheckCircle className="w-3 h-3 mr-1" />
-                Активен
-              </>
-            ) : (
-              <>
-                <XCircle className="w-3 h-3 mr-1" />
-                Неактивен
-              </>
-            )}
-          </div>
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition"
+          aria-label="Back"
+        >
+          ←
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{student_name}</h1>
+          <p className="text-sm text-gray-400">Student Analytics</p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-full bg-gray-200 flex items-center justify-center text-lg font-semibold text-gray-700">
-                {initials}
-              </div>
-              <div>
-                <p className="text-lg font-semibold text-gray-900">{fullName || '—'}</p>
-                <p className="text-sm text-gray-500">{studentProfile?.role || 'student'}</p>
-              </div>
-            </div>
-            <div className="mt-4 space-y-2 text-sm text-gray-700">
-              <div className="flex items-center">
-                <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                {studentProfile?.email || studentProgress?.email || '—'}
-              </div>
-              <div className="flex items-center">
-                <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                Регистрация: {formatDate(studentProfile?.created_at || studentProgress?.created_at)}
-              </div>
-              <div className="flex items-center">
-                <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                Последний вход: {formatDate(studentProfile?.last_login || studentProgress?.last_login)}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <User className="w-5 h-5 text-primary-600" />
-              <h2 className="text-base font-semibold text-gray-900">Подписка</h2>
-            </div>
-            <div className="space-y-2 text-sm text-gray-700">
-              <div>
-                <span className="text-gray-500">Тип:</span>{' '}
-                <span className="font-medium">
-                  {studentProgress?.subscription || '—'}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500">Действует до:</span>{' '}
-                <span className="font-medium">
-                  {formatDate(studentProgress?.subscription_ends_at)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-5 h-5 text-primary-600" />
-              <h2 className="text-base font-semibold text-gray-900">Прогресс</h2>
-            </div>
-            <div className="space-y-2 text-sm text-gray-700">
-              <div>
-                <span className="text-gray-500">Тесты:</span>{' '}
-                <span className="font-medium">
-                  {(studentProgress?.passed_tests ?? 0)} / {(studentProgress?.total_tests ?? 0)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500">Процент:</span>{' '}
-                <span className="font-medium">
-                  {studentProgress?.progress_percent ?? 0}%
-                </span>
-              </div>
-              <div className="mt-3">
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-primary-600 h-2 rounded-full"
-                    style={{ width: `${Math.min(100, studentProgress?.progress_percent ?? 0)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Award className="w-5 h-5 text-primary-600" />
-              <h2 className="text-base font-semibold text-gray-900">Средний балл</h2>
-            </div>
-            <div className="space-y-2 text-sm text-gray-700">
-              <div>
-                <span className="text-gray-500">Всего попыток:</span>{' '}
-                <span className="font-medium">
-                  {studentStats?.total_attempts ?? 0}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500">Средний балл:</span>{' '}
-                <span className="font-medium text-2xl block mt-2">
-                  {studentStats?.average_score ?? 0}%
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Registered Courses */}
-        {enrollments && enrollments.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-primary-600" />
-                <h2 className="text-lg font-semibold text-gray-900">Зарегистрированные курсы</h2>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">Курсы, на которые записан студент</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
-              {enrollments.map((enrollment: any) => (
-                <div
-                  key={enrollment.course_id}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-md transition-all cursor-pointer"
-                  onClick={() => navigate(`/admin/courses/${enrollment.course_id}`)}
-                >
-                  <div className="flex items-start gap-3">
-                    {enrollment.thumbnail_path ? (
-                      <img
-                        src={enrollment.thumbnail_path.startsWith('http') 
-                          ? enrollment.thumbnail_path 
-                          : `http://localhost:8000${enrollment.thumbnail_path}`}
-                        alt={enrollment.title}
-                        className="w-16 h-16 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
-                        <BookOpen className="w-8 h-8 text-gray-400" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
-                        {enrollment.title}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                          {enrollment.level}
-                        </span>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        <div>Юнитов: {enrollment.total_units}</div>
-                        <div>Записан: {formatDate(enrollment.enrolled_at)}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Test Attempts History */}
-        {studentStats && studentStats.attempts && studentStats.attempts.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">История попыток</h2>
-              <p className="text-sm text-gray-500 mt-1">Все попытки прохождения тестов</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Курс / Юнит
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Тест
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Балл
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Результат
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Время
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Дата
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Действия
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {studentStats.attempts.map((attempt: any) => (
-                    <tr key={attempt.attempt_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{attempt.course_title}</div>
-                        <div className="text-sm text-gray-500">{attempt.unit_title}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {attempt.test_title}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {attempt.score.toFixed(2)} / {attempt.passing_score.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {attempt.passed ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Пройдено
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            Не пройдено
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {attempt.time_taken_seconds != null
-                          ? `${Math.floor(attempt.time_taken_seconds / 60)}:${String(attempt.time_taken_seconds % 60).padStart(2, '0')}`
-                          : '—'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(attempt.submitted_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => navigate(`/admin/grades/${attempt.attempt_id}`)}
-                          className="text-primary-600 hover:text-primary-900"
-                          title="Просмотреть детали"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <StatCard
+          label="Avg Score"
+          value={overall_avg_score !== null ? `${overall_avg_score}%` : "—"}
+          colorClass={overall_avg_score !== null ? scoreColor(overall_avg_score) : "text-gray-400"}
+        />
+        <StatCard
+          label="Attempts"
+          value={total_attempts}
+          sub="completed tests"
+        />
+        <StatCard
+          label="Weak Units"
+          value={weakest_units.length}
+          sub={weakest_units.length > 0 ? `worst: ${weakest_units[0]?.avg_score}%` : "none detected"}
+          colorClass={weakest_units.length > 0 ? "text-amber-500" : "text-emerald-600"}
+        />
       </div>
+
+      {/* Score trend */}
+      <ScoreTrendChart data={score_trend} />
+
+      {/* Weak units + Weak topics side by side */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <WeakUnitsPanel units={weakest_units} />
+        <WeakTopicsPanel types={weakest_question_types} />
+      </div>
+
+      {/* Struggling questions */}
+      <StruggleQuestionsPanel questions={struggle_questions} />
     </div>
   );
 }

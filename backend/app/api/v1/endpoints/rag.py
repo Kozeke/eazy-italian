@@ -16,15 +16,18 @@ from functools import lru_cache
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.unit import Unit
 from app.services.ai.answer_synthesizer import AnswerResponse
-from app.services.ai.providers.ollama import LocalLlamaProvider
+from app.services.ai.providers.base import AIProvider
 from app.services.rag_service import RAGService
+from app.services.ai_test_generator import _default_provider
 
 router = APIRouter()
 
@@ -32,25 +35,29 @@ router = APIRouter()
 # ── Provider singleton ─────────────────────────────────────────────────────────
 
 @lru_cache(maxsize=1)
-def get_ai_provider() -> LocalLlamaProvider:
+def get_ai_provider() -> AIProvider:
     """
-    Module-level provider cache — one Ollama client for the whole process.
-    warm_up() is called here so the model is loaded into Ollama memory
-    before the first real request arrives.
+    Module-level provider cache — uses the default provider from ai_test_generator.
+    This respects the AI_PROVIDER env-var (groq/ollama) set at import time.
+    No warm-up needed for Groq (external API), and Ollama warm-up is optional.
     """
-    provider = LocalLlamaProvider()
-    # Fire-and-forget warm-up: loads the model into Ollama's memory.
-    # If Ollama isn't ready yet (e.g. container still starting), this logs
-    # a warning and continues — the first real request will be slower.
-    provider.warm_up()
+    # Use the same provider instance as test generation
+    provider = _default_provider
+    # Optional warm-up for Ollama (no-op for Groq)
+    if hasattr(provider, 'warm_up'):
+        try:
+            provider.warm_up()
+        except Exception:
+            # Non-fatal — will work on first request (just slower)
+            pass
     return provider
 
 
 # ── FastAPI dependency ─────────────────────────────────────────────────────────
 
 def get_rag_service(
-    db:       Session              = Depends(get_db),
-    provider: LocalLlamaProvider   = Depends(get_ai_provider),
+    db:       Session     = Depends(get_db),
+    provider: AIProvider  = Depends(get_ai_provider),
 ) -> RAGService:
     return RAGService(db=db, provider=provider)
 
@@ -73,10 +80,11 @@ class RetrieveRequest(BaseModel):
     k:         int = Field(5, ge=1, le=20)
 
 
-class OllamaHealthResponse(BaseModel):
+class AIProviderHealthResponse(BaseModel):
     status:  str          # "ok" | "error"
     model:   str
-    base_url: str
+    provider_type: str    # "groq" | "ollama" | etc.
+    base_url: str | None
     message: str
 
 
@@ -84,21 +92,34 @@ class OllamaHealthResponse(BaseModel):
 
 @router.get(
     "/health",
-    response_model=OllamaHealthResponse,
-    summary="Check Ollama connectivity and model availability",
+    response_model=AIProviderHealthResponse,
+    summary="Check AI provider connectivity and model availability",
 )
-def rag_health(provider: LocalLlamaProvider = Depends(get_ai_provider)) -> OllamaHealthResponse:
+def rag_health(provider: AIProvider = Depends(get_ai_provider)) -> AIProviderHealthResponse:
     """
-    Ping Ollama with a 1-token prompt to verify the model is loaded.
+    Check AI provider connectivity. For Ollama, pings with a 1-token prompt.
+    For Groq, just verifies the provider is initialized.
     Use this to debug connectivity before the first /ask call.
     """
-    ok = provider.warm_up()
-    return OllamaHealthResponse(
+    provider_type = type(provider).__name__
+    base_url = getattr(provider, 'base_url', None)
+    
+    # Try warm-up for Ollama (no-op for Groq)
+    ok = True
+    message = f"{provider_type} is ready"
+    if hasattr(provider, 'warm_up'):
+        ok = provider.warm_up()
+        if not ok:
+            message = f"Cannot reach {provider_type} — check configuration"
+    elif provider_type == "GroqProvider":
+        message = "Groq API is configured and ready"
+    
+    return AIProviderHealthResponse(
         status   = "ok" if ok else "error",
         model    = provider.model,
-        base_url = provider.base_url,
-        message  = "Ollama is reachable and model is loaded" if ok
-                   else "Cannot reach Ollama — check OLLAMA_BASE_URL and that the container is running",
+        provider_type = provider_type,
+        base_url = base_url,
+        message  = message,
     )
 
 
@@ -112,7 +133,7 @@ async def ask(body: AskRequest, rag: RagDep) -> AnswerResponse:
     Full RAG pipeline:
       1. Embed question  (SentenceTransformers / LaBSE)
       2. Retrieve top-k similar chunks scoped to course_id / lesson_id
-      3. Synthesise answer with the local Ollama LLM
+      3. Synthesise answer with the AI provider (Groq/Ollama based on AI_PROVIDER env-var)
 
     The entire pipeline runs in asyncio.to_thread — no async HTTP on the
     event loop — which avoids the httpx.AsyncClient/PyTorch GIL contention
@@ -128,12 +149,24 @@ async def ask(body: AskRequest, rag: RagDep) -> AnswerResponse:
         flush=True,
     )
 
+    # Fetch unit metadata defensively
+    unit_context = None
+    if body.lesson_id:
+        unit = rag._db.query(Unit).filter(Unit.id == body.lesson_id).first()
+        if unit:
+            unit_context = {
+                "title": unit.title or "",
+                "description": unit.description or "",
+            }
+        # If unit not found, unit_context stays None — pipeline still works
+
     t0 = time.perf_counter()
     try:
         result = await rag.aanswer(
             question  = body.question,
             course_id = body.course_id,
             lesson_id = body.lesson_id,
+            unit_context = unit_context,
         )
         elapsed = time.perf_counter() - t0
         print(f"[RAG /ask] done in {elapsed:.1f}s enough_context={result.enough_context}", flush=True)
@@ -147,6 +180,50 @@ async def ask(body: AskRequest, rag: RagDep) -> AnswerResponse:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"RAG pipeline error: {exc}",
         )
+
+
+@router.post(
+    "/ask/stream",
+    summary="Streaming RAG — tokens arrive in real time via SSE",
+)
+async def ask_stream(body: AskRequest, rag: RagDep):
+    """
+    Same pipeline as /ask but returns a text/event-stream response.
+
+    Each SSE event:   data: <token>\n\n
+    Final event:      data: __DONE__{"enough_context": true}__END__\n\n
+
+    The frontend reads this with a ReadableStream / EventSource reader.
+    """
+    # Fetch unit metadata (same as /ask)
+    unit_context = None
+    if body.lesson_id:
+        unit = rag._db.query(Unit).filter(Unit.id == body.lesson_id).first()
+        if unit:
+            unit_context = {"title": unit.title or "", "description": unit.description or ""}
+
+    async def event_generator():
+        try:
+            async for token in rag.aanswer_stream(
+                question=body.question,
+                course_id=body.course_id,
+                lesson_id=body.lesson_id,
+                unit_context=unit_context,
+            ):
+                # SSE format: "data: <payload>\n\n"
+                yield f"data: {token}\n\n"
+        except Exception as exc:
+            logger.exception("RAG /ask/stream failed: %s", exc)
+            yield f"data: __ERROR__{exc}__END__\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # disable nginx buffering
+        },
+    )
 
 
 @router.post(

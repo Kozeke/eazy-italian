@@ -98,12 +98,13 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.on_event("startup")
 async def warmup_rag():
     """
-    Pre-warm LaBSE and Ollama so the first real user request isn't slow.
+    Pre-warm LaBSE so the first real user request isn't slow.
 
     Without this:
       - LaBSE loads 199 weight tensors on the first /ask → +5-10s cold start
-      - Ollama cold-loads model weights on the first generate → +5-20s cold start
-    With this both happen at container start, concurrently, invisibly to users.
+    With this it happens at container start, invisibly to users.
+    
+    Note: Ollama warmup is not needed when using external Groq API.
     """
     import asyncio
 
@@ -116,26 +117,27 @@ async def warmup_rag():
         except Exception as exc:
             print(f"⚠️  [warmup] LaBSE failed — {exc}", flush=True)
 
-    async def _warm_ollama():
-        try:
-            import os, httpx
-            base_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434").rstrip("/")
-            model    = os.environ.get("OLLAMA_MODEL", "llama3.2")
-            # num_predict=1 → generate 1 token only; forces model into RAM quickly
-            payload  = {"model": model, "prompt": "hi", "stream": False,
-                        "options": {"num_predict": 1}}
-            timeout  = httpx.Timeout(connect=10.0, write=10.0, read=120.0, pool=5.0)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                r = await client.post(f"{base_url}/api/generate", json=payload)
-                r.raise_for_status()
-            print(f"✅ [warmup] Ollama '{model}' loaded and ready", flush=True)
-        except Exception as exc:
-            # Non-fatal — will still work on first user request (just slower)
-            print(f"⚠️  [warmup] Ollama warmup failed — {exc}", flush=True)
+    # Ollama warmup commented out — not needed when using external Groq API
+    # async def _warm_ollama():
+    #     try:
+    #         import os, httpx
+    #         base_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434").rstrip("/")
+    #         model    = os.environ.get("OLLAMA_MODEL", "llama3.2")
+    #         # num_predict=1 → generate 1 token only; forces model into RAM quickly
+    #         payload  = {"model": model, "prompt": "hi", "stream": False,
+    #                     "options": {"num_predict": 1}}
+    #         timeout  = httpx.Timeout(connect=10.0, write=10.0, read=120.0, pool=5.0)
+    #         async with httpx.AsyncClient(timeout=timeout) as client:
+    #             r = await client.post(f"{base_url}/api/generate", json=payload)
+    #             r.raise_for_status()
+    #         print(f"✅ [warmup] Ollama '{model}' loaded and ready", flush=True)
+    #     except Exception as exc:
+    #         # Non-fatal — will still work on first user request (just slower)
+    #         print(f"⚠️  [warmup] Ollama warmup failed — {exc}", flush=True)
 
-    print("🔥 [warmup] Pre-loading LaBSE + Ollama in background…", flush=True)
+    print("🔥 [warmup] Pre-loading LaBSE in background…", flush=True)
     # ensure_future = fire and forget, doesn't block startup completion
-    asyncio.ensure_future(asyncio.gather(_warm_labse(), _warm_ollama()))
+    asyncio.ensure_future(asyncio.gather(_warm_labse()))
 
 
 @app.on_event("startup")

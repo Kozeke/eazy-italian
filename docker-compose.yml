@@ -77,8 +77,14 @@ services:
       - SMTP_USER=your-email@gmail.com
       - SMTP_PASSWORD=your-app-password
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002
+      # AI Provider Configuration
+      - AI_PROVIDER=groq
+      - GROQ_API_KEY=your-groq-api-key-here
+      - GROQ_MODEL=llama-3.3-70b-versatile
+      - GROQ_TIMEOUT=60
       # RAG + Ollama (container on Docker network)
       - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2
       - EMBEDDING_MODEL=LaBSE
       - RAG_TOP_K=5
       - RAG_MIN_SIMILARITY=0.3

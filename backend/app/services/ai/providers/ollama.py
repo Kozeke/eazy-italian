@@ -144,5 +144,70 @@ class LocalLlamaProvider(AIProvider):
         import asyncio
         return await asyncio.to_thread(self.generate, prompt)
 
+    def generate_stream(self, prompt: str):
+        """
+        Yields text tokens one by one using Ollama's NDJSON stream.
+        Each line from Ollama: {"response": "<token>", "done": false}
+        """
+        import json
+
+        payload = {
+            "model":   self.model,
+            "prompt":  prompt,
+            "stream":  True,   # ← the only difference from generate()
+            "options": self.options,
+        }
+
+        try:
+            with self._client.stream("POST", "/api/generate", json=payload) as resp:
+                resp.raise_for_status()
+                for raw_line in resp.iter_lines():
+                    if not raw_line:
+                        continue
+                    try:
+                        chunk = json.loads(raw_line)
+                    except json.JSONDecodeError:
+                        continue
+                    token = chunk.get("response", "")
+                    if token:
+                        yield token
+                    if chunk.get("done", False):
+                        break
+        except httpx.TimeoutException as exc:
+            raise AIProviderError(f"Ollama stream timed out after {self.timeout}s") from exc
+        except httpx.HTTPStatusError as exc:
+            raise AIProviderError(f"Ollama HTTP {exc.response.status_code}") from exc
+        except httpx.RequestError as exc:
+            raise AIProviderError(f"Cannot reach Ollama at {self.base_url}: {exc}") from exc
+
+    async def agenerate_stream(self, prompt: str):
+        """
+        Async generator — runs generate_stream() in a thread pool, re-yields tokens
+        without blocking the asyncio event loop. FastAPI StreamingResponse consumes this.
+        """
+        import asyncio
+        import queue as _queue
+
+        q: _queue.Queue = _queue.Queue()
+        _DONE = object()
+
+        def _producer():
+            try:
+                for tok in self.generate_stream(prompt):
+                    q.put(tok)
+            finally:
+                q.put(_DONE)
+
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, _producer)
+
+        while True:
+            while q.empty():
+                await asyncio.sleep(0.005)   # yield control without sleeping long
+            item = q.get_nowait()
+            if item is _DONE:
+                break
+            yield item
+
     def __repr__(self) -> str:
         return f"<LocalLlamaProvider model={self.model!r} url={self.base_url!r}>"

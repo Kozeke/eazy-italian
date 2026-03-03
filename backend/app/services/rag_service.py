@@ -89,6 +89,7 @@ class RAGService:
         question:  str,
         course_id: int,
         lesson_id: int | None = None,
+        unit_context: dict | None = None,
     ) -> AnswerResponse:
         """
         Synchronous RAG pipeline.
@@ -101,20 +102,29 @@ class RAGService:
             Scope retrieval to this course.
         lesson_id : int | None
             Further restrict to a single lesson/unit (optional).
+        unit_context : dict | None
+            Optional unit metadata with 'title' and/or 'description' keys.
+            If provided, this metadata is prepended to context chunks.
 
         Returns
         -------
         AnswerResponse
             Pydantic model with `answer: str` and `enough_context: bool`.
         """
-        chunks = self._retrieve(question, course_id, lesson_id)
-        context_texts = self._chunks_to_texts(chunks)
+        context_texts = self._retrieve_chunks(question, course_id, lesson_id, unit_context)
+
+        # Tier 2: if no metadata AND no chunks retrieved, signal clearly
+        if not context_texts:
+            return AnswerResponse(
+                answer="Недостаточно информации для ответа на этот вопрос.",
+                enough_context=False,
+            )
 
         logger.info(
             "RAG: question=%r course=%d retrieved=%d chunks",
             question[:60],
             course_id,
-            len(chunks),
+            len(context_texts),
         )
 
         return self._synthesizer.synthesize(
@@ -127,6 +137,7 @@ class RAGService:
         question:  str,
         course_id: int,
         lesson_id: int | None = None,
+        unit_context: dict | None = None,
     ) -> AnswerResponse:
         """
         Async RAG pipeline — the ENTIRE pipeline (embed + DB + Ollama HTTP)
@@ -144,8 +155,29 @@ class RAGService:
         dedicated thread avoids the issue entirely.
         """
         return await asyncio.to_thread(
-            self.answer, question, course_id, lesson_id
+            self.answer, question, course_id, lesson_id, unit_context
         )
+
+    async def aanswer_stream(
+        self,
+        question: str,
+        course_id: int,
+        lesson_id: int | None = None,
+        unit_context: dict | None = None,
+    ):
+        """Async generator — retrieves chunks then streams tokens."""
+        import asyncio
+
+        # Retrieval is CPU-bound (embedding), run in thread
+        chunks = await asyncio.to_thread(
+            self._retrieve_chunks, question, course_id, lesson_id, unit_context
+        )
+
+        async for token in self._synthesizer.asynthesize_stream(
+            question=question,
+            context_chunks=chunks,
+        ):
+            yield token
 
     # ── Pipeline steps ────────────────────────────────────────────────────────
 
@@ -164,6 +196,32 @@ class RAGService:
             lesson_id       = lesson_id,
             min_similarity  = self._min_sim,
         )
+
+    def _retrieve_chunks(
+        self,
+        question:  str,
+        course_id: int,
+        lesson_id: int | None,
+        unit_context: dict | None = None,
+    ) -> List[str]:
+        """
+        Retrieve chunks and convert to context text strings.
+        Handles unit_context injection and returns ready-to-use context chunks.
+        """
+        chunks = self._retrieve(question, course_id, lesson_id)
+        context_texts = self._chunks_to_texts(chunks)
+
+        # Tier 1: inject metadata if available
+        if unit_context and (unit_context.get("title") or unit_context.get("description")):
+            parts = []
+            if unit_context.get("title"):
+                parts.append(f"Unit title: {unit_context['title']}")
+            if unit_context.get("description"):
+                parts.append(f"Unit description: {unit_context['description']}")
+            meta = "[UNIT METADATA] " + ". ".join(parts) + "."
+            context_texts = [meta] + context_texts
+
+        return context_texts
 
     @staticmethod
     def _chunks_to_texts(chunks: List[ChunkSearchResult]) -> List[str]:

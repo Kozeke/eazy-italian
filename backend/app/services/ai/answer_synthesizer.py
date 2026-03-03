@@ -140,6 +140,81 @@ class AnswerSynthesizer:
         raw_out = await self.provider.agenerate(prompt)
         return self._parse(raw_out)
 
+    async def asynthesize_stream(
+        self,
+        question: str,
+        context_chunks: list[str],
+    ):
+        """
+        Streams clean answer tokens, stripping the XML envelope.
+
+        Stops at the FIRST closing tag "</" — answer body never contains XML,
+        so any "</" indicates the end of the answer content.
+        """
+        import json
+
+        prompt = self._build_prompt(question, context_chunks)
+
+        full_text: list[str] = []
+        answer_started = False
+        answer_done = False
+        buf = ""   # content buffer after <answer> opens
+
+        async for token in self.provider.agenerate_stream(prompt):
+            full_text.append(token)
+
+            if answer_done:
+                continue  # keep draining tokens for full_text only
+
+            if not answer_started:
+                combined = "".join(full_text)
+                if "<answer>" not in combined:
+                    continue
+                answer_started = True
+                # FIX 1: strip the leading newline the XML template puts after
+                # <answer>.  When <answer> arrives as its own token, the \n
+                # becomes a standalone 1-char yield → SSE frame "data: \n\n\n"
+                # → frontend buffer retains "\n" as leftover → that "\n" gets
+                # prepended to the NEXT SSE event making it "\ndata: Итал..."
+                # → startsWith("data: ") fails → first word silently dropped.
+                buf = combined.split("<answer>", 1)[1].lstrip("\n")
+            else:
+                buf += token
+
+            # Stop at the FIRST closing tag "</" — answer body never has XML
+            if "</" in buf:
+                safe = buf.split("</", 1)[0]
+                if safe:
+                    yield safe
+                answer_done = True
+                continue
+
+            # Hold back last 2 chars in case "<" arrived alone and "/" is next
+            # But yield immediately if buffer doesn't end with "<" (safe to yield)
+            if len(buf) >= 3:
+                # Buffer is long enough - yield all but last 2 chars
+                yield buf[:-2]
+                buf = buf[-2:]
+            elif len(buf) > 0:
+                # Buffer is 1-2 chars - yield if it doesn't end with "<" (might be start of "</")
+                if not buf.endswith("<"):
+                    yield buf
+                    buf = ""
+                # else: keep "<" in buffer, wait for next token
+
+        # End-of-stream flush (no closing tag found — model ignored format)
+        if answer_started and not answer_done and buf:
+            yield buf.strip()
+
+        raw = "".join(full_text)
+        parsed = self._parse(raw)
+        # FIX 2: removed the "\n" prefix that was here before.
+        # With it, the client received payload="\n__DONE__..." and
+        # payload.startsWith("__DONE__") was always false → onDone never
+        # fired → setQaLoading(false) never ran → send button stayed disabled
+        # after the very first message.
+        yield f"__DONE__{json.dumps({'enough_context': parsed.enough_context})}__END__"
+
     # ── private ───────────────────────────────────────────────────────────────
 
     def _build_prompt(self, question: str, chunks: List[str]) -> str:

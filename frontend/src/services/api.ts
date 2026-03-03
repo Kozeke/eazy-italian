@@ -468,6 +468,11 @@ export const testsApi = {
     await api.delete(`/tests/${testId}/questions/${questionId}`);
   },
 
+  regenerateQuestion: async (testId: number, questionId: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(`/tests/${testId}/questions/${questionId}/regenerate`);
+    return response.data;
+  },
+
   publishTest: async (testId: number): Promise<any> => {
     const response: AxiosResponse<any> = await api.patch(`/tests/${testId}/publish`);
     return response.data;
@@ -622,6 +627,18 @@ export const gradesApi = {
   
   getTestsStatistics: async () => {
     const response = await api.get('grades/admin/tests/statistics');
+    return response.data;
+  },
+};
+
+// Analytics API
+export const analyticsApi = {
+  getTestAnalytics: async (testId: number) => {
+    const response = await api.get(`/admin/analytics/test/${testId}`);
+    return response.data;
+  },
+  getStudentAnalytics: async (studentId: number) => {
+    const response = await api.get(`/admin/analytics/student/${studentId}`);
     return response.data;
   },
 };

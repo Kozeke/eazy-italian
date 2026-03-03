@@ -1,6 +1,9 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import auth, users, units, videos, tasks, tests, progress, email_campaigns, grades, admin_students, courses, test_constructor, notifications, ingest, rag
 from app.api.v1.endpoints.student import tests as student_tests
+from app.api.v1.endpoints.generate_test import router as generate_test_router
+from app.api.v1.endpoints import analytics
+
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
@@ -18,6 +21,7 @@ api_router.include_router(admin_students.router, prefix="/admin/students", tags=
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(ingest.router, prefix="/ingest", tags=["RAG · Ingestion"])
 api_router.include_router(rag.router, prefix="/rag", tags=["RAG · Q&A"])
-
+api_router.include_router(generate_test_router, tags=["AI Test Generation"])
 #student routes
 api_router.include_router(student_tests.router, prefix="/student/tests", tags=["Student Tests"])
+api_router.include_router(analytics.router)
