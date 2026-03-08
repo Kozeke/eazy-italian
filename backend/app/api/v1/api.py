@@ -3,6 +3,9 @@ from app.api.v1.endpoints import auth, users, units, videos, tasks, tests, progr
 from app.api.v1.endpoints.student import tests as student_tests
 from app.api.v1.endpoints.generate_test import router as generate_test_router
 from app.api.v1.endpoints import analytics
+from app.api.v1.endpoints import course_generation
+from app.api.v1.endpoints import slide_generation
+from app.api.v1.endpoints.presentations import router as presentations_router
 
 api_router = APIRouter()
 
@@ -22,6 +25,9 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(ingest.router, prefix="/ingest", tags=["RAG · Ingestion"])
 api_router.include_router(rag.router, prefix="/rag", tags=["RAG · Q&A"])
 api_router.include_router(generate_test_router, tags=["AI Test Generation"])
+api_router.include_router(course_generation.router, prefix="/course-builder", tags=["Course Builder"])
+api_router.include_router(slide_generation.router, prefix="/ai", tags=["AI Slide Generation"])
+api_router.include_router(presentations_router, tags=["Presentations"])
 #student routes
 api_router.include_router(student_tests.router, prefix="/student/tests", tags=["Student Tests"])
 api_router.include_router(analytics.router)

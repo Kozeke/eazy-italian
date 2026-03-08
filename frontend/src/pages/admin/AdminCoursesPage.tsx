@@ -214,7 +214,7 @@ export default function AdminCoursesPage() {
           </div>
 
           <Link
-            to="/admin/courses/new"
+            to="/admin/courses/builder"
             className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -459,7 +459,7 @@ export default function AdminCoursesPage() {
             </p>
             {!searchQuery && !selectedLevel && !selectedStatus && (
               <Link
-                to="/admin/courses/new"
+                to="/admin/courses/builder"
                 className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
               >
                 <Plus className="h-4 w-4 mr-2" />

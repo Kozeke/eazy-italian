@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './hooks/useAuth';
 import LayoutWrapper from './components/LayoutWrapper';
@@ -51,13 +51,16 @@ import AdminAuditLogPage from './pages/admin/AdminAuditLogPage';
 import AdminCoursesPage from './pages/admin/AdminCoursesPage';
 import AdminCourseCreatePage from './pages/admin/AdminCourseCreatePage';
 import AdminCourseEditPage from './pages/admin/AdminCourseEditPage';
+import AdminTeacherOnboarding from './pages/admin/AdminTeacherOnboarding';
+import TeacherOnboardingPage from './pages/admin/TeacherOnboarding';
+import GenerateSlidePage from './pages/admin/AdminGenerateSlidePage';
 import AdminLayout from './components/admin/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 
 function App() {
   const { t } = useTranslation();
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
 
   if (loading) {
     return (
@@ -94,13 +97,25 @@ function App() {
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
-             {/* Admin routes */}
+      {/* Admin routes - Full screen (no layout) */}
+      <Route path="/admin/slides/generate" element={<AdminRoute><GenerateSlidePage /></AdminRoute>} />
+      <Route 
+        path="/admin/onboarding" 
+        element={
+          user?.role === 'teacher' && !user?.onboarding_completed
+            ? <AdminRoute><AdminTeacherOnboarding /></AdminRoute>
+            : <Navigate to="/admin/dashboard" replace />
+        } 
+      />
+
+      {/* Admin routes - with layout */}
        <Route element={<AdminRoute><AdminLayout /></AdminRoute>}>
          <Route path="/admin" element={<AdminDashboardPage />} />
          
          {/* Courses routes */}
          <Route path="/admin/courses" element={<AdminCoursesPage />} />
          <Route path="/admin/courses/new" element={<AdminCourseCreatePage />} />
+         <Route path="/admin/courses/builder" element={<TeacherOnboardingPage />} />
          <Route path="/admin/courses/:id" element={<AdminCoursesPage />} />
          <Route path="/admin/courses/:id/edit" element={<AdminCourseEditPage />} />
          

@@ -49,6 +49,7 @@ class Unit(Base):
     videos = relationship("Video", back_populates="unit", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="unit", cascade="all, delete-orphan")
     tests = relationship("Test", back_populates="unit", cascade="all, delete-orphan")
+    presentations = relationship("Presentation", back_populates="unit", cascade="all, delete-orphan")
     progress = relationship("Progress", back_populates="unit", cascade="all, delete-orphan")
 
     @property

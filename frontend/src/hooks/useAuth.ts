@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
           console.error('Failed to get current user:', error);
           localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
         }
       }
       setLoading(false);
@@ -44,6 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await authApi.login({ email, password });
       console.log('Login response:', response);
       localStorage.setItem('token', response.access_token);
+      if (response.refresh_token) {
+        localStorage.setItem('refresh_token', response.refresh_token);
+      }
       const currentUser = await authApi.getCurrentUser();
       console.log('Current user:', currentUser);
       setUser(currentUser);
@@ -63,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password: userData.password 
       });
       localStorage.setItem('token', response.access_token);
+      if (response.refresh_token) {
+        localStorage.setItem('refresh_token', response.refresh_token);
+      }
       const currentUser = await authApi.getCurrentUser();
       setUser(currentUser);
       return currentUser;
@@ -84,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Normal logout if no test is active
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
     setUser(null);
     return true; // Logout was performed
   };
@@ -92,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     const handlePerformLogout = () => {
       localStorage.removeItem('token');
+      localStorage.removeItem('refresh_token');
       setUser(null);
       // Clear test state
       sessionStorage.removeItem('test_active');

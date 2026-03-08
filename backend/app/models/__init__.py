@@ -11,6 +11,7 @@ from .subscription import Subscription, SubscriptionLevel, UserSubscription
 from .enrollment import CourseEnrollment
 from .notification import Notification, NotificationType
 from .lesson_chunk import LessonChunk
+from .presentation import Presentation, PresentationSlide
 
 __all__ = [
     "User",
@@ -36,4 +37,6 @@ __all__ = [
     "Notification",
     "NotificationType",
     "LessonChunk",
+    "Presentation",
+    "PresentationSlide",
 ]

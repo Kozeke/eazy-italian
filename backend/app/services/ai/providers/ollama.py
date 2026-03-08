@@ -105,7 +105,16 @@ class LocalLlamaProvider(AIProvider):
             "model":   self.model,
             "prompt":  prompt,
             "stream":  False,
-            "options": self.options,
+            "options": {
+                **self.options,
+                "num_predict": self.options.get("num_predict", 2048),  # safety ceiling only — stop sequences fire first
+                "stop": self.options.get("stop", [
+                    "\n}\n",           # JSON object closed with trailing newline
+                    "\n```",           # model wrapping in markdown fence
+                    "</s>",            # some models use this as EOS
+                ]),
+                "temperature": self.options.get("temperature", 0.2),  # keep this low for structured output
+            },
         }
 
         logger.debug("Ollama request → model=%s", self.model)
@@ -155,7 +164,16 @@ class LocalLlamaProvider(AIProvider):
             "model":   self.model,
             "prompt":  prompt,
             "stream":  True,   # ← the only difference from generate()
-            "options": self.options,
+            "options": {
+                **self.options,
+                "num_predict": self.options.get("num_predict", 2048),  # safety ceiling only — stop sequences fire first
+                "stop": self.options.get("stop", [
+                    "\n}\n",           # JSON object closed with trailing newline
+                    "\n```",           # model wrapping in markdown fence
+                    "</s>",            # some models use this as EOS
+                ]),
+                "temperature": self.options.get("temperature", 0.2),  # keep this low for structured output
+            },
         }
 
         try:

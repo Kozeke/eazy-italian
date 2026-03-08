@@ -59,6 +59,12 @@ export default function AdminDashboardPage() {
       try {
         const data = await coursesApi.getDashboardStatistics();
         setStats(data);
+        
+        // Redirect new teachers (no courses) to onboarding
+        if (data.courses_count === 0) {
+          navigate('/admin/onboarding', { replace: true });
+          return;
+        }
       } catch (error) {
         console.error('Failed to fetch dashboard statistics:', error);
       } finally {
@@ -67,7 +73,7 @@ export default function AdminDashboardPage() {
     };
 
     fetchStats();
-  }, []);
+  }, [navigate]);
 
   if (loading) {
     return (

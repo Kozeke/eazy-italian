@@ -10,6 +10,7 @@ from app.core.database import Base
 
 # Import all models so SQLAlchemy can create tables
 from app.models import Course, Unit, User, Video, Task, Test, Progress, EmailCampaign, VideoProgress
+from app.models.presentation import Presentation, PresentationSlide
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -193,6 +194,21 @@ async def startup_event():
             # If you want one-time migrations, we can add a migration_tracking table
             try:
                 with engine.connect() as conn:
+                    # ── Ensure Presentations tables exist (idempotent) ───────────────
+                    # We prefer SQLAlchemy's table DDL (checkfirst=True) so column types
+                    # (including enums) always match the ORM models.
+                    try:
+                        from app.models.presentation import Presentation, PresentationSlide
+
+                        Presentation.__table__.create(bind=conn, checkfirst=True)
+                        PresentationSlide.__table__.create(bind=conn, checkfirst=True)
+                        conn.commit()
+                        print("✅ Ensured presentations tables exist", flush=True)
+                    except Exception as exc:
+                        # Non-fatal — endpoints will still work if tables already exist,
+                        # and deployments without presentations can ignore this.
+                        print(f"⚠️  Presentations table ensure failed: {exc}", flush=True)
+
                     # Add missing columns to questions table if they don't exist
                     question_migrations = [
                         ("shuffle_options", "BOOLEAN DEFAULT FALSE"),

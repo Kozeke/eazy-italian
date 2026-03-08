@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { Eye, EyeOff, Globe } from 'lucide-react';
@@ -16,9 +16,17 @@ const LoginPage: React.FC = () => {
   const { t } = useTranslation();
   const currentLang = i18n.language;
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const nextPath = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const nextFromQuery = params.get('next');
+    const nextFromSession = sessionStorage.getItem('post_login_redirect');
+    return nextFromQuery || nextFromSession || '';
+  }, [location.search]);
 
   const {
     register,
@@ -31,10 +39,20 @@ const LoginPage: React.FC = () => {
     try {
       const loggedInUser = await login(data.email, data.password);
       toast.success(t('auth.loginSuccess') || 'Successfully logged in!');
+      if (nextPath) {
+        sessionStorage.removeItem('post_login_redirect');
+        navigate(nextPath, { replace: true });
+        return;
+      }
+      // Check onboarding status for teachers
       if (loggedInUser?.role === 'teacher') {
-        navigate('/admin');
+        if (!loggedInUser.onboarding_completed) {
+          navigate('/admin/onboarding', { replace: true });
+        } else {
+          navigate('/admin', { replace: true });
+        }
       } else {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       }
     } catch (error: any) {
       toast.error(error.response?.data?.detail || t('auth.loginError') || 'Login error');

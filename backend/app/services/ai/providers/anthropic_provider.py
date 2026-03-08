@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL   = "claude-sonnet-4-20250514"
 _DEFAULT_TIMEOUT = 60.0
-_MAX_TOKENS      = 1024
+_MAX_TOKENS      = 2048  # 4096 is wasteful — Anthropic charges per output token
 
 
 class AnthropicProvider(AIProvider):

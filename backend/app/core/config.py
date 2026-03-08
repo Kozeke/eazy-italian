@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     # JWT
     SECRET_KEY: str = "your-super-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours - increased for better UX during editing sessions
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 120  # 2 hours
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     
     # Email
     SMTP_HOST: str = "smtp.gmail.com"
@@ -64,6 +65,27 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Eazy Italian"
+    
+    # AI Provider Configuration
+    AI_PROVIDER: str = "groq"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_TIMEOUT: int = 60
+    
+    # Ollama Configuration
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2"
+    
+    # RAG Configuration
+    EMBEDDING_MODEL: str = "LaBSE"
+    RAG_TOP_K: int = 5
+    RAG_MIN_SIMILARITY: float = 0.3
+    
+    # Hugging Face Configuration
+    HF_API_KEY: str = ""
+    HF_MODEL: str = "black-forest-labs/FLUX.1-schnell"
+    HF_WIDTH: int = 512
+    HF_HEIGHT: int = 384
     
     class Config:
         env_file = ".env"

@@ -26,7 +26,11 @@ class UserLogin(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 class UserResponse(UserBase):
     id: int
@@ -40,6 +44,7 @@ class UserResponse(UserBase):
     subscription: Optional[str] = None
     subscription_ends_at: Optional[datetime] = None
     enrolled_courses_count: int = 0
+    onboarding_completed: bool = False
 
     class Config:
         from_attributes = True

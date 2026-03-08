@@ -16,6 +16,7 @@ import {
   PaginatedResponse,
   Student
 } from '../types';
+import { promptSessionExpired } from './sessionExpiredPrompt';
 
 // Get API base URL from environment variables
 // Defaults to localhost for development if not set
@@ -29,11 +30,14 @@ const api: AxiosInstance = axios.create({
   },
 });
 
+let refreshFlowPromise: Promise<string | null> | null = null;
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -46,10 +50,104 @@ api.interceptors.request.use(
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Avoid infinite loops for auth endpoints (login/refresh)
+      const reqUrl: string = String(error.config?.url || '');
+      if (reqUrl.includes('/auth/login') || reqUrl.includes('/auth/refresh')) {
+        return Promise.reject(error);
+      }
+
+      // If the user isn't logged in (no access token stored), don't show a session-expired prompt.
+      const hasAccessToken = !!localStorage.getItem('token');
+      if (!hasAccessToken) {
+        return Promise.reject(error);
+      }
+
+      // If another request already kicked off the refresh flow, wait for it and retry.
+      if (refreshFlowPromise) {
+        const newToken = await refreshFlowPromise;
+        if (newToken && error.config) {
+          error.config.headers = {
+            ...(error.config.headers || {}),
+            Authorization: `Bearer ${newToken}`,
+          };
+          return api.request(error.config);
+        }
+        return Promise.reject(error);
+      }
+
+      // Prompt once, and allow the user 10 seconds to decide.
+      let alreadyPrompting = sessionStorage.getItem('auth_expired_prompt_open') === 'true';
+      if (alreadyPrompting) {
+        // Stale flag from a previous crash/reload shouldn't block future prompts.
+        sessionStorage.removeItem('auth_expired_prompt_open');
+        alreadyPrompting = false;
+      }
+      if (!alreadyPrompting) {
+        sessionStorage.setItem('auth_expired_prompt_open', 'true');
+
+        const currentUrl = window.location.pathname + window.location.search + window.location.hash;
+        try {
+          sessionStorage.setItem('post_login_redirect', currentUrl);
+        } catch {
+          // ignore storage failures
+        }
+
+        const forceLogoutToLogin = () => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
+          // Let AuthProvider cleanup as well (test state, etc.)
+          try {
+            window.dispatchEvent(new CustomEvent('perform-logout'));
+          } catch {
+            // ignore
+          }
+          const next = encodeURIComponent(currentUrl);
+          window.location.href = `/login?next=${next}`;
+        };
+
+        refreshFlowPromise = (async () => {
+          const choice = await promptSessionExpired(10);
+          if (choice !== 'stay') {
+            forceLogoutToLogin();
+            return null;
+          }
+
+          const refreshToken = localStorage.getItem('refresh_token');
+          if (!refreshToken) {
+            forceLogoutToLogin();
+            return null;
+          }
+
+          try {
+            const refreshRes = await axios.post<TokenResponse>(`${API_BASE_URL}/auth/refresh`, {
+              refresh_token: refreshToken,
+            });
+            const newAccessToken = refreshRes.data.access_token;
+            localStorage.setItem('token', newAccessToken);
+            if (refreshRes.data.refresh_token) {
+              localStorage.setItem('refresh_token', refreshRes.data.refresh_token);
+            }
+            return newAccessToken;
+          } catch {
+            forceLogoutToLogin();
+            return null;
+          }
+        })().finally(() => {
+          refreshFlowPromise = null;
+          sessionStorage.removeItem('auth_expired_prompt_open');
+        });
+
+        const newToken = await refreshFlowPromise;
+        if (newToken && error.config) {
+          error.config.headers = {
+            ...(error.config.headers || {}),
+            Authorization: `Bearer ${newToken}`,
+          };
+          return api.request(error.config);
+        }
+      }
     }
     return Promise.reject(error);
   }
