@@ -36,8 +36,7 @@
  *   "Tasks" (never "Exercises")   •   "Test" (never "Quiz"/"Quizzes")
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import SlideEditorPage from "./SlideEditorPage";
 
 /* ─── ID factory ─────────────────────────────────────────────────────────── */
@@ -2420,7 +2419,7 @@ const WorkspaceStyles = () => (
 /* ── Workspace topbar ─────────────────────────────────────────────────────── */
 const WorkspaceTopbar = ({ title, doneCount, totalCount, onSave, saving, onPublish, unsavedChanges, lastSavedAt }) => {
   /* Human-readable "saved X min ago" label */
-  const savedLabel = React.useMemo(() => {
+  const savedLabel = useMemo(() => {
     if (!lastSavedAt) return null;
     const mins = Math.round((Date.now() - lastSavedAt) / 60000);
     if (mins < 1) return "just now";
@@ -3715,10 +3714,10 @@ const TestSection = ({ questions = [], isGenerating, onCreateQuestion, onEditQue
 };
 
 
-  //  Shows teacher-uploaded unit files and their RAG availability status.
-  //  No new backend assumptions — sources derived from uploadedFiles prop.
-  //  Post-generation: future-ready sources strip (empty until backend wired).
-  //  ═══════════════════════════════════════════════════════════════════════════ */
+/*    Shows teacher-uploaded unit files and their RAG availability status.
+   No new backend assumptions — sources derived from uploadedFiles prop.
+   Post-generation: future-ready sources strip (empty until backend wired).
+   ═══════════════════════════════════════════════════════════════════════════ */
 /* ═══════════════════════════════════════════════════════════════════════════
    MATERIALS SECTION
    Shows teacher-uploaded unit files and their RAG availability status.
@@ -4726,7 +4725,6 @@ function useGenerationEngine({ allLessons, courseData }) {
      - prop-threading to children
    ═══════════════════════════════════════════════════════════════════════════ */
 function CourseBuilderWorkspace({ outline, courseData, uploadedFiles, courseId, unitMap }) {
-  const navigate = useNavigate();
 
   /* ── Core state via hooks ── */
   const cs  = useCourseState(outline);
@@ -4744,11 +4742,8 @@ function CourseBuilderWorkspace({ outline, courseData, uploadedFiles, courseId, 
     /* future: chunkCount, sources[] from GET /api/v1/rag/unit/:unitId/status */
   };
 
-  /* ── Publish ── */
-  const handlePublish = () => {
-    // TODO: POST /api/v1/course-builder/publish
-    navigate('/admin/courses');
-  };
+  /* ── Publish (stub) ── */
+  const handlePublish = () => { alert("Publish flow will be wired in the next iteration."); };
 
   /* ── Slide editor overlay — full-screen when editingLessonId is set ── */
   if (gen.editingLessonId) {
