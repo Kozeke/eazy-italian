@@ -37,6 +37,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import SlideEditorPage from "./SlideEditorPage";
 
 /* ─── ID factory ─────────────────────────────────────────────────────────── */
@@ -139,7 +140,7 @@ export const GlobalStyles = () => (
     /* ── Phase transition animations ── */
     @keyframes phaseEnter {
       from { opacity:0; transform:translateY(18px) scale(.985); filter:blur(2px); }
-      to   { opacity:1; transform:translateY(0)    scale(1);    filter:blur(0);   }
+      to   { opacity:1; transform:none; filter:none; }
     }
     @keyframes phaseExit {
       from { opacity:1; transform:scale(1);    filter:blur(0); }
@@ -4745,13 +4746,13 @@ function CourseBuilderWorkspace({ outline, courseData, uploadedFiles, courseId, 
   /* ── Publish (stub) ── */
   const handlePublish = () => { alert("Publish flow will be wired in the next iteration."); };
 
-  /* ── Slide editor overlay — full-screen when editingLessonId is set ── */
-  if (gen.editingLessonId) {
+  /* ── Slide editor portal — mounts on document.body to escape AdminLayout stacking context ── */
+  const slideEditorPortal = gen.editingLessonId ? (() => {
     const editLesson  = cs.allLessons.find(l => l.id === gen.editingLessonId);
     const editContent = gen.generatedLessons[gen.editingLessonId];
     const editSlides  = editContent?.slides || [];
 
-    return (
+    return createPortal(
       <SlideEditorPage
         slides={editSlides}
         title={editLesson?.title || "Untitled Lesson"}
@@ -4765,9 +4766,10 @@ function CourseBuilderWorkspace({ outline, courseData, uploadedFiles, courseId, 
           lessonIndex:  cs.allLessons.findIndex(l => l.id === gen.editingLessonId),
           totalLessons: cs.allLessons.length,
         }}
-      />
+      />,
+      document.body
     );
-  }
+  })() : null;
 
   /* ── Breadcrumb ── */
   const breadcrumb = cs.selectedLesson
@@ -4889,6 +4891,9 @@ function CourseBuilderWorkspace({ outline, courseData, uploadedFiles, courseId, 
 
         {draft.saveToast && <div className="ws-toast">💾 Draft saved</div>}
       </div>
+
+      {/* Slide editor — portalled to document.body to escape layout stacking context */}
+      {slideEditorPortal}
     </>
   );
 }

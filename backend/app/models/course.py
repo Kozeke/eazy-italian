@@ -52,6 +52,7 @@ class Course(Base):
     
     # Course settings
     settings = Column(JSON, default=dict, nullable=True)  # Additional course settings
+    join_code = Column(String(10), nullable=True, unique=True, index=True)  # Code for students to join the course
     
     # Audit fields
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)

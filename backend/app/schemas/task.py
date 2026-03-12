@@ -71,7 +71,7 @@ class TaskBase(BaseModel):
         return v
 
 class TaskCreate(TaskBase):
-    unit_id: Optional[int] = Field(None, description="ID юнита (опционально)")
+    unit_id: int = Field(..., description="ID юнита (обязательно)")
     content: Optional[str] = Field(None, description="Содержание задания (текст для чтения/прослушивания)")
     status: Optional[TaskStatus] = Field(TaskStatus.DRAFT, description="Статус задания")
     auto_check_config: Dict[str, Any] = Field(default_factory=dict, description="Конфигурация авто-проверки")
@@ -81,10 +81,10 @@ class TaskCreate(TaskBase):
 
     @validator('unit_id', pre=True)
     def validate_unit_id(cls, v):
-        """Convert empty string to None for unit_id"""
+        """Validate unit_id is provided and not empty"""
         if v == "" or v is None:
-            return None
-        return v
+            raise ValueError("unit_id is required")
+        return int(v)
 
     @validator('due_at', pre=True)
     def validate_due_at(cls, v):
@@ -184,8 +184,8 @@ class TaskUpdate(TaskBase):
     attachments: Optional[List[str]] = None
     content: Optional[str] = Field(None, description="Содержание задания (текст для чтения/прослушивания)")
     questions: Optional[List[Dict[str, Any]]] = Field(None, description="Вопросы о содержании (для listening/reading задач)")
-    # Allow updating unit association
-    unit_id: Optional[int] = Field(None, description="ID юнита")
+    # Allow updating unit association - required if not already set
+    unit_id: Optional[int] = Field(None, description="ID юнита (обязательно, если не установлен)")
     status: Optional[TaskStatus] = Field(None, description="Статус задания")
 
 class TaskInDB(TaskBase):

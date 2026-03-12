@@ -139,7 +139,7 @@ export const GlobalStyles = () => (
     /* ── Phase transition animations ── */
     @keyframes phaseEnter {
       from { opacity:0; transform:translateY(18px) scale(.985); filter:blur(2px); }
-      to   { opacity:1; transform:translateY(0)    scale(1);    filter:blur(0);   }
+      to   { opacity:1; transform:none; filter:none; }
     }
     @keyframes phaseExit {
       from { opacity:1; transform:scale(1);    filter:blur(0); }
@@ -3714,7 +3714,7 @@ const TestSection = ({ questions = [], isGenerating, onCreateQuestion, onEditQue
 };
 
 
- /*   Shows teacher-uploaded unit files and their RAG availability status.
+/*    Shows teacher-uploaded unit files and their RAG availability status.
    No new backend assumptions — sources derived from uploadedFiles prop.
    Post-generation: future-ready sources strip (empty until backend wired).
    ═══════════════════════════════════════════════════════════════════════════ */

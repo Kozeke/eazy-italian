@@ -11,6 +11,7 @@ from app.core.database import Base
 # Import all models so SQLAlchemy can create tables
 from app.models import Course, Unit, User, Video, Task, Test, Progress, EmailCampaign, VideoProgress
 from app.models.presentation import Presentation, PresentationSlide
+from app.models.live_session import LiveSession
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

@@ -1,890 +1,1201 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { 
-  ArrowLeft,
-  Plus,
-  X,
-  Pencil,
-  Trash2,
-  ExternalLink,
-  BookMarked,
-  AlertTriangle
-} from 'lucide-react';
-import { unitsApi, tasksApi, testsApi, videosApi, coursesApi } from '../../services/api';
-import toast from 'react-hot-toast';
-import RichTextEditor from '../../components/admin/RichTextEditor';
+/**
+ * AdminUnitEditPage.tsx
+ *
+ * Route: /admin/units/:id/edit
+ *
+ * Central unit management hub for admins.
+ * ─────────────────────────────────────────────
+ *   UnitEditPage
+ *     ├── UnitHeader         (hero gradient, breadcrumb, status badge)
+ *     ├── [main 2-col layout]
+ *     │     ├── UnitMetadataForm   (editable fields + save)
+ *     │     ├── UnitContentSections
+ *     │     │     └── UnitSectionCard × 5  (Slides / Test / Tasks / Videos / Materials)
+ *     └── UnitActionsPanel   (right sidebar: stats + quick actions)
+ *
+ * Design language: TeacherOnboarding.jsx
+ *   – Same T tokens (violet, pink, lime, sky, amber, orange, teal …)
+ *   – Gradient hero with animated orbs + floaters
+ *   – Nunito display / Inter body
+ *   – Card system, shimmer skeletons, save toast
+ *
+ * APIs used (existing): unitsApi.getAdminUnit, unitsApi.updateUnit
+ *                        videosApi.getAdminVideos, tasksApi.getAdminTasks,
+ *                        testsApi.getTests, coursesApi.getAdminCourse
+ */
 
-interface UnitFormData {
-  title: string;
-  level: string;
-  description: string;
-  goals: string;
-  tags: string[];
-  status: string;
-  publish_at: string;
-  order_index: number | '';
-  course_id: number | null;
-  is_visible_to_students: boolean;
-  meta_title: string;
-  meta_description: string;
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { unitsApi, videosApi, tasksApi, testsApi } from "../../services/api";
+import { Unit } from "../../types";
+import { CreateTestMethodPicker } from "./CreateTestMethodPicker";
+import { CreateTaskMethodPicker } from "./CreateTaskMethodPicker";
+import toast from "react-hot-toast";
+
+/* ─── Design tokens (matches TeacherOnboarding.jsx exactly) ──────────────── */
+const T = {
+  violet:"#6C35DE", violetL:"#EDE9FF", violetD:"#4F23B0",
+  pink:"#F0447C",   pinkL:"#FDE8F0",
+  lime:"#0DB85E",   limeL:"#DCFCE7",
+  sky:"#0099E6",    skyL:"#DAEEFF",
+  amber:"#F5A623",  amberL:"#FEF3C7",
+  orange:"#F76D3C", orangeL:"#FFECE5",
+  teal:"#00BCD4",   tealL:"#E0F7FA",
+  white:"#FFFFFF",
+  bg:"#F7F6FF",     border:"#E5DEFF",
+  text:"#1A1035",   sub:"#5C5490",
+  muted:"#9188C4",  mutedL:"#CFC9EE",
+  green:"#16A34A",  greenL:"#DCFCE7",
+  red:"#EF4444",    redL:"#FEE2E2",
+  dFont:"'Nunito', system-ui, sans-serif",
+  bFont:"'Inter', system-ui, sans-serif",
+};
+
+/* ─── Status config ──────────────────────────────────────────────────────── */
+type StatusKey = 'published' | 'draft' | 'scheduled' | 'archived';
+const STATUS_CFG: Record<StatusKey, { label: string; bg: string; color: string }> = {
+  published: { label:"Published", bg:T.limeL,   color:T.green  },
+  draft:     { label:"Draft",     bg:"#F1F5F9", color:"#64748B" },
+  scheduled: { label:"Scheduled", bg:T.violetL, color:T.violet },
+  archived:  { label:"Archived",  bg:"#F1F5F9", color:"#94A3B8" },
+};
+
+/* ─── Level colours ──────────────────────────────────────────────────────── */
+const LEVEL_OPTS = ["A1","A2","B1","B2","C1","C2","mixed"] as const;
+type LevelKey = typeof LEVEL_OPTS[number];
+const LEVEL_CLR: Record<LevelKey, [string, string]> = {
+  A1:[T.tealL,T.teal], A2:[T.skyL,T.sky], B1:[T.limeL,T.lime],
+  B2:[T.violetL,T.violet], C1:[T.amberL,T.amber], C2:[T.pinkL,T.pink],
+  mixed:[T.orangeL,T.orange],
+};
+
+/* ─── Content section configs ────────────────────────────────────────────── */
+const SECTIONS = [
+  {
+    key:"slides", label:"Slides", emoji:"🖼️",
+    description:"Presentation slides for this unit.",
+    grad:`linear-gradient(135deg,${T.violet},${T.pink})`,
+    navFn:(unitId: string | number, _unit?: Unit) => `/admin/units/${unitId}/slides`,
+    btnLabel:"Open Slides Editor",
+    countKey:"slides_count",
+  },
+  {
+    key:"test", label:"Test", emoji:"📝",
+    description:"Unit knowledge test.",
+    grad:`linear-gradient(135deg,${T.sky},${T.violet})`,
+    navFn:(unitId: string | number) => `/admin/units/${unitId}/test`,
+    btnLabel:"Open Test Builder",
+    countKey:"tests_count",
+  },
+  {
+    key:"tasks", label:"Tasks", emoji:"✏️",
+    description:"Practice tasks and exercises.",
+    grad:`linear-gradient(135deg,${T.lime},${T.teal})`,
+    navFn:(unitId: string | number) => `/admin/units/${unitId}/tasks`,
+    btnLabel:"Open Tasks",
+    countKey:"tasks_count",
+  },
+  {
+    key:"videos", label:"Videos", emoji:"🎬",
+    description:"Lecture and supplemental videos.",
+    grad:`linear-gradient(135deg,${T.amber},${T.orange})`,
+    navFn:(unitId: string | number) => `/admin/units/${unitId}/videos`,
+    btnLabel:"Open Videos",
+    countKey:"videos_count",
+  },
+  {
+    key:"materials", label:"Materials", emoji:"📚",
+    description:"Reference documents and attachments.",
+    grad:`linear-gradient(135deg,${T.teal},${T.sky})`,
+    navFn:(unitId: string | number, _unit?: Unit) => `/admin/units/${unitId}/materials`,
+    btnLabel:"Open Materials",
+    countKey:"materials_count",
+  },
+];
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CSS
+════════════════════════════════════════════════════════════════════════════ */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+
+@keyframes uep-fadeUp  { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+@keyframes uep-fadeIn  { from{opacity:0} to{opacity:1} }
+@keyframes uep-popIn   { from{opacity:0;transform:scale(.88)} to{opacity:1;transform:scale(1)} }
+@keyframes uep-spin    { to{transform:rotate(360deg)} }
+@keyframes uep-shimmer { 0%{background-position:-600px 0} 100%{background-position:600px 0} }
+@keyframes uep-float   { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-14px) rotate(5deg)} }
+@keyframes uep-floatB  { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-9px) rotate(-4deg)} }
+@keyframes uep-drift   { 0%,100%{transform:translate(0,0)} 33%{transform:translate(12px,-8px)} 66%{transform:translate(-8px,10px)} }
+@keyframes uep-rotSlow { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+@keyframes uep-saveFlash { 0%{opacity:0;transform:translateY(8px)} 12%{opacity:1;transform:none} 82%{opacity:1} 100%{opacity:0} }
+@keyframes uep-rowIn   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+/* ── Root ── */
+.uep-root {
+  min-height:100vh;
+  background:${T.bg};
+  font-family:${T.bFont};
+  color:${T.text};
+  padding-bottom:80px;
+}
+.uep-root *,.uep-root *::before,.uep-root *::after { box-sizing:border-box; margin:0; padding:0; }
+
+/* ── Center helper ── */
+.uep-center {
+  display:flex; align-items:center; justify-content:center;
+  min-height:60vh; gap:12px;
+  font-size:15px; color:${T.sub};
+  font-family:${T.bFont};
+}
+.uep-spinner {
+  width:22px; height:22px; border-radius:50%;
+  border:3px solid ${T.border}; border-top-color:${T.violet};
+  animation:uep-spin .8s linear infinite; flex-shrink:0;
 }
 
-interface ContentItem {
-  id: number;
-  title: string;
-  status: string;
-  order_index: number;
-  type: 'video' | 'task' | 'test';
-  is_visible_to_students?: boolean;
+/* ════════════════════════════════════════
+   HERO HEADER
+════════════════════════════════════════ */
+.uep-hero {
+  position:relative; overflow:hidden;
+  padding:32px 40px 28px;
+  animation:uep-fadeUp .4s both;
+}
+.uep-hero-ring {
+  position:absolute; border-radius:50%;
+  border:2px solid rgba(255,255,255,.07);
+  top:50%; left:50%; transform:translate(-50%,-50%);
+  pointer-events:none;
+}
+.uep-orb {
+  position:absolute; border-radius:50%;
+  opacity:.18; filter:blur(1px); pointer-events:none;
+}
+.uep-floater {
+  position:absolute; pointer-events:none; user-select:none;
+  filter:drop-shadow(0 3px 8px rgba(0,0,0,.2));
 }
 
+/* breadcrumb */
+.uep-bc {
+  display:flex; align-items:center; gap:6px;
+  font-size:12px; font-weight:600;
+  color:rgba(255,255,255,.5);
+  margin-bottom:16px; position:relative; z-index:2;
+  flex-wrap:wrap;
+}
+.uep-bc a {
+  color:rgba(255,255,255,.65); text-decoration:none;
+  cursor:pointer; transition:color .14s;
+}
+.uep-bc a:hover { color:white }
+.uep-bc-sep { color:rgba(255,255,255,.28) }
+
+/* Hero inner row */
+.uep-hero-inner {
+  position:relative; z-index:2;
+  display:flex; align-items:flex-start;
+  justify-content:space-between; gap:24px; flex-wrap:wrap;
+}
+.uep-unit-title {
+  font-family:${T.dFont};
+  font-size:clamp(20px,3vw,32px); font-weight:900;
+  color:white; line-height:1.15; margin-bottom:10px;
+  text-shadow:0 2px 12px rgba(0,0,0,.18);
+}
+.uep-meta-row {
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:16px;
+}
+.uep-pill {
+  display:inline-flex; align-items:center;
+  border-radius:100px; font-size:11px; font-weight:700;
+  padding:4px 10px; gap:4px;
+  border:1.5px solid transparent;
+}
+.uep-pill--ghost {
+  background:rgba(255,255,255,.15);
+  color:white; border-color:rgba(255,255,255,.28);
+}
+.uep-pill--lime {
+  background:${T.limeL}; color:${T.green}; border-color:${T.lime}44;
+}
+.uep-pill--amber {
+  background:${T.amberL}; color:${T.amber}; border-color:${T.amber}44;
+}
+
+/* Hero buttons */
+.uep-hero-btns {
+  display:flex; gap:10px; flex-wrap:wrap;
+}
+.uep-hbtn {
+  display:inline-flex; align-items:center; gap:7px;
+  border-radius:12px; font-size:13px; font-weight:700;
+  padding:9px 18px; cursor:pointer; border:none; outline:none;
+  transition:all .18s cubic-bezier(.22,.68,0,1.2);
+  font-family:${T.bFont};
+}
+.uep-hbtn:hover { transform:translateY(-2px); filter:brightness(1.06) }
+.uep-hbtn-white { background:white; color:${T.violet} }
+.uep-hbtn-ghost {
+  background:rgba(255,255,255,.15);
+  color:white; border:1.5px solid rgba(255,255,255,.3);
+}
+.uep-hbtn-ghost:hover { background:rgba(255,255,255,.25) }
+
+/* Stats panel */
+.uep-stats {
+  display:flex; gap:6px; flex-wrap:wrap; align-items:flex-start;
+}
+.uep-stat {
+  background:rgba(255,255,255,.18);
+  border:1.5px solid rgba(255,255,255,.22);
+  border-radius:14px; padding:10px 16px; text-align:center;
+  min-width:60px;
+}
+.uep-stat-n {
+  font-family:${T.dFont}; font-size:22px; font-weight:900;
+  color:white; line-height:1;
+}
+.uep-stat-l {
+  font-size:10px; font-weight:700;
+  color:rgba(255,255,255,.7); margin-top:3px; text-transform:uppercase; letter-spacing:.5px;
+}
+
+/* ════════════════════════════════════════
+   BODY LAYOUT
+════════════════════════════════════════ */
+.uep-body {
+  max-width:1180px; margin:0 auto; padding:32px 24px 0;
+  display:grid; grid-template-columns:1fr 300px; gap:24px;
+  align-items:start;
+}
+@media(max-width:860px){
+  .uep-body { grid-template-columns:1fr; padding:20px 16px 0; }
+}
+
+.uep-main { display:flex; flex-direction:column; gap:24px; }
+
+/* ════════════════════════════════════════
+   CARD
+════════════════════════════════════════ */
+.uep-card {
+  background:white;
+  border:1.5px solid ${T.border};
+  border-radius:20px;
+  padding:24px;
+  animation:uep-fadeUp .42s both;
+  box-shadow:0 4px 24px rgba(108,53,222,.06);
+}
+
+/* ── Section header ── */
+.uep-section-hd {
+  display:flex; align-items:center; gap:10px; margin-bottom:20px;
+}
+.uep-section-icon {
+  width:36px; height:36px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:17px; flex-shrink:0;
+}
+.uep-section-title {
+  font-family:${T.dFont}; font-size:17px; font-weight:900; color:${T.text};
+}
+.uep-section-sub {
+  font-size:12px; color:${T.muted}; margin-top:2px;
+}
+
+/* ════════════════════════════════════════
+   METADATA FORM
+════════════════════════════════════════ */
+.uep-field { display:flex; flex-direction:column; gap:6px; margin-bottom:18px; }
+.uep-field:last-of-type { margin-bottom:0 }
+.uep-label {
+  font-size:12px; font-weight:700; color:${T.sub};
+  text-transform:uppercase; letter-spacing:.5px;
+}
+.uep-input {
+  border:1.5px solid ${T.border}; border-radius:12px;
+  padding:10px 14px; font-size:14px; color:${T.text};
+  font-family:${T.bFont}; background:${T.bg};
+  transition:border-color .18s, box-shadow .18s; outline:none;
+  width:100%;
+}
+.uep-input:focus {
+  border-color:${T.violet};
+  box-shadow:0 0 0 3px ${T.violetL};
+}
+.uep-input::placeholder { color:${T.mutedL} }
+.uep-textarea {
+  border:1.5px solid ${T.border}; border-radius:12px;
+  padding:10px 14px; font-size:14px; color:${T.text};
+  font-family:${T.bFont}; background:${T.bg};
+  transition:border-color .18s, box-shadow .18s; outline:none;
+  resize:vertical; min-height:90px; width:100%;
+}
+.uep-textarea:focus {
+  border-color:${T.violet};
+  box-shadow:0 0 0 3px ${T.violetL};
+}
+.uep-select {
+  border:1.5px solid ${T.border}; border-radius:12px;
+  padding:10px 14px; font-size:14px; color:${T.text};
+  font-family:${T.bFont}; background:${T.bg};
+  transition:border-color .18s; outline:none;
+  cursor:pointer; appearance:none; width:100%;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239188C4' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 14px center;
+  padding-right:36px;
+}
+.uep-select:focus {
+  border-color:${T.violet};
+  box-shadow:0 0 0 3px ${T.violetL};
+}
+
+/* Level chip row */
+.uep-level-row {
+  display:flex; gap:6px; flex-wrap:wrap;
+}
+.uep-level-chip {
+  border-radius:10px; padding:6px 14px; font-size:13px; font-weight:700;
+  cursor:pointer; border:2px solid transparent; transition:all .16s cubic-bezier(.22,.68,0,1.2);
+  font-family:${T.bFont};
+}
+.uep-level-chip:hover { transform:translateY(-2px) scale(1.04) }
+.uep-level-chip.sel { transform:translateY(-2px) scale(1.04); box-shadow:0 4px 14px rgba(0,0,0,.1) }
+
+/* Save button */
+.uep-save-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  background:linear-gradient(135deg,${T.violet},${T.pink});
+  color:white; border:none; border-radius:14px;
+  padding:12px 26px; font-size:14px; font-weight:700;
+  font-family:${T.bFont}; cursor:pointer;
+  transition:all .2s cubic-bezier(.22,.68,0,1.2);
+  box-shadow:0 6px 20px ${T.violet}40;
+}
+.uep-save-btn:hover { transform:translateY(-2px) scale(1.02); filter:brightness(1.06) }
+.uep-save-btn:disabled { opacity:.6; cursor:not-allowed; transform:none }
+
+/* ════════════════════════════════════════
+   CONTENT SECTION CARDS
+════════════════════════════════════════ */
+.uep-content-grid {
+  display:flex; flex-direction:column; gap:14px;
+}
+.uep-sc {
+  border:1.5px solid ${T.border}; border-radius:16px;
+  overflow:hidden; background:white;
+  animation:uep-rowIn .4s both;
+  transition:box-shadow .2s, border-color .2s;
+}
+.uep-sc:hover {
+  border-color:${T.violet}55;
+  box-shadow:0 6px 24px ${T.violet}14;
+}
+.uep-sc-head {
+  padding:16px 18px;
+  display:flex; align-items:center; gap:14px;
+}
+.uep-sc-icon {
+  width:44px; height:44px; border-radius:13px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; flex-shrink:0;
+  box-shadow:0 4px 12px rgba(0,0,0,.12);
+}
+.uep-sc-info { flex:1; min-width:0 }
+.uep-sc-name {
+  font-family:${T.dFont}; font-size:15px; font-weight:900; color:${T.text};
+  display:flex; align-items:center; gap:8px;
+}
+.uep-sc-desc { font-size:12px; color:${T.muted}; margin-top:2px }
+.uep-sc-count {
+  display:inline-flex; align-items:center;
+  background:${T.violetL}; color:${T.violet};
+  border-radius:100px; padding:2px 9px;
+  font-size:11px; font-weight:700;
+}
+.uep-sc-btn {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:9px 18px; border-radius:12px;
+  font-size:13px; font-weight:700; font-family:${T.bFont};
+  cursor:pointer; border:2px solid ${T.border};
+  color:${T.violet}; background:white; flex-shrink:0;
+  transition:all .18s cubic-bezier(.22,.68,0,1.2);
+}
+.uep-sc-btn:hover {
+  background:${T.violetL}; border-color:${T.violet};
+  transform:translateY(-1px) scale(1.02);
+}
+
+/* ════════════════════════════════════════
+   ACTIONS PANEL (right sidebar)
+════════════════════════════════════════ */
+.uep-panel {
+  display:flex; flex-direction:column; gap:16px;
+  position:sticky; top:24px;
+}
+.uep-panel-stat {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px;
+  border-radius:12px; background:${T.bg};
+  border:1.5px solid ${T.border};
+  font-size:13px;
+}
+.uep-panel-stat-label { color:${T.sub}; font-weight:600 }
+.uep-panel-stat-val { font-weight:800; color:${T.text}; font-family:${T.dFont} }
+
+.uep-danger-btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  width:100%; padding:12px 20px; border-radius:14px;
+  font-size:13px; font-weight:700; font-family:${T.bFont};
+  cursor:pointer; border:2px solid ${T.red}44;
+  color:${T.red}; background:${T.redL};
+  transition:all .18s;
+}
+.uep-danger-btn:hover { background:${T.red}; color:white; border-color:${T.red} }
+
+/* ════════════════════════════════════════
+   TOAST
+════════════════════════════════════════ */
+.uep-toast {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+  background:${T.violet}; color:white;
+  border-radius:14px; padding:12px 24px;
+  font-size:14px; font-weight:700; font-family:${T.bFont};
+  box-shadow:0 8px 32px ${T.violet}55;
+  animation:uep-saveFlash 2.8s ease-in-out both;
+  z-index:9999; white-space:nowrap;
+  pointer-events:none;
+}
+
+/* ── Shimmer ── */
+.uep-shimmer {
+  background:linear-gradient(90deg,${T.violetL} 25%,#F5F3FF 50%,${T.violetL} 75%);
+  background-size:600px 100%;
+  animation:uep-shimmer 1.6s infinite linear;
+  border-radius:10px;
+}
+`;
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ICON HELPERS
+════════════════════════════════════════════════════════════════════════════ */
+const Ico = {
+  Back: () => (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  Save: () => (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M2 2h8l2 2v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M4 2v4h6V2M5 9h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  ),
+  Trash: () => (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M2 3.5h10M5.5 3.5V2.5h3v1M5 3.5v7.5h4V3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  Open: () => (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8M8 1h4v4M6.5 6.5L12 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  Spin: () => (
+    <span style={{
+      display:"inline-block", width:13, height:13, borderRadius:"50%",
+      border:`2px solid rgba(255,255,255,.4)`, borderTopColor:"white",
+      animation:"uep-spin .8s linear infinite",
+    }} />
+  ),
+};
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SUB-COMPONENTS
+════════════════════════════════════════════════════════════════════════════ */
+
+/* ── UnitSectionCard ── */
+interface UnitSectionCardProps {
+  section: typeof SECTIONS[number];
+  count: number | null | undefined;
+  navigate: (path: string) => void;
+  unitId: string;
+  unit?: Unit | null;
+  delay?: number;
+  onOpenTestPicker?: () => void;
+  onOpenTaskPicker?: () => void;
+}
+
+function UnitSectionCard({ 
+  section, 
+  count, 
+  navigate, 
+  unitId, 
+  unit, 
+  delay = 0,
+  onOpenTestPicker,
+  onOpenTaskPicker,
+}: UnitSectionCardProps) {
+  const isEmpty = count === null || count === undefined || count === 0;
+  
+  const handleClick = () => {
+    if (isEmpty) {
+      // If empty, open the appropriate picker/wizard
+      if (section.key === 'slides') {
+        // Navigate to slide generation page
+        navigate(`/admin/generate-slide?unitId=${unitId}`);
+      } else if (section.key === 'test' && onOpenTestPicker) {
+        onOpenTestPicker();
+      } else if (section.key === 'tasks' && onOpenTaskPicker) {
+        onOpenTaskPicker();
+      } else {
+        // Fallback: navigate to the section anyway
+        navigate(section.navFn(unitId, unit || undefined));
+      }
+    } else {
+      // If not empty, navigate normally
+      navigate(section.navFn(unitId, unit || undefined));
+    }
+  };
+
+  return (
+    <div className="uep-sc" style={{ animationDelay:`${delay}s` }}>
+      <div className="uep-sc-head">
+        <div className="uep-sc-icon" style={{ background: section.grad }}>
+          {section.emoji}
+        </div>
+        <div className="uep-sc-info">
+          <div className="uep-sc-name">
+            {section.label}
+            {count !== null && count !== undefined && (
+              <span className="uep-sc-count">{count} item{count !== 1 ? "s" : ""}</span>
+            )}
+            {isEmpty && (
+              <span className="uep-sc-count" style={{ background: T.amberL, color: T.amber }}>
+                Empty
+              </span>
+            )}
+          </div>
+          <div className="uep-sc-desc">{section.description}</div>
+        </div>
+        <button
+          className="uep-sc-btn"
+          onClick={handleClick}
+        >
+          <Ico.Open />
+          {isEmpty 
+            ? (section.key === 'slides' ? 'Generate Slides' : `Create ${section.label}`)
+            : section.btnLabel
+          }
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── UnitContentSections ── */
+interface UnitContentSectionsProps {
+  unit: Unit | null;
+  counts: Record<string, number | null>;
+  navigate: (path: string) => void;
+  unitId: string;
+  onOpenTestPicker?: () => void;
+  onOpenTaskPicker?: () => void;
+}
+
+function UnitContentSections({ 
+  unit, 
+  counts, 
+  navigate, 
+  unitId,
+  onOpenTestPicker,
+  onOpenTaskPicker,
+}: UnitContentSectionsProps) {
+  return (
+    <div className="uep-card" style={{ animationDelay:".16s" }}>
+      <div className="uep-section-hd">
+        <div className="uep-section-icon" style={{ background:T.violetL }}>
+          <span style={{ fontSize:17 }}>📦</span>
+        </div>
+        <div>
+          <div className="uep-section-title">Unit Content</div>
+          <div className="uep-section-sub">Navigate to each content editor</div>
+        </div>
+      </div>
+      <div className="uep-content-grid">
+        {SECTIONS.map((sec, i) => (
+          <UnitSectionCard
+            key={sec.key}
+            section={sec}
+            count={counts[sec.countKey]}
+            navigate={navigate}
+            unitId={unitId}
+            unit={unit}
+            delay={i * 0.06}
+            onOpenTestPicker={onOpenTestPicker}
+            onOpenTaskPicker={onOpenTaskPicker}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── UnitMetadataForm ── */
+interface UnitMetadataFormProps {
+  form: {
+    title: string;
+    description: string;
+    level: string;
+    order_index: number | string;
+    status: string;
+  };
+  onChange: (field: string, value: string | number) => void;
+  onSave: () => void;
+  saving: boolean;
+  saved: boolean;
+}
+
+function UnitMetadataForm({ form, onChange, onSave, saving, saved }: UnitMetadataFormProps) {
+  return (
+    <div className="uep-card" style={{ animationDelay:".08s" }}>
+      <div className="uep-section-hd">
+        <div className="uep-section-icon" style={{ background:T.violetL }}>
+          <span style={{ fontSize:17 }}>✏️</span>
+        </div>
+        <div>
+          <div className="uep-section-title">Unit Details</div>
+          <div className="uep-section-sub">Edit title, description and settings</div>
+        </div>
+      </div>
+
+      <div className="uep-field">
+        <label className="uep-label">Title</label>
+        <input
+          className="uep-input"
+          value={form.title}
+          onChange={e => onChange("title", e.target.value)}
+          placeholder="Unit title…"
+        />
+      </div>
+
+      <div className="uep-field">
+        <label className="uep-label">Description</label>
+        <textarea
+          className="uep-textarea"
+          value={form.description}
+          onChange={e => onChange("description", e.target.value)}
+          placeholder="What will students learn in this unit?"
+        />
+      </div>
+
+      <div className="uep-field">
+        <label className="uep-label">Level</label>
+        <div className="uep-level-row">
+          {LEVEL_OPTS.map(lvl => {
+            const [bg, clr] = LEVEL_CLR[lvl as LevelKey] || [T.violetL, T.violet];
+            const sel = form.level === lvl;
+            return (
+              <button
+                key={lvl}
+                className={`uep-level-chip${sel ? " sel" : ""}`}
+                style={{
+                  background: sel ? bg : "white",
+                  color: sel ? clr : T.sub,
+                  borderColor: sel ? clr : T.border,
+                }}
+                onClick={() => onChange("level", lvl)}
+              >
+                {lvl}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="uep-field">
+        <label className="uep-label">Status</label>
+        <select
+          className="uep-select"
+          value={form.status}
+          onChange={e => onChange("status", e.target.value)}
+        >
+          <option value="draft">Draft</option>
+          <option value="published">Published</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+
+      <div className="uep-field">
+        <label className="uep-label">Order index</label>
+        <input
+          className="uep-input"
+          type="number"
+          value={form.order_index === "" ? "" : form.order_index}
+          onChange={e => {
+            const raw = e.target.value;
+            onChange("order_index", raw === "" ? "" : parseInt(raw, 10));
+          }}
+          min="0"
+          placeholder="0"
+          style={{ maxWidth:120 }}
+        />
+      </div>
+
+      <div style={{ display:"flex", justifyContent:"flex-end", marginTop:6 }}>
+        <button
+          className="uep-save-btn"
+          onClick={onSave}
+          disabled={saving}
+        >
+          {saving ? <><Ico.Spin /> Saving…</> : saved ? <>✓ Saved!</> : <><Ico.Save /> Save Unit</>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── UnitActionsPanel ── */
+interface UnitActionsPanelProps {
+  unit: Unit | null;
+  counts: Record<string, number | null>;
+  onSave: () => void;
+  saving: boolean;
+  saved: boolean;
+  onDelete?: () => void;
+}
+
+function UnitActionsPanel({ unit, counts, onSave, saving, saved, onDelete }: UnitActionsPanelProps) {
+  const statusCfg = STATUS_CFG[(unit?.status as StatusKey) || 'draft'] || STATUS_CFG.draft;
+  const total = Object.values(counts).reduce((a: number, b) => a + (typeof b === 'number' ? b : 0), 0);
+
+  return (
+    <div className="uep-panel">
+      {/* Summary card */}
+      <div className="uep-card" style={{ padding:20, animationDelay:".1s" }}>
+        <div className="uep-section-hd" style={{ marginBottom:14 }}>
+          <div className="uep-section-icon" style={{ background:T.skyL }}>
+            <span style={{ fontSize:16 }}>📊</span>
+          </div>
+          <div>
+            <div className="uep-section-title" style={{ fontSize:15 }}>Summary</div>
+          </div>
+        </div>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <div className="uep-panel-stat">
+            <span className="uep-panel-stat-label">Status</span>
+            <span style={{
+              display:"inline-flex", alignItems:"center",
+              background: statusCfg.bg, color: statusCfg.color,
+              borderRadius:100, padding:"3px 10px",
+              fontSize:11, fontWeight:700,
+            }}>
+              {statusCfg.label}
+            </span>
+          </div>
+
+          {unit?.level && (
+            <div className="uep-panel-stat">
+              <span className="uep-panel-stat-label">Level</span>
+              <span className="uep-panel-stat-val" style={{ color:(LEVEL_CLR[unit.level as LevelKey]||[T.violetL, T.violet])[1]||T.violet }}>
+                {unit.level}
+              </span>
+            </div>
+          )}
+
+          <div className="uep-panel-stat">
+            <span className="uep-panel-stat-label">Total items</span>
+            <span className="uep-panel-stat-val">{total}</span>
+          </div>
+
+          {SECTIONS.map(sec => {
+            const count = counts[sec.countKey];
+            return count && count > 0 ? (
+              <div key={sec.key} className="uep-panel-stat">
+                <span className="uep-panel-stat-label">{sec.label}</span>
+                <span className="uep-panel-stat-val">{count}</span>
+              </div>
+            ) : null;
+          })}
+        </div>
+      </div>
+
+      {/* Quick save */}
+      <div className="uep-card" style={{ padding:16, animationDelay:".18s" }}>
+        <button
+          className="uep-save-btn"
+          onClick={onSave}
+          disabled={saving}
+          style={{ width:"100%", justifyContent:"center" }}
+        >
+          {saving ? <><Ico.Spin /> Saving…</> : saved ? <>✓ Saved!</> : <><Ico.Save /> Save Unit</>}
+        </button>
+      </div>
+
+      {/* Danger */}
+      {onDelete && (
+        <div className="uep-card" style={{ padding:16, animationDelay:".24s" }}>
+          <div style={{ fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5, marginBottom:10 }}>
+            Danger zone
+          </div>
+          <button className="uep-danger-btn" onClick={onDelete}>
+            <Ico.Trash /> Delete Unit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── UnitHeader ── */
+interface UnitHeaderProps {
+  unit: Unit;
+  heroGrad: string;
+  navigate: (path: string) => void;
+}
+
+function UnitHeader({ unit, heroGrad, navigate }: UnitHeaderProps) {
+  const [vis, setVis] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setVis(true), 80); return () => clearTimeout(t); }, []);
+
+  const statusCfg = STATUS_CFG[(unit.status as StatusKey) || 'draft'] || STATUS_CFG.draft;
+  const [, lvClr] = LEVEL_CLR[(unit.level as LevelKey) || 'A1'] || [T.violetL, T.violet];
+
+  const ORB_DATA = [
+    { w:140,h:140,bg:"#CE93D8",l:"-3%",t:"6%",  dur:"13s",delay:"0s"   },
+    { w:110,h:110,bg:"#4FC3F7",l:"76%",t:"4%",  dur:"16s",delay:"2s"   },
+    { w:160,h:160,bg:"#80DEEA",l:"-4%",t:"52%", dur:"19s",delay:"3.5s" },
+    { w: 90,h: 90,bg:"#9FA8DA",l:"82%",t:"58%", dur:"11s",delay:"1.2s" },
+  ];
+  const FLOATERS = [
+    { e:"📖",x:"7%",  y:"18%",s:24,d:0,  an:"uep-float 4s ease-in-out infinite"       },
+    { e:"✏️",x:"90%", y:"18%",s:20,d:.6, an:"uep-floatB 4.4s ease-in-out infinite .6s" },
+    { e:"🎓",x:"5%",  y:"65%",s:26,d:1.1,an:"uep-float 5s ease-in-out infinite 1.1s"   },
+    { e:"⭐",x:"93%", y:"63%",s:16,d:.3, an:"uep-floatB 3.5s ease-in-out infinite .3s" },
+  ];
+
+  return (
+    <div className="uep-hero" style={{ background: heroGrad }}>
+      {/* rings */}
+      {[420,280,170].map((s,i) => (
+        <div key={i} className="uep-hero-ring" style={{
+          width:s, height:s,
+          animation:`uep-rotSlow ${34-i*8}s linear infinite ${i%2?"reverse":""}`,
+        }}/>
+      ))}
+      {/* orbs */}
+      {ORB_DATA.map((o,i) => (
+        <div key={i} className="uep-orb" style={{
+          width:o.w,height:o.h,background:o.bg,
+          left:o.l,top:o.t,
+          animation:`uep-drift ${o.dur} ease-in-out infinite ${o.delay}`,
+        }}/>
+      ))}
+      {/* floaters */}
+      {FLOATERS.map((f,i) => (
+        <div key={i} className="uep-floater" style={{
+          left:f.x,top:f.y,fontSize:f.s,
+          opacity: vis ? .65 : 0,
+          transition:`opacity .6s ${f.d}s`,
+          animation: vis ? f.an : "none",
+        }}>{f.e}</div>
+      ))}
+
+      {/* Breadcrumb */}
+      <div className="uep-bc">
+        <a onClick={() => navigate("/admin/courses")}>Courses</a>
+        <span className="uep-bc-sep">›</span>
+        {unit.course_id && (
+          <>
+            <a onClick={() => navigate(`/admin/courses/${unit.course_id}`)}>
+              {unit.course_title || `Course #${unit.course_id}`}
+            </a>
+            <span className="uep-bc-sep">›</span>
+          </>
+        )}
+        <span style={{ color:"rgba(255,255,255,.85)", fontWeight:700 }}>{unit.title}</span>
+      </div>
+
+      {/* Inner */}
+      <div className="uep-hero-inner">
+        <div style={{ flex:1, minWidth:0 }}>
+          <div className="uep-unit-title">{unit.title}</div>
+          <div className="uep-meta-row">
+            {unit.level && (
+              <span className="uep-pill uep-pill--ghost" style={{
+                background:`${lvClr || "#fff"}2A`,
+                borderColor:`${lvClr || "#fff"}55`,
+              }}>
+                {unit.level}
+              </span>
+            )}
+            <span className={`uep-pill ${
+              unit.status === "published" ? "uep-pill--lime" :
+              (unit.status as string) === "scheduled" ? "uep-pill--amber" :
+              "uep-pill--ghost"
+            }`}>
+              {statusCfg.label}
+            </span>
+          </div>
+          <div className="uep-hero-btns">
+            <button
+              className="uep-hbtn uep-hbtn-ghost"
+              onClick={() => navigate(unit.course_id ? `/admin/courses/${unit.course_id}` : "/admin/courses")}
+            >
+              <Ico.Back /> Back to course
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MAIN PAGE
+════════════════════════════════════════════════════════════════════════════ */
 export default function AdminUnitEditPage() {
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [newTag, setNewTag] = useState('');
+  const { id: unitId } = useParams<{ id: string }>();
+  const navigate   = useNavigate();
 
-  const [formData, setFormData] = useState<UnitFormData>({
-    title: '',
-    level: 'A1',
-    description: '',
-    goals: '',
-    tags: [],
-    status: 'draft',
-    publish_at: '',
-    order_index: 0,
-    course_id: null,
-    is_visible_to_students: false,
-    meta_title: '',
-    meta_description: ''
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
+  const [unit,    setUnit]    = useState<Unit | null>(null);
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  
+  // Picker states
+  const [testPickerOpen, setTestPickerOpen] = useState(false);
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
+
+  const [form, setForm] = useState<{
+    title: string;
+    description: string;
+    level: string;
+    order_index: number | string;
+    status: string;
+  }>({
+    title: "", description: "", level: "A1",
+    order_index: 0, status: "draft",
   });
 
-  // Mock content data
-  const [videos, setVideos] = useState<ContentItem[]>([]);
-  const [tasks, setTasks] = useState<ContentItem[]>([]);
-  const [tests, setTests] = useState<ContentItem[]>([]);
-  
-  // Available content from API
-  const [availableVideos, setAvailableVideos] = useState<any[]>([]);
-  const [availableTasks, setAvailableTasks] = useState<any[]>([]);
-  const [availableTests, setAvailableTests] = useState<any[]>([]);
-  const [availableCourses, setAvailableCourses] = useState<any[]>([]);
-  const [loadingContent, setLoadingContent] = useState(true);
+  /* Content counts */
+  const [counts, setCounts] = useState<Record<string, number | null>>({
+    videos_count: null, tasks_count: null,
+    tests_count: null, slides_count: null, materials_count: null,
+  });
 
-  // Load available content on mount
-  useEffect(() => {
-    const loadAvailableContent = async () => {
-      try {
-        setLoadingContent(true);
-        
-        // Load all available courses
-        const coursesData = await coursesApi.getAdminCourses({ limit: 100 });
-        setAvailableCourses(coursesData || []);
-        
-        // Load all available videos
-        try {
-          const videosData = await videosApi.getAdminVideos({ limit: 100 });
-          setAvailableVideos(videosData || []);
-        } catch (error) {
-          console.error('Error loading available videos:', error);
-        }
-        
-        // Load all available tasks
-        const tasksData = await tasksApi.getAdminTasks({ limit: 100 });
-        setAvailableTasks(tasksData || []);
-        
-        // Load all available tests  
-        const testsData = await testsApi.getTests({ limit: 100 });
-        const testsList = testsData?.items || (Array.isArray(testsData) ? testsData : []);
-        setAvailableTests(testsList);
-        
-        console.log('Loaded available content:', { 
-          videos: availableVideos?.length || 0,
-          tasks: tasksData?.length || 0, 
-          tests: testsList?.length || 0,
-          tasksData,
-          testsData 
-        });
-      } catch (error) {
-        console.error('Error loading available content:', error);
-        toast.error('Ошибка при загрузке доступного контента');
-      } finally {
-        setLoadingContent(false);
-      }
-    };
-    
-    loadAvailableContent();
+  /* Flash toast helper */
+  const flashToast = useCallback((msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2800);
   }, []);
 
+  /* ── Load unit ── */
   useEffect(() => {
-    // Load unit data
-    const loadUnitData = async () => {
-      if (!id) {
-        toast.error('ID юнита не найден');
-        navigate('/admin/units');
-        return;
-      }
+    if (!unitId) { setError("No unit ID"); setLoading(false); return; }
 
+    const load = async () => {
       try {
         setLoading(true);
-        const unitData = await unitsApi.getAdminUnit(parseInt(id));
-        
-        setFormData({
-          title: unitData.title || '',
-          level: unitData.level || 'A1',
-          description: unitData.description || '',
-          goals: (unitData as any).goals || '',
-          tags: (unitData as any).tags || [],
-          status: unitData.status || 'draft',
-          publish_at: (unitData as any).publish_at ? (unitData as any).publish_at.slice(0, 16) : '',
-          order_index: unitData.order_index ?? 0,
-          course_id: (unitData as any).course_id || null,
-          is_visible_to_students: (unitData as any).is_visible_to_students || false,
-          meta_title: (unitData as any).meta_title || '',
-          meta_description: (unitData as any).meta_description || ''
+        const data = await unitsApi.getAdminUnit(parseInt(unitId));
+        setUnit(data);
+        setForm({
+          title:       data.title       || "",
+          description: data.description || "",
+          level:       data.level       || "A1",
+          order_index: data.order_index ?? 0,
+          status:      data.status      || "draft",
         });
 
-        // Load videos, tasks, tests for this unit
-        try {
-          // Load videos using admin API service (to get all videos including drafts)
-          try {
-            const videosData = await videosApi.getAdminVideos({ unit_id: parseInt(id), limit: 100 });
-            setVideos(videosData.map((v: any) => ({ 
-              id: v.id, 
-              title: v.title, 
-              status: v.status, 
-              order_index: v.order_index, 
-              type: 'video' as const,
-              is_visible_to_students: v.is_visible_to_students ?? true
-            })));
-            console.log('Loaded videos:', videosData.length);
-          } catch (error) {
-            console.error('Error loading videos:', error);
-          }
+        /* Load content counts in parallel (graceful failures) */
+        const [videos, tasks, testsData] = await Promise.allSettled([
+          videosApi.getAdminVideos({ unit_id: parseInt(unitId), limit: 1 }),
+          tasksApi.getAdminTasks({ unit_id: parseInt(unitId), limit: 1 }),
+          testsApi.getTests({ unit_id: parseInt(unitId), limit: 1 }),
+        ]);
 
-          // Load tasks using API service
-          try {
-            const tasksData = await tasksApi.getAdminTasks({ unit_id: parseInt(id) });
-            console.log('Loaded tasks for unit:', tasksData);
-            const tasksList = Array.isArray(tasksData) ? tasksData : [];
-            setTasks(tasksList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'task' })));
-            console.log('Set tasks state:', tasksList.length);
-          } catch (error) {
-            console.error('Error loading tasks:', error);
-          }
-
-          // Load tests using API service
-          try {
-            const testsData = await testsApi.getTests({ unit_id: parseInt(id) });
-            console.log('Loaded tests for unit:', testsData);
-            const testsList = testsData?.items || (Array.isArray(testsData) ? testsData : []);
-            setTests(testsList.map((t: any) => ({ id: t.id, title: t.title, status: t.status, order_index: t.order_index, type: 'test' })));
-            console.log('Set tests state:', testsList.length);
-          } catch (error) {
-            console.error('Error loading tests:', error);
-          }
-        } catch (contentError) {
-          console.error('Error loading unit content:', contentError);
-        }
-
-      } catch (error: any) {
-        console.error('Error loading unit:', error);
-        toast.error(error.response?.data?.detail || 'Ошибка при загрузке юнита');
-        navigate('/admin/units');
+        setCounts({
+          videos_count:    videos.status === "fulfilled"    ? (Array.isArray(videos.value) ? videos.value.length : 0) : 0,
+          tasks_count:     tasks.status  === "fulfilled"    ? (Array.isArray(tasks.value) ? tasks.value.length : 0) : 0,
+          tests_count:     testsData.status === "fulfilled" ? (testsData.value?.total ?? (testsData.value?.items?.length ?? 0)) : 0,
+          slides_count:    (data as any).slides_count    ?? null,
+          materials_count: (data as any).materials_count ?? null,
+        });
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Failed to load unit");
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) {
-      loadUnitData();
-    }
-  }, [id]);
+    load();
+  }, [unitId]);
 
-  const handleInputChange = (field: keyof UnitFormData, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleAddTag = () => {
-    if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, newTag.trim()]
-      }));
-      setNewTag('');
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
-    }));
-  };
-
-  const handleAddExistingContent = (type: 'video' | 'task' | 'test', contentId: number) => {
-    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : availableTests;
-    const content = availableContent.find(item => item.id === contentId);
-    
-    if (!content) return;
-    
-    const newItem: ContentItem = {
-      id: content.id,
-      title: content.title,
-      status: content.status || 'draft',
-      order_index: type === 'video' ? videos.length : type === 'task' ? tasks.length : tests.length,
-      type,
-      is_visible_to_students: type === 'video' ? (content.is_visible_to_students ?? true) : undefined
-    };
-    
-    if (type === 'video') {
-      setVideos(prev => [...prev, newItem]);
-    } else if (type === 'task') {
-      setTasks(prev => [...prev, newItem]);
-    } else {
-      setTests(prev => [...prev, newItem]);
-    }
-  };
-
-  const handleRemoveContent = async (type: 'video' | 'task' | 'test', id: number) => {
-    // Get the item to show confirmation
-    const items = type === 'video' ? videos : type === 'task' ? tasks : tests;
-    const item = items.find(i => i.id === id);
-    
-    if (!item) return;
-    
-    // Confirm deletion
-    const confirmMessage = type === 'video' 
-      ? `Вы уверены, что хотите удалить видео "${item.title}"? Это действие нельзя отменить.`
-      : type === 'task'
-      ? `Вы уверены, что хотите удалить задание "${item.title}"? Это действие нельзя отменить.`
-      : `Вы уверены, что хотите удалить тест "${item.title}"? Это действие нельзя отменить.`;
-    
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
-    
+  /* ── Save ── */
+  const handleSave = useCallback(async () => {
+    if (!unitId || saving) return;
     try {
-      // Delete from backend
-      if (type === 'video') {
-        await videosApi.deleteVideo(id);
-        setVideos(prev => prev.filter(item => item.id !== id));
-        toast.success('Видео успешно удалено');
-      } else if (type === 'task') {
-        await tasksApi.deleteTask(id);
-        setTasks(prev => prev.filter(item => item.id !== id));
-        toast.success('Задание успешно удалено');
-      } else {
-        await testsApi.deleteTest(id);
-        setTests(prev => prev.filter(item => item.id !== id));
-        toast.success('Тест успешно удален');
-      }
-    } catch (error: any) {
-      console.error(`Error deleting ${type}:`, error);
-      toast.error(
-        error.response?.data?.detail || 
-        `Ошибка при удалении ${type === 'video' ? 'видео' : type === 'task' ? 'задания' : 'теста'}`
-      );
-    }
-  };
-
-  const handleSave = async (publish: boolean = false) => {
-    if (!id) {
-      toast.error('ID юнита не найден');
-      return;
-    }
-
-    setSaving(true);
-    
-    try {
-      console.log('=== STARTING SAVE ===');
-      console.log('Unit ID:', id);
-      console.log('Tasks to save:', tasks);
-      console.log('Tests to save:', tests);
-      console.log('Videos to save:', videos);
-      
-      // Smart defaults: status and visibility derived from publish action
-      const status = publish ? 'published' : 'draft';
-      const is_visible_to_students = publish; // Always true when published
-      
-      // Save unit data
-      const unitData = {
-        ...formData,
-        order_index: formData.order_index === '' ? 0 : formData.order_index,
-        status: status,
-        is_visible_to_students: is_visible_to_students,
-        publish_at: formData.publish_at || (publish ? new Date().toISOString() : null)
-      } as any;
-      
-      console.log('Sending unit data:', JSON.stringify(unitData, null, 2));
-
-      await unitsApi.updateUnit(parseInt(id), unitData);
-      console.log('✅ Unit data saved');
-      
-      // Update tasks to associate with this unit
-      let tasksUpdated = 0;
-      for (const task of tasks) {
-        try {
-          console.log(`Updating task ${task.id} to unit ${id}...`);
-          await tasksApi.updateTask(task.id, { unit_id: parseInt(id) } as any);
-          tasksUpdated++;
-          console.log(`✅ Task ${task.id} updated`);
-        } catch (error) {
-          console.error(`❌ Error updating task ${task.id}:`, error);
-        }
-      }
-      
-      // Update tests to associate with this unit
-      let testsUpdated = 0;
-      for (const test of tests) {
-        try {
-          console.log(`Updating test ${test.id} to unit ${id}...`);
-          await testsApi.updateTest(test.id, { unit_id: parseInt(id) } as any);
-          testsUpdated++;
-          console.log(`✅ Test ${test.id} updated`);
-        } catch (error) {
-          console.error(`❌ Error updating test ${test.id}:`, error);
-        }
-      }
-      
-      // Update videos to associate with this unit
-      let videosUpdated = 0;
-      for (const video of videos) {
-        try {
-          console.log(`Updating video ${video.id} to unit ${id}...`);
-          await videosApi.updateVideo(video.id, { unit_id: parseInt(id) } as any);
-          videosUpdated++;
-          console.log(`✅ Video ${video.id} updated`);
-        } catch (error) {
-          console.error(`❌ Error updating video ${video.id}:`, error);
-        }
-      }
-      
-      console.log(`=== SAVE COMPLETE: ${tasksUpdated} tasks, ${testsUpdated} tests, ${videosUpdated} videos updated ===`);
-      toast.success(`Юнит сохранен! Обновлено: ${videosUpdated} видео, ${tasksUpdated} заданий, ${testsUpdated} тестов`);
-      
-      // Navigate back to units page
-      setTimeout(() => {
-        navigate('/admin/units');
-      }, 500);
-    } catch (error: any) {
-      console.error('Error saving unit:', error);
-      // Handle validation errors (422)
-      if (error.response?.status === 422) {
-        const detail = error.response?.data?.detail;
-        if (Array.isArray(detail)) {
-          const errorMessages = detail.map((err: any) => err.msg || JSON.stringify(err)).join(', ');
-          toast.error(`Ошибка валидации: ${errorMessages}`);
-        } else if (typeof detail === 'string') {
-          toast.error(detail);
-        } else {
-          toast.error('Ошибка валидации данных');
-        }
-      } else {
-        const message = typeof error.response?.data?.detail === 'string' 
-          ? error.response.data.detail 
-          : 'Ошибка при сохранении юнита';
-        toast.error(message);
-      }
+      setSaving(true);
+      const payload: Partial<Unit> = {
+        title:       form.title,
+        description: form.description,
+        level:       form.level as Unit['level'],
+        order_index: typeof form.order_index === 'string' && form.order_index === "" ? 0 : (typeof form.order_index === 'number' ? form.order_index : parseInt(String(form.order_index), 10)),
+        status:      form.status as Unit['status'],
+      };
+      const updatedUnit = await unitsApi.updateUnit(parseInt(unitId), payload);
+      setUnit(updatedUnit);
+      setSaved(true);
+      flashToast("💾 Unit saved!");
+      setTimeout(() => setSaved(false), 2200);
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || "Save failed");
     } finally {
       setSaving(false);
     }
-  };
+  }, [unitId, form, saving, flashToast]);
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { color: 'bg-gray-100 text-gray-800', text: 'Черновик' },
-      scheduled: { color: 'bg-blue-100 text-blue-800', text: 'Запланировано' },
-      published: { color: 'bg-green-100 text-green-800', text: 'Опубликовано' },
-      archived: { color: 'bg-red-100 text-red-800', text: 'Архив' }
-    };
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.text}
-      </span>
-    );
-  };
+  /* ── Delete ── */
+  const handleDelete = useCallback(async () => {
+    if (!window.confirm("Delete this unit? This cannot be undone.")) return;
+    if (!unitId) return;
+    try {
+      await unitsApi.deleteUnit(parseInt(unitId));
+      navigate(unit?.course_id ? `/admin/courses/${unit.course_id}` : "/admin/courses");
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || "Delete failed");
+    }
+  }, [unitId, unit, navigate]);
 
-  const renderContentSection = (
-    title: string,
-    items: ContentItem[],
-    type: 'video' | 'task' | 'test',
-    icon: React.ReactNode
-  ) => {
-    const availableContent = type === 'video' ? availableVideos : type === 'task' ? availableTasks : type === 'test' ? availableTests : [];
-    const unusedContent = availableContent.filter(content => 
-      !items.some(item => item.id === content.id)
-    );
-    
-    const createPageUrl = type === 'video' ? '/admin/videos/new' : 
-                          type === 'task' ? '/admin/tasks/new' : 
-                          '/admin/tests/new';
-    
-    return (
-      <div className="bg-gray-50 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            {icon}
-            <span className="ml-2">{title}</span>
-            <span className="ml-2 text-sm text-gray-500">({items.length})</span>
-          </h3>
-          <div className="flex items-center space-x-2">
-            {unusedContent.length > 0 && (
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleAddExistingContent(type, parseInt(e.target.value));
-                    e.target.value = '';
-                  }
-                }}
-                className="text-sm px-3 py-1 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="">Добавить существующий...</option>
-                {unusedContent.map(content => (
-                  <option key={content.id} value={content.id}>
-                    {content.title}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              onClick={() => navigate(createPageUrl)}
-              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-              title={`Создать новый ${type === 'video' ? 'видео' : type === 'task' ? 'задание' : 'тест'}`}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Создать новый
-            </button>
-          </div>
-        </div>
-        
-        {availableContent.length === 0 && !loadingContent ? (
-          <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
-            <p className="text-gray-500 mb-3">
-              Нет доступных {type === 'video' ? 'видео' : type === 'task' ? 'заданий' : 'тестов'}
-            </p>
-            <button
-              onClick={() => navigate(createPageUrl)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Создать первый {type === 'video' ? 'видео' : type === 'task' ? 'задание' : 'тест'}
-            </button>
-          </div>
-        ) : items.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>В этом юните нет {type === 'video' ? 'видео' : type === 'task' ? 'заданий' : 'тестов'}</p>
-            <p className="text-sm mt-1">Выберите существующий или создайте новый выше</p>
-          </div>
-        ) : (
-        <div className="space-y-2">
-          {items.map((item, index) => {
-            // Check if video is visible to students
-            const isVideo = type === 'video';
-            const isPublished = item.status === 'published';
-            const isVisible = item.is_visible_to_students !== false;
-            const willBeVisibleToStudents = isVideo ? (isPublished && isVisible) : true;
-            
-            return (
-              <div key={item.id} className={`flex items-center justify-between bg-white p-3 rounded-md border ${!willBeVisibleToStudents ? 'border-yellow-300 bg-yellow-50' : ''}`}>
-                <div className="flex items-center space-x-3 flex-1">
-                  <span className="text-sm text-gray-500">#{index + 1}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium text-gray-900">{item.title}</div>
-                      {!willBeVisibleToStudents && (
-                        <div className="flex items-center gap-1 text-yellow-700 text-xs" title="Это видео не будет видно студентам. Опубликуйте его и включите видимость для студентов.">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span>Не видно студентам</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2 mt-1">
-                      {getStatusBadge(item.status)}
-                      {isVideo && !isVisible && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                          Скрыто
-                        </span>
-                      )}
-                      <span className="text-sm text-gray-500">Порядок: {item.order_index}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button 
-                    onClick={() => {
-                      if (type === 'video') {
-                        navigate(`/admin/videos/${item.id}/edit`);
-                      } else if (type === 'task') {
-                        navigate(`/admin/tasks/${item.id}/edit`);
-                      } else if (type === 'test') {
-                        navigate(`/admin/tests/${item.id}/edit`);
-                      }
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                    title="Редактировать"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleRemoveContent(type, item.id)}
-                    className="text-red-400 hover:text-red-600"
-                    title="Удалить из юнита"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-  };
+  /* ── Field change ── */
+  const handleChange = useCallback((field: string, value: string | number) => {
+    setSaved(false);
+    setForm(prev => ({ ...prev, [field]: value }));
+  }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+  /* ── Hero gradient ── */
+  const heroGrad = unit
+    ? (unit.status === "published" ? `linear-gradient(135deg,${T.lime},${T.teal})`   :
+       (unit.status as string) === "scheduled" ? `linear-gradient(135deg,${T.amber},${T.orange})`:
+       unit.status === "archived"  ? `linear-gradient(135deg,#64748B,#94A3B8)`       :
+       `linear-gradient(135deg,${T.violetD},${T.violet},#9333EA)`)
+    : `linear-gradient(135deg,${T.violetD},${T.violet},#9333EA)`;
+
+  /* ── States ── */
+  if (loading) return (
+    <>
+      <style>{CSS}</style>
+      <div className="uep-center">
+        <div className="uep-spinner" />
+        Loading unit…
       </div>
-    );
-  }
+    </>
+  );
+
+  if (error || !unit) return (
+    <>
+      <style>{CSS}</style>
+      <div className="uep-center" style={{ flexDirection:"column", gap:16, textAlign:"center" }}>
+        <div style={{ fontSize:40 }}>⚠️</div>
+        <div style={{ fontFamily:T.dFont, fontSize:18, fontWeight:900, color:T.text }}>
+          {error || "Unit not found"}
+        </div>
+        <button
+          onClick={() => navigate(-1)}
+          style={{ border:"none", background:"none", cursor:"pointer",
+                   color:T.violet, fontWeight:700, fontSize:14 }}
+        >
+          ← Go back
+        </button>
+      </div>
+    </>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky top bar – Udemy/Coursera style */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/admin/units')}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад к юнитам
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                  Редактирование юнита
-                </h1>
-              </div>
-              <p className="mt-1 text-xs md:text-sm text-gray-500 line-clamp-1">
-                {formData.title || 'Название юнита еще не заполнено'}
-              </p>
-            </div>
+    <>
+      <style>{CSS}</style>
+      <div className="uep-root">
+
+        {/* ── Hero ── */}
+        <UnitHeader unit={{ ...unit, ...form } as Unit} heroGrad={heroGrad} navigate={navigate} />
+
+        {/* ── Body ── */}
+        <div className="uep-body">
+
+          {/* ── Left: metadata + content sections ── */}
+          <div className="uep-main">
+            <UnitMetadataForm
+              form={form}
+              onChange={handleChange}
+              onSave={handleSave}
+              saving={saving}
+              saved={saved}
+            />
+            <UnitContentSections
+              unit={{ ...unit, ...form } as Unit}
+              counts={counts}
+              navigate={navigate}
+              unitId={unitId || ""}
+              onOpenTestPicker={() => setTestPickerOpen(true)}
+              onOpenTaskPicker={() => setTaskPickerOpen(true)}
+            />
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => handleSave(false)}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? 'Сохранение...' : 'Сохранить'}
-            </button>
-            <button
-              onClick={() => handleSave(true)}
-              disabled={saving}
-              className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? 'Публикация...' : 'Опубликовать'}
-            </button>
-          </div>
+          {/* ── Right: actions panel ── */}
+          <UnitActionsPanel
+            unit={{ ...unit, ...form } as Unit}
+            counts={counts}
+            onSave={handleSave}
+            saving={saving}
+            saved={saved}
+            onDelete={handleDelete}
+          />
         </div>
+
       </div>
 
-      {/* Main Content */}
-        <div className="max-w-4xl mx-auto px-4 lg:px-8 py-8">
-          <div className="space-y-6">
-              {/* Basic information */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  Основная информация
-                </h2>
+      {/* Toast */}
+      {toastMsg && <div className="uep-toast">{toastMsg}</div>}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Название *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.title}
-                      onChange={(e) => handleInputChange('title', e.target.value)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      placeholder="Введите название юнита"
-                    />
-                  </div>
+      {/* Test Method Picker */}
+      <CreateTestMethodPicker
+        open={testPickerOpen}
+        onClose={() => setTestPickerOpen(false)}
+        unitId={unitId ? parseInt(unitId) : null}
+        unitTitle={unit?.title || null}
+        onManual={() => {
+          setTestPickerOpen(false);
+          navigate(`/admin/units/${unitId}/test`);
+        }}
+        onAI={() => {
+          setTestPickerOpen(false);
+          // Navigate to AI test generation wizard
+          navigate(`/admin/units/${unitId}/test?mode=ai`);
+        }}
+      />
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Уровень *
-                    </label>
-                    <select
-                      value={formData.level}
-                      onChange={(e) => handleInputChange('level', e.target.value)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    >
-                      <option value="A1">A1 - Начальный</option>
-                      <option value="A2">A2 - Элементарный</option>
-                      <option value="B1">B1 - Средний</option>
-                      <option value="B2">B2 - Выше среднего</option>
-                      <option value="C1">C1 - Продвинутый</option>
-                      <option value="C2">C2 - В совершенстве</option>
-                    </select>
-                  </div>
-
-                  {/* Course Selection */}
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                      <BookMarked className="h-4 w-4 mr-1 text-gray-400" />
-                      Курс
-                    </label>
-                    <select
-                      value={formData.course_id || ''}
-                      onChange={(e) => handleInputChange('course_id', e.target.value ? parseInt(e.target.value) : null)}
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    >
-                      <option value="">Без курса (автономный юнит)</option>
-                      {availableCourses.map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {course.title} {course.level && `(${course.level})`}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Выберите курс, к которому будет принадлежать этот юнит. Если не выбран, юнит будет автономным.
-                    </p>
-                    {availableCourses.length === 0 && !loadingContent && (
-                      <p className="mt-2 text-xs text-amber-600">
-                        Нет доступных курсов. <button 
-                          type="button"
-                          onClick={() => navigate('/admin/courses/new')}
-                          className="text-primary-600 hover:text-primary-700 underline"
-                        >
-                          Создать курс
-                        </button>
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Description */}
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Описание
-                  </label>
-                  <RichTextEditor
-                    value={formData.description}
-                    onChange={(value) => handleInputChange('description', value)}
-                    placeholder="Краткое описание юнита"
-                  />
-                </div>
-
-                {/* Goals */}
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ключевые цели обучения
-                  </label>
-                  <textarea
-                    value={formData.goals}
-                    onChange={(e) => handleInputChange('goals', e.target.value)}
-                    rows={3}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    placeholder="Что студенты должны изучить в этом юните"
-                  />
-                </div>
-              </div>
-
-              {/* Advanced Settings */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="w-full flex items-center justify-between text-left"
-                >
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Расширенные настройки
-                  </h2>
-                  <span className="text-sm text-gray-600 hover:text-primary-600">
-                    {showAdvanced ? 'Скрыть' : 'Показать'}
-                  </span>
-                </button>
-
-                {showAdvanced && (
-                  <div className="mt-6 space-y-6">
-                    {/* Order Index */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Порядок отображения
-                      </label>
-                      <input
-                        type="number"
-                      value={formData.order_index === '' ? '' : formData.order_index}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (raw === '') {
-                          handleInputChange('order_index', '');
-                          return;
-                        }
-                        handleInputChange('order_index', parseInt(raw, 10));
-                      }}
-                        min="0"
-                        className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                        placeholder="0"
-                      />
-                      <p className="mt-1 text-xs text-gray-500">
-                        Порядок отображения юнита в списке. Меньшие значения отображаются первыми.
-                      </p>
-                    </div>
-
-                    {/* Tags */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Теги
-                      </label>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {formData.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-800"
-                          >
-                            {tag}
-                            <button
-                              onClick={() => handleRemoveTag(tag)}
-                              className="ml-1 text-primary-600 hover:text-primary-800"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={newTag}
-                          onChange={(e) => setNewTag(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="Добавить тег"
-                        />
-                        <button
-                          onClick={handleAddTag}
-                          className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Добавить
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Publish at */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Запланировать публикацию (опционально)
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={formData.publish_at}
-                        onChange={(e) => handleInputChange('publish_at', e.target.value)}
-                        className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      />
-                      <p className="mt-1 text-xs text-gray-500">
-                        Если указано, юнит будет опубликован в указанное время. Если не указано, публикация произойдет сразу.
-                      </p>
-                    </div>
-
-                    {/* SEO */}
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-3">
-                        SEO настройки
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Meta заголовок
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.meta_title}
-                            onChange={(e) => handleInputChange('meta_title', e.target.value)}
-                            className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                            placeholder="SEO заголовок"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Meta описание
-                          </label>
-                          <textarea
-                            value={formData.meta_description}
-                            onChange={(e) =>
-                              handleInputChange('meta_description', e.target.value)
-                            }
-                            rows={3}
-                            className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                            placeholder="SEO описание"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Content structure – use existing renderContentSection */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Контент юнита
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      Управляйте видео, заданиями и тестами как структурой курса.
-                    </p>
-                  </div>
-                </div>
-
-                {renderContentSection(
-                  'Видео',
-                  videos,
-                  'video',
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/10">
-                    <span className="text-xs font-semibold text-blue-600">V</span>
-                  </div>
-                )}
-
-                {renderContentSection(
-                  'Задания',
-                  tasks,
-                  'task',
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/10">
-                    <span className="text-xs font-semibold text-green-600">T</span>
-                  </div>
-                )}
-
-                {renderContentSection(
-                  'Тесты',
-                  tests,
-                  'test',
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/10">
-                    <span className="text-xs font-semibold text-purple-600">Q</span>
-                  </div>
-                )}
-              </div>
-          </div>
-        </div>
-    </div>
+      {/* Task Method Picker */}
+      <CreateTaskMethodPicker
+        open={taskPickerOpen}
+        onClose={() => setTaskPickerOpen(false)}
+        unitId={unitId ? parseInt(unitId) : null}
+        unitTitle={unit?.title || null}
+        onManual={() => {
+          setTaskPickerOpen(false);
+          navigate(`/admin/units/${unitId}/tasks`);
+        }}
+        onAI={() => {
+          setTaskPickerOpen(false);
+          // Navigate to AI task generation wizard
+          navigate(`/admin/units/${unitId}/tasks?mode=ai`);
+        }}
+      />
+    </>
   );
 }

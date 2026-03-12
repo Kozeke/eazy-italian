@@ -438,8 +438,8 @@ export default function SlideGenerator() {
 
   const handleGoBack = () => {
     if (unitId && Number.isFinite(unitId)) {
-      // Navigate to unit edit page if unitId exists
-      navigate(`/admin/units/${unitId}/edit`);
+      // Navigate to unit page if unitId exists
+      navigate(`/admin/units/${unitId}`);
     } else {
       // Navigate to unit create page if no unitId
       navigate('/admin/units/new');

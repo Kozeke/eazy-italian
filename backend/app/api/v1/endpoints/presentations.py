@@ -31,8 +31,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.auth import get_current_teacher
+from app.core.auth import get_current_teacher, get_current_user
 from app.core.database import get_db
+from app.core.enrollment_guard import check_unit_access
 from app.models.presentation import Presentation, PresentationSlide, PresentationStatus
 from app.models.unit import Unit
 from app.models.user import User
@@ -725,3 +726,85 @@ async def generate_slides_for_presentation(
         len(deck.slides), presentation_id, body.topic,
     )
     return p
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Student endpoints with enrollment authorization
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get(
+    "/units/{unit_id}/presentations",
+    response_model=List[PresentationListItem],
+    summary="List presentations in a unit (student endpoint)",
+)
+async def list_unit_presentations_student(
+    unit_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Get presentations for a unit - requires enrollment if unit belongs to a course"""
+    # Check enrollment authorization
+    check_unit_access(db, current_user, unit_id)
+    
+    # Get unit to verify it exists
+    unit = db.query(Unit).filter(Unit.id == unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    
+    # Get published presentations visible to students
+    presentations = (
+        db.query(Presentation)
+        .options(joinedload(Presentation.slides))
+        .filter(
+            Presentation.unit_id == unit_id,
+            Presentation.status == PresentationStatus.PUBLISHED,
+            Presentation.is_visible_to_students == True
+        )
+        .order_by(Presentation.order_index, Presentation.id)
+        .all()
+    )
+    
+    return [_build_list_item(p) for p in presentations]
+
+
+@router.get(
+    "/presentations/{presentation_id}/slides",
+    response_model=List[SlideResponse],
+    summary="Get slides for a presentation (student endpoint)",
+)
+async def get_presentation_slides_student(
+    presentation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Get slides for a presentation - requires enrollment if presentation belongs to a unit in a course"""
+    # Get presentation
+    presentation = (
+        db.query(Presentation)
+        .options(joinedload(Presentation.slides))
+        .filter(Presentation.id == presentation_id)
+        .first()
+    )
+    
+    if not presentation:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    
+    # Check if presentation is published and visible to students
+    if presentation.status != PresentationStatus.PUBLISHED:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    
+    if not presentation.is_visible_to_students:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    
+    # Check enrollment authorization via unit
+    check_unit_access(db, current_user, presentation.unit_id)
+    
+    # Get slides
+    slides = (
+        db.query(PresentationSlide)
+        .filter(PresentationSlide.presentation_id == presentation_id)
+        .order_by(PresentationSlide.order_index)
+        .all()
+    )
+    
+    return slides

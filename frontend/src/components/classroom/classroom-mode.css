@@ -1,0 +1,36 @@
+/**
+ * classroom-mode.css
+ *
+ * Import this in your global stylesheet (index.css / globals.css) or
+ * add these rules directly to your existing global CSS.
+ *
+ * When ClassroomLayout mounts it adds `classroom-mode` to <body>.
+ * These rules hide any global sidebar / admin topbar that might exist
+ * outside the classroom route's component tree.
+ *
+ * Because classroom routes are registered outside AdminLayout, the
+ * sidebar is never rendered in the first place — these rules are a
+ * belt-and-suspenders safety net for any edge cases (e.g. shared
+ * headers, portals, or future layout changes).
+ */
+
+/* Hide teacher/admin shell elements while in classroom mode */
+body.classroom-mode .app-sidebar,
+body.classroom-mode .admin-sidebar,
+body.classroom-mode aside[data-sidebar],
+body.classroom-mode [data-role="sidebar"],
+body.classroom-mode .admin-topbar,
+body.classroom-mode [data-role="admin-nav"] {
+  display: none !important;
+}
+
+/* Ensure the classroom takes full viewport width */
+body.classroom-mode .classroom-layout {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Prevent body scroll jitter when drawer is open */
+body.classroom-mode-locked {
+  overflow: hidden;
+}

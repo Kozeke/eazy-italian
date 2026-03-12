@@ -265,7 +265,7 @@ export default function AdminTestsPage() {
                         className="p-2 text-primary-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors" title="Подробнее">
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button onClick={() => navigate(`/admin/tests/${test.id}/edit`)}
+                      <button onClick={() => navigate(`/admin/tests/${test.id}/builder`)}
                         className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Редактировать">
                         <Edit className="h-4 w-4" />
                       </button>

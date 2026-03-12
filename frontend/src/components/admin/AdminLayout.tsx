@@ -59,8 +59,8 @@ export default function AdminLayout({}: AdminLayoutProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Handle user logout and redirect to login
-  const handleLogout = () => {
-    const loggedOut = logout();
+  const handleLogout = async () => {
+    const loggedOut = await logout();
     // Only navigate if logout was actually performed (not blocked by active test)
     if (loggedOut) {
       navigate('/login');

@@ -7,7 +7,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   register: (userData: any) => Promise<User>;
-  logout: () => boolean; // Returns true if logout was performed, false if blocked
+  logout: () => Promise<boolean>; // Returns true if logout was performed, false if blocked
   isAuthenticated: boolean;
   isTeacher: boolean;
   isStudent: boolean;
@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = (): boolean => {
+  const logout = async (): Promise<boolean> => {
     // Check if a test is active
     const testActive = sessionStorage.getItem('test_active');
     if (testActive === 'true') {
@@ -87,6 +87,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const event = new CustomEvent('logout-attempt');
       window.dispatchEvent(event);
       return false; // Don't logout yet, wait for confirmation
+    }
+    
+    // Call logout API endpoint BEFORE clearing tokens (non-blocking - logout should work even if it fails)
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await authApi.logout();
+      } catch (error) {
+        // Continue with logout even if API call fails (token might be expired/invalid)
+        console.error('Logout API call failed:', error);
+      }
     }
     
     // Normal logout if no test is active
@@ -98,7 +109,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Listen for confirmed logout after test submission
   React.useEffect(() => {
-    const handlePerformLogout = () => {
+    const handlePerformLogout = async () => {
+      // Call logout API endpoint (non-blocking)
+      authApi.logout().catch((error) => {
+        console.error('Logout API call failed:', error);
+      });
+      
       localStorage.removeItem('token');
       localStorage.removeItem('refresh_token');
       setUser(null);

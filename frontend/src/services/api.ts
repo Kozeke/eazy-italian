@@ -168,10 +168,19 @@ export const authApi = {
   },
 
   getCurrentUser: async (): Promise<User> => {
-    console.log('Making getCurrentUser request to:', '/auth/me');
-    const response: AxiosResponse<User> = await api.get('/auth/me');
+    console.log('Making getCurrentUser request to:', '/users/me');
+    const response: AxiosResponse<User> = await api.get('/users/me');
     console.log('getCurrentUser response received:', response.data);
     return response.data;
+  },
+
+  logout: async (): Promise<void> => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      // Logout should still work even if API call fails
+      console.error('Logout API call failed:', error);
+    }
   },
 };
 
@@ -274,7 +283,7 @@ export const coursesApi = {
 // Units API
 export const unitsApi = {
   getUnits: async (params?: any): Promise<Unit[]> => {
-    const response: AxiosResponse<Unit[]> = await api.get('/units/units', { params });
+    const response: AxiosResponse<Unit[]> = await api.get('/units', { params });
     return response.data;
   },
 

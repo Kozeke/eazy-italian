@@ -270,7 +270,7 @@ export default function AdminTasksPage() {
           </div>
 
           <button
-            onClick={() => navigate('/admin/tasks/new')}
+            onClick={() => navigate('/admin/tasks/builder/new')}
             className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -547,7 +547,7 @@ export default function AdminTasksPage() {
                         <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
-                        onClick={() => navigate(`/admin/tasks/${task.id}/edit`)}
+                        onClick={() => navigate(`/admin/tasks/${task.id}/builder`)}
                         className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                         title="Редактировать"
                       >
@@ -582,7 +582,7 @@ export default function AdminTasksPage() {
             {!searchQuery && !selectedUnit && !selectedStatus && !selectedType && (
               <div className="mt-6">
                 <button
-                  onClick={() => navigate('/admin/tasks/new')}
+                  onClick={() => navigate('/admin/tasks/builder/new')}
                   className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
                 >
                   <Plus className="w-4 h-4 mr-2" />

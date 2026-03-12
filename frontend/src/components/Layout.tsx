@@ -177,7 +177,12 @@ export default function Layout({ children }: LayoutProps) {
                   </div>
 
                   <button
-                    onClick={logout}
+                    onClick={async () => {
+                      const loggedOut = await logout();
+                      if (loggedOut) {
+                        window.location.href = '/login';
+                      }
+                    }}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                     title={t('nav.logout')}
                   >

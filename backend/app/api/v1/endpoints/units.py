@@ -508,6 +508,72 @@ async def get_unit_summary(
 # Student endpoints with enrollment authorization
 from app.core.enrollment_guard import check_unit_access
 
+@router.get("", response_model=List[UnitListResponse])
+async def get_units_by_course(
+    course_id: Optional[int] = Query(None, description="Filter by course ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get units - optionally filtered by course_id"""
+    
+    query_builder = db.query(Unit).options(
+        joinedload(Unit.created_by_user),
+        joinedload(Unit.course)
+    )
+    
+    # Filter by course_id if provided
+    if course_id is not None:
+        # Verify course exists
+        course = db.query(Course).filter(Course.id == course_id).first()
+        if not course:
+            raise HTTPException(status_code=404, detail=f"Course with id {course_id} not found")
+        
+        # Filter units by course_id
+        query_builder = query_builder.filter(Unit.course_id == course_id)
+        
+        # For students, only show published and visible units
+        # Teachers/admins can see all units (for course management)
+        if current_user.role.value == "student":
+            query_builder = query_builder.filter(
+                and_(
+                    Unit.is_visible_to_students == True,
+                    Unit.status == UnitStatus.PUBLISHED
+                )
+            )
+    else:
+        # If no course_id provided, only return published units for students
+        # Teachers/admins can see all units if no course_id filter
+        if current_user.role.value == "student":
+            query_builder = query_builder.filter(
+                and_(
+                    Unit.is_visible_to_students == True,
+                    Unit.status == UnitStatus.PUBLISHED
+                )
+            )
+    
+    units = query_builder.order_by(Unit.order_index).all()
+    
+    # Convert to response format
+    result = []
+    for unit in units:
+        content_count = unit.content_count
+        result.append(UnitListResponse(
+            id=unit.id,
+            title=unit.title,
+            level=unit.level,
+            status=unit.status,
+            publish_at=unit.publish_at,
+            order_index=unit.order_index,
+            created_by=unit.created_by,
+            created_at=unit.created_at,
+            updated_at=unit.updated_at,
+            content_count=content_count,
+            course_id=unit.course_id,
+            course_title=unit.course.title if unit.course else None
+        ))
+    
+    return result
+
 @router.get("/{unit_id}", response_model=UnitDetailResponse)  # Changed to UnitDetailResponse
 def get_unit_detail(
     unit_id: int,
