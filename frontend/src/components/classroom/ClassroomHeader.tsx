@@ -1,18 +1,25 @@
 /**
- * ClassroomHeader.tsx  (v3)
+ * ClassroomHeader.tsx  (v5 — adds has-rail modifier for CSS variable)
  *
- * Compact, sticky header for student Classroom Mode.
- * Three-zone layout: Back + course name | Current unit title | Change unit + progress
+ * Changes from v4:
+ * ─────────────────
+ * • The `<header>` element now adds the CSS class `classroom-header` plus
+ *   `classroom-header--has-rail` when a lessonRail is active.
  *
- * v3 changes:
- * - "Change Unit" / "Choose Unit" button now opens UnitSelectorModal instead of drawer
- * - Accepts units[] and onSelectUnit for the modal
- * - Accepts optional completedUnitIds for completion indicators
+ *   These classes drive the `--lp-header-h` CSS custom property used by
+ *   `.lp-workspace` in lesson-workspace.css to size the player viewport.
+ *
+ *   Single bar  (no rail) → --lp-header-h: 60px   (set by .classroom-header)
+ *   Double bar (with rail) → --lp-header-h: 108px  (set by .classroom-header--has-rail)
+ *
+ * • All other props, layout, modal logic, and visual language are unchanged
+ *   from v4.
  */
 
 import React, { useState } from 'react';
 import { ArrowLeft, ChevronDown, GraduationCap } from 'lucide-react';
 import UnitSelectorModal from './unit/UnitSelectorModal';
+import './classroom-mode.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,20 +41,20 @@ export interface ClassroomHeaderProps {
     order_index?: number;
     level?: string;
   } | null;
-  /** All units for the current course (passed down to modal) */
   units?: any[];
-  /** Optional set of completed unit IDs */
   completedUnitIds?: Set<number | string>;
-  /** 0–100 progress percentage */
   progress?: number;
   onBack: () => void;
-  /** Called when user selects a different unit from the modal */
   onSelectUnit?: (unit: any) => void;
-  /**
-   * @deprecated Pass onSelectUnit + units instead.
-   * Kept for backward compatibility — opens external drawer if no modal data given.
-   */
+  /** @deprecated Pass onSelectUnit + units instead. */
   onOpenUnitSelector?: () => void;
+  /**
+   * Lesson progress rail node — rendered as a compact strip below the
+   * main header bar when a unit is active.
+   */
+  lessonRail?: React.ReactNode;
+  /** @deprecated Use lessonRail instead. */
+  lessonSteps?: unknown;
 }
 
 // ─── Progress pill ────────────────────────────────────────────────────────────
@@ -102,11 +109,10 @@ export default function ClassroomHeader({
   onBack,
   onSelectUnit,
   onOpenUnitSelector,
+  lessonRail,
 }: ClassroomHeaderProps) {
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Prefer the modal if units + onSelectUnit are available;
-  // fall back to the external drawer (backward compat)
   const canUseModal = units.length > 0 && typeof onSelectUnit === 'function';
 
   const handleOpenChanger = () => {
@@ -122,12 +128,27 @@ export default function ClassroomHeader({
     setModalOpen(false);
   };
 
+  const hasRail = !!lessonRail && !!currentUnit;
+
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm shadow-sm">
-        <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4 md:px-6 lg:px-8">
+      {/*
+        classroom-header          → sets --lp-header-h: 60px
+        classroom-header--has-rail → sets --lp-header-h: 108px
+        Both are consumed by .lp-workspace in lesson-workspace.css.
+      */}
+      <header
+        className={[
+          'sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm shadow-sm',
+          'classroom-header',
+          hasRail ? 'classroom-header--has-rail' : '',
+        ].filter(Boolean).join(' ')}
+      >
 
-          {/* ── LEFT: back + course name ─────────────────────────────────── */}
+        {/* ── Main bar ──────────────────────────────────────────────────────── */}
+        <div className="mx-auto flex h-12 w-full max-w-7xl items-center gap-3 px-4 md:px-6 lg:px-8">
+
+          {/* LEFT: back + course name */}
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               onClick={onBack}
@@ -141,9 +162,17 @@ export default function ClassroomHeader({
             <span className="hidden text-slate-300 sm:block" aria-hidden>|</span>
 
             <div className="hidden min-w-0 items-center gap-2 sm:flex">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
-                <GraduationCap className="h-4 w-4" />
-              </div>
+              {course.thumbnail_url ? (
+                <img
+                  src={course.thumbnail_url}
+                  alt={course.title}
+                  className="h-7 w-7 rounded-lg object-cover ring-1 ring-slate-200 shrink-0"
+                />
+              ) : (
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-teal-700 shadow-sm">
+                  <GraduationCap className="h-4 w-4 text-white" />
+                </div>
+              )}
               <span className="truncate text-sm font-semibold text-slate-800">
                 {course.title}
               </span>
@@ -151,7 +180,7 @@ export default function ClassroomHeader({
             </div>
           </div>
 
-          {/* ── CENTER: current unit title ────────────────────────────────── */}
+          {/* CENTER: current unit title */}
           <div className="hidden flex-1 flex-col items-center md:flex">
             {currentUnit ? (
               <>
@@ -170,7 +199,7 @@ export default function ClassroomHeader({
             )}
           </div>
 
-          {/* ── RIGHT: change unit + progress + optional teacher ─────────── */}
+          {/* RIGHT: change unit + progress + optional teacher */}
           <div className="flex flex-1 items-center justify-end gap-3">
             {progress !== undefined && (
               <div className="hidden lg:block">
@@ -197,8 +226,17 @@ export default function ClassroomHeader({
           </div>
         </div>
 
-        {/* Mobile: current unit strip */}
-        {currentUnit && (
+        {/* ── Lesson progress rail sub-bar ──────────────────────────────────── */}
+        {hasRail && (
+          <div className="border-t border-slate-100 bg-white/95 px-4 pb-1.5 pt-1.5 md:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-5xl">
+              {lessonRail}
+            </div>
+          </div>
+        )}
+
+        {/* ── Mobile unit strip — only shown when no rail ─────────────────── */}
+        {currentUnit && !hasRail && (
           <div className="border-t border-slate-100 bg-slate-50 px-4 py-1.5 md:hidden">
             <p className="truncate text-xs font-medium text-slate-700">
               <span className="mr-1 text-slate-400">Unit:</span>
@@ -206,9 +244,10 @@ export default function ClassroomHeader({
             </p>
           </div>
         )}
+
       </header>
 
-      {/* Unit selector modal (rendered outside header but controlled here) */}
+      {/* Unit selector modal */}
       {canUseModal && (
         <UnitSelectorModal
           open={modalOpen}

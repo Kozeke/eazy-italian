@@ -2,52 +2,72 @@
  * AdminLayout.jsx
  *
  * Shell layout for all admin pages.
- * Renders AdminSidebar on the left, <Outlet/> on the right.
+ * Renders AdminSidebar (fixed, hover-expands) + <Outlet/> in the main area.
  *
- * Design matches TeacherOnboarding's bg (#F7F6FF) and border (#E5DEFF).
+ * Sidebar strategy:
+ *   The sidebar is `position: fixed` at 60px wide (collapsed) and expands
+ *   to 220px on hover — purely visually.
+ *   The main content area has a fixed left margin of 60px (the collapsed rail
+ *   width), so it NEVER shifts when the sidebar expands. The sidebar overlays
+ *   on top when expanded, which is standard SaaS behaviour (e.g. ProgressMe).
  */
 
-import { useEffect, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import AdminHeader from "./AdminHeader.jsx";
 import AdminSidebar from "./AdminSidebar.jsx";
-import { coursesApi, progressApi } from "../../../services/api";
 
-/* ── Topbar height token ────────────────────────────────────────────────── */
-const TOPBAR_H = 0; // no global topbar — sidebar owns the full height
+const COLLAPSED_W = 60; // must match AdminSidebar
+const HEADER_H = 60; // must match AdminHeader
 
 const CSS = `
   .al-root {
     display: flex;
     height: 100vh;
     width: 100%;
-    background: #F7F6FF;
+    background: #F8F8FC;
     overflow: hidden;
+    padding-top: ${HEADER_H}px;
+    box-sizing: border-box;
+  }
+  /* Spacer shim — keeps main content from sitting under the sidebar */
+  .al-sidebar-shim {
+    width: ${COLLAPSED_W}px;
+    min-width: ${COLLAPSED_W}px;
+    flex-shrink: 0;
+  }
+  .al-root .asb-root {
+    top: ${HEADER_H}px;
+    height: calc(100vh - ${HEADER_H}px);
   }
   .al-main {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
   }
+  .al-main--builder {
+    overflow: hidden;
+  }
+  .al-main__content {
+    flex: 1;
+    min-height: 0;
+  }
+  .al-main__content--builder {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 `;
 
 export default function AdminLayout() {
-  const navigate = useNavigate();
-  const [courseCount,  setCourseCount]  = useState(0);
-  const [studentCount, setStudentCount] = useState(0);
-
-  /* Load counts for badge display — best-effort, silent on error */
-  useEffect(() => {
-    coursesApi.getAdminCourses?.()
-      .then((c) => setCourseCount(Array.isArray(c) ? c.length : 0))
-      .catch(() => {});
-
-    // Try dashboard stats for student count
-    coursesApi.getDashboardStatistics?.()
-      .then((d) => setStudentCount(d?.students_count ?? 0))
-      .catch(() => {});
-  }, []);
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const [darkMode, setDarkMode] = useState(false);
+  const isCourseBuilder = location.pathname === "/admin/courses/builder";
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -57,14 +77,26 @@ export default function AdminLayout() {
   return (
     <>
       <style>{CSS}</style>
+      <AdminHeader
+        userName="Katarina"
+        userEmail="katarina@school.edu"
+        trialUntil="2025-03-22"
+        darkMode={darkMode}
+        onToggleDark={() => setDarkMode(d => !d)}
+        onLogout={handleLogout}
+      />
       <div className="al-root">
-        <AdminSidebar
-          courseCount={courseCount}
-          studentCount={studentCount}
-          onLogout={handleLogout}
-        />
-        <main className="al-main">
-          <Outlet />
+        {/* Fixed sidebar — overlays content when expanded */}
+        <AdminSidebar />
+
+        {/* Shim reserves exactly the collapsed rail width */}
+        <div className="al-sidebar-shim" aria-hidden="true" />
+
+        {/* Main content — margin is constant, no jitter */}
+        <main className={`al-main ${isCourseBuilder ? "al-main--builder" : ""}`}>
+          <div className={`al-main__content ${isCourseBuilder ? "al-main__content--builder" : ""}`}>
+            <Outlet />
+          </div>
         </main>
       </div>
     </>

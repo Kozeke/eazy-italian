@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS courses (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,
-    level courselevel NOT NULL,
+    level courselevel,
     status coursestatus NOT NULL DEFAULT 'draft',
     publish_at TIMESTAMP WITH TIME ZONE,
     order_index INTEGER NOT NULL DEFAULT 0,

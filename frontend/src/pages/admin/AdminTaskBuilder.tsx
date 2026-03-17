@@ -2669,6 +2669,7 @@ function TaskInspector({
    ═══════════════════════════════════════════════════════════════════════════ */
 export function TaskBuilder({ taskId, unitId, unitTitle, generatedTaskIds, onClose }: any) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   /* ── State ── */
   const [task,    setTask]    = useState<any>(null);
@@ -3021,6 +3022,19 @@ export function TaskBuilder({ taskId, unitId, unitTitle, generatedTaskIds, onClo
       setDraft((p) => ({ ...p, status: "published" }));
       await loadTasks();
       showToast("🚀 Task published!");
+      
+      // Check if we're in AI generation flow and redirect to unit page
+      const searchParams = new URLSearchParams(location.search);
+      const isAiFlow = searchParams.get('ai') === '1';
+      if (isAiFlow) {
+        const taskUnitId = updated.unit_id || unitId;
+        if (taskUnitId) {
+          // Small delay to show the success toast before redirecting
+          setTimeout(() => {
+            navigate(`/admin/units/${taskUnitId}`);
+          }, 500);
+        }
+      }
     } catch (e: any) {
       setErrors((p: any) => ({ ...p, publish: e.message }));
     } finally {

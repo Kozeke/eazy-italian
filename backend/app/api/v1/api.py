@@ -3,6 +3,7 @@ from app.api.v1.endpoints import auth, users, units, videos, tasks, tests, progr
 from app.api.v1.endpoints import admin_videos, admin_tasks, admin_tests
 from app.api.v1.endpoints.student import tests as student_tests
 from app.api.v1.endpoints.student import classroom as student_classroom
+from app.api.v1.endpoints.student import grades as student_grades
 from app.api.v1.endpoints.generate_test import router as generate_test_router
 from app.api.v1.endpoints.generate_task import router as generate_task_router
 from app.api.v1.endpoints import analytics
@@ -42,4 +43,5 @@ api_router.include_router(websocket.router, tags=["WebSocket"])
 #student routes
 api_router.include_router(student_tests.router, prefix="/student/tests", tags=["Student Tests"])
 api_router.include_router(student_classroom.router, prefix="/student", tags=["Student"])
+api_router.include_router(student_grades.router, prefix="/student", tags=["Student"])
 api_router.include_router(analytics.router)

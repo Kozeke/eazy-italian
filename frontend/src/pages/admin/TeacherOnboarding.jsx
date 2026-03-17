@@ -146,8 +146,10 @@ export const GlobalStyles = () => (
       from { opacity:1; transform:scale(1);    filter:blur(0); }
       to   { opacity:0; transform:scale(.985); filter:blur(2px); }
     }
-    .phase-enter { animation: phaseEnter .52s cubic-bezier(.22,.68,0,1.15) both; }
-    .phase-exit  { animation: phaseExit  .28s ease-in both; pointer-events:none; }
+    .phase-enter  { animation: phaseEnter .52s cubic-bezier(.22,.68,0,1.15) both; }
+    .phase-exit   { animation: phaseExit  .28s ease-in both; pointer-events:none; }
+    .phase-fill   { flex:1; min-height:0; display:flex; flex-direction:column; }
+    .phase-scroll { flex:1; min-height:0; overflow-y:auto; }
 
     .enter { animation:slideR .42s cubic-bezier(.22,.68,0,1.2) both }
     .back  { animation:slideL .42s cubic-bezier(.22,.68,0,1.2) both }
@@ -170,15 +172,15 @@ export const GlobalStyles = () => (
     .lvl-chip:hover { transform:translateY(-3px) scale(1.04) }
     .lvl-chip.sel   { transform:translateY(-3px) scale(1.06);border-color:white }
 
-    .cnt-btn { cursor:pointer;border-radius:13px;padding:13px 8px;text-align:center;flex:1;font-family:${T.dFont};font-size:19px;font-weight:900;color:${T.sub};transition:all .18s cubic-bezier(.22,.68,0,1.2);background:white;border:3px solid ${T.border} }
+    .cnt-btn { cursor:pointer;border-radius:11px;padding:10px 8px;text-align:center;flex:1;font-family:${T.dFont};font-size:17px;font-weight:900;color:${T.sub};transition:all .18s cubic-bezier(.22,.68,0,1.2);background:white;border:3px solid ${T.border} }
     .cnt-btn:hover { border-color:${T.violet};color:${T.violet};transform:translateY(-2px) }
     .cnt-btn.sel   { background:linear-gradient(135deg,${T.violet},${T.pink});border-color:transparent;color:white;transform:translateY(-2px);box-shadow:0 8px 20px ${T.violet}44 }
 
-    .upload-zone { border:3px dashed ${T.border};border-radius:18px;padding:26px;text-align:center;cursor:pointer;transition:all .2s;background:${T.bg} }
+    .upload-zone { border:3px dashed ${T.border};border-radius:16px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;background:${T.bg} }
     .upload-zone:hover,.upload-zone.drag { border-color:${T.violet};background:${T.violetL};transform:scale(1.01) }
 
-    .btn         { border:none;border-radius:14px;padding:14px 28px;font-family:${T.dFont};font-size:15px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .18s }
-    .btn-sm      { padding:10px 18px;font-size:13px;border-radius:11px;font-weight:700 }
+    .btn         { border:none;border-radius:14px;padding:12px 24px;font-family:${T.dFont};font-size:15px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .18s }
+    .btn-sm      { padding:9px 16px;font-size:13px;border-radius:11px;font-weight:700 }
     .btn-xs      { padding:6px 13px;font-size:12px;border-radius:9px;font-weight:700 }
     .btn-p       { background:${T.violet};color:#fff;box-shadow:0 4px 16px ${T.violet}44 }
     .btn-p:hover { background:${T.violetD};transform:translateY(-2px);box-shadow:0 10px 28px ${T.violet}55 }
@@ -444,45 +446,45 @@ const StepOptions = ({ data, onChange, onNext, onBack, dir }) => {
     <Shell stepKey="options">
       <div className={dir === "back" ? "back" : "enter"}>
         <StepBar current={3} total={4} />
-        <h2 style={{ fontFamily: T.dFont, fontSize: 26, fontWeight: 900, marginBottom: 6 }}>Course options ✨</h2>
-        <p style={{ color: T.sub, marginBottom: 24, fontSize: 15 }}>Defaults work great — tweak as needed.</p>
+        <h2 style={{ fontFamily: T.dFont, fontSize: 24, fontWeight: 900, marginBottom: 4 }}>Course options ✨</h2>
+        <p style={{ color: T.sub, marginBottom: 16, fontSize: 14 }}>Defaults work great. Adjust only if needed.</p>
 
-        <div style={{ background: T.bg, border: `3px solid ${T.border}`, borderRadius: 20, padding: 18, marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ background: T.bg, border: `3px solid ${T.border}`, borderRadius: 18, padding: 14, marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div>
-              <p style={{ fontFamily: T.dFont, fontSize: 15, fontWeight: 800, color: T.text }}>Modules per course</p>
+              <p style={{ fontFamily: T.dFont, fontSize: 14, fontWeight: 800, color: T.text }}>Modules per course</p>
               <p style={{ fontSize: 12, color: T.muted }}>Each module has 2–3 lessons</p>
             </div>
-            <div style={{ width: 44, height: 44, borderRadius: 14, background: "linear-gradient(135deg,#F5A623,#F76D3C)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.dFont, fontSize: 22, fontWeight: 900, color: "#fff", boxShadow: "0 6px 16px rgba(245,166,35,.45)" }}>{data.unitCount}</div>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: "linear-gradient(135deg,#F5A623,#F76D3C)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.dFont, fontSize: 18, fontWeight: 900, color: "#fff", boxShadow: "0 4px 12px rgba(245,166,35,.38)" }}>{data.unitCount}</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {[2,3,4,6,8].map(n => <button key={n} className={`cnt-btn ${data.unitCount===n?"sel":""}`} onClick={() => onChange({ unitCount: n })}>{n}</button>)}
           </div>
         </div>
 
-        <div style={{ background: T.bg, border: `3px solid ${T.border}`, borderRadius: 20, padding: 18, marginBottom: 14 }}>
-          <p style={{ fontFamily: T.dFont, fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>Special focus <span style={{ fontSize: 13, fontWeight: 500, color: T.muted }}>(optional)</span></p>
-          <p style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>E.g. "Business vocab" or "Travel phrases"</p>
+        <div style={{ background: T.bg, border: `3px solid ${T.border}`, borderRadius: 18, padding: 14, marginBottom: 12 }}>
+          <p style={{ fontFamily: T.dFont, fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 4 }}>Special focus <span style={{ fontSize: 12, fontWeight: 500, color: T.muted }}>(optional)</span></p>
+          <p style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>Examples: business vocab, travel phrases</p>
           <textarea rows={2} placeholder="Type a theme or leave blank…" value={data.extraInstructions || ""} onChange={e => onChange({ extraInstructions: e.target.value })}
-            style={{ width: "100%", background: "white", border: `2px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", color: T.text, fontFamily: T.bFont, fontSize: 14, outline: "none", transition: "border-color .2s" }}
+            style={{ width: "100%", background: "white", border: `2px solid ${T.border}`, borderRadius: 11, padding: "10px 12px", color: T.text, fontFamily: T.bFont, fontSize: 13, outline: "none", transition: "border-color .2s", resize: "none" }}
             onFocus={e => { e.target.style.borderColor = T.amber; e.target.style.boxShadow = `0 0 0 3px ${T.amber}22`; }}
             onBlur={e  => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
         </div>
 
-        <div style={{ background: T.bg, border: `3px solid ${T.border}`, borderRadius: 20, padding: 18, marginBottom: 30 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg,#0099E6,#6C35DE)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, boxShadow: "0 4px 12px rgba(0,153,230,.4)" }}>📎</div>
+        <div style={{ background: T.bg, border: `3px solid ${T.border}`, borderRadius: 18, padding: 14, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#0099E6,#6C35DE)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, boxShadow: "0 4px 10px rgba(0,153,230,.32)" }}>📎</div>
             <div>
-              <p style={{ fontFamily: T.dFont, fontSize: 15, fontWeight: 800, color: T.text }}>Upload materials <span style={{ fontSize: 13, fontWeight: 500, color: T.muted }}>(optional)</span></p>
-              <p style={{ fontSize: 12, color: T.muted }}>AI uses your files when generating each lesson via RAG</p>
+              <p style={{ fontFamily: T.dFont, fontSize: 14, fontWeight: 800, color: T.text }}>Upload materials <span style={{ fontSize: 12, fontWeight: 500, color: T.muted }}>(optional)</span></p>
+              <p style={{ fontSize: 11, color: T.muted }}>AI can use your files during lesson generation.</p>
             </div>
           </div>
 
           {files.length > 0 && (
-            <div style={{ background: "rgba(0,188,212,.07)", border: "1.5px solid rgba(0,188,212,.25)", borderRadius: 12, padding: "10px 14px", marginBottom: 12, display: "flex", gap: 9, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 15, flexShrink: 0 }}>📚</span>
-              <p style={{ fontSize: 12, color: "#006064", lineHeight: 1.55 }}>
-                <strong>These files will be ingested into the RAG pipeline.</strong> When you generate each lesson, AI will search your materials for relevant content and use it to enrich slides, tasks, and test questions.
+            <div style={{ background: "rgba(0,188,212,.07)", border: "1.5px solid rgba(0,188,212,.25)", borderRadius: 11, padding: "8px 10px", marginBottom: 10, display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>📚</span>
+              <p style={{ fontSize: 11, color: "#006064", lineHeight: 1.45 }}>
+                <strong>Your files will be indexed for RAG.</strong> AI will use them to ground slides, tasks, and tests.
               </p>
             </div>
           )}
@@ -494,12 +496,12 @@ const StepOptions = ({ data, onChange, onNext, onBack, dir }) => {
             onClick={() => document.getElementById("fu-onboard").click()}>
             <input id="fu-onboard" type="file" multiple accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={e => add(e.target.files)} />
             {files.length === 0 ? (
-              <><p style={{ fontSize: 28, marginBottom: 6 }}>☁️</p><p style={{ fontSize: 14, color: T.sub, fontWeight: 600 }}>Drop PDF, DOCX, TXT here<br /><span style={{ color: T.violet, fontWeight: 700 }}>or click to browse</span></p></>
+              <><p style={{ fontSize: 22, marginBottom: 4 }}>☁️</p><p style={{ fontSize: 13, color: T.sub, fontWeight: 600 }}>Drop PDF, DOCX or TXT here<br /><span style={{ color: T.violet, fontWeight: 700 }}>or click to browse</span></p></>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <p style={{ fontSize: 22 }}>✅</p>
-                <p style={{ fontSize: 14, fontWeight: 700, color: T.green }}>{files.length} file{files.length > 1 ? "s" : ""} ready</p>
-                {files.map((f, i) => <span key={i} style={{ fontSize: 12, color: T.muted }}>📄 {f.name}</span>)}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <p style={{ fontSize: 18 }}>✅</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: T.green }}>{files.length} file{files.length > 1 ? "s" : ""} ready</p>
+                {files.map((f, i) => <span key={i} style={{ fontSize: 11, color: T.muted }}>📄 {f.name}</span>)}
               </div>
             )}
           </div>
@@ -507,7 +509,7 @@ const StepOptions = ({ data, onChange, onNext, onBack, dir }) => {
 
         <div style={{ display: "flex", gap: 10 }}>
           <button className="btn btn-outline btn-sm" onClick={onBack}>← Back</button>
-          <button className="btn btn-p" onClick={() => onNext(files)} style={{ flex: 1, justifyContent: "center", fontSize: 16, background: "linear-gradient(135deg,#F5A623,#F76D3C,#F0447C)", boxShadow: "0 10px 28px rgba(247,109,60,.45)", borderRadius: 16 }}>
+          <button className="btn btn-p btn-sm" onClick={() => onNext(files)} style={{ flex: 1, justifyContent: "center", fontSize: 14, background: "linear-gradient(135deg,#F5A623,#F76D3C,#F0447C)", boxShadow: "0 8px 22px rgba(247,109,60,.38)", borderRadius: 14 }}>
             ✦ Build course outline
           </button>
         </div>
@@ -1206,7 +1208,7 @@ const CourseBuildScreen = ({ outline, courseData, uploadedFiles, courseId, unitM
   }
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: T.bg, overflow: "hidden" }}>
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: T.bg, overflow: "hidden" }}>
       {/* Top header */}
       <div style={{ background: "linear-gradient(135deg,#1A1035,#2D1B69)", padding: "13px 24px", display: "flex", alignItems: "center", gap: 16, boxShadow: "0 2px 20px rgba(0,0,0,.25)", zIndex: 20, flexShrink: 0 }}>
         <div style={{ width: 36, height: 36, borderRadius: 12, background: "linear-gradient(135deg,#6C35DE,#F0447C)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🎓</div>
@@ -1234,9 +1236,9 @@ const CourseBuildScreen = ({ outline, courseData, uploadedFiles, courseId, unitM
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
         {/* Left sidebar */}
-        <div style={{ width: 280, background: "white", borderRight: `2px solid ${T.border}`, overflowY: "auto", flexShrink: 0, paddingBottom: 24 }}>
+        <div style={{ width: 280, background: "white", borderRight: `2px solid ${T.border}`, overflowY: "auto", flexShrink: 0, minHeight: 0, paddingBottom: 24 }}>
           <div style={{ padding: "14px 16px 6px", fontSize: 10, fontWeight: 800, color: T.muted, letterSpacing: ".12em", textTransform: "uppercase", borderBottom: `2px solid ${T.bg}` }}>
             Step 2 of 2 · Build lessons
           </div>
@@ -4934,13 +4936,13 @@ export default function TeacherOnboardingPage({ courseId, unitMap }) {
       <GlobalStyles />
 
       {phase === "setup" && (
-        <div className={transitioning ? "phase-exit" : "phase-enter"}>
+        <div className={`${transitioning ? "phase-exit" : "phase-enter"} phase-scroll`}>
           <SetupFlow onComplete={handleSetupComplete} />
         </div>
       )}
 
       {phase === "builder" && builderData && (
-        <div className="phase-enter">
+        <div className="phase-enter phase-fill">
           <CourseBuilderWorkspace
             outline={builderData.outline}
             courseData={builderData.courseData}

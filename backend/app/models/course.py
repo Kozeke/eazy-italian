@@ -33,7 +33,7 @@ class Course(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    level = Column(Enum(CourseLevel), nullable=False)
+    level = Column(Enum(CourseLevel), nullable=True)
     status = Column(Enum(CourseStatus), default=CourseStatus.DRAFT, nullable=False)
     publish_at = Column(DateTime(timezone=True), nullable=True)
     order_index = Column(Integer, default=0, nullable=False)

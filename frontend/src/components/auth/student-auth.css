@@ -1,0 +1,150 @@
+/**
+ * student-auth.css
+ *
+ * Auth & onboarding animations + polish additions for the student side.
+ * Import this alongside student-tokens.css.
+ *
+ * Covers:
+ *   — AuthShell step transitions
+ *   — Mesh blob floating animation
+ *   — OTP digit entry micro-interaction
+ *   — Role card feature chip animation
+ *   — Password strength bar transitions
+ *   — Code input join-classroom focus scale
+ *   — Success celebration ring pulse
+ */
+
+/* ─── Step transition (fade-up) ─────────────────────────────────────────────── */
+@keyframes authStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-step-in {
+  animation: authStepIn 0.22s ease-out;
+}
+
+/* ─── Auth shell decorative mesh blobs ───────────────────────────────────────── */
+@keyframes meshFloat {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50%       { transform: scale(1.08) rotate(3deg); }
+}
+
+.auth-mesh-1 { animation: meshFloat 14s ease-in-out infinite; }
+.auth-mesh-2 { animation: meshFloat 18s ease-in-out infinite reverse; }
+.auth-mesh-3 { animation: meshFloat 22s ease-in-out infinite 4s; }
+
+/* ─── OTP digit scale on fill ────────────────────────────────────────────────── */
+@keyframes digitPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.auth-digit-filled {
+  animation: digitPop 0.18s ease-out;
+}
+
+/* ─── Code input error shake ─────────────────────────────────────────────────── */
+@keyframes authShake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-6px); }
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
+.auth-shake {
+  animation: authShake 0.35s ease;
+}
+
+/* ─── Step track connector fill ─────────────────────────────────────────────── */
+.auth-step-connector {
+  height: 1px;
+  flex: 1;
+  margin-bottom: 14px;
+  background: #e2e8f0;
+  transition: background 0.4s ease;
+}
+
+.auth-step-connector--done {
+  background: var(--s-accent-400);
+}
+
+/* ─── Password strength bar ──────────────────────────────────────────────────── */
+.auth-strength-bar {
+  height: 4px;
+  border-radius: 9999px;
+  flex: 1;
+  transition: background-color 0.3s ease;
+}
+
+/* ─── Success pulse ring ─────────────────────────────────────────────────────── */
+@keyframes successRingPulse {
+  0%   { transform: scale(0.8); opacity: 0; }
+  50%  { opacity: 0.4; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+.auth-success-ring {
+  animation: successRingPulse 1.4s ease-out infinite;
+}
+
+/* ─── Role card hover ────────────────────────────────────────────────────────── */
+.auth-role-card {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.auth-role-card:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Join code digit focus scale ────────────────────────────────────────────── */
+.auth-code-input {
+  transition: transform 0.12s ease, border-color 0.12s ease, background-color 0.15s ease;
+}
+
+.auth-code-input:focus {
+  transform: scale(1.05);
+}
+
+/* ─── Primary button shimmer ─────────────────────────────────────────────────── */
+@keyframes buttonShimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.auth-primary-btn {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-primary-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.auth-primary-btn:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* ─── Step track number bubble ───────────────────────────────────────────────── */
+.auth-step-bubble {
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.auth-step-bubble--active {
+  box-shadow: 0 0 0 4px var(--s-accent-100);
+}
+
+/* ─── Magic code info callout ────────────────────────────────────────────────── */
+.auth-magic-tip {
+  background: var(--s-accent-50);
+  border: 1px solid var(--s-accent-100);
+  border-radius: var(--s-radius-md);
+  padding: 0.625rem 0.875rem;
+}

@@ -194,7 +194,7 @@ const PageStyles = () => (
                             transform:translateY(-1px); }
     .tce-unit-avatar { width:44px; height:44px; border-radius:12px; display:flex;
                         align-items:center; justify-content:center; font-family:${T.dFont};
-                        font-weight:900; font-size:15px; color:white; flex-shrink:0; }
+                        font-weight:900; font-size:15px; line-height:1; color:white; flex-shrink:0; align-self:center; }
     .tce-unit-info   { flex:1; min-width:0; }
     .tce-unit-title  { font-size:14px; font-weight:700; color:${T.text}; white-space:nowrap;
                         overflow:hidden; text-overflow:ellipsis; }

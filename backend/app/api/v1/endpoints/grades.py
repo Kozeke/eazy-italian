@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
-from app.core.auth import get_current_teacher
-from app.models.test import TestAttempt, Test, TestQuestion, Question
+from app.core.auth import get_current_teacher, get_current_student
+from app.models.test import TestAttempt, Test, TestQuestion, Question, AttemptStatus
 from app.models.task import TaskSubmission, Task
 from app.models.user import User
 from app.models.unit import Unit
 from app.models.course import Course
+from app.models.enrollment import CourseEnrollment
 from datetime import datetime
 
 router = APIRouter()

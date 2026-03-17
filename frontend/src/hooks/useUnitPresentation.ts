@@ -81,7 +81,8 @@ function toReviewSlide(s: PresentationSlide): ReviewSlide {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useUnitPresentation(
-  unitId: number | null | undefined
+  unitId: number | null | undefined,
+  useAdminEndpoints = false,
 ): UseUnitPresentationResult {
   const [presentation, setPresentation] = useState<PresentationMeta | null>(null);
   const [slides, setSlides]             = useState<ReviewSlide[]>([]);
@@ -101,7 +102,9 @@ export function useUnitPresentation(
     try {
       // Step 1: list all presentations for this unit (student endpoint)
       const presRes = await fetch(
-        `/api/v1/units/${unitId}/presentations`,
+        useAdminEndpoints
+          ? `/api/v1/admin/units/${unitId}/presentations`
+          : `/api/v1/units/${unitId}/presentations`,
         { headers: { ...authHeaders() } }
       );
 
@@ -134,7 +137,9 @@ export function useUnitPresentation(
 
       // Step 2: fetch slides for the chosen presentation (student endpoint)
       const slidesRes = await fetch(
-        `/api/v1/presentations/${primary.id}/slides`,
+        useAdminEndpoints
+          ? `/api/v1/admin/presentations/${primary.id}/slides`
+          : `/api/v1/presentations/${primary.id}/slides`,
         { headers: { ...authHeaders() } }
       );
 
@@ -163,7 +168,7 @@ export function useUnitPresentation(
     } finally {
       setLoading(false);
     }
-  }, [unitId]);
+  }, [unitId, useAdminEndpoints]);
 
   useEffect(() => {
     load();

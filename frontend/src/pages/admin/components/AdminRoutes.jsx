@@ -88,6 +88,8 @@ import { TestBuilderPage }     from "../AdminTestBuilder";
 
 import { ReviewSlidesPage }    from "../ReviewSlidesPage";
 
+// NOTE: /teacher/classroom/* routes are registered at the top level in App.tsx
+
 // Redirect component for task edit route
 function TaskEditRedirect() {
   const { id } = useParams();

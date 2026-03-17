@@ -597,7 +597,7 @@ async def startup_event():
                                 id SERIAL PRIMARY KEY,
                                 title VARCHAR(255) NOT NULL,
                                 description TEXT,
-                                level courselevel NOT NULL,
+                                level courselevel,
                                 status coursestatus NOT NULL DEFAULT 'draft',
                                 publish_at TIMESTAMP WITH TIME ZONE,
                                 order_index INTEGER NOT NULL DEFAULT 0,
@@ -676,6 +676,25 @@ async def startup_event():
                         conn.execute(add_thumbnail_path)
                         conn.commit()
                         print("âœ… Added thumbnail_path column to courses table")
+
+                    # Allow creating draft courses without a level selected yet
+                    check_level_nullable = text("""
+                        SELECT is_nullable
+                        FROM information_schema.columns
+                        WHERE table_name = 'courses'
+                          AND column_name = 'level'
+                    """)
+                    result = conn.execute(check_level_nullable)
+                    level_info = result.fetchone()
+                    if level_info and level_info[0] == 'NO':
+                        print("Making courses.level nullable...")
+                        make_level_nullable = text("""
+                            ALTER TABLE courses
+                            ALTER COLUMN level DROP NOT NULL
+                        """)
+                        conn.execute(make_level_nullable)
+                        conn.commit()
+                        print("âœ… Made courses.level nullable")
                     
                     # Create or migrate video_progress table
                     check_video_progress_table = text("""

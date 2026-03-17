@@ -724,8 +724,6 @@ function UnitMetadataForm({ form, onChange, onSave, saving, saved }: UnitMetadat
         >
           <option value="draft">Draft</option>
           <option value="published">Published</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="archived">Archived</option>
         </select>
       </div>
 
@@ -1010,7 +1008,7 @@ export default function AdminUnitEditPage() {
           description: data.description || "",
           level:       data.level       || "A1",
           order_index: data.order_index ?? 0,
-          status:      data.status      || "draft",
+          status:      data.status === "published" ? "published" : "draft",
         });
 
         /* Load content counts in parallel (graceful failures) */
@@ -1048,6 +1046,7 @@ export default function AdminUnitEditPage() {
         level:       form.level as Unit['level'],
         order_index: typeof form.order_index === 'string' && form.order_index === "" ? 0 : (typeof form.order_index === 'number' ? form.order_index : parseInt(String(form.order_index), 10)),
         status:      form.status as Unit['status'],
+        is_visible_to_students: form.status === 'published' ? true : unit.is_visible_to_students,
       };
       const updatedUnit = await unitsApi.updateUnit(parseInt(unitId), payload);
       setUnit(updatedUnit);

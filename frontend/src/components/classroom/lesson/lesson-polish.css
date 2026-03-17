@@ -1,0 +1,390 @@
+/**
+ * lesson-polish.css
+ *
+ * UX polish layer for the student lesson player.
+ * Import once in your root CSS after student-tokens.css:
+ *
+ *   @import './components/student/lesson/lesson-polish.css';
+ *
+ * Covers:
+ *  1. Step card entrance animations
+ *  2. Active step highlight transitions
+ *  3. Continue / scroll action feedback
+ *  4. Loading shimmer improvements
+ *  5. Submission & result state animations
+ *  6. Lesson completion celebration
+ *  7. Scroll behaviour
+ *  8. Reduced-motion overrides
+ */
+
+/* ─── 1. Step card entrance ──────────────────────────────────────────────────
+ *
+ * Each flow item animates in from slightly below with a spring-like ease.
+ * The stagger is applied via inline `animation-delay` in LessonFlowComponents.
+ */
+ @keyframes lp-step-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.99);
+    filter: blur(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.lp-step-enter {
+  animation: lp-step-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+/* ─── 2. Active step card glow pulse ─────────────────────────────────────────
+ *
+ * Applied to the currently-active LessonStepCard via the `active` prop.
+ * A single subtle ring pulse that fades out so it's not distracting.
+ */
+@keyframes lp-active-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.25); }
+  50%  { box-shadow: 0 0 0 8px rgba(20, 184, 166, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
+}
+
+.lp-active-glow {
+  animation: lp-active-pulse 1.6s ease-out 0.2s 1 both;
+}
+
+/* Per-type variants */
+.lp-active-glow--task {
+  animation-name: lp-active-pulse-amber;
+}
+.lp-active-glow--test {
+  animation-name: lp-active-pulse-emerald;
+}
+.lp-active-glow--video {
+  animation-name: lp-active-pulse-sky;
+}
+
+@keyframes lp-active-pulse-amber {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.25); }
+  50%  { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+@keyframes lp-active-pulse-emerald {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.25); }
+  50%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes lp-active-pulse-sky {
+  0%   { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.25); }
+  50%  { box-shadow: 0 0 0 8px rgba(14, 165, 233, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+}
+
+/* ─── 3. Continue CTA entrance ───────────────────────────────────────────────
+ *
+ * The "Continue →" CTA strip slides up from below the card.
+ */
+@keyframes lp-cta-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lp-cta-enter {
+  animation: lp-cta-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+/* CTA button press feedback */
+.lp-cta-btn {
+  transition: transform 0.1s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.lp-cta-btn:active {
+  transform: scale(0.97);
+}
+.lp-cta-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* ─── 4. Progress bar smooth fill ────────────────────────────────────────────
+ *
+ * Overrides / supplements the existing s-progress-bar__fill transition
+ * so the bar feels more physical — a slight overshoot spring.
+ */
+.lp-progress-fill {
+  transition: width 0.8s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* Rail bar (thinner, no spring — just smooth) */
+.lp-rail-fill {
+  transition: width 0.7s ease-out;
+}
+
+/* ─── 5. Step connector ───────────────────────────────────────────────────────
+ *
+ * Connector lines between flow items fade in with a short delay after the
+ * card above them so the reading flow is clear.
+ */
+@keyframes lp-connector-draw {
+  from { opacity: 0; transform: scaleY(0); transform-origin: top; }
+  to   { opacity: 0.7; transform: scaleY(1); transform-origin: top; }
+}
+
+.lp-connector-draw {
+  animation: lp-connector-draw 0.3s ease-out both;
+}
+
+/* ─── 6. Completion celebration ──────────────────────────────────────────────
+ *
+ * The LessonCompleteBanner uses a two-phase animation:
+ *   a) The banner slides up and fades in.
+ *   b) The icon does a satisfying pop.
+ */
+@keyframes lp-complete-enter {
+  0%   { opacity: 0; transform: translateY(20px) scale(0.97); }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.lp-complete-enter {
+  animation: lp-complete-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+@keyframes lp-icon-pop {
+  0%   { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(4deg); opacity: 1; }
+  80%  { transform: scale(0.95) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.lp-icon-pop {
+  animation: lp-icon-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+  will-change: transform;
+}
+
+/* Sparkle orbit animation for the completion banner */
+@keyframes lp-sparkle-orbit {
+  0%   { transform: translateX(0) translateY(0) rotate(0deg) scale(1); opacity: 0.8; }
+  50%  { transform: translateX(6px) translateY(-8px) rotate(180deg) scale(0.7); opacity: 0.4; }
+  100% { transform: translateX(0) translateY(0) rotate(360deg) scale(1); opacity: 0.8; }
+}
+
+.lp-sparkle {
+  animation: lp-sparkle-orbit 3s ease-in-out infinite;
+}
+.lp-sparkle:nth-child(2) { animation-delay: 0.6s; animation-duration: 3.4s; }
+.lp-sparkle:nth-child(3) { animation-delay: 1.2s; animation-duration: 2.8s; }
+
+/* ─── 7. Submission success pop ──────────────────────────────────────────────
+ *
+ * Applied to the SuccessBanner / SubmittedPanel when it first appears.
+ */
+@keyframes lp-success-enter {
+  0%   { opacity: 0; transform: scale(0.95) translateY(8px); }
+  70%  { opacity: 1; transform: scale(1.01) translateY(-1px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.lp-success-enter {
+  animation: lp-success-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── 8. Error state shake ────────────────────────────────────────────────────
+ *
+ * Used on submit error to provide haptic-like feedback.
+ */
+@keyframes lp-shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-4px); }
+  40%       { transform: translateX(4px); }
+  60%       { transform: translateX(-3px); }
+  80%       { transform: translateX(3px); }
+}
+
+.lp-shake {
+  animation: lp-shake 0.35s ease-out both;
+}
+
+/* ─── 9. Loading shimmer ──────────────────────────────────────────────────────
+ *
+ * More refined shimmer that respects the teal brand palette.
+ */
+@keyframes lp-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+.lp-shimmer {
+  background: linear-gradient(
+    100deg,
+    #f0fdfa 20%,
+    #ccfbf1 30%,
+    #f0fdfa 50%
+  );
+  background-size: 600px 100%;
+  animation: lp-shimmer 1.8s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+/* Neutral shimmer for non-teal sections */
+.lp-shimmer--neutral {
+  background: linear-gradient(
+    100deg,
+    #f8fafc 20%,
+    #e9f0f8 30%,
+    #f8fafc 50%
+  );
+  background-size: 600px 100%;
+  animation: lp-shimmer 1.8s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+/* ─── 10. Score ring draw ─────────────────────────────────────────────────────
+ *
+ * Animates the stroke-dasharray on the SVG score ring in TestStep.
+ */
+.lp-score-ring-draw circle:last-child {
+  transition: stroke-dasharray 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.3s;
+}
+
+/* ─── 11. Result card stagger ────────────────────────────────────────────────
+ *
+ * Children of the ResultsPanel stagger in after the score ring.
+ */
+@keyframes lp-result-row-enter {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.lp-result-row {
+  animation: lp-result-row-enter 0.3s ease-out both;
+}
+.lp-result-row:nth-child(1) { animation-delay: 0.05s; }
+.lp-result-row:nth-child(2) { animation-delay: 0.12s; }
+.lp-result-row:nth-child(3) { animation-delay: 0.19s; }
+.lp-result-row:nth-child(4) { animation-delay: 0.26s; }
+.lp-result-row:nth-child(5) { animation-delay: 0.33s; }
+
+/* ─── 12. Slide content cross-fade ───────────────────────────────────────────
+ *
+ * Replaces the existing .slide-card-enter with a more refined cross-fade.
+ */
+@keyframes lp-slide-fade {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.lp-slide-fade {
+  animation: lp-slide-fade 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── 13. Mobile footer expand ───────────────────────────────────────────────
+ *
+ * The step-list drawer in LessonProgressFooter slides up.
+ */
+@keyframes lp-drawer-enter {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.lp-drawer-enter {
+  animation: lp-drawer-enter 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── 14. Nav rail step tooltip ──────────────────────────────────────────────
+ *
+ * Small tooltip that appears on hover over a step rail node.
+ */
+.lp-step-tooltip {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+.lp-step-tooltip--hidden {
+  opacity: 0;
+  transform: translateX(-4px);
+}
+.lp-step-tooltip--visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ─── 15. Scroll behaviour ────────────────────────────────────────────────────
+ *
+ * Smooth scroll for the lesson canvas. We avoid scroll-snap on the main
+ * container because the content height varies wildly between steps, which
+ * makes snap positions feel jarring. Instead we rely on scrollIntoView calls
+ * with behavior:'smooth' and the scroll-padding-top offset below.
+ *
+ * scroll-padding-top = sticky rail height (≈ 48px) + breathing room
+ */
+:root {
+  /*
+   * v11: page-level scroll-behavior and scroll-padding-top are intentionally
+   * removed.  The lesson workspace is viewport-fitted (overflow: hidden on
+   * .lp-workspace) so there is no page scroll to smooth or pad.
+   * Smooth scrolling is still used inside .lp-player-body via CSS or JS where
+   * appropriate.
+   */
+}
+
+/* ─── 16. Reduced-motion overrides ───────────────────────────────────────────
+ *
+ * All animations respect prefers-reduced-motion.
+ * We keep opacity transitions (helpful for a11y) but remove transform/filter.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .lp-step-enter,
+  .lp-active-glow,
+  .lp-active-glow--task,
+  .lp-active-glow--test,
+  .lp-active-glow--video,
+  .lp-cta-enter,
+  .lp-complete-enter,
+  .lp-icon-pop,
+  .lp-sparkle,
+  .lp-success-enter,
+  .lp-shake,
+  .lp-slide-fade,
+  .lp-drawer-enter,
+  .lp-connector-draw,
+  .lp-result-row {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .lp-cta-btn:hover {
+    transform: none;
+  }
+
+  :root {
+    scroll-behavior: auto;
+  }
+}
+
+/* ─── Utility: fade-in only (no transform — safe for any element) ────────────*/
+@keyframes lp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.lp-fade-in {
+  animation: lp-fade-in 0.25s ease-out both;
+}
+
+/* ─── Utility: ring transition on card state change ──────────────────────────*/
+.lp-card-transition {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.25s ease;
+}

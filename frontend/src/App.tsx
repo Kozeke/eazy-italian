@@ -5,6 +5,7 @@ import LayoutWrapper from './components/LayoutWrapper';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
+import TeacherRegisterFlow from './components/auth/TeacherRegisterFlow';
 import JoinClassroomPage from './components/auth/JoinClassroomPage';
 import DashboardPage from './pages/DashboardPage';
 import CoursesPage from './pages/CoursesPage';
@@ -24,10 +25,13 @@ import AdminRoute from './components/AdminRoute';
 // @ts-ignore - AdminRoutes is a .jsx file, TypeScript types are inferred at runtime
 import AdminRoutes from './pages/admin/components/AdminRoutes';
 // Student app shell
-import StudentAppLayout from './components/student/StudentAppLayout';
-import MyClassesPage from './components/student/MyClassesPage';
+import StudentAppLayout from './components/student/layout/StudentAppLayout';
+import MyClassesPage from './components/student/dashboard/MyClassesPage';
+import GradesPage from './pages/student/GradesPage';
+import SettingsPage from './pages/student/SettingsPage';
 // Classroom mode
-import ClassroomPage from './pages/student/ClassroomPage';
+import ClassroomPage from './pages/student/ClassroomPage.tsx';
+import AiBuilderPage from './pages/admin/courses/AiBuilderPage';
 
 function App() {
   const { t } = useTranslation();
@@ -50,6 +54,7 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register/teacher" element={<TeacherRegisterFlow />} />
       <Route path="/join-classroom" element={<JoinClassroomPage />} />
 
       {/* Student app shell (with sidebar) */}
@@ -65,9 +70,10 @@ function App() {
         <Route index element={<Navigate to="/student/classes" replace />} />
         {/* My Classes dashboard */}
         <Route path="classes" element={<MyClassesPage />} />
-        {/* Future student pages can go here */}
-        {/* <Route path="grades" element={<StudentGradesPage />} /> */}
-        {/* <Route path="settings" element={<StudentSettingsPage />} /> */}
+        {/* Grades page */}
+        <Route path="grades" element={<GradesPage />} />
+        {/* Settings page */}
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
 
       {/* Classroom mode (full screen, no sidebar) */}
@@ -106,6 +112,24 @@ function App() {
         <Route path="/tests/:id/results/:attemptId" element={<TestResultsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
+
+      {/* ── Teacher classroom flow (full-screen, teacher-only) ── */}
+      <Route
+        path="/teacher/classroom/:courseId"
+        element={<AdminRoute><ClassroomPage /></AdminRoute>}
+      />
+      <Route
+        path="/teacher/classroom/:courseId/:unitId"
+        element={<AdminRoute><ClassroomPage /></AdminRoute>}
+      />
+      <Route
+        path="/teacher/classroom/:courseId/:unitId/editor"
+        element={<AdminRoute><ClassroomPage /></AdminRoute>}
+      />
+      <Route
+        path="/teacher/classroom/:courseId/:unitId/ai-builder"
+        element={<AdminRoute><AiBuilderPage /></AdminRoute>}
+      />
 
       {/* Admin routes */}
       <Route path="/admin/*" element={<AdminRoute><AdminRoutes /></AdminRoute>} />

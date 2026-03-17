@@ -1,3 +1,7 @@
+@import './components/student/styles/student-tokens.css';
+@import './components/classroom/lesson/lesson-polish.css';
+@import './components/classroom/lesson/lesson-workspace.css';
+@import './components/classroom/classroom-mode.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -13,7 +13,7 @@
  * 2. Extract and sort units from course response
  * 3. Resolve currentUnit from route param (or fallback to first published)
  * 4. Per-unit content (videos, tasks, tests) is loaded by useStudentUnit
- *    inside StudentUnitWorkspace — not here.
+ *    inside LessonWorkspace — not here.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -66,7 +66,8 @@ export interface ClassroomState {
 
 export function useClassroom(
   courseId: string | number | null | undefined,
-  initialUnitId?: string | number | null
+  initialUnitId?: string | number | null,
+  isTeacher?: boolean
 ) {
   const [state, setState] = useState<ClassroomState>({
     classroom: null,
@@ -86,8 +87,11 @@ export function useClassroom(
     const load = async () => {
       setState((s) => ({ ...s, loading: true, error: null }));
       try {
-        // Step 1: course metadata + units — getCourse already includes units
-        const courseResponse = await coursesApi.getCourse(Number(courseId));
+        // Step 1: course metadata + units
+        // Teachers use the admin endpoint so draft/invisible courses load fine.
+        const courseResponse = isTeacher
+          ? await coursesApi.getAdminCourse(Number(courseId))
+          : await coursesApi.getCourse(Number(courseId));
         
         // Extract course data
         const courseData: ClassroomCourse = {
@@ -138,7 +142,7 @@ export function useClassroom(
 
     load();
     return () => { cancelled = true; };
-  }, [courseId, initialUnitId]);
+  }, [courseId, initialUnitId, isTeacher]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 

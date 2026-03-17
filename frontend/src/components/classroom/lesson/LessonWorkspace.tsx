@@ -1,444 +1,579 @@
 /**
- * LessonWorkspace.tsx
+ * LessonWorkspace.tsx  (v15 — CreateSlideModal + player-hero slide editor)
  *
- * Single-page, scrollable lesson flow for Classroom Mode.
+ * Changes from v14:
+ * ─────────────────
+ * • useBuilderState gains `slideInitialTitle` state and a new
+ *   `selectSlides(title)` action:
+ *     - sets stage = 'editing', activeType = 'slides'
+ *     - stores the title so LessonEditorShell can pre-populate the draft
  *
- * Renders a unit as one cohesive reading experience:
- *   Unit title + description + goals
- *   → LessonProgressIndicator      (slides / task / test)
- *   → SlidesSection                (if the unit has a presentation)
- *   → TaskSection                  (first published task, if any)
- *   → TestSection                  (first published test, if any)
+ * • ManualBuilderLauncher now receives `onSelectSlides` in addition to
+ *   `onSelect` so the slides card triggers the wizard → editor path while
+ *   other card types still go directly to editing.
  *
- * ── Data loading ────────────────────────────────────────────────────────────
+ * • LessonEditorShell receives `initialTitle={builder.slideInitialTitle}`
+ *   which it forwards to SlideEditorStep.
  *
- * All data comes from two existing hooks — nothing new is invented:
- *
- *   useStudentUnit(unitId)
- *     → StudentUnitDetail { tasks[], tests[], videos[], … }
- *     Calls unitsApi.getAdminUnit — same endpoint AdminUnitDetailPage uses.
- *
- *   useUnitPresentation(unitId)
- *     → { presentation, slides: ReviewSlide[], loading, error }
- *     Calls GET /api/v1/admin/units/{unitId}/presentations then
- *     GET /api/v1/admin/presentations/{presId}/slides — same endpoints
- *     AdminGenerateSlidePage uses when saving a deck.
- *
- * Tasks and tests are pulled from unitDetail.tasks / unitDetail.tests,
- * already ordered by order_index from the API. First visible item is used.
- * TODO: If the backend adds a "primary_task" or "primary_test" flag, apply
- * it in selectPrimary() below instead of taking index 0.
- *
- * ── What is NOT done here ────────────────────────────────────────────────────
- *
- * - Task submission state: loaded by the task's own page/route.
- *   LessonWorkspace accepts taskSubmission as an opaque prop; ClassroomPage
- *   can pass null until a student submission hook is added.
- * - Test attempt state: same pattern — passed in as testAttempt prop.
- * - Video rendering: handled by StudentUnitWorkspace. This component is
- *   Slides → Task → Test only.
+ * • All other render branches, student runtime, and live-session wiring
+ *   are completely unchanged from v14.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import toast from 'react-hot-toast';
+
+import './lesson-polish.css';
+import './lesson-workspace.css';
+
+import type { StudentUnitDetail, StudentTask, StudentTest } from '../../../hooks/useStudentUnit';
+import type { ReviewSlide }                                  from '../../../pages/admin/shared';
+
+import type { SlideProgress } from './SlidesSection';
+import type { StudentVideo }  from './flow/lessonFlow.types';
+
+import { buildLessonFlow, selectPrimaryItem } from './flow/lessonFlow.builder';
+import type { LessonRailState }               from './flow/LessonFlowComponents';
+
 import {
-  BookOpen,
-  ClipboardList,
-  FileText,
-  ChevronRight,
-  AlertCircle,
-  Clock,
-  Percent,
-} from 'lucide-react';
+  LessonFlow,
+  LessonFlowSkeleton,
+  LessonFlowEmpty,
+  LessonFlowError,
+} from './flow/LessonFlowComponents';
 
-import SlidesSection            from './SlidesSection';
-import LessonProgressIndicator  from './LessonProgressIndicator';
-import type { SlideProgress }   from './SlidesSection';
+import TeacherBuilderEmptyState from './builder/TeacherBuilderEmptyState';
+import ManualBuilderLauncher    from './builder/ManualBuilderLauncher';
+import LessonEditorShell        from './builder/LessonEditorShell';
+import type { EditorDraft }     from './builder/LessonEditorShell';
+import type { SlideDraft }      from './editors/SlideEditorStep';
 
-import type { StudentUnitDetail, StudentTask, StudentTest } from '../../hooks/useStudentUnit';
-import type { PresentationMeta }                            from '../../hooks/useUnitPresentation';
-import type { ReviewSlide }                                 from '../../../pages/admin/shared';
+import type {
+  ClassroomMode,
+  BuilderState,
+  ActiveBuilderType,
+} from './lessonMode.types';
+import { INITIAL_BUILDER_STATE } from './lessonMode.types';
+import api from '../../../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type LessonWorkspaceProps = {
-  /** Full unit detail from useStudentUnit (null while loading or no unit selected) */
-  unit: StudentUnitDetail | null;
-  /** Presentation metadata (from useUnitPresentation) */
-  presentation?: PresentationMeta | null;
-  /** Slides array (ReviewSlide[], from useUnitPresentation) */
-  slides?: ReviewSlide[];
-  /** Whether the presentation is still loading */
-  slidesLoading?: boolean;
-  slidesError?: string | null;
-  /** Opaque — true if this student has a submission for the primary task */
-  taskSubmission?: unknown;
-  /** Opaque — true if this student has an attempt for the primary test */
-  testAttempt?: unknown;
-  loading?: boolean;
-  error?: string | null;
-  onOpenTask?:  (task: StudentTask) => void;
-  onStartTest?: (test: StudentTest) => void;
-};
+type LiveSection = 'slides' | 'task' | 'test' | 'video';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const TASK_TYPE_LABELS: Record<string, string> = {
-  manual:    'Written task',
-  auto_mcq:  'Multiple choice',
-  gap_fill:  'Gap fill',
-  essay:     'Essay',
-  writing:   'Writing',
-  listening: 'Listening',
-  reading:   'Reading',
-};
-
-/**
- * Pick the first visible + published item from an ordered list.
- * Falls back to first item if none are published (graceful degradation).
- * TODO: Extend with a "primary" flag from the API when available.
- */
-function selectPrimary<T extends { status: string; is_visible_to_students?: boolean }>(
-  items: T[]
-): T | null {
-  if (!items.length) return null;
-  const published = items.filter(
-    (i) => i.status === 'published' && i.is_visible_to_students !== false
-  );
-  return published[0] ?? items[0];
+export interface TaskSubmission {
+  id?:           number;
+  status?:       string;
+  score?:        number | null;
+  feedback?:     string | null;
+  submitted_at?: string;
+  answers?:      Record<string, unknown>;
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
+export interface TestAttempt {
+  id?:           number;
+  status?:       string;
+  score?:        number | null;
+  passed?:       boolean | null;
+  submitted_at?: string;
+  answers?:      Record<string, unknown>;
+  review?:       Array<{
+    question_id:      number;
+    correct:          boolean;
+    selected_option?: string;
+    correct_answer?:  string;
+  }>;
+}
 
-function LessonSkeleton() {
+export interface StartedTestData {
+  attempt_id:          number;
+  test_id:             number;
+  test_title?:         string;
+  time_limit_minutes?: number | null;
+  started_at?:         string;
+  questions:           Array<{
+    id:           number;
+    type:         string;
+    prompt?:      string;
+    options?:     Array<{ id: number; text?: string; option_text?: string }>;
+    order_index?: number;
+    score?:       number;
+    gaps_count?:  number;
+  }>;
+  total_points?: number;
+}
+
+interface AdminPresentationListItem {
+  id: number;
+  order_index?: number | null;
+}
+
+function normalizeTextList(values: string[]): string[] {
+  return values.map((value) => value.trim()).filter(Boolean);
+}
+
+function getSaveErrorMessage(error: unknown): string {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    error.response &&
+    typeof error.response === 'object' &&
+    'data' in error.response &&
+    error.response.data &&
+    typeof error.response.data === 'object' &&
+    'detail' in error.response.data &&
+    typeof error.response.data.detail === 'string'
+  ) {
+    return error.response.data.detail;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return 'Could not save slides';
+}
+
+async function saveSlidesDraftToApi(
+  unitId: number | string,
+  draft: SlideDraft,
+): Promise<void> {
+  const cleanedTitle = draft.title.trim() || 'Untitled slide';
+  const bulletPoints = normalizeTextList(draft.bullets);
+  const examples = normalizeTextList(draft.examples);
+  const exercise = draft.exercise.trim();
+  const imageUrl = draft.image_url.trim();
+
+  const { data: presentations } = await api.get<AdminPresentationListItem[]>(
+    `/admin/units/${unitId}/presentations`,
+    { params: { limit: 100 } },
+  );
+
+  const nextOrderIndex = (presentations ?? []).reduce(
+    (max, item) => Math.max(max, item.order_index ?? -1),
+    -1,
+  ) + 1;
+
+  const { data: presentation } = await api.post<{ id: number }>(
+    `/admin/units/${unitId}/presentations`,
+    {
+      title: cleanedTitle,
+      is_visible_to_students: false,
+      order_index: nextOrderIndex,
+    },
+  );
+
+  await api.post(`/admin/presentations/${presentation.id}/slides`, {
+    title: cleanedTitle,
+    bullet_points: bulletPoints,
+    examples,
+    exercise: exercise || null,
+    image_url: imageUrl || null,
+    order_index: 0,
+  });
+}
+
+export type LessonWorkspaceProps = {
+  mode?:           ClassroomMode;
+
+  unit:            StudentUnitDetail | null;
+  slides?:         ReviewSlide[];
+  slidesLoading?:  boolean;
+  slidesError?:    string | null;
+  videos?:         StudentVideo[];
+
+  taskSubmission?: TaskSubmission | null;
+  testAttempt?:    TestAttempt | null;
+
+  loading?:        boolean;
+  error?:          string | null;
+
+  onStartTest:     (testId: number) => Promise<StartedTestData>;
+  onLoadTask?:     (taskId: number) => Promise<StudentTask>;
+
+  onSubmitTask:    (payload: { task_id: number; answers: Record<string, unknown> }) => Promise<unknown>;
+  onSubmitTest:    (payload: { test_id: number; answers: Record<string, string> }) => Promise<unknown>;
+
+  onSlidesProgress?: () => void;
+  onSlidesComplete?: () => void;
+  onTaskSubmitted?:  () => void;
+  onTestAttempted?:  () => void;
+
+  onOpenTask?:     (task: StudentTask) => void;
+  onOpenTest?:     (test: StudentTest) => void;
+
+  forcedSlide?:    number | null;
+  forcedSection?:  LiveSection | null;
+
+  onRailStateChange?:    (state: LessonRailState) => void;
+  onBuilderStateChange?: (state: BuilderState) => void;
+  onContentSaved?:       () => void | Promise<void>;
+
+  /**
+   * When true, the workspace enters ManualBuilderLauncher immediately,
+   * bypassing the TeacherBuilderEmptyState entry screen.
+   */
+  startInManualBuilder?: boolean;
+};
+
+// ─── useBuilderState ──────────────────────────────────────────────────────────
+
+function useBuilderState(
+  mode:                  ClassroomMode,
+  hasContent:            boolean,
+  unitId:                number | string | null | undefined,
+  onExternalChange?:     (state: BuilderState) => void,
+  onContentSaved?:       () => void | Promise<void>,
+  startInManualBuilder?: boolean,
+) {
+  const [builder, setBuilder] = useState<BuilderState>(() => {
+    if (mode === 'teacher') {
+      if (startInManualBuilder) return { stage: 'manual-choice', activeType: null };
+      if (!hasContent)          return { stage: 'entry',          activeType: null };
+    }
+    return INITIAL_BUILDER_STATE;
+  });
+
+  /**
+   * Title entered in CreateSlideModal — passed to LessonEditorShell so
+   * SlideEditorStep can pre-populate the draft and show it in the player
+   * immediately when the editor opens.
+   */
+  const [slideInitialTitle, setSlideInitialTitle] = useState('');
+
+  useEffect(() => {
+    if (mode !== 'teacher') return;
+    if (startInManualBuilder) {
+      setBuilder({ stage: 'manual-choice', activeType: null });
+      return;
+    }
+    setBuilder(!hasContent
+      ? { stage: 'entry', activeType: null }
+      : INITIAL_BUILDER_STATE,
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitId, mode, startInManualBuilder]);
+
+  useEffect(() => {
+    onExternalChange?.(builder);
+  }, [builder, onExternalChange]);
+
+  const goToManual    = useCallback(() => setBuilder({ stage: 'manual-choice', activeType: null }), []);
+  const goToEntry     = useCallback(() => setBuilder({ stage: 'entry',          activeType: null }), []);
+
+  /** For non-slide types — enter editor directly. */
+  const selectType    = useCallback((type: ActiveBuilderType) => {
+    setBuilder({ stage: 'editing', activeType: type });
+  }, []);
+
+  /**
+   * For the slides type — called AFTER CreateSlideModal confirms.
+   * Stores the title and enters the slide editor.
+   */
+  const selectSlides  = useCallback((title: string) => {
+    setSlideInitialTitle(title);
+    setBuilder({ stage: 'editing', activeType: 'slides' });
+  }, []);
+
+  const backToLauncher = useCallback(() => setBuilder({ stage: 'manual-choice', activeType: null }), []);
+
+  const goToAI = useCallback(() => {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.info('[TeacherBuilder] AI requested — not yet implemented.');
+    }
+  }, []);
+
+  const handleSave = useCallback(async (payload: EditorDraft) => {
+    if (payload.type !== 'slides') {
+      toast('Only slide saving is wired to the backend right now.');
+      return;
+    }
+
+    if (!unitId) {
+      toast.error('Select a unit before saving slides.');
+      return;
+    }
+
+    const toastId = toast.loading('Saving slides...');
+    try {
+      await saveSlidesDraftToApi(unitId, payload.draft);
+      await onContentSaved?.();
+      setSlideInitialTitle('');
+      setBuilder(INITIAL_BUILDER_STATE);
+      toast.success('Slides saved', { id: toastId });
+    } catch (error) {
+      toast.error(getSaveErrorMessage(error), { id: toastId });
+      throw error;
+    }
+  }, [onContentSaved, unitId]);
+
+  return {
+    builder,
+    slideInitialTitle,
+    goToManual,
+    goToEntry,
+    selectType,
+    selectSlides,
+    backToLauncher,
+    goToAI,
+    handleSave,
+  } as const;
+}
+
+// ─── LessonCanvas ─────────────────────────────────────────────────────────────
+
+function LessonCanvas({ children }: { children: React.ReactNode }) {
   return (
-    <div className="animate-pulse space-y-6 mx-auto max-w-2xl">
-      <div className="space-y-2.5">
-        <div className="h-7 w-2/3 rounded-lg bg-slate-200" />
-        <div className="h-4 w-full rounded bg-slate-100" />
-        <div className="h-4 w-4/5 rounded bg-slate-100" />
-      </div>
-      <div className="h-11 rounded-xl bg-slate-100" />
-      <div className="h-64 rounded-2xl bg-slate-100" />
-      <div className="flex gap-3">
-        <div className="h-9 w-20 rounded-lg bg-slate-100" />
-        <div className="h-9 flex-1 rounded-lg bg-slate-50" />
-        <div className="h-9 w-20 rounded-lg bg-slate-100" />
+    <div className="lp-workspace">
+      <div className="lp-canvas">
+        {children}
       </div>
     </div>
   );
 }
 
-// ─── Task section ─────────────────────────────────────────────────────────────
+// ─── SlidesErrorCard ──────────────────────────────────────────────────────────
 
-function TaskSection({
-  task,
-  hasSubmission,
-  onOpen,
-}: {
-  task: StudentTask;
-  hasSubmission: boolean;
-  onOpen: (t: StudentTask) => void;
-}) {
-  const typeLabel = TASK_TYPE_LABELS[task.type] ?? task.type;
-
+function SlidesErrorCard({ message }: { message: string }) {
   return (
-    <section aria-label="Task" className="pt-2">
-      <div className="mb-4 flex items-center gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-          <FileText className="h-4 w-4" />
-        </span>
-        <div className="flex flex-1 items-baseline gap-2">
-          <h2 className="text-base font-semibold text-slate-900">Task</h2>
-        </div>
-        {hasSubmission && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-            Submitted
-          </span>
-        )}
+    <div className="rounded-2xl border border-amber-100 bg-amber-50 overflow-hidden mb-3 flex-shrink-0">
+      <div className="h-[3px] w-full bg-gradient-to-r from-amber-400 to-amber-300" />
+      <div className="px-5 py-4 text-[13px] text-amber-700">
+        Could not load slides: {message}
       </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-        <span className="mb-2 inline-block text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-          {typeLabel}
-        </span>
-
-        <h3 className="text-[17px] font-semibold leading-snug text-slate-900">
-          {task.title}
-        </h3>
-
-        {task.description && (
-          <p className="mt-2 text-sm leading-relaxed text-slate-500">{task.description}</p>
-        )}
-
-        {task.instructions && (
-          <div
-            className="mt-4 text-sm leading-relaxed text-slate-700 prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: task.instructions }}
-          />
-        )}
-
-        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-          <span className="text-xs text-slate-400">
-            {hasSubmission
-              ? 'You have already submitted this task.'
-              : 'Open the task to submit your work.'}
-          </span>
-          <button
-            onClick={() => onOpen(task)}
-            className={[
-              'flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400',
-              hasSubmission
-                ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                : 'bg-amber-500 text-white hover:bg-amber-600',
-            ].join(' ')}
-          >
-            {hasSubmission ? 'View submission' : 'Open task'}
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-10 border-t border-slate-100" aria-hidden />
-    </section>
+    </div>
   );
 }
 
-// ─── Test section ─────────────────────────────────────────────────────────────
-
-function TestSection({
-  test,
-  hasAttempt,
-  onStart,
-}: {
-  test: StudentTest;
-  hasAttempt: boolean;
-  onStart: (t: StudentTest) => void;
-}) {
-  return (
-    <section aria-label="Test" className="pt-2">
-      <div className="mb-4 flex items-center gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-          <ClipboardList className="h-4 w-4" />
-        </span>
-        <div className="flex flex-1 items-baseline gap-2">
-          <h2 className="text-base font-semibold text-slate-900">Test</h2>
-        </div>
-        {hasAttempt && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-            Attempted
-          </span>
-        )}
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-        <h3 className="text-[17px] font-semibold leading-snug text-slate-900">
-          {test.title}
-        </h3>
-
-        {test.description && (
-          <p className="mt-2 text-sm leading-relaxed text-slate-500">{test.description}</p>
-        )}
-
-        {/* Stats row — mirrors AdminTestDetailsPage */}
-        <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500">
-          {test.time_limit_minutes && (
-            <span className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-slate-400" />
-              {test.time_limit_minutes} min
-            </span>
-          )}
-          {test.questions_count != null && (
-            <span className="flex items-center gap-1.5">
-              <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
-              {test.questions_count} questions
-            </span>
-          )}
-          {test.passing_score != null && (
-            <span className="flex items-center gap-1.5">
-              <Percent className="h-3.5 w-3.5 text-slate-400" />
-              {test.passing_score}% to pass
-            </span>
-          )}
-          {(test.settings?.max_attempts ?? 0) > 0 && (
-            <span className="flex items-center gap-1.5 tabular-nums text-slate-400">
-              ×{test.settings!.max_attempts} attempts
-            </span>
-          )}
-        </div>
-
-        {/* Instructions block — mirrors AdminTestDetailsPage blue callout */}
-        {test.instructions && (
-          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-3.5 py-3">
-            <p className="mb-1 text-xs font-medium text-blue-700">Instructions</p>
-            <p className="text-sm leading-relaxed text-blue-900">{test.instructions}</p>
-          </div>
-        )}
-
-        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-          <span className="text-xs text-slate-400">
-            {hasAttempt
-              ? 'You have already attempted this test.'
-              : 'Complete the lesson before taking the test.'}
-          </span>
-          <button
-            onClick={() => onStart(test)}
-            className={[
-              'flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400',
-              hasAttempt
-                ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                : 'bg-emerald-600 text-white hover:bg-emerald-700',
-            ].join(' ')}
-          >
-            {hasAttempt ? 'Review attempt' : 'Begin test'}
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Main export ──────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LessonWorkspace({
+  mode = 'student',
   unit,
   slides = [],
   slidesLoading = false,
   slidesError,
-  taskSubmission,
-  testAttempt,
+  videos = [],
+  taskSubmission = null,
+  testAttempt    = null,
   loading,
   error,
-  onOpenTask,
   onStartTest,
+  onLoadTask,
+  onSubmitTask,
+  onSubmitTest,
+  onSlidesProgress: _onSlidesProgress,
+  onSlidesComplete,
+  onTaskSubmitted,
+  onTestAttempted,
+  onOpenTask,
+  onOpenTest,
+  forcedSlide,
+  forcedSection,
+  onRailStateChange,
+  onBuilderStateChange,
+  onContentSaved,
+  startInManualBuilder = false,
 }: LessonWorkspaceProps) {
-  // Track slides completion so the progress indicator stays in sync
-  const [slideProgress, setSlideProgress] = useState<SlideProgress>({
-    currentSlide:   0,
-    viewedSlideIds: [],
-    completed:      false,
+
+  const [slideProgress] = useState<SlideProgress>({
+    currentSlide: 0, viewedSlideIds: [], completed: false,
   });
 
-  const handleSlidesProgress = useCallback((p: SlideProgress) => {
-    setSlideProgress(p);
+  const [videoCompletions, setVideoCompletions] = useState<Record<string, boolean>>({});
+  const handleVideoCompleted = useCallback((id: string) => {
+    setVideoCompletions((prev) => prev[id] ? prev : { ...prev, [id]: true });
   }, []);
 
-  // ── Loading ──────────────────────────────────────────────────────────────
-  if (loading) return <LessonSkeleton />;
+  const [localTaskSubmissions, setLocalTaskSubmissions] = useState<
+    Record<string | number, TaskSubmission>
+  >(() => {
+    if (taskSubmission && unit?.tasks?.length === 1) {
+      return { [unit.tasks[0].id]: taskSubmission };
+    }
+    return {};
+  });
 
-  // ── Error ────────────────────────────────────────────────────────────────
-  if (error) {
+  const [taskDetailsById, setTaskDetailsById] = useState<Record<string | number, StudentTask>>({});
+
+  const handleItemCompleted = useCallback((id: string, type: string) => {
+    if (type === 'slides') onSlidesComplete?.();
+    if (type === 'video')  handleVideoCompleted(id.replace(/^video-/, ''));
+  }, [onSlidesComplete, handleVideoCompleted]);
+
+  const handleLoadTask = useCallback(async (taskId: number): Promise<StudentTask> => {
+    if (taskDetailsById[taskId]) return taskDetailsById[taskId];
+    if (!onLoadTask) throw new Error('onLoadTask not provided');
+    const detail = await onLoadTask(taskId);
+    setTaskDetailsById((prev) => ({ ...prev, [taskId]: detail }));
+    return detail;
+  }, [onLoadTask, taskDetailsById]);
+
+  const handleSubmitTask = useCallback(
+    async (payload: { task_id: number; answers: Record<string, unknown> }) => {
+      const result = await onSubmitTask(payload);
+      setLocalTaskSubmissions((prev) => ({
+        ...prev,
+        [payload.task_id]: { status: 'submitted', submitted_at: new Date().toISOString(), answers: payload.answers },
+      }));
+      onTaskSubmitted?.();
+      return result;
+    },
+    [onSubmitTask, onTaskSubmitted],
+  );
+
+  const handleSubmitTest = useCallback(
+    async (payload: { test_id: number; answers: Record<string, string> }) => {
+      const result = await onSubmitTest(payload);
+      onTestAttempted?.();
+      return result;
+    },
+    [onSubmitTest, onTestAttempted],
+  );
+
+  // ── Pre-guard: compute values needed by useBuilderState unconditionally ──
+  const _primaryTest  = selectPrimaryItem(unit?.tests ?? []) as StudentTest | null;
+  const _allTasks     = unit?.tasks ?? [];
+  const hasAnyContent = (slides.length > 0 || slidesLoading)
+    || (videos?.length ?? 0) > 0
+    || _allTasks.length > 0
+    || !!_primaryTest;
+
+  // Builder state — MUST be called unconditionally (Rules of Hooks)
+  const {
+    builder,
+    slideInitialTitle,
+    goToManual,
+    goToEntry,
+    selectType,
+    selectSlides,
+    backToLauncher,
+    goToAI,
+    handleSave,
+  } = useBuilderState(
+    mode,
+    hasAnyContent,
+    unit?.id,
+    onBuilderStateChange,
+    onContentSaved,
+    startInManualBuilder,
+  );
+
+  // ── Guards ─────────────────────────────────────────────────────────────────
+  if (loading) return <LessonCanvas><LessonFlowSkeleton /></LessonCanvas>;
+  if (error)   return <LessonCanvas><LessonFlowError message={error} onBack={() => window.history.back()} /></LessonCanvas>;
+
+  const isTeacherBuilding = mode === 'teacher' && (
+    builder.stage === 'manual-choice' || builder.stage === 'editing'
+  );
+  if (!unit && !isTeacherBuilding) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="mb-3 h-10 w-10 text-red-300" />
-        <p className="text-sm font-medium text-slate-700">Couldn't load this lesson</p>
-        <p className="mt-1 text-sm text-slate-400">{error}</p>
-      </div>
+      <LessonCanvas>
+        <LessonFlowEmpty title="No unit selected" description="Choose a unit from the header to begin." />
+      </LessonCanvas>
     );
   }
 
-  // ── No unit ──────────────────────────────────────────────────────────────
-  if (!unit) {
+  const primaryTest = _primaryTest;
+  const allTasks    = _allTasks;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER DECISION TREE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // [1] Student + no content
+  if (mode === 'student' && !hasAnyContent) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-24 text-center text-slate-400">
-        <BookOpen className="mb-4 h-14 w-14 opacity-15" />
-        <p className="text-base font-medium text-slate-600">No unit selected</p>
-        <p className="mt-1 text-sm">Choose a unit from the header to begin.</p>
-      </div>
+      <LessonCanvas>
+        <LessonFlowEmpty
+          title="No lesson content available yet"
+          description="Your teacher hasn't added content to this unit."
+        />
+      </LessonCanvas>
     );
   }
 
-  // ── Resolve primary task / test from unit detail ──────────────────────────
-  // Tasks and tests come from useStudentUnit → unitsApi.getAdminUnit,
-  // already sorted by order_index. We pick the first published+visible item.
-  const primaryTask = selectPrimary(unit.tasks ?? []);
-  const primaryTest = selectPrimary(unit.tests ?? []);
-
-  const hasSlides = slides.length > 0 || slidesLoading;
-  const hasTask   = !!primaryTask;
-  const hasTest   = !!primaryTest;
-
-  // ── No content at all ────────────────────────────────────────────────────
-  if (!hasSlides && !hasTask && !hasTest) {
+  // [2] Teacher + entry
+  if (mode === 'teacher' && builder.stage === 'entry') {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-24 text-center text-slate-400">
-        <BookOpen className="mb-4 h-14 w-14 opacity-15" />
-        <p className="text-base font-medium text-slate-600">No lesson content available yet</p>
-        <p className="mt-1 text-sm">Your teacher hasn't added content to this unit.</p>
-      </div>
+      <LessonCanvas>
+        <TeacherBuilderEmptyState unitTitle={unit?.title} onManual={goToManual} onAI={goToAI} />
+      </LessonCanvas>
     );
   }
+
+  // [3] Teacher + manual-choice
+  if (mode === 'teacher' && builder.stage === 'manual-choice') {
+    return (
+      <LessonCanvas>
+        {/*
+          ManualBuilderLauncher v2:
+          • onSelect handles video / task / test (direct to editor)
+          • onSelectSlides handles the slide wizard path
+        */}
+        <ManualBuilderLauncher
+          onSelect={selectType}
+          onSelectSlides={selectSlides}
+          onBack={goToEntry}
+        />
+      </LessonCanvas>
+    );
+  }
+
+  // [4] Teacher + editing
+  if (mode === 'teacher' && builder.stage === 'editing' && builder.activeType) {
+    return (
+      <LessonCanvas>
+        {/*
+          LessonEditorShell v3 receives initialTitle for the slides case.
+          SlideEditorStep uses this to pre-populate the draft so the
+          live player immediately shows the title the teacher entered.
+        */}
+        <LessonEditorShell
+          type={builder.activeType}
+          onBack={backToLauncher}
+          onSave={handleSave}
+          initialTitle={builder.activeType === 'slides' ? slideInitialTitle : undefined}
+        />
+      </LessonCanvas>
+    );
+  }
+
+  // [5] Normal lesson player (student or teacher-with-content)
+  const mergedSubmissions: Record<string | number, TaskSubmission> = { ...localTaskSubmissions };
+  if (taskSubmission && allTasks.length === 1) {
+    mergedSubmissions[allTasks[0].id] = taskSubmission;
+  }
+
+  const flow = buildLessonFlow({
+    slides,
+    viewedSlideIds:      slideProgress.viewedSlideIds,
+    slidesCompleted:     slideProgress.completed,
+    tasks:               allTasks,
+    taskSubmissionsById: mergedSubmissions,
+    primaryTest,
+    testAttempt:         testAttempt as any,
+    videos,
+    videoCompletions,
+    forcedSlide,
+    locked: forcedSection !== null && forcedSection !== undefined,
+  });
 
   return (
-    <section className="mx-auto w-full max-w-2xl space-y-8 pb-24">
-      {/* ── Unit header ──────────────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold leading-snug text-slate-900">{unit.title}</h1>
-
-        {unit.description && (
-          <p className="text-base leading-relaxed text-slate-500">{unit.description}</p>
-        )}
-
-        {unit.goals && (
-          <div className="mt-3 rounded-xl border border-primary-100 bg-primary-50 px-4 py-3">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-primary-600">
-              What you'll learn
-            </p>
-            <p className="text-sm leading-relaxed text-primary-900">{unit.goals}</p>
-          </div>
-        )}
-      </div>
-
-      {/* ── Progress indicator ────────────────────────────────────────────── */}
-      <LessonProgressIndicator
-        hasSlides={slides.length > 0}
-        slidesComplete={slideProgress.completed}
-        hasTask={hasTask}
-        taskComplete={!!taskSubmission}
-        hasTest={hasTest}
-        testComplete={!!testAttempt}
+    <LessonCanvas>
+      {slidesError && !slidesLoading && <SlidesErrorCard message={slidesError} />}
+      <LessonFlow
+        flow={flow}
+        onStartTest={onStartTest}
+        onLoadTask={handleLoadTask}
+        onSubmitTask={handleSubmitTask}
+        onSubmitTest={handleSubmitTest}
+        onOpenTask={onOpenTask}
+        onOpenTest={onOpenTest}
+        onItemCompleted={handleItemCompleted}
+        loading={loading}
+        onActiveIndexChange={onRailStateChange}
       />
-
-      {/* ── Slides section ────────────────────────────────────────────────── */}
-      {slidesLoading && (
-        <div className="animate-pulse space-y-3">
-          <div className="h-5 w-32 rounded bg-slate-200" />
-          <div className="h-64 rounded-2xl bg-slate-100" />
-        </div>
-      )}
-
-      {slidesError && (
-        <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Could not load slides: {slidesError}
-        </div>
-      )}
-
-      {!slidesLoading && !slidesError && slides.length > 0 && (
-        <SlidesSection
-          slides={slides}
-          onProgressChange={handleSlidesProgress}
-        />
-      )}
-
-      {/* ── Task section ──────────────────────────────────────────────────── */}
-      {hasTask && primaryTask && (
-        <TaskSection
-          task={primaryTask}
-          hasSubmission={!!taskSubmission}
-          onOpen={onOpenTask ?? (() => {})}
-        />
-      )}
-
-      {/* ── Test section ──────────────────────────────────────────────────── */}
-      {hasTest && primaryTest && (
-        <TestSection
-          test={primaryTest}
-          hasAttempt={!!testAttempt}
-          onStart={onStartTest ?? (() => {})}
-        />
-      )}
-    </section>
+    </LessonCanvas>
   );
 }

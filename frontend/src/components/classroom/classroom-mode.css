@@ -1,36 +1,147 @@
 /**
- * classroom-mode.css
+ * classroom-mode.css  (v3 — viewport-fitted lesson workspace)
  *
- * Import this in your global stylesheet (index.css / globals.css) or
- * add these rules directly to your existing global CSS.
+ * New in v3:
+ * ─────────
+ * • The sticky classroom header now sets --lp-header-h on itself via a
+ *   CSS custom property so the lesson workspace can calculate
+ *   `height: calc(100dvh - var(--lp-header-h))` exactly.
  *
- * When ClassroomLayout mounts it adds `classroom-mode` to <body>.
- * These rules hide any global sidebar / admin topbar that might exist
- * outside the classroom route's component tree.
+ * • Two header height tiers are defined here based on whether the lesson
+ *   progress rail sub-bar is visible:
  *
- * Because classroom routes are registered outside AdminLayout, the
- * sidebar is never rendered in the first place — these rules are a
- * belt-and-suspenders safety net for any edge cases (e.g. shared
- * headers, portals, or future layout changes).
+ *     No rail   → single bar  ≈ 56px   → --lp-header-h: 56px
+ *     With rail → double bar  ≈ 100px  → --lp-header-h: 100px
+ *
+ *   The header element itself adds .classroom-header--has-rail when the
+ *   lessonRail prop is present, triggering the second tier.
+ *
+ * • ClassroomLayout's global 3px progress underline is factored into
+ *   --lp-header-h so the workspace never sits behind it.
+ *
+ * All v2 rules (sidebar hiding, scroll lock, animation keyframes) are
+ * preserved unchanged.
  */
 
-/* Hide teacher/admin shell elements while in classroom mode */
+/* ── Hide global shell elements in classroom mode ──────────────────────── */
 body.classroom-mode .app-sidebar,
 body.classroom-mode .admin-sidebar,
 body.classroom-mode aside[data-sidebar],
 body.classroom-mode [data-role="sidebar"],
 body.classroom-mode .admin-topbar,
-body.classroom-mode [data-role="admin-nav"] {
+body.classroom-mode [data-role="admin-nav"],
+body.classroom-mode .student-sidebar,
+body.classroom-mode .student-app-topbar {
   display: none !important;
 }
 
-/* Ensure the classroom takes full viewport width */
+/* ── Classroom shell fills viewport exactly ────────────────────────────── */
 body.classroom-mode .classroom-layout {
   width: 100%;
-  min-height: 100vh;
+  height: 100dvh;
+  height: 100vh; /* fallback */
+  overflow: hidden;
 }
 
-/* Prevent body scroll jitter when drawer is open */
+/* ── Body scroll lock (unit selector modal open) ────────────────────────── */
 body.classroom-mode-locked {
   overflow: hidden;
+}
+
+/* ── Classroom header: header height variables ──────────────────────────── */
+
+/*
+ * Single bar (no rail): 48px main bar + 3px global progress rail = 51px.
+ * We round up to 52px for breathing room.
+ */
+.classroom-header {
+  /* Consumed by .lp-workspace in lesson-workspace.css */
+  --lp-header-h: 52px;
+
+  /* Glass effect */
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+}
+
+/*
+ * Double bar (with lesson progress rail): 48px main bar + ~32px sub-bar = ~80px.
+ * ClassroomHeader adds this modifier class when lessonRail is present.
+ */
+.classroom-header--has-rail {
+  --lp-header-h: 84px;
+}
+
+/*
+ * On mobile the sub-bar is slightly shorter (no horizontal padding extras).
+ * Adjustment: keep the same 108px — it's a comfortable safe default.
+ */
+
+/*
+ * Propagate the header's --lp-header-h to :root so .lp-workspace
+ * (which is a sibling of the header, not a child) can read it.
+ *
+ * We do this by re-declaring it on the .classroom-layout ancestor, which
+ * wraps both the header and the workspace.
+ */
+.classroom-layout {
+  --lp-header-h: 52px;  /* default — overridden below */
+}
+
+.classroom-layout:has(.classroom-header--has-rail) {
+  --lp-header-h: 84px;
+}
+
+/* Fallback for browsers without :has() — JS in ClassroomPage can set
+   style="--lp-header-h: Xpx" directly on .classroom-layout. */
+
+/* ── Unit selector modal animation ─────────────────────────────────────── */
+@keyframes unit-selector-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes unit-selector-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(-8px);
+  }
+}
+
+.unit-selector-panel[data-state="open"] {
+  animation: unit-selector-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.unit-selector-panel[data-state="closed"] {
+  animation: unit-selector-out 0.14s ease-in forwards;
+}
+
+/* ── Global progress rail (top-of-viewport) ─────────────────────────────── */
+body.classroom-mode [role="progressbar"] {
+  z-index: 9999;
+}
+
+/* ── Reduce classroom header height on very small screens ───────────────── */
+@media (max-width: 374px) {
+  .classroom-header {
+    height: auto;
+    min-height: 48px;
+  }
+
+  .classroom-layout {
+    --lp-header-h: 48px;
+  }
+
+  .classroom-layout:has(.classroom-header--has-rail) {
+    --lp-header-h: 80px;
+  }
 }

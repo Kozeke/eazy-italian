@@ -289,6 +289,94 @@ def send_magic_code(request: MagicCodeRequest, db: Session = Depends(get_db)):
     
     return {"message": "Magic code sent to your email"}
 
+@router.post("/check-email")
+def check_email(request: MagicCodeRequest, db: Session = Depends(get_db)):
+    """Return whether an email address is already registered."""
+    user = db.query(User).filter(User.email == request.email).first()
+    return {"exists": user is not None}
+
+@router.post("/send-registration-code")
+def send_registration_code(request: MagicCodeRequest, db: Session = Depends(get_db)):
+    """
+    Send a 6-digit verification code to a NEW (not yet registered) email.
+    Fails with 400 if the email is already in the users table.
+    """
+    user = db.query(User).filter(User.email == request.email).first()
+    if user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    code = generate_verification_code()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    # Invalidate any previous unused pre_registration codes for this email
+    db.query(EmailVerificationCode).filter(
+        EmailVerificationCode.email == request.email,
+        EmailVerificationCode.code_type == "pre_registration",
+        EmailVerificationCode.is_used == False
+    ).update({"is_used": True})
+
+    verification_code = EmailVerificationCode(
+        email=request.email,
+        code=code,
+        code_type="pre_registration",
+        expires_at=expires_at
+    )
+    db.add(verification_code)
+    db.commit()
+
+    email_service = EmailService(db)
+    subject = "Verify Your Email – Eazy Italian"
+    body = (
+        f"Your registration verification code is: {code}\n\n"
+        "This code expires in 15 minutes."
+    )
+    html_body = f"""
+    <html><body>
+        <h2>Verify Your Email</h2>
+        <p>Your registration code is:</p>
+        <p><strong style="font-size:24px;letter-spacing:2px">{code}</strong></p>
+        <p>This code expires in 15 minutes.</p>
+        <p>Best regards,<br>Eazy Italian Team</p>
+    </body></html>
+    """
+    email_service.send_email(request.email, subject, body, html_body)
+
+    return {"message": "Registration code sent to your email"}
+
+@router.post("/verify-registration-code")
+def verify_registration_code(request: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """
+    Verify the pre-registration OTP code.
+    The user does NOT need to exist yet — this just confirms email ownership.
+    Returns a simple success message; the actual account is created later.
+    """
+    verification_code = db.query(EmailVerificationCode).filter(
+        EmailVerificationCode.email == request.email,
+        EmailVerificationCode.code == request.code,
+        EmailVerificationCode.code_type == "pre_registration",
+        EmailVerificationCode.is_used == False
+    ).order_by(EmailVerificationCode.created_at.desc()).first()
+
+    if not verification_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or already used verification code"
+        )
+
+    if verification_code.is_expired:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code has expired"
+        )
+
+    verification_code.is_used = True
+    db.commit()
+
+    return {"message": "Email verified successfully"}
+
 @router.post("/verify-email", response_model=Token)
 def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db)):
     """

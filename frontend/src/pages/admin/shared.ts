@@ -336,9 +336,12 @@ import React, {
   }
   
   /** Lazy-loads image src once element scrolls into view (Part 10). */
-  export function LazyImage({ src, alt, className, style }: {
-    src: string; alt: string; className?: string; style?: React.CSSProperties;
-  }) {
+  type LazyImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src" | "alt"> & {
+    src: string;
+    alt: string;
+  };
+
+  export function LazyImage({ src, alt, ...imgProps }: LazyImageProps) {
     const ref = useRef<HTMLImageElement>(null);
     const [ready, setReady] = useState(false);
     useEffect(() => {
@@ -351,7 +354,14 @@ import React, {
       obs.observe(ref.current);
       return () => obs.disconnect();
     }, []);
-    return React.createElement("img", { ref, src: ready ? src : undefined, alt, className, style, loading: "lazy", decoding: "async" });
+    return React.createElement("img", {
+      ref,
+      src: ready ? src : undefined,
+      alt,
+      loading: "lazy",
+      decoding: "async",
+      ...imgProps,
+    });
   }
   
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

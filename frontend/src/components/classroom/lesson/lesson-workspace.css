@@ -1,0 +1,311 @@
+/**
+ * lesson-workspace.css  (v11 — viewport-fitted stable player)
+ *
+ * Core principle:
+ *   The lesson player must always fit inside the visible screen below the
+ *   sticky classroom header.  No page-level vertical scroll is ever needed
+ *   to read the active step — overflow happens *inside* the player body.
+ *
+ * Layout model (top → bottom):
+ *   1. .classroom-header (sticky, h-[var(--lp-header-h)])
+ *   2. .lp-workspace      (fills remainder of 100dvh, flex col, no outer scroll)
+ *   3. .lp-canvas         (centred max-w container, flex col, fills workspace)
+ *   4. .lp-player-frame   (the card, fills canvas height, flex col)
+ *   5. .lp-player-header  (shrinks to content)
+ *   6. .lp-player-body    (flex-1, min-h-0, overflow-y-auto — only place that scrolls)
+ *   7. .lp-player-footer  (shrinks to content, always visible at bottom)
+ *
+ * CSS custom properties
+ * ─────────────────────
+ *   --lp-header-h       Total sticky header height (main bar + rail sub-bar).
+ *                       Set by JS in ClassroomHeader or kept as a safe default here.
+ *   --lp-canvas-px      Horizontal padding of the canvas on each side.
+ *   --lp-player-radius  Border-radius of the player frame.
+ */
+
+/* ─── Design tokens ──────────────────────────────────────────────────────────── */
+
+:root {
+    /*
+     * Header height is dynamically measured and set on .classroom-layout
+     * via JavaScript in ClassroomPage. This ensures accurate calculation.
+     * Default fallback is set in classroom-mode.css on .classroom-layout.
+     */
+  
+    /* Vertical breathing room below header and above page bottom */
+    --lp-workspace-py:  0.75rem;   /* 12px top + bottom padding inside workspace */
+  
+    /* Canvas horizontal padding */
+    --lp-canvas-px:     1rem;
+  
+    /* Player corner radius */
+    --lp-player-radius: 1rem;      /* 16px */
+  }
+  
+  @media (min-width: 640px) {
+    :root {
+      --lp-canvas-px:    2rem;
+      --lp-workspace-py: 0.75rem;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    :root {
+      --lp-canvas-px:    2.5rem;
+    }
+  }
+  
+  
+  /* ─── Workspace shell ─────────────────────────────────────────────────────────
+   *
+   * Replaces the old LessonCanvas min-h approach.
+   * Sits directly below the sticky classroom header.
+   *
+   * height = 100dvh − header − any top progress rail (3px)
+   * We subtract a tiny bit more so the bottom of the card never hides
+   * behind mobile browser chrome.
+   */
+  
+  .lp-workspace {
+    /*
+     * No calc() — the workspace simply fills whatever vertical space
+     * the flex parent (<main>) gives it.  ClassroomLayout is height:100dvh
+     * flex-col; the header shrinks to its content; <main> gets flex:1.
+     * This makes the workspace pixel-perfect with zero JS measurement.
+     */
+    flex: 1 1 0%;
+    min-height: 0;
+  
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;           /* no page-level scroll — ever */
+    background: #f8fafc;
+  }
+  
+  /* ─── Canvas — centred, padded, fills workspace ───────────────────────────────*/
+  
+  .lp-canvas {
+    flex: 1 1 0%;
+    min-height: 0;              /* critical: allows flex children to shrink */
+    width: 100%;
+    max-width: 72rem;           /* max-w-5xl */
+    margin-inline: auto;
+    padding: var(--lp-workspace-py) var(--lp-canvas-px);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  /* ─── Player frame — the card itself ─────────────────────────────────────────
+   *
+   * flex-1 min-h-0 means it fills whatever height is available after the
+   * canvas padding, regardless of content.  All step types share this frame
+   * so they all have identical height.
+   *
+   * overflow: hidden keeps rounded corners; inner scroll is on .lp-player-body.
+   */
+  
+  .lp-player-frame {
+    flex: 1 1 0%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--lp-player-radius);
+    background: #ffffff;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.06);
+  }
+  
+  /* ─── Player sub-zones ────────────────────────────────────────────────────────*/
+  
+  /* Header zone — shrinks to its content height */
+  .lp-player-header {
+    flex-shrink: 0;
+  }
+  
+  /*
+   * Body zone — takes all remaining height, scrolls internally.
+   * This is the ONLY element that should ever scroll in the lesson flow.
+   */
+  .lp-player-body {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Subtle scrollbar styling */
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  
+  .lp-player-body::-webkit-scrollbar {
+    width: 5px;
+  }
+  .lp-player-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .lp-player-body::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 9999px;
+  }
+  .lp-player-body::-webkit-scrollbar-thumb:hover {
+    background-color: #94a3b8;
+  }
+  
+  /* Footer zone (nav controls, submit bar) — always visible at the bottom */
+  .lp-player-footer {
+    flex-shrink: 0;
+    border-top: 1px solid #f1f5f9;
+    background: rgba(248, 250, 252, 0.6);
+  }
+  
+  /* ─── Slide-step inner layout ─────────────────────────────────────────────────
+   *
+   * SlideStep renders its own sub-zones inside the shared .lp-player-body.
+   * We ensure the track bar is pinned and the content scrolls.
+   */
+  
+  .lp-slide-track {
+    flex-shrink: 0;
+    padding: 0.5rem 1.5rem 0;
+  }
+  
+  .lp-slide-content {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.75rem 1.5rem 1rem;
+  }
+  
+  @media (min-width: 640px) {
+    .lp-slide-content {
+      padding: 1rem 1.75rem;
+    }
+  }
+  
+  /* ─── Legacy: slide-player-body (used by old SlideStep) ──────────────────────
+   *
+   * Kept for backward compat if any older code still references it.
+   * Now instructs the element to fill its parent rather than using clamp.
+   */
+  
+  .slide-player-body {
+    flex: 1 1 0%;
+    min-height: 0;
+    height: auto !important;   /* override any inline height style */
+  }
+  
+  /* ─── Player enter animation ─────────────────────────────────────────────────*/
+  
+  @keyframes lp-player-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.997);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  
+  .lp-player-enter {
+    animation: lp-player-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+  
+  /* Legacy alias */
+  .lp-step-enter {
+    animation: lp-player-in 0.22s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+  
+  /* ─── Scrollbar hiding utility ────────────────────────────────────────────────*/
+  
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* ─── Shimmer skeletons ───────────────────────────────────────────────────────*/
+  
+  @keyframes lp-shimmer-sweep {
+    0%   { background-position: -400px 0; }
+    100% { background-position:  400px 0; }
+  }
+  
+  .lp-shimmer {
+    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background-size: 800px 100%;
+    animation: lp-shimmer-sweep 1.6s ease-in-out infinite;
+  }
+  
+  .lp-shimmer--neutral {
+    background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 50%, #f1f5f9 75%);
+    background-size: 800px 100%;
+    animation: lp-shimmer-sweep 1.8s ease-in-out infinite;
+  }
+  
+  /* ─── Fade utility ────────────────────────────────────────────────────────────*/
+  
+  @keyframes lp-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  
+  .lp-fade-in {
+    animation: lp-fade 0.3s ease both;
+  }
+  
+  /* ─── Card transition utility ────────────────────────────────────────────────*/
+  
+  .lp-card-transition {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  
+  /* ─── Skeleton — fills the player frame ──────────────────────────────────────*/
+  
+  .lp-skeleton-frame {
+    flex: 1 1 0%;
+    min-height: 0;
+    border-radius: var(--lp-player-radius);
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.04);
+  }
+  
+  /* ─── Mobile: tighter workspace padding ──────────────────────────────────────*/
+  
+  @media (max-width: 430px) {
+    :root {
+      --lp-workspace-py: 0.5rem;
+      --lp-canvas-px:    0.75rem;
+    }
+  }
+  
+  /* ─── Very tall screens: cap player readable height ──────────────────────────
+   *
+   * On 2K/4K monitors the card can stretch uncomfortably tall.
+   * We add a max-height so the player stays within a comfortable read distance
+   * and the canvas just gets extra bottom padding.
+   */
+  
+  @media (min-height: 1000px) {
+    .lp-player-frame {
+      max-height: 760px;
+    }
+  }
+  
+  /* ─── Reduced-motion overrides ───────────────────────────────────────────────*/
+  
+  @media (prefers-reduced-motion: reduce) {
+    .lp-player-enter,
+    .lp-step-enter {
+      animation: none !important;
+    }
+  
+    :root {
+      scroll-behavior: auto;
+    }
+  }

@@ -324,7 +324,7 @@ const CSS = `
   width:42px; height:42px; border-radius:14px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
   font-family:${T.dFont}; font-size:16px; font-weight:900;
-  color:white; margin:0 14px;
+  color:white; margin:14px 14px;
   box-shadow:0 4px 12px rgba(0,0,0,.14);
 }
 

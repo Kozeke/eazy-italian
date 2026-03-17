@@ -3380,6 +3380,17 @@ export function TestBuilder({ testId, unitId, unitTitle, onClose, fromAI = false
       setTest(updated);
       setMeta((p) => ({ ...p, status: "published" }));
       showToast("🚀 Test published!");
+      
+      // Check if we're in AI generation flow and redirect to unit page
+      if (fromAI) {
+        const testUnitId = updated.unit_id || test.unit_id || unitId;
+        if (testUnitId) {
+          // Small delay to show the success toast before redirecting
+          setTimeout(() => {
+            navigate(`/admin/units/${testUnitId}`);
+          }, 500);
+        }
+      }
     } catch (e) {
       setErrors((p) => ({ ...p, publish: e.message }));
     } finally {

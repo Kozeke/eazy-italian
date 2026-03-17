@@ -10,7 +10,7 @@ class CourseBase(BaseModel):
     """Base course schema with common fields"""
     title: str
     description: Optional[str] = None
-    level: CourseLevel
+    level: Optional[CourseLevel] = None
     status: CourseStatus = CourseStatus.DRAFT
     publish_at: Optional[datetime] = None
     order_index: int = 0
@@ -23,8 +23,23 @@ class CourseBase(BaseModel):
     is_visible_to_students: bool = False
     settings: Optional[Dict[str, Any]] = None
 
-class CourseCreate(CourseBase):
+class CourseCreate(BaseModel):
     """Schema for creating a new course"""
+    title: str
+    description: Optional[str] = None
+    level: Optional[CourseLevel] = None
+    status: Optional[CourseStatus] = CourseStatus.DRAFT
+    publish_at: Optional[datetime] = None
+    order_index: Optional[int] = 0
+    thumbnail_url: Optional[str] = None
+    thumbnail_path: Optional[str] = None
+    duration_hours: Optional[int] = None
+    tags: Optional[List[str]] = None
+    meta_title: Optional[str] = None
+    meta_description: Optional[str] = None
+    is_visible_to_students: Optional[bool] = False
+    settings: Optional[Dict[str, Any]] = None
+
     @validator('publish_at')
     def validate_publish_at(cls, v, values):
         """Validate publish date for scheduled courses"""
@@ -87,7 +102,7 @@ class CourseListResponse(BaseModel):
     id: int
     title: str
     description: Optional[str] = None
-    level: CourseLevel
+    level: Optional[CourseLevel] = None
     status: CourseStatus
     publish_at: Optional[datetime] = None
     order_index: int
@@ -168,7 +183,7 @@ class EnrolledCourseResponse(BaseModel):
     id: int
     title: str
     description: Optional[str] = None
-    level: CourseLevel
+    level: Optional[CourseLevel] = None
     thumbnail_url: Optional[str] = None
     thumbnail_path: Optional[str] = None
     units_count: int = 0

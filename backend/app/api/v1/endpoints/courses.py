@@ -194,6 +194,13 @@ async def create_course(
     db: Session = Depends(get_db)
 ):
     """Create a new course"""
+    status = course_data.status or CourseStatus.DRAFT
+    order_index = course_data.order_index if course_data.order_index is not None else 0
+    is_visible_to_students = (
+        course_data.is_visible_to_students
+        if course_data.is_visible_to_students is not None
+        else False
+    )
     
     # Generate slug if not provided
     slug = course_data.slug if hasattr(course_data, 'slug') and course_data.slug else None
@@ -214,15 +221,15 @@ async def create_course(
         title=course_data.title,
         description=course_data.description,
         level=course_data.level,
-        status=course_data.status,
+        status=status,
         publish_at=course_data.publish_at,
-        order_index=course_data.order_index,
+        order_index=order_index,
         thumbnail_url=course_data.thumbnail_url,
         duration_hours=course_data.duration_hours,
         tags=course_data.tags or [],
         meta_title=course_data.meta_title,
         meta_description=course_data.meta_description,
-        is_visible_to_students=course_data.is_visible_to_students,
+        is_visible_to_students=is_visible_to_students,
         settings=course_data.settings or {},
         slug=slug,
         created_by=current_user.id
@@ -284,8 +291,8 @@ async def get_admin_course(
         units_data.append({
             "id": unit.id,
             "title": unit.title,
-            "level": unit.level.value,
-            "status": unit.status.value,
+            "level": unit.level.value if unit.level else None,
+            "status": unit.status.value if unit.status else None,
             "order_index": unit.order_index,
             "content_count": unit.content_count
         })
@@ -686,7 +693,11 @@ async def get_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    if not course.is_available:
+    # Teachers can access their own courses regardless of availability
+    is_course_owner = (
+        current_user.role == UserRole.TEACHER and course.created_by == current_user.id
+    )
+    if not is_course_owner and not course.is_available:
         raise HTTPException(status_code=403, detail="Course is not available")
     
     # Get instructor info

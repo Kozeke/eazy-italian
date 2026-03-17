@@ -114,6 +114,8 @@ class PresentationUpdate(BaseModel):
     slug:                  Optional[str]         = None
     meta_title:            Optional[str]         = None
     meta_description:      Optional[str]         = None
+    status:                Optional[PresentationStatus] = None
+    publish_at:            Optional[datetime]    = None
 
 
 class PresentationStatusUpdate(BaseModel):
@@ -379,6 +381,11 @@ async def get_presentation(
     return p
 
 
+@router.patch(
+    "/admin/presentations/{presentation_id}",
+    response_model=PresentationResponse,
+    summary="Partially update presentation metadata",
+)
 @router.put(
     "/admin/presentations/{presentation_id}",
     response_model=PresentationResponse,
@@ -398,6 +405,16 @@ async def update_presentation(
             raise HTTPException(status_code=409, detail="Slug already taken")
 
     update_data = body.model_dump(exclude_unset=True)
+
+    requested_status = update_data.get("status")
+    if requested_status == PresentationStatus.PUBLISHED and not p.slides:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot publish a presentation with no slides",
+        )
+    if requested_status == PresentationStatus.PUBLISHED and "is_visible_to_students" not in update_data:
+        update_data["is_visible_to_students"] = True
+
     for field, value in update_data.items():
         setattr(p, field, value)
     p.updated_by = current_user.id

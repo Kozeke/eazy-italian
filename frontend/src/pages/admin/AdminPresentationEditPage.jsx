@@ -65,6 +65,74 @@ const LOAD_CSS = `
 }
 `;
 
+const MODAL_CSS = `
+.pep-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 999;
+}
+.pep-modal {
+  width: 100%;
+  max-width: 460px;
+  background: #FFFFFF;
+  border: 1px solid ${T.border};
+  border-radius: 24px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  padding: 28px;
+  font-family: ${T.bFont};
+}
+.pep-modal-title {
+  font-family: ${T.dFont};
+  font-size: 22px;
+  font-weight: 900;
+  color: ${T.text};
+  margin-bottom: 10px;
+}
+.pep-modal-sub {
+  font-size: 14px;
+  line-height: 1.55;
+  color: ${T.muted};
+}
+.pep-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+.pep-modal-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 11px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+}
+.pep-modal-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.pep-modal-btn--ghost {
+  background: #F8FAFC;
+  color: ${T.text};
+  border: 1px solid ${T.border};
+}
+.pep-modal-btn--primary {
+  background: linear-gradient(135deg, ${T.violet}, #8B5CF6);
+  color: #FFFFFF;
+  box-shadow: 0 12px 28px rgba(108,53,222,.24);
+}
+.pep-modal-btn--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+`;
+
 /* ── Auth helper ─────────────────────────────────────────────────────────── */
 const authH = () => {
   const t = localStorage.getItem("token");
@@ -111,29 +179,38 @@ export default function AdminPresentationEditPage() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
   const [saving,  setSaving]  = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+
+  const refreshPresentation = useCallback(async () => {
+    const res = await fetch(`/api/v1/admin/presentations/${presId}`, { headers: authH() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    setPres(data);
+    const rawSlides = data.slides || data.presentation_slides || [];
+    const sorted = [...rawSlides].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    setSlides(sorted.map(toEditorSlide));
+    return data;
+  }, [presId]);
 
   /* ── Load ── */
   useEffect(() => {
     if (!presId) return;
     setLoading(true); setError(null);
 
-    fetch(`/api/v1/admin/presentations/${presId}`, { headers: authH() })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(data => {
-        setPres(data);
-        const rawSlides = data.slides || data.presentation_slides || [];
-        const sorted = [...rawSlides].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
-        setSlides(sorted.map(toEditorSlide));
-      })
+    refreshPresentation()
       .catch(e => setError(e.message || "Failed to load presentation"))
       .finally(() => setLoading(false));
-  }, [presId]);
+  }, [refreshPresentation]);
 
   /* ── Back ── */
   const handleBack = useCallback(() => {
+    const unitId = unitIdParam || pres?.unit_id;
+    if (unitId) navigate(`/admin/units/${unitId}`);
+    else navigate(-1);
+  }, [unitIdParam, pres, navigate]);
+
+  const navigateToUnitDetails = useCallback(() => {
     const unitId = unitIdParam || pres?.unit_id;
     if (unitId) navigate(`/admin/units/${unitId}`);
     else navigate(-1);
@@ -190,19 +267,43 @@ export default function AdminPresentationEditPage() {
       toast.success("Slides saved", { id: toastId });
 
       // Reload fresh slide data into state so ids stay current
-      const fresh = await fetch(`/api/v1/admin/presentations/${presId}`, { headers: authH() });
-      if (fresh.ok) {
-        const d = await fresh.json();
-        const rawSlides = d.slides || d.presentation_slides || [];
-        const sorted = [...rawSlides].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
-        setSlides(sorted.map(toEditorSlide));
-      }
+      await refreshPresentation();
+      setShowPublishModal(true);
     } catch (e) {
       toast.error(e.message || "Save failed", { id: toastId });
     } finally {
       setSaving(false);
     }
-  }, [presId, pres, slides]);
+  }, [presId, pres, slides, refreshPresentation]);
+
+  const handlePublish = useCallback(async () => {
+    setPublishing(true);
+    const toastId = toast.loading("Publishing presentation…");
+    try {
+      const res = await fetch(`/api/v1/admin/presentations/${presId}`, {
+        method: "PATCH",
+        headers: authH(),
+        body: JSON.stringify({
+          status: "published",
+          is_visible_to_students: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+
+      await refreshPresentation();
+      setShowPublishModal(false);
+      toast.success("Presentation published", { id: toastId });
+      navigateToUnitDetails();
+    } catch (e) {
+      toast.error(e.message || "Publish failed", { id: toastId });
+    } finally {
+      setPublishing(false);
+    }
+  }, [presId, refreshPresentation, navigateToUnitDetails]);
 
   /* ── Loading / error ── */
   if (loading || error) return (
@@ -234,13 +335,50 @@ export default function AdminPresentationEditPage() {
   ].filter(Boolean).join(" · ");
 
   return (
-    <SlideEditorPage
-      slides={slides}
-      title={pres?.title || "Presentation"}
-      meta={meta}
-      saveLabel="Save slides"
-      onSave={handleSave}
-      onBack={handleBack}
-    />
+    <>
+      <style>{MODAL_CSS}</style>
+      <SlideEditorPage
+        slides={slides}
+        title={pres?.title || "Presentation"}
+        meta={meta}
+        saveLabel="Save slides"
+        onSave={handleSave}
+        onBack={handleBack}
+      />
+
+      {showPublishModal && (
+        <div className="pep-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="publish-modal-title">
+          <div className="pep-modal">
+            <div id="publish-modal-title" className="pep-modal-title">
+              Publish this presentation?
+            </div>
+            <div className="pep-modal-sub">
+              Slides were saved successfully. You can publish now to make this presentation visible to students, or keep it as a draft for later.
+            </div>
+            <div className="pep-modal-actions">
+              <button
+                type="button"
+                className="pep-modal-btn pep-modal-btn--ghost"
+                onClick={() => {
+                  setShowPublishModal(false);
+                  navigateToUnitDetails();
+                }}
+                disabled={publishing}
+              >
+                Leave as draft
+              </button>
+              <button
+                type="button"
+                className="pep-modal-btn pep-modal-btn--primary"
+                onClick={handlePublish}
+                disabled={publishing}
+              >
+                {publishing ? "Publishing..." : "Publish"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
