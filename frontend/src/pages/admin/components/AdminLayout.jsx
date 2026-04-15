@@ -16,9 +16,12 @@ import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AdminHeader from "./AdminHeader.jsx";
 import AdminSidebar from "./AdminSidebar.jsx";
+import { SHELL_HEADER_HEIGHT, SHELL_SIDEBAR_COLLAPSED_WIDTH } from "../../../components/layout/shellDimensions";
 
-const COLLAPSED_W = 60; // must match AdminSidebar
-const HEADER_H = 60; // must match AdminHeader
+// Stores collapsed sidebar width in pixels and keeps teacher/student shells aligned.
+const COLLAPSED_W = SHELL_SIDEBAR_COLLAPSED_WIDTH;
+// Stores fixed top header height in pixels and keeps teacher/student shells aligned.
+const HEADER_H = SHELL_HEADER_HEIGHT;
 
 const CSS = `
   .al-root {

@@ -12,7 +12,13 @@ from app.core.database import Base
 from app.models import Course, Unit, User, Video, Task, Test, Progress, EmailCampaign, VideoProgress
 from app.models.presentation import Presentation, PresentationSlide
 from app.models.live_session import LiveSession
+import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
@@ -95,6 +101,17 @@ except Exception as e:
 
 # Include API router AFTER static mount
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+@app.on_event("startup")
+async def start_presence_eviction():
+    """
+    Launch the background task that prunes stale presence entries.
+    Runs every 60 s; evicts users whose last heartbeat is older than 90 s.
+    Safe to call multiple times – start_eviction_task() is idempotent.
+    """
+    from app.api.v1.endpoints.presence_rest import start_eviction_task
+    start_eviction_task(interval_seconds=60, max_age_seconds=90)
 
 
 @app.on_event("startup")

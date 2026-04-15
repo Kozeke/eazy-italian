@@ -11,6 +11,7 @@
  */
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { SHELL_HEADER_HEIGHT } from "../../../components/layout/shellDimensions";
 
 /* ── Design tokens ────────────────────────────────────────────────────────── */
 const T = {
@@ -31,6 +32,9 @@ const T = {
   danger:  "#E53535",
 };
 
+// Stores fixed top header height in pixels and keeps teacher/student shells aligned.
+const HEADER_H = SHELL_HEADER_HEIGHT;
+
 /* ── CSS ─────────────────────────────────────────────────────────────────── */
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
@@ -40,7 +44,7 @@ const CSS = `
     position: fixed;
     top: 0; left: 0; right: 0;
     z-index: 1000;
-    height: 60px;
+    height: ${HEADER_H}px;
     background: ${T.white};
     border-bottom: 1px solid ${T.borderL};
     display: flex;

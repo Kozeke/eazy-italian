@@ -5,18 +5,19 @@
  *
  * Reused logic
  * ────────────
- * Uses the student-scoped endpoint `unitsApi.getUnit` which requires
- * enrollment check. Returns unit with nested videos[], tasks[], and tests[]
- * arrays (same shape as AdminUnitDetailPage but filtered for student visibility).
- * No new API routes are introduced.
+ * Uses the student-scoped endpoint `unitsApi.getUnit` by default, which
+ * requires enrollment check. When `isTeacher` is true it switches to the
+ * admin-scoped endpoint `unitsApi.getAdminUnit` so draft or hidden units can
+ * still be loaded inside the teacher classroom flow.
  *
  * The hook is intentionally data-only.  It has no navigation or
  * teacher-side edit concerns so it can be dropped into any student
  * page or classroom component without conflict.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { unitsApi } from '../services/api';
+import type { HomeworkBlock } from '../services/api';
 
 // ─── Shared domain types (mirror AdminUnitDetailPage) ────────────────────────
 
@@ -73,6 +74,30 @@ export interface StudentTest {
   is_visible_to_students?: boolean;
 }
 
+export interface StudentSegmentMediaBlock {
+  id: string;
+  kind: 'image' | 'video' | 'audio' | string;
+  url: string;
+  caption: string;
+}
+
+export interface StudentSegment {
+  id: number;
+  title: string;
+  description?: string | null;
+  order_index: number;
+  status: string;
+  is_visible_to_students?: boolean;
+  media_blocks?: StudentSegmentMediaBlock[];
+}
+
+// Mirrors backend AttachmentSchema used for unit-level downloadable materials.
+export interface StudentUnitAttachment {
+  name: string;
+  path: string;
+  type: string;
+}
+
 export interface StudentUnitDetail {
   id: number;
   title: string;
@@ -95,6 +120,10 @@ export interface StudentUnitDetail {
     published_tasks: number;
     published_tests: number;
   };
+  segments?: StudentSegment[];
+  attachments?: StudentUnitAttachment[];
+  /** Mirrors GET /admin/units/:id/homework blocks; included on GET /units/:id for enrolled learners */
+  homework_blocks?: HomeworkBlock[];
 }
 
 interface UseStudentUnitResult {
@@ -106,33 +135,51 @@ interface UseStudentUnitResult {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useStudentUnit(unitId: number | null | undefined): UseStudentUnitResult {
+export function useStudentUnit(
+  unitId: number | null | undefined,
+  isTeacher = false,
+): UseStudentUnitResult {
   const [unit, setUnit]       = useState<StudentUnitDetail | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(unitId));
   const [error, setError]     = useState<string | null>(null);
+  const activeRequestIdRef = useRef(0);
 
   const fetch = useCallback(async () => {
+    const requestId = ++activeRequestIdRef.current;
     if (!unitId) {
-      setUnit(null);
+      if (requestId === activeRequestIdRef.current) {
+        setUnit(null);
+        setError(null);
+        setLoading(false);
+      }
       return;
     }
+    // Clear stale unit content immediately when switching unit ids.
+    setUnit(null);
     setLoading(true);
     setError(null);
     try {
-      // Use student endpoint which requires enrollment check
-      // Returns unit with nested videos[], tasks[], tests[].
-      const data = await unitsApi.getUnit(unitId);
+      const data = isTeacher
+        ? await unitsApi.getAdminUnit(unitId)
+        : await unitsApi.getUnit(unitId);
+      if (requestId !== activeRequestIdRef.current) return;
       setUnit(data as unknown as StudentUnitDetail);
     } catch (err) {
+      if (requestId !== activeRequestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Could not load unit content');
     } finally {
-      setLoading(false);
+      if (requestId === activeRequestIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [unitId]);
+  }, [isTeacher, unitId]);
 
   useEffect(() => {
     fetch();
   }, [fetch]);
 
-  return { unit, loading, error, reload: fetch };
+  return useMemo(
+    () => ({ unit, loading, error, reload: fetch }),
+    [unit, loading, error, fetch],
+  );
 }

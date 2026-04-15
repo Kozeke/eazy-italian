@@ -121,7 +121,7 @@ async def get_admin_courses(
     status: Optional[CourseStatus] = Query(None, description="Filter by status"),
     created_by: Optional[int] = Query(None, description="Filter by creator"),
     page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(25, ge=1, le=100, description="Items per page"),
+    limit: int = Query(100, ge=1, le=100, description="Items per page"),
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
@@ -155,6 +155,19 @@ async def get_admin_courses(
     offset = (page - 1) * limit
     courses = query_builder.order_by(asc(Course.order_index), desc(Course.created_at)).offset(offset).limit(limit).all()
     
+    course_ids = [c.id for c in courses]
+    first_unit_by_course: Dict[int, int] = {}
+    if course_ids:
+        ordered_units = (
+            db.query(Unit)
+            .filter(Unit.course_id.in_(course_ids))
+            .order_by(Unit.course_id, asc(Unit.order_index), asc(Unit.id))
+            .all()
+        )
+        for u in ordered_units:
+            if u.course_id not in first_unit_by_course:
+                first_unit_by_course[u.course_id] = u.id
+
     # Convert to response format
     result = []
     for course in courses:
@@ -182,7 +195,8 @@ async def get_admin_courses(
             units_count=course.units_count,
             published_units_count=course.published_units_count,
             content_summary=course.content_summary,
-            enrolled_students_count=enrolled_students_count
+            enrolled_students_count=enrolled_students_count,
+            first_unit_id=first_unit_by_course.get(course.id),
         ))
     
     return result
@@ -630,8 +644,8 @@ async def get_courses(
     
     query_builder = db.query(Course).filter(
         and_(
-            Course.is_visible_to_students == True,
-            Course.status == CourseStatus.PUBLISHED
+            # Course.is_visible_to_students == True,
+            # Course.status == CourseStatus.PUBLISHED
         )
     )
     
@@ -731,8 +745,8 @@ async def get_course(
     units = db.query(Unit).filter(
         and_(
             Unit.course_id == course_id,
-            Unit.is_visible_to_students == True,
-            Unit.status == UnitStatus.PUBLISHED
+            # Unit.is_visible_to_students == True,
+            # Unit.status == UnitStatus.PUBLISHED
         )
     ).order_by(Unit.order_index).all()
     
@@ -802,8 +816,8 @@ async def get_course_units(
     units = db.query(Unit).filter(
         and_(
             Unit.course_id == course_id,
-            Unit.is_visible_to_students == True,
-            Unit.status == UnitStatus.PUBLISHED
+            # Unit.is_visible_to_students == True,
+            # Unit.status == UnitStatus.PUBLISHED
         )
     ).order_by(Unit.order_index).all()
     
@@ -909,8 +923,8 @@ async def enroll_in_course(
     # Create progress record for first unit
     first_unit = db.query(Unit).filter(
         Unit.course_id == course_id,
-        Unit.status == UnitStatus.PUBLISHED,
-        Unit.is_visible_to_students == True
+        # Unit.status == UnitStatus.PUBLISHED,
+        # Unit.is_visible_to_students == True
     ).order_by(Unit.order_index).first()
     
     if first_unit:
@@ -957,8 +971,8 @@ async def get_my_courses(
         course_units = db.query(Unit).filter(
             and_(
                 Unit.course_id == course.id,
-                Unit.status == UnitStatus.PUBLISHED,
-                Unit.is_visible_to_students == True
+                # Unit.status == UnitStatus.PUBLISHED,
+                # Unit.is_visible_to_students == True
             )
         ).all()
         
@@ -1808,8 +1822,8 @@ async def get_student_dashboard(
     
     # Recommended courses (published courses not yet started)
     all_published_courses = db.query(Course).filter(
-        Course.status == CourseStatus.PUBLISHED,
-        Course.is_visible_to_students == True
+        # Course.status == CourseStatus.PUBLISHED,
+        # Course.is_visible_to_students == True
     ).all()
     
     recommended_courses = []

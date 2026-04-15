@@ -37,6 +37,7 @@ class Task(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)  # Allow no unit
+    segment_id = Column(Integer, ForeignKey("segments.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     content = Column(Text, nullable=True)
@@ -78,6 +79,7 @@ class Task(Base):
 
     # Relationships
     unit = relationship("Unit", back_populates="tasks")
+    segment = relationship("Segment", back_populates="tasks")
     created_by_user = relationship("User", back_populates="created_tasks")
     submissions = relationship("TaskSubmission", back_populates="task", cascade="all, delete-orphan")
 

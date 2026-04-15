@@ -1,31 +1,34 @@
 /**
- * VideoEditorStep.tsx
+ * VideoEditorStep.tsx  (v2 — slide-shell parity)
  *
- * Local video editor for the teacher classroom builder.
+ * Redesigned to render inside the same PlayerFrame / PlayerHeader shell that
+ * slide creation uses.  The editor is no longer a standalone form page — it
+ * is a single "video slide" card with:
  *
- * Fields
- * ──────
- * • title       — displayed above the player (mirrors StudentVideo.title)
- * • description — shown below title (mirrors StudentVideo.description)
- * • url         — YouTube / Vimeo / direct URL (auto-detected)
+ *   • Editable title input   — top of card
+ *   • Video preview area     — centre (thumbnail when URL known, placeholder otherwise)
+ *   • URL input              — overlaid/below preview
+ *   • Description textarea   — bottom of card
  *
- * Live preview
- * ────────────
- * Constructs a minimal StudentVideo object from the draft and renders
- * VideoStep directly — the teacher sees the exact embed frame the student
- * will see, including the YouTube/Vimeo iframe or the native player.
+ * URL → thumbnail extraction
+ * ──────────────────────────
+ * YouTube:  https://img.youtube.com/vi/<VIDEO_ID>/hqdefault.jpg
+ * Vimeo:    fetches https://vimeo.com/api/oembed.json?url=<url>&fields=thumbnail_url
+ *           (fire-and-forget; shows placeholder on failure)
  *
- * API wiring notes (for next step):
- *   onSave(draft) → POST /api/v1/units/:unitId/videos  (or similar endpoint)
- *   Payload maps 1-to-1:  { title, description, url, provider (auto) }
+ * This component is a controlled form element only — it owns no network calls
+ * beyond the thumbnail fetch.  Save / back buttons live in the shell.
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
-import { Link2, Eye, EyeOff, PlayCircle, Info } from 'lucide-react';
-import VideoStep from '../VideoStep';
-import type { StudentVideo } from '../flow/lessonFlow.types';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
+import { Link2, PlayCircle, Video } from 'lucide-react';
 
-// ─── Local draft type ─────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface VideoDraft {
   title:       string;
@@ -39,9 +42,11 @@ export const EMPTY_VIDEO_DRAFT: VideoDraft = {
   url:         '',
 };
 
-// ─── Provider detection helper ────────────────────────────────────────────────
+// ─── Provider / ID detection ──────────────────────────────────────────────────
 
-function detectProvider(url: string): 'youtube' | 'vimeo' | 'direct' | undefined {
+export type VideoProvider = 'youtube' | 'vimeo' | 'direct' | undefined;
+
+export function detectProvider(url: string): VideoProvider {
   if (!url) return undefined;
   const u = url.toLowerCase();
   if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
@@ -50,221 +55,225 @@ function detectProvider(url: string): 'youtube' | 'vimeo' | 'direct' | undefined
   return undefined;
 }
 
-function ProviderBadge({ provider }: { provider: ReturnType<typeof detectProvider> }) {
-  if (!provider) return null;
-  const map: Record<string, { label: string; cls: string }> = {
-    youtube: { label: 'YouTube',  cls: 'bg-red-50 text-red-600 border-red-100' },
-    vimeo:   { label: 'Vimeo',    cls: 'bg-sky-50 text-sky-600 border-sky-100' },
-    direct:  { label: 'Direct',   cls: 'bg-slate-50 text-slate-600 border-slate-200' },
-  };
-  const { label, cls } = map[provider];
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${cls}`}>
-      <PlayCircle className="h-3 w-3" />
-      {label}
-    </span>
-  );
+function extractYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    // Standard watch URL
+    if (u.searchParams.has('v')) return u.searchParams.get('v');
+    // Shortened youtu.be/ID
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('/')[0] || null;
+    // embed/ID or shorts/ID
+    const m = u.pathname.match(/\/(embed|shorts|v)\/([^/?&#]+)/);
+    if (m) return m[2];
+  } catch { /* invalid url */ }
+  return null;
 }
 
-// ─── Form helpers ─────────────────────────────────────────────────────────────
-
-function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
-  return (
-    <label
-      htmlFor={htmlFor}
-      className="block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500 mb-1.5"
-    >
-      {children}
-    </label>
-  );
-}
-
-function TextInput({
-  id, value, onChange, placeholder, type = 'text',
-}: {
-  id?: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; type?: string;
-}) {
-  return (
-    <input
-      id={id}
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={[
-        'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5',
-        'text-[14px] text-slate-800 placeholder-slate-300',
-        'focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100',
-        'transition-colors',
-      ].join(' ')}
-    />
-  );
+function youTubeThumbnail(url: string): string | null {
+  const id = extractYouTubeId(url);
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface VideoEditorStepProps {
+  /** Current draft (controlled). */
   draft?:    VideoDraft;
+  /** Called on every change so parent can persist state. */
   onChange?: (draft: VideoDraft) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function VideoEditorStep({
-  draft: initialDraft,
+  draft:    externalDraft,
   onChange,
 }: VideoEditorStepProps) {
-  const [draft, setDraft] = useState<VideoDraft>(initialDraft ?? { ...EMPTY_VIDEO_DRAFT });
-  const [showPreview, setShowPreview] = useState(true);
 
-  const update = useCallback(<K extends keyof VideoDraft>(key: K, value: VideoDraft[K]) => {
-    setDraft((prev) => {
-      const next = { ...prev, [key]: value };
-      onChange?.(next);
-      return next;
-    });
-  }, [onChange]);
+  const [draft, setDraft] = useState<VideoDraft>(
+    externalDraft ?? { ...EMPTY_VIDEO_DRAFT },
+  );
 
-  const provider = detectProvider(draft.url);
+  // Keep in sync when parent supplies a new initialValue (e.g. existing video loaded).
+  const lastExternalRef = useRef<VideoDraft | undefined>(externalDraft);
+  useEffect(() => {
+    if (externalDraft && externalDraft !== lastExternalRef.current) {
+      lastExternalRef.current = externalDraft;
+      setDraft(externalDraft);
+    }
+  }, [externalDraft]);
 
-  // Build a StudentVideo from draft — the exact shape VideoStep expects
-  const previewVideo = useMemo<StudentVideo | undefined>(() => {
-    if (!draft.url.trim()) return undefined;
-    return {
-      id:          'preview',
-      title:       draft.title || 'Untitled video',
-      description: draft.description || undefined,
-      url:         draft.url.trim(),
-      provider,
-    };
-  }, [draft, provider]);
+  const update = useCallback(
+    <K extends keyof VideoDraft>(key: K, value: VideoDraft[K]) => {
+      setDraft((prev) => {
+        const next = { ...prev, [key]: value };
+        onChange?.(next);
+        return next;
+      });
+    },
+    [onChange],
+  );
+
+  const provider   = detectProvider(draft.url);
+  const ytThumb    = provider === 'youtube' ? youTubeThumbnail(draft.url) : null;
+
+  // Vimeo thumbnail (async)
+  const [vimeoThumb, setVimeoThumb] = useState<string | null>(null);
+  const vimeoFetchRef = useRef<string>('');
+  useEffect(() => {
+    if (provider !== 'vimeo' || !draft.url) {
+      setVimeoThumb(null);
+      return;
+    }
+    if (vimeoFetchRef.current === draft.url) return;
+    vimeoFetchRef.current = draft.url;
+
+    let cancelled = false;
+    fetch(
+      `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(draft.url)}&fields=thumbnail_url`,
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.thumbnail_url) setVimeoThumb(data.thumbnail_url);
+      })
+      .catch(() => { /* ignore — thumbnail remains null */ });
+    return () => { cancelled = true; };
+  }, [provider, draft.url]);
+
+  const thumbnailUrl = ytThumb ?? vimeoThumb ?? null;
+  const hasUrl       = draft.url.trim().length > 0;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col h-full gap-0">
 
-      {/* ── Preview toggle ───────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <p className="text-[12px] text-slate-400">
-          Paste a YouTube, Vimeo, or direct video URL to embed it.
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowPreview((v) => !v)}
-          className="flex items-center gap-1.5 text-[12px] font-medium text-slate-500 hover:text-slate-700 transition-colors focus:outline-none"
-        >
-          {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          {showPreview ? 'Hide preview' : 'Show preview'}
-        </button>
+      {/* ── Title input ───────────────────────────────────────────────────── */}
+      <div className="px-1 pb-3">
+        <input
+          type="text"
+          value={draft.title}
+          onChange={(e) => update('title', e.target.value)}
+          placeholder="Video title…"
+          aria-label="Video title"
+          className={[
+            'w-full rounded-xl border-0 border-b-2 border-slate-100 bg-transparent',
+            'px-0 py-1 text-[22px] font-bold tracking-tight text-slate-800 placeholder-slate-300',
+            'focus:border-sky-400 focus:outline-none transition-colors duration-150',
+          ].join(' ')}
+        />
       </div>
 
-      {/* ── Two-column layout ────────────────────────────────────────────── */}
-      <div className={[
-        'grid gap-6',
-        showPreview ? 'lg:grid-cols-2' : 'grid-cols-1',
-      ].join(' ')}>
+      {/* ── Preview / URL area ────────────────────────────────────────────── */}
+      <div className="relative flex-1 min-h-0 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 flex flex-col">
 
-        {/* ── Left: form ────────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-5">
-
-          {/* URL — primary field */}
-          <div>
-            <FieldLabel htmlFor="video-url">Video URL</FieldLabel>
-            <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-slate-300">
-                <Link2 className="h-4 w-4" />
-              </span>
-              <input
-                id="video-url"
-                type="url"
-                value={draft.url}
-                onChange={(e) => update('url', e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=…"
-                className={[
-                  'w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3.5 py-2.5',
-                  'text-[14px] text-slate-800 placeholder-slate-300',
-                  'focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100',
-                  'transition-colors',
-                ].join(' ')}
-              />
-            </div>
-            {/* Provider badge */}
-            {provider && (
-              <div className="mt-2 flex items-center gap-2">
-                <ProviderBadge provider={provider} />
-                <span className="text-[11px] text-slate-400">detected</span>
-              </div>
-            )}
+        {/* Thumbnail backdrop */}
+        {thumbnailUrl ? (
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${thumbnailUrl})` }}
+            aria-hidden
+          >
+            {/* Gradient vignette for legibility */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60" />
           </div>
-
-          {/* Title */}
-          <div>
-            <FieldLabel htmlFor="video-title">Title</FieldLabel>
-            <TextInput
-              id="video-title"
-              value={draft.title}
-              onChange={(v) => update('title', v)}
-              placeholder="e.g. Introduction to Newton's Laws"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <FieldLabel htmlFor="video-desc">Description (optional)</FieldLabel>
-            <textarea
-              id="video-desc"
-              value={draft.description}
-              onChange={(e) => update('description', e.target.value)}
-              placeholder="Short context for students before they watch…"
-              rows={3}
-              className={[
-                'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5',
-                'text-[14px] text-slate-800 placeholder-slate-300 resize-none',
-                'focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100',
-                'transition-colors',
-              ].join(' ')}
-            />
-          </div>
-
-          {/* Hint */}
-          <div className="flex items-start gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <p className="text-[12px] leading-relaxed text-slate-500">
-              Students will see a "Mark as watched" button for YouTube and Vimeo videos.
-              Native video files (.mp4) support automatic progress tracking.
-            </p>
-          </div>
-
-        </div>
-
-        {/* ── Right: live preview ───────────────────────────────────────── */}
-        {showPreview && (
-          <div className="lg:sticky lg:top-4 space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
-              Preview
-            </p>
-
-            {previewVideo ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                {/* Reuse VideoStep directly — teacher sees exactly what students see */}
-                <VideoStep
-                  video={previewVideo}
-                  hideContinueCta
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-sky-100 bg-sky-50/60 py-12">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-100 text-sky-400">
-                  <PlayCircle className="h-6 w-6" />
-                </div>
-                <p className="text-[13px] font-medium text-sky-600">
-                  Paste a URL to see the preview
-                </p>
-              </div>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-300">
+            <Video className="h-14 w-14 opacity-30" />
+            {!hasUrl && (
+              <p className="text-[13px] text-slate-400">
+                Paste a URL below to see the preview
+              </p>
             )}
           </div>
         )}
+
+        {/* Play overlay (visual only) */}
+        {thumbnailUrl && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/30 backdrop-blur-sm ring-2 ring-white/50">
+              <PlayCircle className="h-8 w-8 text-white drop-shadow" />
+            </div>
+          </div>
+        )}
+
+        {/* Provider chip */}
+        {provider && (
+          <div className="absolute top-3 left-3 z-10">
+            <ProviderChip provider={provider} />
+          </div>
+        )}
+
+        {/* URL input — pinned to bottom of preview area */}
+        <div className="relative z-10 mt-auto p-3">
+          <div className="flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 shadow-sm ring-1 ring-black/10 backdrop-blur">
+            <Link2 className={[
+              'h-4 w-4 shrink-0 transition-colors',
+              hasUrl ? 'text-sky-500' : 'text-slate-300',
+            ].join(' ')} />
+            <input
+              type="url"
+              value={draft.url}
+              onChange={(e) => {
+                update('url', e.target.value);
+                // Reset vimeo thumb on url change
+                if (vimeoFetchRef.current !== e.target.value) {
+                  setVimeoThumb(null);
+                }
+              }}
+              placeholder="https://www.youtube.com/watch?v=…"
+              aria-label="Video URL"
+              spellCheck={false}
+              className={[
+                'flex-1 bg-transparent text-[13px] text-slate-800 placeholder-slate-400',
+                'focus:outline-none min-w-0',
+              ].join(' ')}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* ── Description textarea ──────────────────────────────────────────── */}
+      <div className="pt-3 px-1">
+        <textarea
+          value={draft.description}
+          onChange={(e) => update('description', e.target.value)}
+          placeholder="Add a description for students…"
+          rows={3}
+          aria-label="Video description"
+          className={[
+            'w-full resize-none rounded-xl border border-slate-100 bg-transparent',
+            'px-0 py-1 text-[14px] leading-relaxed text-slate-600 placeholder-slate-300',
+            'focus:border-sky-300 focus:outline-none transition-colors duration-150',
+          ].join(' ')}
+        />
+      </div>
+
     </div>
+  );
+}
+
+// ─── ProviderChip ─────────────────────────────────────────────────────────────
+
+const PROVIDER_STYLES: Record<
+  NonNullable<VideoProvider>,
+  { label: string; cls: string }
+> = {
+  youtube: { label: 'YouTube', cls: 'bg-red-600/90 text-white' },
+  vimeo:   { label: 'Vimeo',   cls: 'bg-sky-600/90  text-white' },
+  direct:  { label: 'Video',   cls: 'bg-slate-700/80 text-white' },
+};
+
+function ProviderChip({ provider }: { provider: NonNullable<VideoProvider> }) {
+  const { label, cls } = PROVIDER_STYLES[provider];
+  return (
+    <span
+      className={[
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5',
+        'text-[11px] font-bold tracking-wide backdrop-blur-sm',
+        cls,
+      ].join(' ')}
+    >
+      <PlayCircle className="h-2.5 w-2.5" />
+      {label}
+    </span>
   );
 }

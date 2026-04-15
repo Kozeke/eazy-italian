@@ -1,5 +1,5 @@
 /**
- * RegisterPage.tsx  (v5 — ProgressMe faithful)
+ * RegisterPage.tsx
  *
  * Steps:
  *   1. email        — enter email
@@ -11,6 +11,10 @@
  *
  * Both Teacher and Student go through the same activation flow
  * Student registration POST → /api/v1/auth/register [unchanged payload]
+ *
+ * Architecture role:
+ * This page drives the multi-step student registration journey and now uses the
+ * same visual language as the admin catalog while preserving existing flow logic.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -18,26 +22,33 @@ import { useNavigate } from 'react-router-dom';
 import {
   Mail, ArrowRight, ArrowLeft, Eye, EyeOff, Lock, User, Pencil, RotateCcw,
 } from 'lucide-react';
+import { LinguAiLogo } from '../global/LinguAiLogo';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
 const c = {
-  page:             '#FFFFFF',
-  inputBg:          '#F4F5F7',
-  inputBorderFocus: '#29B6F6',
-  inputText:        '#1A1D23',
-  inputIcon:        '#B0B7C3',
-  inputPlaceholder: '#B0B7C3',
-  btnBg:            '#29B6F6',
-  btnHover:         '#039BE5',
+  pageBg:           '#F7F7FA',
+  pageCard:         '#FFFFFF',
+  pageCardBorder:   '#E8E8F0',
+  violet:           '#6C6FEF',
+  violetDark:       '#4F52C2',
+  violetLight:      '#EEF0FE',
+  inputBg:          '#FFFFFF',
+  inputBorder:      '#E8E8F0',
+  inputBorderFocus: '#6C6FEF',
+  inputText:        '#18181B',
+  inputIcon:        '#A1A1AA',
+  inputPlaceholder: '#D4D4D8',
+  btnBg:            '#6C6FEF',
+  btnHover:         '#4F52C2',
   btnText:          '#FFFFFF',
-  btnDisabled:      '#A5D8F3',
-  headingText:      '#1F2937',
-  bodyText:         '#374151',
-  mutedText:        '#9CA3AF',
-  linkColor:        '#29B6F6',
-  cardBorder:       '#E5E7EB',
-  cardBorderActive: '#29B6F6',
+  btnDisabled:      '#C7CAFF',
+  headingText:      '#18181B',
+  bodyText:         '#52525B',
+  mutedText:        '#A1A1AA',
+  linkColor:        '#6C6FEF',
+  cardBorder:       '#E8E8F0',
+  cardBorderActive: '#6C6FEF',
   cardBg:           '#FFFFFF',
   errorText:        '#DC2626',
   errorBorder:      '#FCA5A5',
@@ -187,6 +198,7 @@ export default function RegisterPage() {
   return (
     <Shell hideLogo={step === 'trial'}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
         @keyframes regIn  { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pmSpin { to{transform:rotate(360deg)} }
         @keyframes checkPop {
@@ -206,7 +218,7 @@ export default function RegisterPage() {
             <Sub>Start with your email address.</Sub>
             <form
               onSubmit={handleEmailSubmit}
-              style={{ display:'flex', flexDirection:'column', gap:'8px', marginTop:'12px' }}
+              style={{ display:'flex', flexDirection:'column', gap:'7px', marginTop:'10px' }}
             >
               <InputRow
                 icon={<Mail style={{ width:16, height:16 }} />}
@@ -221,7 +233,7 @@ export default function RegisterPage() {
                 Continue
               </BigBtn>
             </form>
-            <p style={{ textAlign:'center', fontSize:'13px', color:c.mutedText, marginTop:'10px' }}>
+            <p style={{ textAlign:'center', fontSize:'12px', color:c.mutedText, marginTop:'8px' }}>
               Already have an account?{' '}
               <LinkBtn onClick={() => navigate('/login')}>Sign in</LinkBtn>
             </p>
@@ -233,10 +245,10 @@ export default function RegisterPage() {
           <div>
             <BackRow onClick={() => { setStep('email'); setError(''); }} />
             <Title>Choose account type</Title>
-            <Sub style={{ marginBottom:'22px' }}>
+            <Sub style={{ marginBottom:'14px' }}>
               You can switch between types later from your profile.
             </Sub>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
               <RoleCard
                 emoji="👩‍🏫"
                 label="For teaching"
@@ -272,10 +284,10 @@ export default function RegisterPage() {
         {/* ── 4. Greeting ───────────────────────────────────────────────────── */}
         {step === 'greeting' && (
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center' }}>
-            <Title style={{ fontSize:'22px', marginBottom:'12px' }}>Welcome!</Title>
+            <Title style={{ fontSize:'19px', marginBottom:'8px' }}>Welcome!</Title>
             <p style={{
-              fontSize:'14px', color:c.bodyText, lineHeight:1.7,
-              maxWidth:'280px', margin:'0 auto 28px',
+              fontSize:'12px', color:c.bodyText, lineHeight:1.6,
+              maxWidth:'260px', margin:'0 auto 16px',
             }}>
               Thousands of teachers and online schools use EZ Italian daily to build engaging, modern lessons.
             </p>
@@ -288,10 +300,10 @@ export default function RegisterPage() {
         {/* ── 5. Details ────────────────────────────────────────────────────── */}
         {step === 'details' && (
           <div>
-            <Title style={{ marginBottom:'22px' }}>Complete registration</Title>
+            <Title style={{ marginBottom:'14px' }}>Complete registration</Title>
             <form
               onSubmit={handleDetailsSubmit}
-              style={{ display:'flex', flexDirection:'column', gap:'12px' }}
+              style={{ display:'flex', flexDirection:'column', gap:'9px' }}
             >
               <SideLabelRow label="Full name *">
                 <InputRow
@@ -326,21 +338,21 @@ export default function RegisterPage() {
         {step === 'trial' && (
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center' }}>
             <div style={{
-              width:100, height:100, borderRadius:'50%',
+              width:80, height:80, borderRadius:'50%',
               background:'linear-gradient(135deg,#4ADE80,#22C55E)',
               display:'flex', alignItems:'center', justifyContent:'center',
-              marginBottom:'24px',
+              marginBottom:'14px',
               animation:'checkPop 0.55s cubic-bezier(.22,.68,0,1.25) both',
-              boxShadow:'0 10px 36px rgba(74,222,128,0.3)',
+              boxShadow:'0 6px 20px rgba(74,222,128,0.22)',
             }}>
-              <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+              <svg width="34" height="34" viewBox="0 0 44 44" fill="none">
                 <path d="M10 23L18 31L34 14" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <Title style={{ fontSize:'20px', marginBottom:'10px' }}>Trial period</Title>
+            <Title style={{ fontSize:'18px', marginBottom:'8px' }}>Trial period</Title>
             <p style={{
-              fontSize:'14px', color:c.bodyText, lineHeight:1.7,
-              maxWidth:'280px', margin:'0 auto 28px',
+              fontSize:'12px', color:c.bodyText, lineHeight:1.6,
+              maxWidth:'260px', margin:'0 auto 16px',
             }}>
               We've activated a free 7-day trial so you can explore everything the platform has to offer.
             </p>
@@ -394,15 +406,15 @@ function ActivationStep({
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:0 }}>
 
       {/* Heading */}
-      <Title style={{ marginBottom:'8px' }}>Account activation</Title>
-      <p style={{ fontSize:'14px', color:c.bodyText, lineHeight:1.65, marginBottom:'14px', maxWidth:'260px' }}>
+      <Title style={{ marginBottom:'6px' }}>Account activation</Title>
+      <p style={{ fontSize:'12px', color:c.bodyText, lineHeight:1.55, marginBottom:'10px', maxWidth:'240px' }}>
         Enter the 4-digit code we sent to your email:
       </p>
 
       {/* Email + edit */}
       <div style={{
-        display:'flex', alignItems:'center', gap:'7px', marginBottom:'22px',
-        fontSize:'15px', fontWeight:700, color:c.headingText,
+        display:'flex', alignItems:'center', gap:'6px', marginBottom:'14px',
+        fontSize:'13px', fontWeight:700, color:c.headingText,
       }}>
         {email}
         <button
@@ -416,28 +428,29 @@ function ActivationStep({
       </div>
 
       {/* Sub-heading */}
-      <p style={{ fontSize:'16px', fontWeight:700, color:c.headingText, marginBottom:'4px' }}>
+      <p style={{ fontSize:'14px', fontWeight:700, color:c.headingText, marginBottom:'2px' }}>
         Check your inbox
       </p>
-      <p style={{ fontSize:'13px', color:c.mutedText, marginBottom:'18px' }}>
+      <p style={{ fontSize:'12px', color:c.mutedText, marginBottom:'12px' }}>
         We sent a 6-digit code to <strong style={{ color:c.headingText }}>{email}</strong>
       </p>
 
       {/* Input row — single text input + inline arrow button */}
-      <form onSubmit={onSubmit} style={{ width:'100%', maxWidth:'320px' }}>
+      <form onSubmit={onSubmit} style={{ width:'100%', maxWidth:'300px' }}>
         <div style={{
-          display:'flex', gap:'8px', alignItems:'center', marginBottom:'12px',
+          display:'flex', gap:'6px', alignItems:'center', marginBottom:'9px',
         }}>
           <div style={{
             flex:1,
             display:'flex', alignItems:'center',
-            background: focused ? '#fff' : c.inputBg,
-            border:`1.5px solid ${focused ? c.inputBorderFocus : 'transparent'}`,
-            borderRadius:'10px', height:'48px', padding:'0 14px',
-            transition:'border-color 0.15s, background 0.15s',
+            background: c.inputBg,
+            border:`1.5px solid ${focused ? c.inputBorderFocus : c.inputBorder}`,
+            borderRadius:'8px', height:'40px', padding:'0 10px',
+            transition:'border-color 0.15s, box-shadow 0.15s',
+            boxShadow: focused ? `0 0 0 3px ${c.violetLight}` : 'none',
           }}>
             {/* key icon */}
-            <svg style={{ width:16, height:16, color:c.inputIcon, marginRight:'10px', flexShrink:0 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg style={{ width:14, height:14, color:c.inputIcon, marginRight:'8px', flexShrink:0 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5l2 2"/>
             </svg>
             <input
@@ -451,7 +464,7 @@ function ActivationStep({
               onBlur={() => setFocused(false)}
               style={{
                 flex:1, background:'transparent', border:'none', outline:'none',
-                fontSize:'15px', color:c.inputText, letterSpacing:'0.1em',
+                fontSize:'13px', color:c.inputText, letterSpacing:'0.08em',
               }}
             />
           </div>
@@ -460,10 +473,10 @@ function ActivationStep({
             type="submit"
             disabled={loading}
             style={{
-              width:48, height:48, flexShrink:0,
+              width:40, height:40, flexShrink:0,
               display:'flex', alignItems:'center', justifyContent:'center',
               background: loading ? c.btnDisabled : c.btnBg,
-              border:'none', borderRadius:'10px', cursor: loading ? 'not-allowed' : 'pointer',
+              border:'none', borderRadius:'8px', cursor: loading ? 'not-allowed' : 'pointer',
               transition:'background 0.15s',
             }}
           >
@@ -472,7 +485,7 @@ function ActivationStep({
                   <circle cx="12" cy="12" r="9" stroke="white" strokeWidth="2.5" strokeOpacity="0.25"/>
                   <path d="M12 3a9 9 0 0 1 9 9" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
                 </svg>
-              : <ArrowRight style={{ width:18, height:18, color:'white' }} />
+              : <ArrowRight style={{ width:15, height:15, color:'white' }} />
             }
           </button>
         </div>
@@ -481,10 +494,10 @@ function ActivationStep({
       </form>
 
       {/* Resend row */}
-      <div style={{ marginTop:'14px', display:'flex', flexDirection:'column', alignItems:'center', gap:'4px' }}>
+      <div style={{ marginTop:'10px', display:'flex', flexDirection:'column', alignItems:'center', gap:'3px' }}>
         {timerOn ? (
-          <p style={{ fontSize:'13px', color:c.mutedText, display:'flex', alignItems:'center', gap:'5px' }}>
-            <RotateCcw style={{ width:13, height:13 }} />
+          <p style={{ fontSize:'12px', color:c.mutedText, display:'flex', alignItems:'center', gap:'4px' }}>
+            <RotateCcw style={{ width:12, height:12 }} />
             Resend code in {resendSecs}s
           </p>
         ) : (
@@ -493,21 +506,21 @@ function ActivationStep({
             onClick={onResend}
             style={{
               background:'none', border:'none', cursor:'pointer',
-              fontSize:'13px', fontWeight:500, color:c.linkColor, padding:0,
+              fontSize:'12px', fontWeight:500, color:c.linkColor, padding:0,
             }}
           >
             Resend code
           </button>
         )}
         {timerOn && (
-          <p style={{ fontSize:'12.5px', color:c.mutedText }}>
+          <p style={{ fontSize:'11px', color:c.mutedText }}>
             Resend available in {resendSecs} seconds
           </p>
         )}
       </div>
 
       {/* Support link */}
-      <p style={{ fontSize:'12.5px', color:c.mutedText, marginTop:'18px' }}>
+      <p style={{ fontSize:'11px', color:c.mutedText, marginTop:'12px' }}>
         Having trouble?{' '}
         <a
           href="mailto:support@ezitalian.com"
@@ -525,26 +538,30 @@ function ActivationStep({
 function Shell({ children, hideLogo }: { children: React.ReactNode; hideLogo?: boolean }) {
   return (
     <div style={{
-      minHeight:'100dvh', background:c.page,
+      minHeight:'100dvh', background:c.pageBg,
       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-      padding:'24px 16px 60px',
-      fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      padding:'20px 14px 40px',
+      fontFamily:"'Inter', system-ui, sans-serif",
     }}>
       {/* Logo — hidden on the trial/success step */}
       {!hideLogo && (
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'10px', marginBottom:'32px' }}>
-          <svg width="72" height="72" viewBox="0 0 34 34" fill="none">
-            <rect width="34" height="34" rx="9" fill="#EFF9FF"/>
-            <path d="M17 7C12.3 7 8.5 10.8 8.5 15.5V25.5C8.5 26.3 9.2 27 10 27H17V7Z" fill="#29B6F6"/>
-            <path d="M17 7C21.7 7 25.5 10.8 25.5 15.5V25.5C25.5 26.3 24.8 27 24 27H17V7Z" fill="#F97316" opacity="0.9"/>
-            <rect x="15.75" y="7" width="2.5" height="20" rx="1" fill="white" opacity="0.55"/>
-          </svg>
-          <span style={{ fontSize:'19px', fontWeight:700, color:'#1A1D23', letterSpacing:'-0.025em' }}>
-            EZ Italian
-          </span>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom:'14px' }}>
+          <a href="/" style={{ display:'inline-block' }} aria-label="LinguAI home">
+            <LinguAiLogo height={46} showWordmark />
+          </a>
         </div>
       )}
-      <div style={{ width:'100%', maxWidth:'360px' }}>{children}</div>
+      <div style={{
+        width:'100%',
+        maxWidth:'360px',
+        background:c.pageCard,
+        border:`1px solid ${c.pageCardBorder}`,
+        borderRadius:'14px',
+        boxShadow:'0 1px 4px rgba(108,111,239,.04)',
+        padding:'22px 18px 18px',
+      }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -560,30 +577,30 @@ function RoleCard({ emoji, label, description, onSelect }: {
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       onClick={onSelect}
       style={{
-        background: hov ? '#F0FBFF' : c.cardBg,
+        background: hov ? c.violetLight : c.cardBg,
         border:`1.5px solid ${hov ? c.cardBorderActive : c.cardBorder}`,
-        borderRadius:'16px', padding:'20px 14px 16px',
+        borderRadius:'14px', padding:'14px 10px 12px',
         display:'flex', flexDirection:'column', alignItems:'center', gap:'10px',
-        boxShadow: hov ? '0 4px 20px rgba(41,182,246,0.12)' : '0 2px 12px rgba(0,0,0,0.05)',
+        boxShadow: hov ? '0 4px 14px rgba(108,111,239,.12)' : '0 1px 4px rgba(108,111,239,.04)',
         transition:'all 0.18s ease', cursor:'pointer',
       }}
     >
       <div style={{
-        width:56, height:56, borderRadius:'50%', background:'#F0FBFF',
+        width:44, height:44, borderRadius:'50%', background:c.violetLight,
         display:'flex', alignItems:'center', justifyContent:'center',
-        fontSize:'28px', lineHeight:1,
+        fontSize:'22px', lineHeight:1,
       }}>
         {emoji}
       </div>
       <div style={{ textAlign:'center' }}>
-        <div style={{ fontSize:'13.5px', fontWeight:700, color:c.headingText, marginBottom:'3px' }}>{label}</div>
-        <div style={{ fontSize:'12px', color:c.mutedText, lineHeight:1.5 }}>{description}</div>
+        <div style={{ fontSize:'12.5px', fontWeight:700, color:c.headingText, marginBottom:'2px' }}>{label}</div>
+        <div style={{ fontSize:'11px', color:c.mutedText, lineHeight:1.4 }}>{description}</div>
       </div>
       <button type="button" style={{
-        marginTop:'4px', width:'100%', height:'36px',
+        marginTop:'2px', width:'100%', height:'32px',
         background: hov ? c.btnHover : c.btnBg,
         color:c.btnText, border:'none', borderRadius:'8px',
-        fontSize:'13px', fontWeight:700, cursor:'pointer',
+        fontSize:'12px', fontWeight:700, cursor:'pointer',
         transition:'background 0.15s',
       }}>
         Select
@@ -596,8 +613,8 @@ function RoleCard({ emoji, label, description, onSelect }: {
 
 function SideLabelRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'108px 1fr', alignItems:'center', gap:'10px' }}>
-      <label style={{ fontSize:'13.5px', fontWeight:500, color:c.bodyText }}>{label}</label>
+    <div style={{ display:'grid', gridTemplateColumns:'96px 1fr', alignItems:'center', gap:'8px' }}>
+      <label style={{ fontSize:'12px', fontWeight:500, color:c.bodyText }}>{label}</label>
       <div>{children}</div>
     </div>
   );
@@ -615,17 +632,18 @@ export function InputRow({
   return (
     <div style={{
       display:'flex', alignItems:'center',
-      background: focused ? '#fff' : c.inputBg,
-      border:`1.5px solid ${focused ? c.inputBorderFocus : 'transparent'}`,
-      borderRadius:'9px', height:'44px', padding:'0 12px',
-      transition:'border-color 0.15s, background 0.15s',
+      background: c.inputBg,
+      border:`1.5px solid ${focused ? c.inputBorderFocus : c.inputBorder}`,
+      borderRadius:'8px', height:'40px', padding:'0 10px',
+      transition:'border-color 0.15s, box-shadow 0.15s',
+      boxShadow: focused ? `0 0 0 3px ${c.violetLight}` : 'none',
     }}>
-      {icon && <span style={{ display:'flex', color:c.inputIcon, marginRight:'9px', flexShrink:0 }}>{icon}</span>}
+      {icon && <span style={{ display:'flex', color:c.inputIcon, marginRight:'8px', flexShrink:0 }}>{icon}</span>}
       <input
         type={type} placeholder={placeholder} value={value}
         onChange={e => onChange(e.target.value)} autoFocus={autoFocus}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        style={{ flex:1, background:'transparent', border:'none', outline:'none', fontSize:'14px', color:c.inputText, minWidth:0 }}
+        style={{ flex:1, background:'transparent', border:'none', outline:'none', fontSize:'13px', color:c.inputText, minWidth:0 }}
       />
     </div>
   );
@@ -646,10 +664,11 @@ export function PwInput({ placeholder, value, onChange }: {
     <div>
       <div style={{
         display:'flex', alignItems:'center',
-        background: focused ? '#fff' : c.inputBg,
-        border:`1.5px solid ${focused ? c.inputBorderFocus : 'transparent'}`,
-        borderRadius:'9px', height:'44px', padding:'0 12px',
-        transition:'border-color 0.15s, background 0.15s',
+        background: c.inputBg,
+        border:`1.5px solid ${focused ? c.inputBorderFocus : c.inputBorder}`,
+        borderRadius:'8px', height:'40px', padding:'0 10px',
+        transition:'border-color 0.15s, box-shadow 0.15s',
+        boxShadow: focused ? `0 0 0 3px ${c.violetLight}` : 'none',
       }}>
         <span style={{ display:'flex', color:c.inputIcon, marginRight:'9px', flexShrink:0 }}>
           <Lock style={{ width:16, height:16 }} />
@@ -658,7 +677,7 @@ export function PwInput({ placeholder, value, onChange }: {
           type={show ? 'text' : 'password'} placeholder={placeholder ?? 'Password'} value={value}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          style={{ flex:1, background:'transparent', border:'none', outline:'none', fontSize:'14px', color:c.inputText, minWidth:0 }}
+          style={{ flex:1, background:'transparent', border:'none', outline:'none', fontSize:'13px', color:c.inputText, minWidth:0 }}
         />
         <button type="button" onClick={() => setShow(!show)}
           style={{ background:'none', border:'none', cursor:'pointer', display:'flex', color:c.inputIcon, padding:0, marginLeft:'8px' }}>
@@ -696,11 +715,11 @@ export function BigBtn({
       type={type} onClick={onClick} disabled={loading}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        width:'100%', height:'46px',
+        width:'100%', height:'42px',
         display:'flex', alignItems:'center', justifyContent:'center', gap:'7px',
         background: loading ? c.btnDisabled : hov ? c.btnHover : c.btnBg,
         color:c.btnText, border:'none', borderRadius:'10px',
-        fontSize:'14px', fontWeight:700,
+        fontSize:'13px', fontWeight:700,
         cursor: loading ? 'not-allowed' : 'pointer',
         transition:'background 0.15s', letterSpacing:'0.01em',
         ...extra,
@@ -721,7 +740,7 @@ export function BigBtn({
 
 function Title({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <h2 style={{ margin:0, fontSize:'20px', fontWeight:700, color:c.headingText,
+    <h2 style={{ margin:0, fontFamily:"'Nunito', system-ui, sans-serif", fontSize:'19px', fontWeight:900, color:c.headingText,
       letterSpacing:'-0.01em', lineHeight:1.3, textAlign:'center', ...style }}>
       {children}
     </h2>
@@ -730,7 +749,7 @@ function Title({ children, style }: { children: React.ReactNode; style?: React.C
 
 function Sub({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <p style={{ margin:'6px 0 0', fontSize:'13.5px', color:c.mutedText,
+    <p style={{ margin:'4px 0 0', fontSize:'12px', color:c.mutedText,
       lineHeight:1.5, textAlign:'center', ...style }}>
       {children}
     </p>
@@ -739,9 +758,9 @@ function Sub({ children, style }: { children: React.ReactNode; style?: React.CSS
 
 function Err({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ padding:'8px 12px', background:c.errorBg,
+    <div style={{ padding:'7px 10px', background:c.errorBg,
       border:`1px solid ${c.errorBorder}`, borderRadius:'7px',
-      fontSize:'13px', color:c.errorText, lineHeight:1.4, ...style }}>
+      fontSize:'12px', color:c.errorText, lineHeight:1.4, ...style }}>
       {children}
     </div>
   );
@@ -755,8 +774,8 @@ function BackRow({ onClick }: { onClick: () => void }) {
       style={{
         background:'none', border:'none', cursor:'pointer',
         display:'flex', alignItems:'center', gap:'5px',
-        fontSize:'13px', fontWeight:500, color: hov ? '#4B5563' : c.mutedText,
-        marginBottom:'14px', padding:0, transition:'color 0.15s',
+        fontSize:'12px', fontWeight:500, color: hov ? '#4B5563' : c.mutedText,
+        marginBottom:'10px', padding:0, transition:'color 0.15s',
       }}>
       <ArrowLeft style={{ width:14, height:14 }} />Back
     </button>
@@ -767,7 +786,7 @@ function LinkBtn({ children, onClick }: { children: React.ReactNode; onClick?: (
   return (
     <button type="button" onClick={onClick}
       style={{ background:'none', border:'none', cursor:'pointer',
-        fontSize:'13px', fontWeight:600, color:c.linkColor, padding:0 }}>
+        fontSize:'12px', fontWeight:600, color:c.linkColor, padding:0 }}>
       {children}
     </button>
   );

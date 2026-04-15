@@ -1,46 +1,164 @@
 /**
- * TestEditorStep.tsx
+ * TestEditorStep.tsx  (v3 — question persistence)
  *
- * Local test setup editor for the teacher classroom builder.
- * Covers the test metadata shell — the question builder is out of scope
- * for this step and will be implemented separately.
+ * Changes from v2:
+ * ─────────────────
+ * • TestQuestion now carries an optional `questionId?: number` — the real
+ *   backend id returned after POST /tests/{id}/questions.
+ *   When questionId is present, Save calls PUT /admin/questions/{id}.
+ *   When it is absent, Save calls POST /tests/{id}/questions.
+ *   This is the ONLY structural change needed in this file.
  *
- * Fields (mirrors the backend test model)
- * ───────────────────────────────────────
- * • title               — required
- * • description         — shown to students before they start
- * • instructions        — shown on the test intro screen
- * • time_limit_minutes  — 0 = no limit
- * • passing_score       — 0–100 (percentage)
+ * • TestAnswer carries an optional `answerId?: number` for future use but
+ *   is not required by the current save flow.
  *
- * API wiring notes (for next step):
- *   onSave(draft) → POST /api/v1/units/:unitId/tests
- *   Expected body: { title, description, instructions,
- *                    time_limit_minutes, passing_score, unit_id }
+ * • All rendering, UX, and EMPTY_TEST_DRAFT are unchanged from v2.
  */
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  Clock, Award, ClipboardList, Info,
-  CheckCircle2, AlertCircle, Plus,
+  ChevronDown, ChevronUp,
+  Plus, Sparkles, X, Info,
 } from 'lucide-react';
 
-// ─── Local draft type ─────────────────────────────────────────────────────────
+// Phase-4: typed question editor dispatcher
+import QuestionEditorRenderer, {
+  type MultipleChoiceDraft,
+  type QuestionDraft,
+  emptyDraftFor,
+} from './QuestionEditorRenderer';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface TestAnswer {
+  id:        string;   // client-only uuid
+  answerId?: number;   // backend id (future-use)
+  text:      string;
+  isCorrect: boolean;
+}
+
+export interface TestQuestion {
+  id:          string;   // client-only uuid (stable key for React)
+  questionId?: number;   // ← real backend id; absent = not yet saved
+  prompt:      string;
+  answers:     TestAnswer[];
+  /** Phase-4: typed draft for new question types. When present, this is the
+   *  source of truth for the question body and answers is ignored. */
+  typedDraft?: QuestionDraft;
+}
+
+/** Full draft — superset of v1/v2 so existing save handlers stay intact. */
 export interface TestDraft {
-  title:                string;
-  description:          string;
-  instructions:         string;
-  time_limit_minutes:   number;   // 0 = unlimited
-  passing_score:        number;   // 0–100 %
+  // ── v1 fields (unchanged) ──────────────────────────────────────────────────
+  title:               string;
+  description:         string;
+  instructions:        string;
+  time_limit_minutes:  number;   // 0 = unlimited
+  passing_score:       number;   // 0–100 %
+  // ── v2 additions ──────────────────────────────────────────────────────────
+  questions:           TestQuestion[];
+}
+
+function makeId(): string {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function makeAnswer(
+  id: string = makeId(),
+  text = '',
+  isCorrect = false,
+): TestAnswer {
+  return { id, text, isCorrect };
+}
+
+function createMultipleChoiceDraft(
+  prompt = '',
+  answers: TestAnswer[] = [makeAnswer(), makeAnswer()],
+): MultipleChoiceDraft {
+  const safeAnswers = answers.length >= 2 ? answers : [...answers, makeAnswer(), makeAnswer()].slice(0, 2);
+  return {
+    type: 'multiple_choice',
+    prompt,
+    options: safeAnswers.map((answer) => ({
+      id: answer.id,
+      text: answer.text,
+    })),
+    correct_option_ids: safeAnswers
+      .filter((answer) => answer.isCorrect)
+      .map((answer) => answer.id),
+    score: 1,
+  };
+}
+
+function syncLegacyFields(question: TestQuestion, draft: QuestionDraft): TestQuestion {
+  if (draft.type === 'multiple_choice') {
+    return {
+      ...question,
+      prompt: draft.prompt,
+      typedDraft: draft,
+      answers: draft.options.map((option) => ({
+        id: option.id,
+        text: option.text,
+        isCorrect: draft.correct_option_ids.includes(option.id),
+      })),
+    };
+  }
+
+  return {
+    ...question,
+    prompt: draft.prompt,
+    typedDraft: draft,
+  };
+}
+
+function normaliseQuestion(question: TestQuestion): TestQuestion {
+  const draft =
+    question.typedDraft ??
+    createMultipleChoiceDraft(question.prompt, question.answers);
+
+  return syncLegacyFields(question, draft);
+}
+
+function normaliseQuestions(
+  questions?: TestQuestion[],
+  defaultQuestionType: QuestionDraft["type"] = "multiple_choice",
+): TestQuestion[] {
+  const next = (questions ?? []).map(normaliseQuestion);
+  return next.length > 0 ? next : [makeQuestion(defaultQuestionType)];
+}
+
+function normaliseDraft(
+  draft?: TestDraft,
+  lockTimeLimitToZero = true,
+  defaultQuestionType: QuestionDraft["type"] = "multiple_choice",
+): TestDraft {
+  const base = draft ?? { ...EMPTY_TEST_DRAFT };
+  return {
+    ...base,
+    time_limit_minutes: lockTimeLimitToZero
+      ? 0
+      : base.time_limit_minutes,
+    questions: normaliseQuestions(base.questions, defaultQuestionType),
+  };
+}
+
+function makeQuestion(
+  type: QuestionDraft["type"] = "multiple_choice",
+): TestQuestion {
+  return syncLegacyFields({
+    id:      makeId(),
+    prompt:  '',
+    answers: [],
+  }, emptyDraftFor(type) as QuestionDraft);
 }
 
 export const EMPTY_TEST_DRAFT: TestDraft = {
-  title:                '',
-  description:          '',
-  instructions:         '',
-  time_limit_minutes:   0,
-  passing_score:        60,
+  title:               '',
+  description:         '',
+  instructions:        '',
+  time_limit_minutes:  0,
+  passing_score:       60,
+  questions:           [makeQuestion()],
 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -48,363 +166,341 @@ export const EMPTY_TEST_DRAFT: TestDraft = {
 export interface TestEditorStepProps {
   draft?:    TestDraft;
   onChange?: (draft: TestDraft) => void;
+  lockTimeLimitToZero?: boolean;
+  defaultQuestionType?: QuestionDraft["type"];
+  /** Called when the teacher clicks "Сгенерировать" — opens the AI modal in the parent. */
+  onAIGenerate?: () => void;
 }
 
-// ─── Form helpers ─────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function FieldLabel({
-  children,
-  htmlFor,
-  optional,
+/** Inline editable title at the very top of the shell (above the card). */
+function TitleInput({
+  value,
+  onChange,
 }: {
-  children: React.ReactNode;
-  htmlFor?: string;
-  optional?: boolean;
-}) {
-  return (
-    <label
-      htmlFor={htmlFor}
-      className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500 mb-1.5"
-    >
-      {children}
-      {optional && (
-        <span className="normal-case font-normal text-slate-300 text-[11px]">optional</span>
-      )}
-    </label>
-  );
-}
-
-function TextInput({
-  id, value, onChange, placeholder,
-}: {
-  id?: string; value: string; onChange: (v: string) => void; placeholder?: string;
+  value:    string;
+  onChange: (v: string) => void;
 }) {
   return (
     <input
-      id={id}
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
+      placeholder="Test title…"
+      aria-label="Test title"
       className={[
-        'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5',
-        'text-[14px] text-slate-800 placeholder-slate-300',
-        'focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100',
-        'transition-colors',
+        'w-full bg-transparent text-[20px] font-bold text-slate-800 placeholder-slate-300',
+        'border-b-2 border-transparent focus:border-cyan-500',
+        'pb-1 focus:outline-none transition-colors duration-150',
+        'caret-cyan-500',
       ].join(' ')}
     />
   );
 }
 
-function TextArea({
-  id, value, onChange, placeholder, rows = 3,
-}: {
-  id?: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; rows?: number;
-}) {
-  return (
-    <textarea
-      id={id}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      className={[
-        'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5',
-        'text-[14px] text-slate-800 placeholder-slate-300 resize-none',
-        'focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100',
-        'transition-colors',
-      ].join(' ')}
-    />
-  );
-}
+// ─── QuestionBlock ─────────────────────────────────────────────────────────────
 
-// ─── Numeric stepper ──────────────────────────────────────────────────────────
-
-function NumericStepper({
-  id,
-  value,
+function QuestionBlock({
+  question,
   onChange,
-  min = 0,
-  max,
-  step = 1,
-  unit,
-  zeroLabel,
+  onRemove,
+  canRemove,
 }: {
-  id?: string;
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-  zeroLabel?: string;
+  question:  TestQuestion;
+  onChange:  (q: TestQuestion) => void;
+  onRemove:  () => void;
+  canRemove: boolean;
 }) {
-  const dec = () => onChange(Math.max(min, value - step));
-  const inc = () => onChange(max !== undefined ? Math.min(max, value + step) : value + step);
-
-  const display = value === 0 && zeroLabel ? zeroLabel : `${value}${unit ? ` ${unit}` : ''}`;
-
-  return (
-    <div className="flex items-center gap-0 rounded-xl border border-slate-200 bg-white overflow-hidden w-fit">
-      <button
-        type="button"
-        onClick={dec}
-        disabled={value <= min}
-        className={[
-          'px-3 py-2.5 text-slate-500 transition-colors',
-          'hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400',
-        ].join(' ')}
-        aria-label="Decrease"
-      >
-        −
-      </button>
-      <span
-        id={id}
-        className="min-w-[80px] px-3 py-2.5 text-center text-[14px] font-semibold text-slate-800 border-x border-slate-200"
-      >
-        {display}
-      </span>
-      <button
-        type="button"
-        onClick={inc}
-        disabled={max !== undefined && value >= max}
-        className={[
-          'px-3 py-2.5 text-slate-500 transition-colors',
-          'hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400',
-        ].join(' ')}
-        aria-label="Increase"
-      >
-        +
-      </button>
-    </div>
-  );
-}
-
-// ─── Score ring mini visualisation ───────────────────────────────────────────
-
-function PassScoreRing({ score }: { score: number }) {
-  const r         = 24;
-  const circ      = 2 * Math.PI * r;
-  const fillRatio = score / 100;
-  const dash      = fillRatio * circ;
-  const gap       = circ - dash;
-  const isHigh    = score >= 70;
-  const isMid     = score >= 40 && score < 70;
+  const typedDraft =
+    question.typedDraft ??
+    createMultipleChoiceDraft(question.prompt, question.answers);
 
   return (
-    <div className="flex items-center gap-3">
-      <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden>
-        <circle cx="28" cy="28" r={r} fill="none" stroke="#f1f5f9" strokeWidth="5" />
-        <circle
-          cx="28" cy="28" r={r} fill="none"
-          stroke={isHigh ? '#059669' : isMid ? '#f59e0b' : '#ef4444'}
-          strokeWidth="5"
-          strokeDasharray={`${dash} ${gap}`}
-          strokeLinecap="round"
-          transform="rotate(-90 28 28)"
+    <div className="relative px-4 py-4">
+      <div className="pr-8">
+        <QuestionEditorRenderer
+          draft={typedDraft}
+          onChange={(draft) => onChange(syncLegacyFields(question, draft))}
         />
-        <text x="28" y="32" textAnchor="middle"
-          fontSize="11" fontWeight="700"
-          fill={isHigh ? '#065f46' : isMid ? '#92400e' : '#7f1d1d'}
-        >
-          {score}%
-        </text>
-      </svg>
-      <div>
-        <p className={[
-          'text-[13px] font-semibold',
-          isHigh ? 'text-emerald-700' : isMid ? 'text-amber-700' : 'text-red-700',
-        ].join(' ')}>
-          {isHigh ? 'High standard' : isMid ? 'Moderate standard' : 'Low threshold'}
-        </p>
-        <p className="text-[11px] text-slate-400">
-          Students need {score}% to pass
-        </p>
       </div>
-    </div>
-  );
-}
 
-// ─── Preview card ─────────────────────────────────────────────────────────────
-
-function TestPreviewCard({ draft }: { draft: TestDraft }) {
-  const isEmpty = !draft.title && !draft.description;
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="h-[3px] w-full bg-gradient-to-r from-emerald-600 to-emerald-400" />
-      <div className="p-5">
-        <div className="mb-4 flex items-center gap-1.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
-            <ClipboardList className="h-3 w-3" />
-            Test
-          </span>
-        </div>
-
-        {isEmpty ? (
-          <p className="text-sm italic text-slate-300 py-6 text-center">
-            Preview appears here as you fill in the fields.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {draft.title && (
-              <h3 className="text-[17px] font-bold text-slate-900 leading-snug">
-                {draft.title}
-              </h3>
-            )}
-            {draft.description && (
-              <p className="text-[13px] leading-relaxed text-slate-500">{draft.description}</p>
-            )}
-            {draft.instructions && (
-              <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 mb-1">Instructions</p>
-                <p className="text-[13px] leading-relaxed text-slate-700 line-clamp-4">
-                  {draft.instructions}
-                </p>
-              </div>
-            )}
-
-            {/* Meta row */}
-            <div className="flex flex-wrap gap-3 pt-1">
-              <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-semibold text-slate-600">
-                <Clock className="h-3.5 w-3.5 text-slate-400" />
-                {draft.time_limit_minutes === 0
-                  ? 'No time limit'
-                  : `${draft.time_limit_minutes} min`}
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-700">
-                <Award className="h-3.5 w-3.5" />
-                Pass: {draft.passing_score}%
-              </span>
-            </div>
-          </div>
+      <div className="absolute right-4 top-4">
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-slate-300 hover:text-red-400 transition-colors focus:outline-none"
+            aria-label="Remove question"
+          >
+            <X className="h-4 w-4" />
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── AdvancedSettings ─────────────────────────────────────────────────────────
 
-export default function TestEditorStep({
-  draft: initialDraft,
-  onChange,
-}: TestEditorStepProps) {
-  const [draft, setDraft] = useState<TestDraft>(initialDraft ?? { ...EMPTY_TEST_DRAFT });
-
-  const update = useCallback(<K extends keyof TestDraft>(key: K, value: TestDraft[K]) => {
-    setDraft((prev) => {
-      const next = { ...prev, [key]: value };
-      onChange?.(next);
-      return next;
-    });
-  }, [onChange]);
+function AdvancedSettings({
+  draft,
+  onUpdate,
+}: {
+  draft:    TestDraft;
+  onUpdate: <K extends keyof TestDraft>(key: K, value: TestDraft[K]) => void;
+}) {
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="rounded-2xl border border-slate-100 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={[
+          'w-full flex items-center justify-between px-5 py-3.5',
+          'text-[13px] font-semibold text-slate-500 hover:text-slate-700',
+          'bg-slate-50 transition-colors focus:outline-none',
+        ].join(' ')}
+      >
+        <span className="inline-flex items-center gap-2">
+          <Info className="h-4 w-4" />
+          Advanced settings
+        </span>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
 
-      <p className="text-[12px] text-slate-400">
-        Set up the test details below. You'll be able to add questions after saving.
-      </p>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-
-        {/* ── Left: form ────────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-5">
-
-          {/* Title */}
-          <div>
-            <FieldLabel htmlFor="test-title">Test title</FieldLabel>
-            <TextInput
-              id="test-title"
-              value={draft.title}
-              onChange={(v) => update('title', v)}
-              placeholder="e.g. Unit 3 end-of-lesson test"
-            />
-          </div>
-
+      {open && (
+        <div className="px-5 py-4 flex flex-col gap-4 bg-white">
           {/* Description */}
           <div>
-            <FieldLabel htmlFor="test-desc" optional>Description</FieldLabel>
-            <TextArea
-              id="test-desc"
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Description <span className="normal-case font-normal text-slate-300">(optional)</span>
+            </label>
+            <textarea
               value={draft.description}
-              onChange={(v) => update('description', v)}
+              onChange={(e) => onUpdate('description', e.target.value)}
               placeholder="Short summary shown to students before they start."
               rows={2}
+              className={[
+                'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 resize-none',
+                'text-[13px] text-slate-800 placeholder-slate-300',
+                'focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100',
+                'transition-colors',
+              ].join(' ')}
             />
           </div>
 
           {/* Instructions */}
           <div>
-            <FieldLabel htmlFor="test-instructions" optional>Instructions</FieldLabel>
-            <TextArea
-              id="test-instructions"
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Instructions <span className="normal-case font-normal text-slate-300">(optional)</span>
+            </label>
+            <textarea
               value={draft.instructions}
-              onChange={(v) => update('instructions', v)}
+              onChange={(e) => onUpdate('instructions', e.target.value)}
               placeholder="e.g. Answer all questions. You may not use your notes."
-              rows={3}
+              rows={2}
+              className={[
+                'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 resize-none',
+                'text-[13px] text-slate-800 placeholder-slate-300',
+                'focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100',
+                'transition-colors',
+              ].join(' ')}
             />
-          </div>
-
-          {/* Time limit */}
-          <div>
-            <FieldLabel htmlFor="test-time">Time limit</FieldLabel>
-            <NumericStepper
-              id="test-time"
-              value={draft.time_limit_minutes}
-              onChange={(v) => update('time_limit_minutes', v)}
-              min={0}
-              max={180}
-              step={5}
-              unit="min"
-              zeroLabel="No limit"
-            />
-            <p className="mt-1.5 text-[11px] text-slate-400">
-              Set to 0 for untimed tests.
-            </p>
           </div>
 
           {/* Passing score */}
           <div>
-            <FieldLabel htmlFor="test-pass">Passing score</FieldLabel>
-            <NumericStepper
-              id="test-pass"
-              value={draft.passing_score}
-              onChange={(v) => update('passing_score', v)}
-              min={0}
-              max={100}
-              step={5}
-              unit="%"
-            />
-            <div className="mt-3">
-              <PassScoreRing score={draft.passing_score} />
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Passing score
+            </label>
+            <div className="flex items-center gap-0 rounded-xl border border-slate-200 bg-white overflow-hidden w-fit">
+              <button
+                type="button"
+                onClick={() => onUpdate('passing_score', Math.max(0, draft.passing_score - 5))}
+                disabled={draft.passing_score <= 0}
+                className="px-3 py-2 text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors focus:outline-none"
+              >−</button>
+              <span className="min-w-[72px] px-3 py-2 text-center text-[14px] font-semibold text-slate-800 border-x border-slate-200">
+                {draft.passing_score}%
+              </span>
+              <button
+                type="button"
+                onClick={() => onUpdate('passing_score', Math.min(100, draft.passing_score + 5))}
+                disabled={draft.passing_score >= 100}
+                className="px-3 py-2 text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors focus:outline-none"
+              >+</button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
-          {/* Questions note */}
-          <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-            <p className="text-[12px] leading-relaxed text-emerald-700">
-              After saving, you'll be taken to the question builder where you can add
-              multiple-choice and open-answer questions.
-            </p>
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export default function TestEditorStep({
+  draft: initialDraft,
+  onChange,
+  lockTimeLimitToZero = true,
+  defaultQuestionType = "multiple_choice",
+  onAIGenerate,
+}: TestEditorStepProps) {
+  const [draft, setDraft] = useState<TestDraft>(() =>
+    normaliseDraft(initialDraft, lockTimeLimitToZero, defaultQuestionType),
+  );
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  // Keep in sync when the parent refreshes the draft (e.g. teacher opens a
+  // different existing test while this frame stays mounted).
+  const prevDraftRef = useRef(initialDraft);
+  useEffect(() => {
+    if (initialDraft && initialDraft !== prevDraftRef.current) {
+      prevDraftRef.current = initialDraft;
+      const next = normaliseDraft(
+        initialDraft,
+        lockTimeLimitToZero,
+        defaultQuestionType,
+      );
+      draftRef.current = next;
+      setDraft(next);
+    }
+  }, [defaultQuestionType, initialDraft, lockTimeLimitToZero]);
+
+  // Temporarily hide advanced settings in this editor step.
+  // (Kept in code for quick re-enable without losing the implementation.)
+  const showAdvancedSettings = false;
+
+  const questionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const pendingScrollQuestionIdRef = useRef<string | null>(null);
+
+  const commitDraft = useCallback(
+    (updater: (prev: TestDraft) => TestDraft) => {
+      const next = updater(draftRef.current);
+      draftRef.current = next;
+      setDraft(next);
+      onChange?.(next);
+    },
+    [onChange],
+  );
+
+  const update = useCallback(<K extends keyof TestDraft>(key: K, value: TestDraft[K]) => {
+    commitDraft((prev) => ({
+      ...prev,
+      [key]: value,
+      ...(lockTimeLimitToZero ? { time_limit_minutes: 0 } : {}),
+    }));
+  }, [commitDraft, lockTimeLimitToZero]);
+
+  // ── Question mutations ────────────────────────────────────────────────────
+
+  const updateQuestion = useCallback((qId: string, updated: TestQuestion) => {
+    commitDraft((prev) => ({
+      ...prev,
+      ...(lockTimeLimitToZero ? { time_limit_minutes: 0 } : {}),
+      questions: prev.questions.map((q) => q.id === qId ? normaliseQuestion(updated) : q),
+    }));
+  }, [commitDraft, lockTimeLimitToZero]);
+
+  const removeQuestion = useCallback((qId: string) => {
+    commitDraft((prev) => ({
+      ...prev,
+      ...(lockTimeLimitToZero ? { time_limit_minutes: 0 } : {}),
+      questions: prev.questions.filter((q) => q.id !== qId),
+    }));
+  }, [commitDraft, lockTimeLimitToZero]);
+
+  const addQuestion = useCallback(() => {
+    const q = makeQuestion(defaultQuestionType);
+    pendingScrollQuestionIdRef.current = q.id;
+    commitDraft((prev) => ({
+      ...prev,
+      ...(lockTimeLimitToZero ? { time_limit_minutes: 0 } : {}),
+      questions: [...prev.questions, q],
+    }));
+  }, [commitDraft, defaultQuestionType, lockTimeLimitToZero]);
+
+  useEffect(() => {
+    const questionId = pendingScrollQuestionIdRef.current;
+    if (!questionId) return;
+
+    questionRefs.current[questionId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    pendingScrollQuestionIdRef.current = null;
+  }, [draft.questions.length]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="flex flex-col gap-5">
+
+      {/* ── A. Inline title ─────────────────────────────────────────────── */}
+      <TitleInput
+        value={draft.title}
+        onChange={(v) => update('title', v)}
+      />
+
+      {/* ── B. Questions ────────────────────────────────────────────────── */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        {draft.questions.map((q, idx) => (
+          <div
+            key={q.id}
+            ref={(node) => {
+              questionRefs.current[q.id] = node;
+            }}
+            className={idx > 0 ? 'border-t border-slate-100' : ''}
+          >
+            <QuestionBlock
+              question={q}
+              onChange={(updated) => updateQuestion(q.id, updated)}
+              onRemove={() => removeQuestion(q.id)}
+              canRemove={draft.questions.length > 1}
+            />
           </div>
-
-        </div>
-
-        {/* ── Right: preview ─────────────────────────────────────────────── */}
-        <div className="lg:sticky lg:top-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">
-            Preview
-          </p>
-          <TestPreviewCard draft={draft} />
-        </div>
-
+        ))}
       </div>
+
+      {/* ── C. Footer actions ───────────────────────────────────────────── */}
+      <div
+        className="flex items-center gap-3 py-2"
+      >
+        <button
+          type="button"
+          onClick={addQuestion}
+          className={[
+            'inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5',
+            'text-[13px] font-medium text-cyan-700 hover:border-cyan-300 hover:bg-cyan-100',
+            'transition-colors focus:outline-none',
+          ].join(' ')}
+        >
+          <Plus className="h-4 w-4" />
+          Добавить вопрос
+        </button>
+
+        <button
+          type="button"
+          className={[
+            'inline-flex items-center gap-1.5 text-[13px] font-medium text-cyan-600',
+            'hover:text-cyan-700 transition-colors focus:outline-none',
+          ].join(' ')}
+          aria-label="AI generate questions"
+          onClick={onAIGenerate}
+          disabled={!onAIGenerate}
+        >
+          <Sparkles className="h-4 w-4" />
+          Сгенерировать
+        </button>
+      </div>
+
+      {/* ── D. Advanced (collapsible) ────────────────────────────────────── */}
+      {showAdvancedSettings && (
+        <AdvancedSettings draft={draft} onUpdate={update} />
+      )}
+
     </div>
   );
 }

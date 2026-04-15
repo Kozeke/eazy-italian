@@ -1,46 +1,49 @@
 /**
- * lessonMode.types.ts
+ * lessonMode.types.ts  (v3 — removes 'player' BuilderStage)
  *
- * Shared discriminated types for the classroom mode system.
- * Both ClassroomPage and LessonWorkspace import from here so the
- * mode contract is defined in exactly one place.
+ * Changes from v2:
+ * ─────────────────
+ * • 'player' stage removed from BuilderStage. Teachers should never be shown
+ *   the student-facing LessonFlow player. After saving, teachers land in
+ *   'manual-choice' (ManualBuilderLauncher) instead.
+ * • TEACHER_POST_SAVE_STATE updated to 'manual-choice'.
+ * • All other types are unchanged.
  */
 
-// ─── Classroom mode ───────────────────────────────────────────────────────────
-
-/**
- * 'student' — read-only lesson runtime, exactly as before.
- * 'teacher' — adds builder affordances when the unit is empty,
- *             and will eventually surface inline editing controls.
- */
 export type ClassroomMode = 'student' | 'teacher';
 
-// ─── Builder stage ─────────────────────────────────────────────────────────────
-
 /**
- * Tracks the teacher's progression through the in-classroom builder wizard.
- *
- * null         — builder is not active (student mode, or unit has content)
- * 'entry'      — unit is empty; showing the "Create your lesson" entry screen
- * 'manual-choice' — teacher clicked "Manually"; show content-type picker
- * 'editing'    — a specific content editor is open (e.g. slides, task, test)
+ * null            — builder is not active (student mode, or teacher viewing
+ *                   content without any builder overlay)
+ * 'entry'         — unit is empty; showing the "Create your lesson" entry screen
+ * 'manual-choice' — teacher is in ManualBuilderLauncher choosing content type
+ * 'editing'       — a specific content editor is open
  */
-export type BuilderStage = null | 'entry' | 'manual-choice' | 'editing';
+export type BuilderStage =
+  | null
+  | 'entry'
+  | 'manual-choice'
+  | 'editing';
 
-/**
- * The type of content the teacher is currently building.
- * null when no specific editor is open yet.
- */
 export type ActiveBuilderType = null | 'slides' | 'video' | 'task' | 'test';
-
-// ─── Builder state ─────────────────────────────────────────────────────────────
 
 export interface BuilderState {
   stage:      BuilderStage;
   activeType: ActiveBuilderType;
 }
 
+/** Builder is idle — normal lesson player, no teacher overlay. */
 export const INITIAL_BUILDER_STATE: BuilderState = {
+  stage:      null,
+  activeType: null,
+};
+
+/**
+ * State entered after a successful save, or when a teacher opens a unit that
+ * already has content. stage: null means no builder overlay — teacher sees
+ * their content and can add more via an explicit "Add content" action.
+ */
+export const TEACHER_POST_SAVE_STATE: BuilderState = {
   stage:      null,
   activeType: null,
 };

@@ -1,48 +1,46 @@
 /**
- * ManualBuilderLauncher.tsx  (v2 — CreateSlideModal intercept)
+ * ManualBuilderLauncher.tsx  (refactored)
  *
- * Changes from v1:
- * ─────────────────
- * • When the teacher clicks the Slides card, we no longer call onSelect('slides')
- *   immediately.  Instead we open the local CreateSlideModal first.
+ * CHANGES:
+ * ─────────
+ * • "Slides" card removed — a blank slide is now created directly when
+ *   the teacher clicks "Add content" from the empty state or the footer.
+ *   The parent (LessonWorkspace) calls onSelectSlides("Untitled Slide")
+ *   immediately, bypassing this launcher entirely for the slides path.
  *
- * • On modal confirm (onCreate) we call the new onSelectSlides(title) callback,
- *   passing the chosen title.  This lets the parent initialise the slide draft
- *   with the right title before entering the editor.
+ * • This launcher now shows only two content types:
+ *     1. Video  — inline embed editor (unchanged)
+ *     2. Exercise — navigate to /admin/exercises/new (unchanged)
+ *       The exercise page now also supports Image / Video / Audio blocks.
  *
- * • On modal cancel we simply close it and stay on the launcher.
- *
- * • All other cards (video / task / test) still call onSelect directly — they
- *   don't need a pre-creation wizard at this stage.
- *
- * • Props diff:
- *     ADDED   onSelectSlides: (title: string) => void
- *     REMOVED nothing — onSelect still exists for non-slide types.
+ * • "Lesson builder · Step 1" label removed.
+ * • CreateSlideModal import and state removed.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
-  Presentation,
   PlayCircle,
-  FileText,
   ClipboardList,
   ChevronLeft,
-  Layers,
   Video,
-  PenSquare,
   BadgeCheck,
+  Plus,
+  X,
 } from "lucide-react";
 import type { ActiveBuilderType } from "../lessonMode.types";
-import CreateSlideModal from "./CreateSlideModal";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface ManualBuilderLauncherProps {
-  /** Called for non-slide types (video / task / test). */
   onSelect: (type: ActiveBuilderType) => void;
-  /** Called after the teacher fills in the slide title modal. */
+  /** kept for API compat — no longer used inside this component */
   onSelectSlides: (title: string) => void;
+
+  /** When true the Back button says "Back to lesson". */
+  hasExistingContent?: boolean;
   onBack: () => void;
+  activeSegmentId?: number | null;
 }
 
 // ─── Card config ──────────────────────────────────────────────────────────────
@@ -65,25 +63,9 @@ interface CardConfig {
   };
 }
 
+const DRAFT_ROUTE_CONTEXT_STORAGE_KEY = "exerciseDraftsRouteContext";
+
 const CARDS: CardConfig[] = [
-  {
-    type: "slides",
-    label: "Slides",
-    description:
-      "Build a slide deck to walk students through the lesson material.",
-    Icon: Presentation,
-    IllustIcon: Layers,
-    accent: {
-      bg: "bg-white",
-      border: "border-slate-200",
-      iconBg: "bg-teal-50",
-      iconText: "text-teal-500",
-      labelText: "text-teal-700",
-      hoverBorder: "hover:border-teal-300",
-      hoverBg: "hover:bg-teal-50/30",
-      bar: "bg-teal-500",
-    },
-  },
   {
     type: "video",
     label: "Video",
@@ -102,43 +84,26 @@ const CARDS: CardConfig[] = [
     },
   },
   {
-    type: "task",
-    label: "Task",
-    description:
-      "Create a written or multiple-choice task for students to complete.",
-    Icon: FileText,
-    IllustIcon: PenSquare,
-    accent: {
-      bg: "bg-white",
-      border: "border-slate-200",
-      iconBg: "bg-amber-50",
-      iconText: "text-amber-500",
-      labelText: "text-amber-700",
-      hoverBorder: "hover:border-amber-300",
-      hoverBg: "hover:bg-amber-50/30",
-      bar: "bg-amber-500",
-    },
-  },
-  {
     type: "test",
-    label: "Test",
-    description: "Set up a graded test with questions students must pass.",
+    label: "Exercise / Media",
+    description:
+      "Add questions, image, video, or audio blocks to your lesson.",
     Icon: ClipboardList,
     IllustIcon: BadgeCheck,
     accent: {
       bg: "bg-white",
       border: "border-slate-200",
-      iconBg: "bg-emerald-50",
-      iconText: "text-emerald-500",
-      labelText: "text-emerald-700",
-      hoverBorder: "hover:border-emerald-300",
-      hoverBg: "hover:bg-emerald-50/30",
-      bar: "bg-emerald-500",
+      iconBg: "bg-[#EEF0FE]",
+      iconText: "text-[#6C6FEF]",
+      labelText: "text-[#4F52C2]",
+      hoverBorder: "hover:border-[#C7C9F9]",
+      hoverBg: "hover:bg-[#EEF0FE]/40",
+      bar: "bg-[#6C6FEF]",
     },
   },
 ];
 
-// ─── Single card ──────────────────────────────────────────────────────────────
+// ─── Card ─────────────────────────────────────────────────────────────────────
 
 function BuilderCard({
   card,
@@ -150,66 +115,51 @@ function BuilderCard({
   onClick: () => void;
 }) {
   const { label, description, Icon, IllustIcon, accent } = card;
-
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
-        "group relative flex flex-col items-start text-left",
-        "rounded-2xl border p-6 transition-all duration-200",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-        "focus-visible:ring-slate-400",
-        "shadow-sm hover:shadow-md",
+        "group relative flex flex-col items-start text-left rounded-2xl border p-5",
+        "transition-all duration-200 focus:outline-none focus-visible:ring-2",
+        "focus-visible:ring-offset-2 focus-visible:ring-slate-400 shadow-sm hover:shadow-md",
+        "builder-card-enter",
         accent.bg,
         accent.border,
         accent.hoverBorder,
         accent.hoverBg,
-        "builder-card-enter",
       ].join(" ")}
       style={{ animationDelay: `${index * 60}ms`, animationFillMode: "both" }}
     >
-      {/* Accent top bar */}
       <div
         className={[
-          "absolute inset-x-0 top-0 h-[3px] rounded-t-2xl",
-          "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+          "absolute inset-x-0 top-0 h-[3px] rounded-t-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200",
           accent.bar,
         ].join(" ")}
         aria-hidden
       />
-
-      {/* Icon */}
       <div
         className={[
-          "mb-5 flex h-12 w-12 items-center justify-center rounded-xl",
-          "transition-transform duration-200 group-hover:scale-110",
+          "mb-4 flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110",
           accent.iconBg,
         ].join(" ")}
       >
-        <Icon className={`h-6 w-6 ${accent.iconText}`} />
+        <Icon className={`h-5 w-5 ${accent.iconText}`} />
       </div>
-
-      {/* Label */}
       <span
         className={[
-          "text-[17px] font-bold tracking-tight mb-1.5",
+          "text-[15px] font-bold tracking-tight mb-1",
           accent.labelText,
         ].join(" ")}
       >
         {label}
       </span>
-
-      {/* Description */}
-      <span className="text-[13px] leading-relaxed text-slate-500 flex-1">
+      <span className="text-[12px] leading-relaxed text-slate-500 flex-1">
         {description}
       </span>
-
-      {/* Illustration icon */}
       <IllustIcon
         className={[
-          "absolute bottom-5 right-5 h-8 w-8 opacity-[0.07]",
-          "transition-opacity duration-200 group-hover:opacity-[0.13]",
+          "absolute bottom-4 right-4 h-7 w-7 opacity-[0.07] transition-opacity duration-200 group-hover:opacity-[0.12]",
           accent.iconText,
         ].join(" ")}
         aria-hidden
@@ -222,81 +172,251 @@ function BuilderCard({
 
 export default function ManualBuilderLauncher({
   onSelect,
-  onSelectSlides,
+  hasExistingContent = false,
   onBack,
 }: ManualBuilderLauncherProps) {
-  const [slideModalOpen, setSlideModalOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  const handleCardClick = (type: ActiveBuilderType) => {
-    if (type === "slides") {
-      setSlideModalOpen(true);
-    } else {
-      onSelect(type);
-    }
-  };
+  const dialogLabel = hasExistingContent
+    ? "Add content"
+    : "What would you like to add?";
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onBack();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onBack]);
+
+  useEffect(() => {
+    document.body.classList.add("classroom-mode-locked");
+    return () => document.body.classList.remove("classroom-mode-locked");
+  }, []);
+
+  useEffect(() => {
+    requestAnimationFrame(() => panelRef.current?.focus());
+  }, []);
 
   return (
     <>
-      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
-        <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-          {/* Back */}
+      <div
+        className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm"
+        aria-hidden
+        onClick={onBack}
+      />
+
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="manual-builder-launcher-title"
+        tabIndex={-1}
+        className={[
+          "fixed z-50 inset-x-4 top-[8vh] mx-auto max-w-2xl outline-none",
+          "flex max-h-[84vh] flex-col overflow-hidden rounded-2xl bg-white",
+          "shadow-2xl ring-1 ring-slate-200",
+        ].join(" ")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Brand accent bar */}
+        <div
+          className="h-[3px] w-full shrink-0 rounded-t-2xl"
+          style={{ background: "linear-gradient(to right, #6C6FEF, #9496ef)" }}
+          aria-hidden
+        />
+
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <button
             type="button"
             onClick={onBack}
-            className={[
-              "mb-6 flex items-center gap-1.5 text-[13px] font-medium text-slate-400",
-              "hover:text-slate-700 transition-colors focus:outline-none",
-              "focus-visible:underline",
-            ].join(" ")}
+            className="flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 rounded-lg -ml-1 px-1 py-0.5"
           >
             <ChevronLeft className="h-4 w-4" />
-            Back
+            {hasExistingContent ? "Back to lesson" : "Back"}
           </button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-          {/* Header */}
-          <div className="mb-8">
-            <h2 className="text-[22px] font-bold tracking-tight text-slate-900">
-              What would you like to add?
+        {/* Body */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+          <div className="mb-5">
+            <h2
+              id="manual-builder-launcher-title"
+              className="text-[19px] font-bold tracking-tight text-slate-900 flex items-center gap-2"
+            >
+              <Plus className="h-5 w-5 text-slate-400 shrink-0" />
+              {dialogLabel}
             </h2>
-            <p className="mt-1.5 text-[14px] text-slate-500">
-              Choose a content type to start building your lesson.
+            <p className="mt-1 text-[13px] text-slate-500">
+              Choose a content type to add to your lesson.
             </p>
           </div>
 
-          {/* 2 × 2 card grid */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Slide shortcut — full-width banner */}
+          <SlideShortcut onBack={onBack} />
+
+          {/* Other content types */}
+          <p className="mt-5 mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+            Or add
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {CARDS.map((card, i) => (
               <BuilderCard
                 key={card.type}
                 card={card}
                 index={i}
-                onClick={() => handleCardClick(card.type)}
+                onClick={() => {
+                  if (card.type === "test") {
+                    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+                    sessionStorage.setItem(
+                      DRAFT_ROUTE_CONTEXT_STORAGE_KEY,
+                      JSON.stringify({
+                        returnTo,
+                        targetSectionId: null,
+                      }),
+                    );
+                    navigate("/admin/exercises/new", { state: { returnTo } });
+                    return;
+                  }
+                  onSelect(card.type);
+                }}
               />
             ))}
           </div>
         </div>
 
-        {/* Entrance animation */}
         <style>{`
           @keyframes builderCardEnter {
-            from { opacity: 0; transform: translateY(12px); }
+            from { opacity: 0; transform: translateY(10px); }
             to   { opacity: 1; transform: translateY(0); }
           }
           .builder-card-enter {
-            animation: builderCardEnter 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+            animation: builderCardEnter 0.28s cubic-bezier(0.22,1,0.36,1) both;
           }
         `}</style>
       </div>
-
-      {/* Slide creation wizard modal — rendered above the launcher */}
-      <CreateSlideModal
-        open={slideModalOpen}
-        onCancel={() => setSlideModalOpen(false)}
-        onCreate={(title: string) => {
-          setSlideModalOpen(false);
-          onSelectSlides(title);
-        }}
-      />
     </>
+  );
+}
+
+// ─── Slide shortcut banner ────────────────────────────────────────────────────
+// A prominent full-width card that navigates to /admin/exercises/new with
+// a flag indicating "slide" mode — the exercise page handles image/video/audio
+// blocks on a white canvas.
+
+function SlideShortcut({ onBack }: { onBack: () => void }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [hov, setHov] = React.useState(false);
+
+  const handleClick = () => {
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    sessionStorage.setItem(
+      DRAFT_ROUTE_CONTEXT_STORAGE_KEY,
+      JSON.stringify({
+        returnTo,
+        targetSectionId: null,
+      }),
+    );
+    navigate("/admin/exercises/new", {
+      state: { returnTo, slideMode: true },
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        padding: "16px 20px",
+        borderRadius: 16,
+        border: `1.5px solid ${hov ? "#C7C9F9" : "#E8EAFD"}`,
+        background: hov ? "#EEF0FE" : "#FAFBFF",
+        cursor: "pointer",
+        textAlign: "left",
+        transition: "all 160ms ease",
+        fontFamily: "inherit",
+        boxShadow: hov
+          ? "0 4px 18px rgba(108,111,239,0.10)"
+          : "0 1px 4px rgba(26,29,58,0.04)",
+      }}
+    >
+      {/* Icon */}
+      <span
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: "#EEF0FE",
+          border: "1.5px solid #C7C9F9",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          transition: "transform 160ms ease",
+          transform: hov ? "scale(1.08)" : "none",
+        }}
+      >
+        {/* White page icon */}
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <rect x="3" y="2" width="14" height="16" rx="2" fill="#EEF0FE" stroke="#6C6FEF" strokeWidth="1.5"/>
+          <path d="M6 7h8M6 10h8M6 13h5" stroke="#6C6FEF" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      </span>
+
+      {/* Text */}
+      <div style={{ flex: 1 }}>
+        <p style={{
+          margin: 0,
+          fontSize: 15,
+          fontWeight: 700,
+          color: "#4F52C2",
+          letterSpacing: "-0.02em",
+        }}>
+          Blank slide
+        </p>
+        <p style={{
+          margin: "2px 0 0",
+          fontSize: 12,
+          color: "#7578A4",
+          lineHeight: 1.5,
+        }}>
+          White canvas — add images, video, audio or exercises
+        </p>
+      </div>
+
+      {/* Arrow */}
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        style={{
+          color: "#6C6FEF",
+          opacity: hov ? 1 : 0.4,
+          transition: "opacity 160ms ease",
+          flexShrink: 0,
+        }}
+      >
+        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
   );
 }

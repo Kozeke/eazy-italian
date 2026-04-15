@@ -35,7 +35,7 @@ def setup_backend():
 REDIS_URL=redis://localhost:6379
 SECRET_KEY=dev-secret-key-change-in-production
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+ACCESS_TOKEN_EXPIRE_MINUTES=180
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com

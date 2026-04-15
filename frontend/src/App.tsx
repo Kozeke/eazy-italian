@@ -32,10 +32,13 @@ import SettingsPage from './pages/student/SettingsPage';
 // Classroom mode
 import ClassroomPage from './pages/student/ClassroomPage.tsx';
 import AiBuilderPage from './pages/admin/courses/AiBuilderPage';
+import LoadingScreen from './components/global/LoadingScreen';
+import { useTeacherClassroomTransition } from './contexts/TeacherClassroomTransitionContext';
 
 function App() {
   const { t } = useTranslation();
   const { loading } = useAuth();
+  const { isTeacherClassroomOpening } = useTeacherClassroomTransition();
 
   if (loading) {
     return (
@@ -49,6 +52,8 @@ function App() {
   }
 
   return (
+    <>
+      <LoadingScreen isLoading={isTeacherClassroomOpening} />
     <Routes>
       {/* Public routes */}
       <Route path="/" element={<LandingPage />} />
@@ -134,6 +139,7 @@ function App() {
       {/* Admin routes */}
       <Route path="/admin/*" element={<AdminRoute><AdminRoutes /></AdminRoute>} />
     </Routes>
+    </>
   );
 }
 

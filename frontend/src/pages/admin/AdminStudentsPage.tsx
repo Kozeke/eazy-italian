@@ -1,28 +1,385 @@
-
-import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  Calendar,
-  Users,
-  Mail,
-  Phone,
+/**
+ * Admin students page renders a compact list-style roster with search and quick actions.
+ */
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  AlertCircle,
   ChevronDown,
-  ChevronUp,
-  UserCheck,
-  UserX
-} from 'lucide-react';
-import { progressApi, usersApi } from '../../services/api';
-import AdminSearchFilters from '../../components/admin/AdminSearchFilters';
+  Grid2X2,
+  List,
+  Mail,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react";
+import { progressApi, usersApi } from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
+import AddStudentModal, { AddStudentFormData } from "./components/AddStudentModal";
+import StudentLoginCredentialsModal, {
+  StudentLoginCredentials,
+} from "./components/StudentLoginCredentialsModal";
 
-const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-const statuses = ['active', 'inactive', 'suspended', 'graduated'];
-const subscriptionTypes = ['free', 'premium', 'pro'];
+/**
+ * STUDENTS_THEME stores design tokens aligned with the courses catalog page.
+ */
+const STUDENTS_THEME = {
+  violet: "#6C6FEF",
+  violetLight: "#EEF0FE",
+  violetDark: "#4F52C2",
+  white: "#FFFFFF",
+  border: "#E8E8F0",
+  text: "#18181B",
+  subText: "#52525B",
+  muted: "#A1A1AA",
+  mutedLight: "#D4D4D8",
+  red: "#EF4444",
+  redLight: "#FEE2E2",
+  bg: "#F7F7FA",
+  lime: "#0DB85E",
+  teal: "#00BCD4",
+  displayFont: "'Nunito', system-ui, sans-serif",
+  bodyFont: "'Inter', system-ui, sans-serif",
+} as const;
 
+/**
+ * STUDENTS_PAGE_CSS stores component-scoped CSS to match catalog styling.
+ */
+const STUDENTS_PAGE_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+
+.std-root {
+  min-height: 100%;
+  font-family: ${STUDENTS_THEME.bodyFont};
+  color: ${STUDENTS_THEME.text};
+  padding-bottom: 80px;
+}
+.std-root *, .std-root *::before, .std-root *::after {
+  box-sizing: border-box;
+}
+.std-page {
+  background: ${STUDENTS_THEME.white};
+  border-radius: 16px;
+  border: 1px solid ${STUDENTS_THEME.border};
+  margin: 28px 20%;
+  padding: 36px 44px 48px;
+  box-shadow: 0 1px 4px rgba(108, 111, 239, 0.04);
+}
+.std-title {
+  font-family: ${STUDENTS_THEME.displayFont};
+  font-size: 24px;
+  font-weight: 900;
+  color: ${STUDENTS_THEME.text};
+  margin-bottom: 18px;
+}
+.std-warning {
+  margin-bottom: 14px;
+  border: 1.5px solid #ffd8e3;
+  border-radius: 12px;
+  background: #fff1f5;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.std-warning-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d64568;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.std-warning-btn {
+  border: none;
+  border-radius: 10px;
+  background: ${STUDENTS_THEME.violet};
+  color: white;
+  font-family: ${STUDENTS_THEME.displayFont};
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background .14s;
+}
+.std-warning-btn:hover {
+  background: ${STUDENTS_THEME.violetDark};
+}
+.std-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1.5px solid ${STUDENTS_THEME.border};
+  border-radius: 10px;
+  padding: 9px 14px;
+  margin-bottom: 14px;
+  color: ${STUDENTS_THEME.mutedLight};
+  transition: border-color .15s, box-shadow .15s;
+}
+.std-search:focus-within {
+  border-color: ${STUDENTS_THEME.violet};
+  box-shadow: 0 0 0 3px ${STUDENTS_THEME.violetLight};
+}
+.std-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-family: ${STUDENTS_THEME.bodyFont};
+  font-size: 13.5px;
+  color: ${STUDENTS_THEME.text};
+  background: transparent;
+}
+.std-search input::placeholder {
+  color: ${STUDENTS_THEME.mutedLight};
+}
+.std-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.std-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.std-tab {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 13px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-family: ${STUDENTS_THEME.bodyFont};
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .14s, color .14s;
+}
+.std-tab:hover {
+  background: #e2e8f0;
+}
+.std-tab.on {
+  background: ${STUDENTS_THEME.violetLight};
+  color: ${STUDENTS_THEME.violetDark};
+}
+.std-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.std-view-toggle {
+  display: flex;
+  background: white;
+  border: 1.5px solid ${STUDENTS_THEME.border};
+  border-radius: 9px;
+  overflow: hidden;
+}
+.std-vbtn {
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: ${STUDENTS_THEME.mutedLight};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.std-vbtn.on {
+  background: ${STUDENTS_THEME.violetLight};
+  color: ${STUDENTS_THEME.violetDark};
+}
+.std-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1.5px solid ${STUDENTS_THEME.border};
+  background: white;
+  color: ${STUDENTS_THEME.muted};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .12s;
+}
+.std-icon-btn:hover {
+  color: ${STUDENTS_THEME.violetDark};
+  border-color: ${STUDENTS_THEME.violet};
+  background: ${STUDENTS_THEME.violetLight};
+}
+.std-select-wrap {
+  position: relative;
+}
+.std-select {
+  background: white;
+  border: 1.5px solid ${STUDENTS_THEME.border};
+  border-radius: 9px;
+  padding: 7px 28px 7px 11px;
+  font-family: ${STUDENTS_THEME.bodyFont};
+  font-size: 12.5px;
+  color: ${STUDENTS_THEME.subText};
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+}
+.std-select:focus {
+  border-color: ${STUDENTS_THEME.violet};
+  box-shadow: 0 0 0 3px ${STUDENTS_THEME.violetLight};
+}
+.std-select-icon {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: ${STUDENTS_THEME.muted};
+}
+.std-result-count {
+  font-size: 12px;
+  color: ${STUDENTS_THEME.muted};
+  font-weight: 600;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.std-result-count::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: ${STUDENTS_THEME.border};
+}
+.std-list {
+  border: 1px solid ${STUDENTS_THEME.border};
+  border-radius: 12px;
+  background: white;
+  overflow: hidden;
+}
+.std-create-btn {
+  margin: 10px;
+  width: calc(100% - 20px);
+  border: 1.5px dashed ${STUDENTS_THEME.border};
+  border-radius: 11px;
+  background: white;
+  color: ${STUDENTS_THEME.violetDark};
+  font-family: ${STUDENTS_THEME.displayFont};
+  font-size: 13px;
+  font-weight: 700;
+  padding: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background .15s, border-color .15s;
+}
+.std-create-btn:hover {
+  background: ${STUDENTS_THEME.violetLight};
+  border-color: ${STUDENTS_THEME.violet};
+}
+.std-row {
+  border-top: 1px solid #eff1f7;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.std-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.std-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.std-name {
+  font-family: ${STUDENTS_THEME.displayFont};
+  font-size: 16px;
+  font-weight: 800;
+  color: ${STUDENTS_THEME.text};
+  line-height: 1.15;
+  margin-bottom: 4px;
+}
+.std-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.std-meta-item {
+  font-size: 11.5px;
+  color: ${STUDENTS_THEME.muted};
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.std-profile-btn {
+  border: none;
+  border-radius: 10px;
+  background: ${STUDENTS_THEME.violet};
+  color: white;
+  font-family: ${STUDENTS_THEME.displayFont};
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .14s;
+}
+.std-profile-btn:hover {
+  background: ${STUDENTS_THEME.violetDark};
+}
+.std-empty {
+  border-top: 1px solid #eff1f7;
+  padding: 34px 18px;
+  text-align: center;
+  color: ${STUDENTS_THEME.muted};
+  font-size: 13px;
+}
+@media (max-width: 1024px) {
+  .std-page {
+    margin: 20px 8%;
+  }
+}
+@media (max-width: 768px) {
+  .std-page {
+    margin: 16px 16px;
+    padding: 22px 20px 28px;
+  }
+  .std-controls {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .std-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+`;
+
+/**
+ * ProgressData stores progress statistics received from the backend.
+ */
 type ProgressData = {
   id: number;
   passed_tests: number;
@@ -30,567 +387,450 @@ type ProgressData = {
   total_tests: number;
 };
 
+/**
+ * StudentRow stores normalized data used by the UI list.
+ */
 type StudentRow = {
   id: number;
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
-  level: string;
-  status: string;
   registrationDate: string;
-  lastLogin: string | null;
   completedUnits: number;
-  averageScore: number;
-  totalPoints: string; // Changed to string for "X/Y" format
-  subscriptionType: string;
-  subscriptionExpiry: string | null;
-  enrolledCoursesCount: number; // Add courses count
+  totalTests: number;
 };
 
-export default function AdminStudentsPage() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [students, setStudents] = useState<StudentRow[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedSubscription, setSelectedSubscription] = useState('');
-  const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
-  const [sortField, setSortField] = useState('lastName');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [showFilters, setShowFilters] = useState(false);
+/**
+ * StudentFilterTab defines available UI tabs in the students toolbar.
+ */
+type StudentFilterTab = "all" | "online" | "marathons";
 
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
+/**
+ * SORT_OPTIONS defines available sorting presets in the toolbar select.
+ */
+const SORT_OPTIONS = [
+  { value: "created_desc", label: "По дате создания" },
+  { value: "created_asc", label: "По дате создания (старые)" },
+  { value: "name_asc", label: "По имени (А-Я)" },
+  { value: "name_desc", label: "По имени (Я-А)" },
+] as const;
+
+/**
+ * createAvatarToneClass returns a deterministic pastel color for avatar bubbles.
+ */
+function createAvatarToneClass(studentId: number) {
+  const tones = [
+    { background: "#DCFCE7", color: "#16A34A" },
+    { background: "#DAEEFF", color: "#0099E6" },
+    { background: "#EEF0FE", color: "#4F52C2" },
+    { background: "#FFECE5", color: "#F76D3C" },
+  ];
+  return tones[studentId % tones.length];
+}
+
+/**
+ * buildDisplayName joins first and last names while handling empty values.
+ */
+function buildDisplayName(student: StudentRow) {
+  return `${student.firstName} ${student.lastName}`.trim() || "Без имени";
+}
+
+/**
+ * resolveInitial generates the first avatar letter based on available identity fields.
+ */
+function resolveInitial(student: StudentRow) {
+  const fullName = buildDisplayName(student);
+  if (fullName !== "Без имени") {
+    return fullName[0].toUpperCase();
+  }
+  return student.email?.[0]?.toUpperCase() || "?";
+}
+
+export default function AdminStudentsPage() {
+  // Stores authenticated user info so create-student payload can include teacher id.
+  const { user } = useAuth();
+  /**
+   * navigate enables route transitions to student profile pages.
+   */
+  const navigate = useNavigate();
+  /**
+   * students keeps normalized roster entries fetched from the backend.
+   */
+  const [students, setStudents] = useState<StudentRow[]>([]);
+  /**
+   * searchQuery stores free-text filter input from the toolbar search.
+   */
+  const [searchQuery, setSearchQuery] = useState("");
+  /**
+   * selectedTab keeps active tab state for the segmented filters UI.
+   */
+  const [selectedTab, setSelectedTab] = useState<StudentFilterTab>("all");
+  /**
+   * selectedSort stores selected sort mode from the dropdown.
+   */
+  const [selectedSort, setSelectedSort] =
+    useState<(typeof SORT_OPTIONS)[number]["value"]>("created_desc");
+  /**
+   * isListView toggles between list and grid icons (list is default as in screenshot).
+   */
+  const [isListView, setIsListView] = useState(true);
+  /**
+   * isAddStudentModalOpen controls visibility of create-student modal.
+   */
+  const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
+  /**
+   * isCreatingStudent tracks pending create-student API request state.
+   */
+  const [isCreatingStudent, setIsCreatingStudent] = useState(false);
+  /**
+   * createStudentError keeps backend errors returned from creation request.
+   */
+  const [createStudentError, setCreateStudentError] = useState<string | null>(
+    null,
+  );
+  /**
+   * isLoginCredentialsModalOpen controls visibility of post-create credentials modal.
+   */
+  const [isLoginCredentialsModalOpen, setIsLoginCredentialsModalOpen] =
+    useState(false);
+  /**
+   * createdStudentCredentials stores login payload shown after successful student creation.
+   */
+  const [createdStudentCredentials, setCreatedStudentCredentials] =
+    useState<StudentLoginCredentials | null>(null);
+
+  /**
+   * fetchStudents loads student roster and merges progress metadata.
+   */
+  const fetchStudents = async () => {
+    try {
+      const data = await usersApi.getStudents();
+      const normalized: StudentRow[] = data.map((s: any) => ({
+        id: s.id,
+        firstName: s.first_name,
+        lastName: s.last_name,
+        email: s.email,
+        registrationDate: s.created_at,
+        completedUnits: 0,
+        totalTests: 0,
+      }));
+
+      const progressData: ProgressData[] =
+        await progressApi.getStudentsProgress();
+      const progressMap = new Map(progressData.map((p) => [p.id, p]));
+
+      const merged: StudentRow[] = normalized.map((student) => {
+        const progress = progressMap.get(student.id);
+        if (progress) {
+          return {
+            ...student,
+            completedUnits: progress.passed_tests || 0,
+            totalTests: progress.total_tests || 0,
+          };
+        }
+        return student;
+      });
+
+      setStudents(merged);
+    } catch (error) {
+      console.error(error);
     }
   };
   useEffect(() => {
-    // Fetch all students
-    usersApi.getStudents()
-      .then((data) => {
-        const normalized: StudentRow[] = data.map((s: any) => ({
-          id: s.id,
-          firstName: s.first_name,
-          lastName: s.last_name,
-          email: s.email,
-          phone: '—',
-          level: '—',
-          status: s.is_active ? 'active' : 'inactive',
-          registrationDate: s.created_at,
-          lastLogin: s.last_login ?? null,
-  
-          // Will be filled from progress data
-          completedUnits: 0,
-          averageScore: 0,
-          totalPoints: '0/0',
-          enrolledCoursesCount: s.enrolled_courses_count || 0,
-  
-          subscriptionType: s.subscription || 'free',
-          subscriptionExpiry: s.subscription_ends_at ?? null,
-        }));
-  
-        setStudents(normalized);
-
-        // Fetch progress data separately and merge
-        progressApi.getStudentsProgress()
-          .then((progressData: ProgressData[]) => {
-            const progressMap = new Map(
-              progressData.map((p) => [p.id, p])
-            );
-
-            const merged: StudentRow[] = normalized.map((student) => {
-              const progress = progressMap.get(student.id);
-              if (progress) {
-                return {
-                  ...student,
-                  completedUnits: progress.passed_tests || 0,
-                  averageScore: progress.progress_percent || 0,
-                  totalPoints: `${progress.passed_tests || 0}/${progress.total_tests || 0}`,
-                };
-              }
-              return student;
-            });
-
-            setStudents(merged);
-          })
-          .catch(console.error);
-      })
-      .catch(console.error);
+    fetchStudents();
   }, []);
-  
-  const changeSubscription = async (studentId: number, subscription: string) => {
+
+  /**
+   * handleCreateStudent creates a new student and then refreshes roster.
+   */
+  const handleCreateStudent = async (formData: AddStudentFormData) => {
+    setCreateStudentError(null);
+    setIsCreatingStudent(true);
     try {
-      await usersApi.changeSubscription(studentId, subscription);
-  
-      // Optimistic UI update (optional but nice)
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === studentId
-            ? { ...s, subscriptionType: subscription }
-            : s
-        )
+      // Stores response payload so UI can show login details in follow-up modal.
+      const createdStudent = await usersApi.createStudent({
+        email: formData.email.trim(),
+        first_name: formData.firstName.trim(),
+        phone: formData.phone.trim() || undefined,
+        native_language: formData.nativeLanguage,
+        timezone: formData.timezone,
+        teacher_id: user?.id,
+      });
+      // Stores absolute login URL with frontend origin for easier sharing.
+      const shareableLoginUrl = createdStudent.login_url.startsWith("http")
+        ? createdStudent.login_url
+        : `${window.location.origin}${createdStudent.login_url}`;
+      setCreatedStudentCredentials({
+        loginUrl: shareableLoginUrl,
+        email: createdStudent.email,
+        password: createdStudent.temporary_password,
+      });
+      setIsAddStudentModalOpen(false);
+      setIsLoginCredentialsModalOpen(true);
+      await fetchStudents();
+    } catch (error: any) {
+      const backendMessage = error?.response?.data?.detail;
+      setCreateStudentError(
+        typeof backendMessage === "string"
+          ? backendMessage
+          : "Не удалось сохранить ученика. Проверьте данные и попробуйте снова.",
       );
-    } catch (err) {
-      console.error(err);
-      alert('Не удалось изменить подписку');
+    } finally {
+      setIsCreatingStudent(false);
     }
   };
-  
-  
-
-  const handleSelectAll = () => {
-    if (selectedStudents.length === students.length) {
-      setSelectedStudents([]);
-    } else {
-      setSelectedStudents(students.map(student => student.id));
-    }
+  /**
+   * handleCopyStudentCredentials copies formatted login details into clipboard.
+   */
+  const handleCopyStudentCredentials = async () => {
+    if (!createdStudentCredentials) return;
+    // Stores multiline share text matching fields displayed in credentials modal.
+    const shareMessage = [
+      "Данные для входа ученика в личный кабинет:",
+      `Страница входа: ${createdStudentCredentials.loginUrl}`,
+      `Почта аккаунта: ${createdStudentCredentials.email}`,
+      `Пароль: ${createdStudentCredentials.password}`,
+    ].join("\n");
+    await navigator.clipboard.writeText(shareMessage);
   };
-
-  const handleSelectStudent = (studentId: number) => {
-    setSelectedStudents(prev => 
-      prev.includes(studentId) 
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
-    );
+  /**
+   * handleSendCredentialsEmail opens default mail app with prefilled credentials body.
+   */
+  const handleSendCredentialsEmail = () => {
+    if (!createdStudentCredentials) return;
+    // Stores email subject used in prefilled outbound message.
+    const emailSubject = "Данные для входа в личный кабинет";
+    // Stores email body with credentials so teacher can send it immediately.
+    const emailBody = [
+      "Здравствуйте!",
+      "",
+      "Отправляю данные для входа ученика в личный кабинет:",
+      `Страница входа: ${createdStudentCredentials.loginUrl}`,
+      `Почта аккаунта: ${createdStudentCredentials.email}`,
+      `Пароль: ${createdStudentCredentials.password}`,
+    ].join("\n");
+    const mailtoUrl = `mailto:${encodeURIComponent(createdStudentCredentials.email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+    window.location.href = mailtoUrl;
   };
+  /**
+   * filteredStudents applies search and tab filtering for list rendering.
+   */
+  const filteredStudents = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return students.filter((student) => {
+      const displayName = buildDisplayName(student).toLowerCase();
+      const matchesSearch =
+        normalizedQuery.length === 0 ||
+        displayName.includes(normalizedQuery) ||
+        student.email.toLowerCase().includes(normalizedQuery) ||
+        `${student.id}`.includes(normalizedQuery);
 
-  const handleBulkAction = (action: string) => {
-    console.log(`Bulk action: ${action} on students:`, selectedStudents);
-    // Implement bulk actions
-    setSelectedStudents([]);
-  };
+      if (!matchesSearch) return false;
 
-  const handleDeleteStudent = (studentId: number) => {
-    if (window.confirm('Вы уверены, что хотите удалить этого студента?')) {
-      setStudents(prev => prev.filter(student => student.id !== studentId));
-    }
-  };
+      // Keep tabs as UI-compatible categories until dedicated backend fields are available.
+      if (selectedTab === "online") return student.completedUnits > 0;
+      if (selectedTab === "marathons") return student.totalTests > 0;
+      return true;
+    });
+  }, [searchQuery, selectedTab, students]);
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      active: { color: 'bg-green-100 text-green-800', label: 'Активен', icon: UserCheck },
-      inactive: { color: 'bg-gray-100 text-gray-800', label: 'Неактивен', icon: UserX },
-      suspended: { color: 'bg-red-100 text-red-800', label: 'Приостановлен', icon: UserX },
-      graduated: { color: 'bg-blue-100 text-blue-800', label: 'Выпускник', icon: UserCheck }
-    };
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.inactive;
-    const Icon = config.icon;
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        <Icon className="w-3 h-3 mr-1" />
-        {config.label}
-      </span>
-    );
-  };
-
-  const getLevelBadge = (level: string) => {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-        {level}
-      </span>
-    );
-  };
-
-
-  const filteredStudents = students.filter(student => {
-    const fullName = `${student.firstName} ${student.lastName}`.toLowerCase();
-    const matchesSearch = fullName.includes(searchQuery.toLowerCase()) ||
-                         student.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesLevel = !selectedLevel || student.level === selectedLevel;
-    const matchesStatus = !selectedStatus || student.status === selectedStatus;
-    const matchesSubscription = !selectedSubscription || student.subscriptionType === selectedSubscription;
-    
-    return matchesSearch && matchesLevel && matchesStatus && matchesSubscription;
-  });
-
-  const sortedStudents = [...filteredStudents].sort((a, b) => {
-    const aValue = a[sortField as keyof StudentRow];
-    const bValue = b[sortField as keyof StudentRow];
-    
-    // Handle null values
-    if (aValue === null || aValue === undefined) return 1;
-    if (bValue === null || bValue === undefined) return -1;
-    
-    if (sortDirection === 'asc') {
-      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-    } else {
-      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-    }
-  });
+  /**
+   * sortedStudents orders filtered roster based on selected toolbar sort mode.
+   */
+  const sortedStudents = useMemo(() => {
+    const nextStudents = [...filteredStudents];
+    nextStudents.sort((left, right) => {
+      if (selectedSort === "name_asc") {
+        return buildDisplayName(left).localeCompare(
+          buildDisplayName(right),
+          "ru",
+        );
+      }
+      if (selectedSort === "name_desc") {
+        return buildDisplayName(right).localeCompare(
+          buildDisplayName(left),
+          "ru",
+        );
+      }
+      const leftDate = new Date(left.registrationDate).getTime();
+      const rightDate = new Date(right.registrationDate).getTime();
+      if (selectedSort === "created_asc") return leftDate - rightDate;
+      return rightDate - leftDate;
+    });
+    return nextStudents;
+  }, [filteredStudents, selectedSort]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Users className="h-6 w-6 text-primary-600" />
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                {t('admin.nav.students')}
-              </h1>
-              {students.length > 0 && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                  {students.length} студентов
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs md:text-sm text-gray-500">
-              Управляйте студентами и отслеживайте их прогресс
-            </p>
+    <div className="std-root">
+      <style>{STUDENTS_PAGE_CSS}</style>
+      <div className="std-page">
+        <h1 className="std-title">Ученики</h1>
+
+        <div className="std-warning">
+          <div className="std-warning-text">
+            <AlertCircle size={16} />
+            <span>
+              Тариф не оплачен. Оплатите тариф для возобновления доступа к
+              платформе.
+            </span>
+          </div>
+          <button
+            type="button"
+            className="std-warning-btn"
+          >
+            Выбрать тариф
+          </button>
+        </div>
+
+        <div className="std-search">
+          <Search size={14} />
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Поиск учеников"
+          />
+        </div>
+
+        <div className="std-toolbar">
+          <div className="std-tabs">
+            <button
+              type="button"
+              onClick={() => setSelectedTab("all")}
+              className={`std-tab ${selectedTab === "all" ? "on" : ""}`}
+            >
+              Все
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedTab("online")}
+              className={`std-tab ${selectedTab === "online" ? "on" : ""}`}
+            >
+              Онлайн-уроки
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedTab("marathons")}
+              className={`std-tab ${selectedTab === "marathons" ? "on" : ""}`}
+            >
+              Марафоны
+            </button>
           </div>
 
+          <div className="std-controls">
+            <div className="std-view-toggle">
+              <button
+                type="button"
+                onClick={() => setIsListView(false)}
+                className={`std-vbtn ${!isListView ? "on" : ""}`}
+                title="Сетка"
+              >
+                <Grid2X2 size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsListView(true)}
+                className={`std-vbtn ${isListView ? "on" : ""}`}
+                title="Список"
+              >
+                <List size={14} />
+              </button>
+            </div>
+            <button type="button" className="std-icon-btn" title="Фильтры">
+              <SlidersHorizontal size={14} />
+            </button>
+            <div className="std-select-wrap">
+              <select
+                value={selectedSort}
+                onChange={(event) =>
+                  setSelectedSort(
+                    event.target.value as (typeof SORT_OPTIONS)[number]["value"],
+                  )
+                }
+                className="std-select"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={13} className="std-select-icon" />
+            </div>
+          </div>
+        </div>
+
+        <p className="std-result-count">Кол-во учеников {sortedStudents.length}</p>
+
+        <div className="std-list">
           <button
-            onClick={() => navigate('/admin/students/new')}
-            className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            type="button"
+            onClick={() => setIsAddStudentModalOpen(true)}
+            className="std-create-btn"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Добавить студента
+            <Plus size={14} />
+            <span>Создать ученика</span>
           </button>
+
+          {sortedStudents.map((student) => (
+            <div key={student.id} className="std-row">
+              <div className="std-row-main">
+                <div
+                  className="std-avatar"
+                  style={createAvatarToneClass(student.id)}
+                >
+                  {resolveInitial(student)}
+                </div>
+                <div>
+                  <p className="std-name">{buildDisplayName(student)}</p>
+                  <div className="std-meta">
+                    <span className="std-meta-item">
+                      <UserRound size={13} />
+                      ID {student.id}
+                    </span>
+                    <span className="std-meta-item">
+                      <Mail size={13} />
+                      {student.email}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/admin/students/${student.id}`)}
+                className="std-profile-btn"
+              >
+                <UserRound size={14} />
+                Профиль ученика
+              </button>
+            </div>
+          ))}
+
+          {sortedStudents.length === 0 && (
+            <div className="std-empty">
+              Ученики не найдены. Попробуйте изменить поиск.
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-
-        {/* Search and Filters */}
-        <AdminSearchFilters
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder="Поиск по имени, фамилии или email..."
-          showFilters={showFilters}
-          onToggleFilters={() => setShowFilters(!showFilters)}
-          filters={
-            <>
-              {/* Level Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Уровень
-                </label>
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все уровни</option>
-                  {levels.map(level => (
-                    <option key={level} value={level}>{level}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Status Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Статус
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все статусы</option>
-                  {statuses.map(status => (
-                    <option key={status} value={status}>
-                      {status === 'active' ? 'Активен' : 
-                       status === 'inactive' ? 'Неактивен' :
-                       status === 'suspended' ? 'Приостановлен' : 'Выпускник'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Subscription Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Подписка
-                </label>
-                <select
-                  value={selectedSubscription}
-                  onChange={(e) => setSelectedSubscription(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Все типы</option>
-                  {subscriptionTypes.map(type => (
-                    <option key={type} value={type}>
-                      {type === 'free' ? 'Бесплатный'
-                        : type === 'premium' ? 'Премиум'
-                        : 'Pro'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          }
-        />
-
-        {/* Bulk Actions */}
-        {selectedStudents.length > 0 && (
-          <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-blue-800">
-              Выбрано {selectedStudents.length} студентов
-            </span>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => handleBulkAction('activate')}
-                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-green-700 bg-green-100 hover:bg-green-200"
-              >
-                Активировать
-              </button>
-              <button
-                onClick={() => handleBulkAction('suspend')}
-                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-red-700 bg-red-100 hover:bg-red-200"
-              >
-                Приостановить
-              </button>
-              <button
-                onClick={() => setSelectedStudents([])}
-                className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Отменить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-        {/* Students Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedStudents.length === students.length}
-                    onChange={handleSelectAll}
-                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Курсы
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('lastName')}
-                >
-                  <div className="flex items-center">
-                    Студент
-                    {sortField === 'lastName' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Контакты
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('level')}
-                >
-                  <div className="flex items-center">
-                    Уровень
-                    {sortField === 'level' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('status')}
-                >
-                  <div className="flex items-center">
-                    Статус
-                    {sortField === 'status' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Прогресс
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Подписка
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('registrationDate')}
-                >
-                  <div className="flex items-center">
-                    Регистрация
-                    {sortField === 'registrationDate' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 border-l border-gray-200">
-                  Действия
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedStudents.map((student) => (
-                <tr key={student.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={selectedStudents.includes(student.id)}
-                      onChange={() => handleSelectStudent(student.id)}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <div className="inline-flex items-center gap-1">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {student.enrolledCoursesCount}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {student.enrolledCoursesCount === 1 ? 'курс' : 
-                         student.enrolledCoursesCount >= 2 && student.enrolledCoursesCount <= 4 ? 'курса' : 
-                         'курсов'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-sm font-medium text-gray-700">
-                          {student.firstName?.[0] ?? '?'}{student.lastName?.[0] ?? '?'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 break-words max-w-xs">
-                          {student.firstName} {student.lastName}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          ID: {student.id}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">
-                      <div className="flex items-center break-words max-w-xs">
-                        <Mail className="w-4 h-4 mr-1 text-gray-400 flex-shrink-0" />
-                        <span className="break-words">{student.email}</span>
-                      </div>
-                      <div className="flex items-center mt-1">
-                        <Phone className="w-4 h-4 mr-1 text-gray-400 flex-shrink-0" />
-                        {student.phone}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getLevelBadge(student.level)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(student.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      Тесты: {student.totalPoints}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      Прогресс: {student.averageScore}%
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                    <select
-                        value={student.subscriptionType}
-                        onChange={(e) => changeSubscription(student.id, e.target.value)}
-                        className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
-                      >
-                        <option value="free">Бесплатный</option>
-                        <option value="premium">Премиум</option>
-                        <option value="pro">Pro</option>
-                      </select>
-                      <div className="text-xs text-gray-500 mt-1">
-                        До: {student.subscriptionExpiry 
-                          ? new Date(student.subscriptionExpiry).toLocaleDateString('ru-RU')
-                          : '—'}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      {new Date(student.registrationDate).toLocaleDateString('ru-RU')}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      Последний вход: {student.lastLogin 
-                        ? new Date(student.lastLogin).toLocaleDateString('ru-RU')
-                        : 'Никогда'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white z-10 border-l border-gray-200 hover:bg-gray-50">
-                    <div className="flex items-center justify-end gap-4 md:gap-3 lg:gap-2">
-                      <button
-                        onClick={() => navigate(`/admin/students/${student.id}`)}
-                        className="p-2 md:p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
-                        title="Просмотр"
-                      >
-                        <Eye className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/students/${student.id}/edit`)}
-                        className="p-2 md:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="Редактировать"
-                      >
-                        <Edit className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStudent(student.id)}
-                        className="p-2 md:p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Удалить"
-                      >
-                        <Trash2 className="h-6 w-6 md:h-5 md:w-5 lg:h-4 lg:w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Empty State */}
-        {sortedStudents.length === 0 && (
-          <div className="text-center py-12">
-            <Users className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Нет студентов</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || selectedLevel || selectedStatus || selectedSubscription
-                ? 'Попробуйте изменить фильтры поиска.'
-                : 'Начните с добавления первого студента.'
-              }
-            </p>
-            {!searchQuery && !selectedLevel && !selectedStatus && !selectedSubscription && (
-              <div className="mt-6">
-                <button
-                  onClick={() => navigate('/admin/students/new')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Добавить студента
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        </div>
-      </main>
+      <AddStudentModal
+        open={isAddStudentModalOpen}
+        onClose={() => {
+          if (isCreatingStudent) return;
+          setCreateStudentError(null);
+          setIsAddStudentModalOpen(false);
+        }}
+        onCreate={handleCreateStudent}
+        isSubmitting={isCreatingStudent}
+        errorMessage={createStudentError}
+      />
+      <StudentLoginCredentialsModal
+        open={isLoginCredentialsModalOpen}
+        credentials={createdStudentCredentials}
+        onClose={() => setIsLoginCredentialsModalOpen(false)}
+        onCopy={handleCopyStudentCredentials}
+        onSendEmail={handleSendCredentialsEmail}
+      />
     </div>
   );
 }

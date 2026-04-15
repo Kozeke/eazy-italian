@@ -45,6 +45,12 @@ import {
   BookOpen, Sparkles, RefreshCw,
 } from 'lucide-react';
 
+// Phase-4: dispatcher renders the correct player for each question type.
+import QuestionRenderer, {
+  type StudentAnswer,
+  type RuntimeQuestion as RendererQuestion,
+} from './exercise/QuestionRenderer';
+
 // ─── Backend question shape (from POST /tests/:id/start) ─────────────────────
 
 interface BackendOption {
@@ -66,6 +72,10 @@ interface BackendQuestion {
   answer_type?: string;          // for 'visual' questions
   gaps_count?:  number;          // for 'cloze' questions
   media?:       Array<{ url: string; type: string }>;
+  // Phase-4 fields
+  gaps_config?: Array<{ id: string; answers: string[]; case_sensitive?: boolean; score?: number }>;
+  question_metadata?: Record<string, unknown>;
+  template?: string;
 }
 
 /** Shape returned by POST /api/v1/tests/:testId/start */
@@ -88,7 +98,7 @@ export interface TestQuestion {
   type?:           string;
   order_index?:    number;
   options?:        Array<{
-    id:           number;
+    id:           number | string;
     text?:        string;
     option_text?: string;
     is_correct?:  boolean;
@@ -98,9 +108,13 @@ export interface TestQuestion {
   prompt?:         string;
   /** for gap-fill / cloze questions */
   gaps_count?:     number;
+  // Phase-4 extras
+  gaps_config?:    Array<{ id: string; answers: string[]; case_sensitive?: boolean; score?: number }>;
+  question_metadata?: Record<string, unknown>;
+  template?: string;
 }
 
-/** Normalise a BackendQuestion into a TestQuestion understood by QuestionSlide */
+/** Normalise a BackendQuestion into a TestQuestion understood by QuestionRenderer */
 function normaliseQuestion(q: BackendQuestion): TestQuestion {
   return {
     id:           q.id,
@@ -110,8 +124,12 @@ function normaliseQuestion(q: BackendQuestion): TestQuestion {
     prompt:        q.prompt,
     type:          q.type,
     order_index:   q.order_index,
-    options:       q.options,
+    options:       q.options as TestQuestion['options'],
     gaps_count:    q.gaps_count,
+    // Phase-4 passthrough
+    gaps_config:        q.gaps_config,
+    question_metadata:  q.question_metadata,
+    template:           q.template,
   };
 }
 
@@ -274,7 +292,7 @@ function JumpDots({
   questions, answers, current, onJump, disabled,
 }: {
   questions: TestQuestion[];
-  answers:   Record<string, string>;
+  answers:   Record<string, StudentAnswer>;
   current:   number;
   onJump:    (i: number) => void;
   disabled:  boolean;
@@ -660,7 +678,7 @@ function ResultsPanel({
   test:           StudentTest;
   attempt:        TestAttempt;
   questions:      TestQuestion[];
-  answers:        Record<string, string>;
+  answers:        Record<string, StudentAnswer>;
   nextStepLabel?: string;
   onContinue?:    () => void;
 }) {
@@ -889,7 +907,7 @@ export default function TestStep({
   }, [attempt]); // eslint-disable-line
 
   // ── Answer state ──────────────────────────────────────────────────────────
-  const [answers,     setAnswers    ] = useState<Record<string, string>>({});
+  const [answers,     setAnswers    ] = useState<Record<string, StudentAnswer>>({});
   const [currentQ,    setCurrentQ  ] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting,  setSubmitting ] = useState(false);
@@ -933,9 +951,9 @@ export default function TestStep({
   }, [onStartTest, test.id]);
 
   // ── Question navigation ───────────────────────────────────────────────────
-  const handleSelect = useCallback((optId: string) => {
+  const handleSelect = useCallback((answer: StudentAnswer) => {
     if (!question) return;
-    setAnswers((prev) => ({ ...prev, [String(question.id)]: optId }));
+    setAnswers((prev) => ({ ...prev, [String(question.id)]: answer }));
   }, [question]);
 
   const handleNext = useCallback(() => {
@@ -961,7 +979,15 @@ export default function TestStep({
     setSubmitError(null);
     setPhase('submitting');
     try {
-      const result = await onSubmitTest({ test_id: test.id, answers });
+      const result = await onSubmitTest({
+        test_id: test.id,
+        answers: Object.fromEntries(
+          Object.entries(answers).map(([k, v]) => [
+            k,
+            typeof v === 'string' ? v : JSON.stringify(v),
+          ]),
+        ),
+      });
       const resolved: TestAttempt = (result as TestAttempt) ?? {
         status:       'completed',
         submitted_at: new Date().toISOString(),
@@ -1028,15 +1054,26 @@ export default function TestStep({
           <>
             <ProgressBar answered={answered} total={questions.length} />
 
-            <QuestionSlide
-              key={question.id}
-              question={question}
-              index={currentQ}
-              total={questions.length}
-              selected={answers[String(question.id)] ?? null}
-              onSelect={handleSelect}
-              disabled={false}
-            />
+            {/* Phase-4: QuestionRenderer dispatches by type */}
+            <div className="space-y-4 test-step-question-enter">
+              <p className="text-[15px] font-bold leading-snug text-slate-900">
+                <span className="mr-2 tabular-nums text-[13px] font-normal text-slate-400">
+                  {currentQ + 1}/{questions.length}
+                </span>
+                {(() => {
+                  const t = question.prompt ?? question.question_text ?? question.text ?? '';
+                  return t.includes('<')
+                    ? <span dangerouslySetInnerHTML={{ __html: t }} />
+                    : t;
+                })()}
+              </p>
+              <QuestionRenderer
+                question={question as RendererQuestion}
+                answer={answers[String(question.id)] ?? null}
+                onAnswer={handleSelect}
+                disabled={false}
+              />
+            </div>
 
             {submitError && (
               <div className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-[13px] text-red-700">

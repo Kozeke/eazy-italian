@@ -60,7 +60,7 @@ function BulletList({ bullets }: { bullets: string[] }) {
     <ul className="space-y-3">
       {items.map((b, i) => (
         <li key={i} className="flex items-start gap-3">
-          <span className="mt-[7px] h-[6px] w-[6px] shrink-0 rounded-full bg-teal-400" />
+          <span className="mt-[7px] h-[6px] w-[6px] shrink-0 rounded-full bg-[#6C6FEF]" />
           <span className="text-[15px] leading-[1.7] text-slate-700">{b}</span>
         </li>
       ))}
@@ -163,11 +163,11 @@ function SegmentedTrack({
             onClick={() => canJump && onJump(i)}
             className={[
               'h-[2px] flex-1 rounded-full transition-all duration-200',
-              'focus:outline-none focus-visible:ring-1 focus-visible:ring-teal-400 focus-visible:ring-offset-1',
-              isActive  ? 'bg-teal-500 scale-y-[1.8]' :
-              isViewed  ? 'bg-teal-300'                :
+              'focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6C6FEF] focus-visible:ring-offset-1',
+              isActive  ? 'bg-[#6C6FEF] scale-y-[1.8]' :
+              isViewed  ? 'bg-[#C7C9EE]'                :
                           'bg-slate-200',
-              canJump && !isActive ? 'cursor-pointer hover:bg-teal-200' : '',
+              canJump && !isActive ? 'cursor-pointer hover:bg-[#D4D6F5]' : '',
             ].filter(Boolean).join(' ')}
           />
         );
@@ -235,17 +235,17 @@ function ContinueCta({
   onClick?: () => void;
 }) {
   return (
-    <div className="flex shrink-0 items-center justify-end border-t border-slate-100 bg-teal-50/40 px-4 py-3 sm:px-5">
+    <div className="flex shrink-0 items-center justify-end border-t border-[#F0F1F8] bg-[#EEF0FE]/50 px-4 py-3 sm:px-5">
       {onClick ? (
         <button
           onClick={onClick}
-          className="inline-flex items-center gap-2 rounded-xl bg-teal-500 px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-all hover:bg-teal-600 hover:shadow-md active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2"
+          className="inline-flex items-center gap-2 rounded-xl bg-[#6C6FEF] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-all hover:bg-[#4F52C2] hover:shadow-md active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF] focus-visible:ring-offset-2"
         >
           {label ?? 'Continue lesson'}
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
       ) : (
-        <p className="shrink-0 text-[12px] text-teal-600">
+        <p className="shrink-0 text-[12px] text-[#4F52C2]">
           {label ?? 'Continue to the next step below'}
         </p>
       )}
@@ -344,8 +344,8 @@ export default function SlideStep({
      */
     <div className="flex flex-col h-full">
 
-      {/* ── Segmented progress track (pinned, never scrolls) ─────────── */}
-      <div className="flex-shrink-0 px-4 pt-2 pb-2 border-b border-slate-100/70">
+      {/* ── Segmented progress track (pinned, never scrolls) — purple rail like SectionSidePanel ─ */}
+      <div className="flex-shrink-0 px-4 pt-2 pb-2 border-b border-[#F0F1F8] bg-[#FAFBFF]/60">
         <SegmentedTrack
           total={slides.length}
           current={idx}
@@ -356,26 +356,26 @@ export default function SlideStep({
       </div>
 
       {/* ── Locked overlay ────────────────────────────────────────────── */}
-      {locked && (
+      {/* {locked && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-b-2xl bg-white/70 backdrop-blur-[2px]">
           <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
             <Lock className="h-3 w-3" />
             Controlled by your teacher
           </div>
         </div>
-      )}
+      )} */}
 
-      {/* ── Status bar: counter + viewed badge ──────────────────────── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-5 py-1 bg-white/80">
-        <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-slate-500 shadow-sm">
-          <span className="text-slate-800">{idx + 1}</span>
-          <span className="text-slate-300 mx-[1px]">/</span>
+      {/* ── Status bar: counter + viewed badge (purple — matches SectionSidePanel) ─ */}
+      <div className="flex-shrink-0 flex items-center justify-between px-5 py-1 bg-[#FAFBFF]/90 border-b border-[#F0F1F8]">
+        {/* <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF0FE] border border-[#C7C9EE] px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-[#64748b] shadow-sm">
+          <span className="text-[#4F52C2]">{idx + 1}</span>
+          <span className="text-[#C7C9EE] mx-[1px]">/</span>
           <span>{slides.length}</span>
-        </span>
+        </span> */}
 
         {progress.completed && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-0.5 text-[11px] font-semibold text-teal-700 ring-1 ring-teal-100">
-            <CheckCircle2 className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF0FE] px-2.5 py-0.5 text-[11px] font-semibold text-[#4F52C2] ring-1 ring-[#C7C9EE]">
+            <CheckCircle2 className="h-3 w-3 text-[#6C6FEF]" />
             All slides viewed
           </span>
         )}
@@ -391,7 +391,7 @@ export default function SlideStep({
       </div>
 
       {/* ── Navigation controls (pinned, never scrolls) ───────────── */}
-      <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-2 border-t border-slate-100">
+      <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-2 border-t border-[#F0F1F8]">
         {/* Prev */}
         <button
           disabled={isFirst || locked}
@@ -399,10 +399,10 @@ export default function SlideStep({
           aria-label="Previous slide"
           className={[
             'flex h-9 w-9 items-center justify-center rounded-xl border transition-all duration-150',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]',
             isFirst || locked
               ? 'cursor-not-allowed border-slate-100 text-slate-200'
-              : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 hover:shadow-sm active:scale-95',
+              : 'border-slate-200 text-slate-500 hover:border-[#C7C9EE] hover:bg-[#FAFBFF] hover:text-slate-800 hover:shadow-sm active:scale-95',
           ].join(' ')}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -420,10 +420,10 @@ export default function SlideStep({
           aria-label="Next slide"
           className={[
             'flex h-9 items-center gap-1.5 rounded-xl border px-3.5 transition-all duration-150 text-sm font-semibold',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]',
             isLast || locked
               ? 'cursor-not-allowed border-slate-100 text-slate-200'
-              : 'border-teal-200 bg-teal-50 text-teal-700 hover:border-teal-300 hover:bg-teal-100 hover:shadow-sm active:scale-[0.97]',
+              : 'border-[#C7C9EE] bg-[#EEF0FE] text-[#4F52C2] hover:border-[#6C6FEF] hover:bg-[#E0E2FC] hover:shadow-sm active:scale-[0.97]',
           ].join(' ')}
         >
           Next

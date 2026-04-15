@@ -98,6 +98,8 @@ class PresentationCreate(BaseModel):
     slug:                  Optional[str]         = None
     meta_title:            Optional[str]         = None
     meta_description:      Optional[str]         = None
+    status:                PresentationStatus    = PresentationStatus.DRAFT
+    publish_at:            Optional[datetime]    = None
 
 
 class PresentationUpdate(BaseModel):
@@ -317,6 +319,8 @@ async def create_presentation(
         language               = body.language,
         learning_goals         = body.learning_goals,
         target_audience        = body.target_audience,
+        status                 = body.status,
+        publish_at             = body.publish_at,
         is_visible_to_students = body.is_visible_to_students,
         order_index            = body.order_index,
         slug                   = body.slug,

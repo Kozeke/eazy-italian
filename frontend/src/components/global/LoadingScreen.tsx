@@ -110,13 +110,14 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading }) => {
         aria-live="polite"
       >
         <svg
-          width="180"
-          height="40"
-          viewBox="0 0 180 40"
+          width="240"
+          height="64"
+          viewBox="0 0 180 48"
           fill="none"
+          overflow="visible"
           xmlns="http://www.w3.org/2000/svg"
           aria-hidden="true"
-          style={{ display: 'block' }}
+          style={{ display: 'block', overflow: 'visible' }}
         >
           {/* ── mark ─────────────────────────────────────────────────── */}
 
@@ -167,7 +168,9 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading }) => {
           {/* ── wordmark ─────────────────────────────────────────────── */}
           <g className="lngai-wordmark">
             <text
-              x="48" y="26"
+              x="48"
+              y="27"
+              dominantBaseline="alphabetic"
               fontFamily="'Syne', system-ui, sans-serif"
               fontWeight="700"
               fontSize="19"
@@ -177,7 +180,9 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading }) => {
               Lingu
             </text>
             <text
-              x="106" y="26"
+              x="106"
+              y="27"
+              dominantBaseline="alphabetic"
               fontFamily="'Syne', system-ui, sans-serif"
               fontWeight="700"
               fontSize="19"

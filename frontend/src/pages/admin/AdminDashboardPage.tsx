@@ -1,21 +1,13 @@
 /**
- * AdminDashboardPage.tsx — course-first redirect.
- * No courses → /admin/onboarding
- * Has courses → /admin/courses  (catalog)
+ * AdminDashboardPage.tsx — legacy /admin/dashboard entry: redirects to the course catalog.
  */
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { coursesApi } from '../../services/api';
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   useEffect(() => {
-    coursesApi.getDashboardStatistics()
-      .then((data: any) => {
-        if (data?.courses_count === 0) navigate('/admin/onboarding', { replace: true });
-        else navigate('/admin/courses', { replace: true });
-      })
-      .catch(() => navigate('/admin/courses', { replace: true }));
+    navigate('/admin/courses', { replace: true });
   }, [navigate]);
 
   return (

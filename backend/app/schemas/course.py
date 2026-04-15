@@ -115,6 +115,7 @@ class CourseListResponse(BaseModel):
     published_units_count: int = 0
     content_summary: Optional[CourseSummary] = None
     enrolled_students_count: Optional[int] = 0  # Number of students enrolled in this course
+    first_unit_id: Optional[int] = None  # First unit by order_index (admin list / deep-link)
     is_enrolled: Optional[bool] = False  # Whether the current user is enrolled
     user_subscription: Optional[str] = None  # User's subscription type: 'free', 'premium', 'pro'
     enrolled_courses_count: Optional[int] = 0  # Total courses the user is enrolled in

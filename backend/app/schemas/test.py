@@ -1,7 +1,17 @@
+"""
+app/schemas/test.py
+
+Schemas for the Test container and TestAttempt only.
+
+Question create/update/response schemas have been moved to
+app/schemas/question.py — import from there.
+"""
+
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 from app.models.test import TestStatus
+
 
 class TestBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
@@ -14,8 +24,11 @@ class TestBase(BaseModel):
     order_index: int = Field(0, ge=0)
     settings: Dict[str, Any] = Field(default_factory=dict)
 
+
 class TestCreate(TestBase):
     unit_id: Optional[int] = None
+    segment_id: Optional[int] = None
+
 
 class TestUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
@@ -26,8 +39,9 @@ class TestUpdate(BaseModel):
     settings: Optional[Dict[str, Any]] = None
     status: Optional[TestStatus] = None
     order_index: Optional[int] = Field(None, ge=0)
-    # Allow updating unit association
-    unit_id: Optional[int] = Field(None, description="ID юнита")
+    unit_id: Optional[int] = Field(None, description="ID of the unit to associate")
+    segment_id: Optional[int] = None
+
 
 class TestResponse(TestBase):
     id: int
@@ -43,45 +57,14 @@ class TestResponse(TestBase):
     class Config:
         from_attributes = True
 
-class QuestionBase(BaseModel):
-    bank_tags: List[str] = []
-    level: str
-    type: str
-    prompt_rich: str
-    media: List[str] = []
-    options: List[str] = []
-    correct_answer: List[str]
-    explanation_rich: Optional[str] = None
-    points: float = 1.0
-
-class QuestionCreate(QuestionBase):
-    pass
-
-class QuestionUpdate(BaseModel):
-    bank_tags: Optional[List[str]] = None
-    level: Optional[str] = None
-    type: Optional[str] = None
-    prompt_rich: Optional[str] = None
-    media: Optional[List[str]] = None
-    options: Optional[List[str]] = None
-    correct_answer: Optional[List[str]] = None
-    explanation_rich: Optional[str] = None
-    points: Optional[float] = None
-
-class QuestionResponse(QuestionBase):
-    id: int
-    created_by: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 class TestAttemptBase(BaseModel):
     answers: Dict[str, Any] = {}
 
+
 class TestAttemptCreate(TestAttemptBase):
     pass
+
 
 class TestAttemptResponse(TestAttemptBase):
     id: int

@@ -9,6 +9,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { STEPS, WizardState } from "./TeacherRegisterFlow";
+import { LinguAiLogo } from "../global/LinguAiLogo";
 
 interface Props {
   wizard: WizardState;
@@ -163,9 +164,8 @@ export default function TeacherVerifyStep({ wizard, goTo }: Props) {
       {/* Right form panel */}
       <div className="tof-form-panel">
         <div className="tof-card">
-          <a href="/" className="tof-wordmark">
-            <span className="tof-wordmark__flag">🇮🇹</span>
-            EZ Italian
+          <a href="/" className="tof-wordmark" aria-label="LinguAI home">
+            <LinguAiLogo height={42} showWordmark />
           </a>
 
           <div className="tof-step-header">

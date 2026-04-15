@@ -14,7 +14,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   BookOpen,
-  BarChart3,
   Settings,
   GraduationCap,
   LogOut,
@@ -38,7 +37,7 @@ interface StudentSidebarProps {
 
 const NAV_ITEMS = [
   { label: 'My Classes', href: '/student/classes', icon: BookOpen },
-  { label: 'Grades',     href: '/student/grades',  icon: BarChart3 },
+  // { label: 'Grades',     href: '/student/grades',  icon: BarChart3 },
   { label: 'Settings',   href: '/student/settings', icon: Settings },
 ];
 

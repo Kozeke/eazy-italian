@@ -1,27 +1,36 @@
 /**
- * ClassroomHeader.tsx  (v5 — adds has-rail modifier for CSS variable)
+ * ClassroomHeader.tsx  (v10 — multi-student Answers panel toggle)
  *
- * Changes from v4:
+ * Changes from v9:
  * ─────────────────
- * • The `<header>` element now adds the CSS class `classroom-header` plus
- *   `classroom-header--has-rail` when a lessonRail is active.
+ * • New `onToggleAnswersPanel` prop — teacher-only icon button (LayoutGrid)
+ *   that opens/closes the StudentAnswersPanel.
+ * • New `answersPanelOpen` prop — boolean for active state styling.
+ * • The Answers button sits between the Add-student icon and the presence
+ *   cluster, always visible for teachers when a live session is active.
+ * • All v9 behaviour is preserved exactly.
  *
- *   These classes drive the `--lp-header-h` CSS custom property used by
- *   `.lp-workspace` in lesson-workspace.css to size the player viewport.
- *
- *   Single bar  (no rail) → --lp-header-h: 60px   (set by .classroom-header)
- *   Double bar (with rail) → --lp-header-h: 108px  (set by .classroom-header--has-rail)
- *
- * • All other props, layout, modal logic, and visual language are unchanged
- *   from v4.
+ * CSS additions live in classroom-mode.css under `.ch-icon-btn--answers`.
  */
 
-import React, { useState } from 'react';
-import { ArrowLeft, ChevronDown, GraduationCap } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  ArrowLeft,
+  ChevronDown,
+  GraduationCap,
+  BookOpen,
+  ClipboardList,
+  UserPlus,
+  LogOut,
+  LayoutGrid,
+} from 'lucide-react';
 import UnitSelectorModal from './unit/UnitSelectorModal';
+import { type OnlineUser, getAvatarColor } from '../../hooks/useOnlinePresence';
 import './classroom-mode.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export type ClassroomTab = 'lesson' | 'homework';
 
 export interface ClassroomHeaderProps {
   classroom?: {
@@ -48,32 +57,49 @@ export interface ClassroomHeaderProps {
   onSelectUnit?: (unit: any) => void;
   /** @deprecated Pass onSelectUnit + units instead. */
   onOpenUnitSelector?: () => void;
-  /**
-   * Lesson progress rail node — rendered as a compact strip below the
-   * main header bar when a unit is active.
-   */
+
+  // ── Teacher / generate wiring ──────────────────────────────────────────
+  isTeacher?: boolean;
+  generateUnitId?: number | null;
+  generateUnitTitle?: string;
+  onGenerateSuccess?: (result: { segments_created: number; exercises_created: number; segments: any[] }) => void;
+
   lessonRail?: React.ReactNode;
   /** @deprecated Use lessonRail instead. */
   lessonSteps?: unknown;
-}
 
-// ─── Progress pill ────────────────────────────────────────────────────────────
+  // ── Tab system ──────────────────────────────────────────────────────────
+  activeTab?: ClassroomTab;
+  onTabChange?: (tab: ClassroomTab) => void;
+  homeworkCount?: number;
 
-function ProgressPill({ value }: { value: number }) {
-  const pct = Math.min(100, Math.max(0, value));
-  return (
-    <div className="flex items-center gap-2">
-      <div className="relative h-1.5 w-20 overflow-hidden rounded-full bg-slate-200">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-primary-500 transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-xs font-medium tabular-nums text-slate-500">
-        {pct}%
-      </span>
-    </div>
-  );
+  // ── Online presence (teacher-only display) ──────────────────────────────
+  /**
+   * List of students currently online in this classroom.
+   * Supplied by useOnlinePresence() in the parent.
+   * Only rendered when isTeacher=true.
+   */
+  onlineUsers?: OnlineUser[];
+
+  /**
+   * Called when the teacher clicks the "Add Student" icon (UserPlus).
+   * Rendered only when isTeacher=true.
+   */
+  onAddStudent?: () => void;
+
+  // ── Answers panel (multi-student observer) ──────────────────────────────
+  /**
+   * Called when the teacher clicks the "Answers" icon (LayoutGrid).
+   * Toggles the StudentAnswersPanel open/closed.
+   * Rendered only when isTeacher=true.
+   */
+  onToggleAnswersPanel?: () => void;
+
+  /**
+   * Whether the Answers panel is currently open.
+   * Used to style the button as "active" when the panel is visible.
+   */
+  answersPanelOpen?: boolean;
 }
 
 // ─── Level badge ──────────────────────────────────────────────────────────────
@@ -97,6 +123,175 @@ function LevelBadge({ level }: { level?: string }) {
   );
 }
 
+// ─── Inline tab switcher ───────────────────────────────────────────────────────
+
+interface InlineTabSwitcherProps {
+  activeTab: ClassroomTab;
+  onTabChange: (tab: ClassroomTab) => void;
+  homeworkCount?: number;
+}
+
+const TAB_DEFS: { id: ClassroomTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'lesson',   label: 'Lesson',   icon: <BookOpen     size={13} strokeWidth={2.2} /> },
+  { id: 'homework', label: 'Homework', icon: <ClipboardList size={13} strokeWidth={2.2} /> },
+];
+
+function InlineTabSwitcher({ activeTab, onTabChange, homeworkCount }: InlineTabSwitcherProps) {
+  return (
+    <div className="ch-inline-tabs" role="tablist" aria-label="Classroom sections">
+      {TAB_DEFS.map((tab) => {
+        const isActive   = activeTab === tab.id;
+        const showBadge  = tab.id === 'homework' && !!homeworkCount && homeworkCount > 0;
+        return (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={isActive}
+            aria-controls={`panel-${tab.id}`}
+            id={`tab-${tab.id}`}
+            type="button"
+            className={['ch-inline-tab', isActive ? 'ch-inline-tab--active' : ''].filter(Boolean).join(' ')}
+            onClick={() => onTabChange(tab.id)}
+          >
+            <span className="ch-inline-tab__icon">{tab.icon}</span>
+            <span className="ch-inline-tab__label">{tab.label}</span>
+            {showBadge && (
+              <span className="ch-inline-tab__badge" aria-label={`${homeworkCount} homework items`}>
+                {homeworkCount > 99 ? '99+' : homeworkCount}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Single presence avatar ────────────────────────────────────────────────────
+
+const MAX_VISIBLE = 4;
+
+interface PresenceAvatarProps {
+  user: OnlineUser;
+  size?: number;
+  /** Show the floating name tooltip */
+  showTooltip?: boolean;
+}
+
+function PresenceAvatar({ user, size = 28, showTooltip = true }: PresenceAvatarProps) {
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const color     = user.color ?? getAvatarColor(user.user_id);
+  const initial   = (user.user_name ?? '?').charAt(0).toUpperCase();
+  const firstName = (user.user_name ?? '').split(' ')[0];
+
+  const showTip  = () => { timerRef.current = setTimeout(() => setTooltipVisible(true),  200); };
+  const hideTip  = () => { if (timerRef.current) clearTimeout(timerRef.current); setTooltipVisible(false); };
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  return (
+    <div
+      className="ch-presence-avatar"
+      style={{ width: size, height: size }}
+      onMouseEnter={showTip}
+      onMouseLeave={hideTip}
+      aria-label={`${user.user_name} is online`}
+    >
+      {user.avatar_url ? (
+        <img
+          src={user.avatar_url}
+          alt={user.user_name}
+          className="ch-presence-avatar__img"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+      ) : (
+        <span
+          className="ch-presence-avatar__initial"
+          style={{ background: color }}
+        >
+          {initial}
+        </span>
+      )}
+
+      {/* Tooltip */}
+      {showTooltip && tooltipVisible && (
+        <div className="ch-presence-tooltip" role="tooltip">
+          {firstName}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Presence cluster (the full group shown in the header) ────────────────────
+
+interface OnlinePresenceClusterProps {
+  users: OnlineUser[];
+}
+
+function OnlinePresenceCluster({ users }: OnlinePresenceClusterProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (users.length === 0) return null;
+
+  const visible  = users.slice(0, MAX_VISIBLE);
+  const overflow = users.length - MAX_VISIBLE;
+
+  return (
+    <div className="ch-presence-cluster" aria-label={`${users.length} student${users.length !== 1 ? 's' : ''} online`}>
+      {/* Stacked avatars */}
+      <div className="ch-presence-stack">
+        {visible.map((u) => (
+          <PresenceAvatar key={u.user_id} user={u} size={28} />
+        ))}
+
+        {overflow > 0 && (
+          <button
+            type="button"
+            className="ch-presence-overflow"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={`Show ${overflow} more students`}
+          >
+            +{overflow}
+          </button>
+        )}
+      </div>
+
+      {/* Expanded dropdown — shows all users */}
+      {expanded && overflow > 0 && (
+        <>
+          {/* backdrop */}
+          <div
+            className="ch-presence-backdrop"
+            onClick={() => setExpanded(false)}
+            aria-hidden
+          />
+          <div className="ch-presence-dropdown" role="listbox" aria-label="Online students">
+            {users.map((u) => {
+              const color   = u.color ?? getAvatarColor(u.user_id);
+              const initial = (u.user_name ?? '?').charAt(0).toUpperCase();
+              return (
+                <div key={u.user_id} className="ch-presence-dropdown__item" role="option" aria-selected={false}>
+                  <div className="ch-presence-dropdown__avatar" style={{ background: u.avatar_url ? undefined : color }}>
+                    {u.avatar_url
+                      ? <img src={u.avatar_url} alt={u.user_name} />
+                      : initial
+                    }
+                  </div>
+                  <span className="ch-presence-dropdown__name">{u.user_name}</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ClassroomHeader({
@@ -105,11 +300,22 @@ export default function ClassroomHeader({
   currentUnit,
   units = [],
   completedUnitIds,
-  progress,
+  progress: _progress,
   onBack,
   onSelectUnit,
-  onOpenUnitSelector,
+  onOpenUnitSelector: _onOpenUnitSelector,
   lessonRail,
+  activeTab = 'lesson',
+  onTabChange,
+  homeworkCount = 0,
+  isTeacher = false,
+  generateUnitId,
+  generateUnitTitle,
+  onGenerateSuccess,
+  onlineUsers = [],
+  onAddStudent,
+  onToggleAnswersPanel,
+  answersPanelOpen = false,
 }: ClassroomHeaderProps) {
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -119,7 +325,7 @@ export default function ClassroomHeader({
     if (canUseModal) {
       setModalOpen(true);
     } else {
-      onOpenUnitSelector?.();
+      _onOpenUnitSelector?.();
     }
   };
 
@@ -128,115 +334,189 @@ export default function ClassroomHeader({
     setModalOpen(false);
   };
 
-  const hasRail = !!lessonRail && !!currentUnit;
+  const hasRail      = !!lessonRail && !!currentUnit;
+  const showTabs     = !!currentUnit && !!onTabChange;
+  const showPresence = isTeacher && onlineUsers.length > 0;
 
   return (
     <>
-      {/*
-        classroom-header          → sets --lp-header-h: 60px
-        classroom-header--has-rail → sets --lp-header-h: 108px
-        Both are consumed by .lp-workspace in lesson-workspace.css.
-      */}
       <header
         className={[
           'sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm shadow-sm',
           'classroom-header',
           hasRail ? 'classroom-header--has-rail' : '',
-        ].filter(Boolean).join(' ')}
+        ]
+          .filter(Boolean)
+          .join(' ')}
       >
+        {/* ── Main bar ─────────────────────────────────────────────────────── */}
+        <div className="relative flex h-12 w-full items-center ch-main-row">
 
-        {/* ── Main bar ──────────────────────────────────────────────────────── */}
-        <div className="mx-auto flex h-12 w-full max-w-7xl items-center gap-3 px-4 md:px-6 lg:px-8">
+          {/* ── Centred content ───────────────────────────────────────────── */}
+          <div className="mx-auto flex h-full w-full max-w-7xl items-center gap-3 px-4 md:px-6 lg:px-8 ch-main-bar-inner ch-main-inner">
 
-          {/* LEFT: back + course name */}
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <button
-              onClick={onBack}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-              aria-label="Back to My Classes"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">My Classes</span>
-            </button>
+            {/* LEFT: back → divider → course icon + name */}
+            <div className="flex shrink-0 items-center gap-2 ch-left-group">
+              <button
+                onClick={onBack}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                aria-label="Back to My Classes"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">My Classes</span>
+              </button>
 
-            <span className="hidden text-slate-300 sm:block" aria-hidden>|</span>
+              <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
 
-            <div className="hidden min-w-0 items-center gap-2 sm:flex">
-              {course.thumbnail_url ? (
-                <img
-                  src={course.thumbnail_url}
-                  alt={course.title}
-                  className="h-7 w-7 rounded-lg object-cover ring-1 ring-slate-200 shrink-0"
-                />
-              ) : (
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-teal-700 shadow-sm">
-                  <GraduationCap className="h-4 w-4 text-white" />
-                </div>
-              )}
-              <span className="truncate text-sm font-semibold text-slate-800">
-                {course.title}
-              </span>
-              {course.level && <LevelBadge level={course.level} />}
+              <button
+                type="button"
+                onClick={onBack}
+                className="hidden items-center gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:flex"
+                aria-label={`Leave classroom (${course.title})`}
+              >
+                {course.thumbnail_url ? (
+                  <img
+                    src={course.thumbnail_url}
+                    alt=""
+                    className="h-7 w-7 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                  />
+                ) : (
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-violet-700 shadow-sm">
+                    <GraduationCap className="h-4 w-4 text-white" />
+                  </div>
+                )}
+                <span className="max-w-[140px] truncate text-sm font-semibold text-slate-800 lg:max-w-[220px]">
+                  {course.title}
+                </span>
+                {course.level && <LevelBadge level={course.level} />}
+              </button>
             </div>
-          </div>
 
-          {/* CENTER: current unit title */}
-          <div className="hidden flex-1 flex-col items-center md:flex">
-            {currentUnit ? (
+            {/* INLINE TABS */}
+            {showTabs && (
               <>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                  Now studying
-                </p>
-                <p className="max-w-xs truncate text-sm font-semibold text-slate-900">
-                  {currentUnit.order_index != null
-                    ? `${currentUnit.order_index}. `
-                    : ''}
+                <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+                <div className="ch-tabs-wrap">
+                  <InlineTabSwitcher
+                    activeTab={activeTab}
+                    onTabChange={onTabChange!}
+                    homeworkCount={homeworkCount}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Spacer */}
+            <div className="flex-1 ch-main-spacer" />
+
+            {/* ── Right content: unit title + teacher chip + change-unit ─── */}
+            <div className="flex items-center gap-2 ch-right-content">
+
+              {/* Unit title (no-tabs mode) */}
+              {!showTabs && currentUnit && (
+                <p className="hidden max-w-[180px] truncate text-sm font-semibold text-slate-700 md:block lg:max-w-[260px]">
                   {currentUnit.title}
                 </p>
-              </>
-            ) : (
-              <p className="text-sm text-slate-400">Select a unit to begin</p>
-            )}
-          </div>
+              )}
 
-          {/* RIGHT: change unit + progress + optional teacher */}
-          <div className="flex flex-1 items-center justify-end gap-3">
-            {progress !== undefined && (
-              <div className="hidden lg:block">
-                <ProgressPill value={progress} />
-              </div>
-            )}
-
-            {classroom?.teacher_name && (
-              <div className="hidden items-center gap-1.5 lg:flex">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-[10px] font-bold text-primary-700">
-                  {classroom.teacher_name.charAt(0).toUpperCase()}
+              {/* Teacher name chip (student view) */}
+              {classroom?.teacher_name && !isTeacher && (
+                <div className="hidden items-center gap-1.5 lg:flex">
+                  <div className="flex h-6 w-6 items-center justify-content-center rounded-full bg-primary-100 text-[10px] font-bold text-primary-700">
+                    {classroom.teacher_name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {classroom.teacher_name}
+                  </span>
                 </div>
-                <span className="text-xs text-slate-500">{classroom.teacher_name}</span>
-              </div>
-            )}
+              )}
 
-            <button
-              onClick={handleOpenChanger}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-            >
-              <span>{currentUnit ? 'Change Unit' : 'Choose Unit'}</span>
-              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Lesson progress rail sub-bar ──────────────────────────────────── */}
-        {hasRail && (
-          <div className="border-t border-slate-100 bg-white/95 px-4 pb-1.5 pt-1.5 md:px-6 lg:px-8">
-            <div className="mx-auto w-full max-w-5xl">
-              {lessonRail}
+              <button
+                onClick={handleOpenChanger}
+                className="ch-change-unit-btn flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                <span className="ch-change-unit-label hidden sm:inline">{currentUnit ? 'Change Unit' : 'Choose Unit'}</span>
+                <span className="ch-change-unit-label ch-change-unit-label--mobile sm:hidden">{currentUnit ? 'Unit' : 'Choose'}</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+              </button>
             </div>
           </div>
-        )}
 
-        {/* ── Mobile unit strip — only shown when no rail ─────────────────── */}
-        {currentUnit && !hasRail && (
+          {/* ── Far-right panel: always pinned to the viewport right edge ─── */}
+          <div className="ch-far-right-panel">
+
+            {/* TEACHER: answers icon + add-student + presence cluster + divider + exit */}
+            {isTeacher && (
+              <>
+                <div className="flex items-center gap-2">
+                  {/* Answers icon — opens StudentAnswersPanel to observe students */}
+                  <button
+                    type="button"
+                    onClick={onToggleAnswersPanel}
+                    aria-label="View student answers"
+                    aria-pressed={answersPanelOpen}
+                    title="Student answers"
+                    className={[
+                      'ch-icon-btn',
+                      answersPanelOpen ? 'ch-icon-btn--answers ch-icon-btn--answers-active' : 'ch-icon-btn--answers',
+                    ].join(' ')}
+                    disabled={!onToggleAnswersPanel}
+                  >
+                    <LayoutGrid size={15} strokeWidth={2.2} />
+                  </button>
+
+                  {/* Add-student icon */}
+                  <button
+                    type="button"
+                    onClick={onAddStudent}
+                    aria-label="Add student to classroom"
+                    className="ch-icon-btn ch-icon-btn--add"
+                    disabled={!onAddStudent}
+                  >
+                    <UserPlus size={15} strokeWidth={2.2} />
+                  </button>
+
+                  {showPresence && (
+                    <OnlinePresenceCluster users={onlineUsers} />
+                  )}
+                </div>
+
+                <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+
+                <button
+                  type="button"
+                  onClick={onBack}
+                  aria-label="Exit classroom"
+                  className="ch-icon-btn ch-icon-btn--exit"
+                >
+                  <LogOut size={15} strokeWidth={2.2} />
+                </button>
+              </>
+            )}
+
+            {/* STUDENT: divider + exit */}
+            {!isTeacher && (
+              <>
+                <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+                <button
+                  type="button"
+                  onClick={onBack}
+                  aria-label="Exit classroom"
+                  className="ch-icon-btn ch-icon-btn--exit"
+                >
+                  <LogOut size={15} strokeWidth={2.2} />
+                </button>
+              </>
+            )}
+          </div>
+
+        </div>
+
+        {/* ── Lesson rail ───────────────────────────────────────────────────── */}
+        {hasRail && lessonRail}
+
+        {/* ── Mobile unit strip ─────────────────────────────────────────────── */}
+        {currentUnit && !showTabs && (
           <div className="border-t border-slate-100 bg-slate-50 px-4 py-1.5 md:hidden">
             <p className="truncate text-xs font-medium text-slate-700">
               <span className="mr-1 text-slate-400">Unit:</span>
@@ -244,7 +524,6 @@ export default function ClassroomHeader({
             </p>
           </div>
         )}
-
       </header>
 
       {/* Unit selector modal */}
@@ -257,6 +536,10 @@ export default function ClassroomHeader({
           completedUnitIds={completedUnitIds}
           onClose={() => setModalOpen(false)}
           onSelectUnit={handleSelectUnit}
+          isTeacher={isTeacher}
+          generateUnitId={generateUnitId}
+          generateUnitTitle={generateUnitTitle}
+          onGenerateSuccess={onGenerateSuccess}
         />
       )}
     </>

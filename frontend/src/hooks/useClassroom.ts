@@ -16,8 +16,8 @@
  *    inside LessonWorkspace — not here.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { coursesApi, unitsApi } from '../services/api';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { coursesApi } from '../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +27,8 @@ export interface ClassroomCourse {
   level?: string;
   description?: string | null;
   thumbnail_url?: string | null;
+  /** JSON settings from API — merged when saving course edits (sections, language, tags UI) */
+  settings?: Record<string, unknown> | null;
 }
 
 export interface ClassroomUnit {
@@ -60,6 +62,9 @@ export interface ClassroomState {
   loading: boolean;
   error: string | null;
   isUnitSelectorOpen: boolean;
+  /** Incremented on every selectUnit call so downstream hooks can re-fetch
+   *  even when the same unit is re-selected (effectiveUnitId doesn't change). */
+  segmentVersion: number;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -77,7 +82,10 @@ export function useClassroom(
     loading: true,
     error: null,
     isUnitSelectorOpen: false,
+    segmentVersion: 0,
   });
+
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   // ── Load course + unit list ───────────────────────────────────────────────
   useEffect(() => {
@@ -85,7 +93,10 @@ export function useClassroom(
     let cancelled = false;
 
     const load = async () => {
-      setState((s) => ({ ...s, loading: true, error: null }));
+      setState((s) => {
+        if (s.loading && s.error === null) return s;
+        return { ...s, loading: true, error: null };
+      });
       try {
         // Step 1: course metadata + units
         // Teachers use the admin endpoint so draft/invisible courses load fine.
@@ -100,6 +111,12 @@ export function useClassroom(
           level: courseResponse.level?.value || courseResponse.level,
           description: courseResponse.description,
           thumbnail_url: courseResponse.thumbnail_url || courseResponse.thumbnail_path,
+          settings:
+            courseResponse.settings &&
+            typeof courseResponse.settings === 'object' &&
+            !Array.isArray(courseResponse.settings)
+              ? (courseResponse.settings as Record<string, unknown>)
+              : null,
         };
 
         // Step 2: Extract and sort units from the response
@@ -142,12 +159,21 @@ export function useClassroom(
 
     load();
     return () => { cancelled = true; };
-  }, [courseId, initialUnitId, isTeacher]);
+  }, [courseId, initialUnitId, isTeacher, reloadVersion]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
+  const reloadUnits = useCallback(() => {
+    setReloadVersion((v) => v + 1);
+  }, []);
+
   const selectUnit = useCallback((unit: ClassroomUnit) => {
-    setState((s) => ({ ...s, currentUnit: unit, isUnitSelectorOpen: false }));
+    setState((s) => ({
+      ...s,
+      currentUnit: unit,
+      isUnitSelectorOpen: false,
+      segmentVersion: s.segmentVersion + 1,
+    }));
   }, []);
 
   const openUnitSelector = useCallback(
@@ -159,5 +185,8 @@ export function useClassroom(
     []
   );
 
-  return { state, selectUnit, openUnitSelector, closeUnitSelector };
+  return useMemo(
+    () => ({ state, selectUnit, openUnitSelector, closeUnitSelector, reloadUnits }),
+    [state, selectUnit, openUnitSelector, closeUnitSelector, reloadUnits],
+  );
 }

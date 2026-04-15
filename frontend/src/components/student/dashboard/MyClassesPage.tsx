@@ -1,536 +1,368 @@
 /**
- * MyClassesPage.tsx  (v3 — Premium Edtech Dashboard)
+ * MyClassesPage.tsx
  *
- * Route: /student/classes
- *
- * What changed from v2:
- * ─────────────────────
- * • Hero section redesigned: full-width teal gradient banner with geometric
- *   SVG pattern, animated greeting, and stat chips inline.
- * • Stats displayed as pill chips in the hero (not a separate row below).
- * • Live alert banner styled as an animated pill inside the hero.
- * • Filter bar: pill-style "All / In Progress / Live / Completed" segmented
- *   filter tabs + search input side-by-side.
- * • "Needs attention" spotlight row: pinned strip at top of grid showing
- *   classrooms with Live / Test due / New task — students see urgent items
- *   immediately without scanning the whole grid.
- * • Grid cards now use ClassroomCard v2 (gradient banner, progress ring,
- *   next-up chip, teacher avatar, contextual CTA).
- * • Loading skeleton matches new card geometry (banner + body).
- * • Empty states: illustrated, distinct for "no classes" vs "no results".
- * • Error state: cleaner inline retry with icon.
- * • Full responsiveness: 1 col → 2 col (sm) → 3 col (lg).
- *
- * No backend changes. Same API endpoint, same hook signature.
+ * Student classes catalog styled to match AdminCoursesCatalog visual design.
  */
 
-import React, {
-  useCallback, useEffect, useMemo, useState,
-} from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  Search, RefreshCw, GraduationCap,
-  X, Radio, AlertCircle, ClipboardCheck,
-  Sparkles, TrendingUp, Layers,
-  WifiOff,
-} from 'lucide-react';
-import ClassroomCard, { type ClassroomCardData } from './ClassroomCard';
-import { useAuth } from '../../../hooks/useAuth';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import { useTeacherClassroomTransition } from "../../../contexts/TeacherClassroomTransitionContext";
 
-// ─── Data hook (unchanged) ────────────────────────────────────────────────────
+// Stores theme tokens shared across this catalog page.
+const T = {
+  violet: "#6C6FEF",
+  violetL: "#EEF0FE",
+  violetD: "#4F52C2",
+  lime: "#0DB85E",
+  teal: "#00BCD4",
+  white: "#FFFFFF",
+  border: "#E8E8F0",
+  text: "#18181B",
+  sub: "#52525B",
+  muted: "#A1A1AA",
+  mutedL: "#D4D4D8",
+  dFont: "'Nunito', system-ui, sans-serif",
+  bFont: "'Inter', system-ui, sans-serif",
+};
 
-function useMyClassrooms() {
-  const [classrooms, setClassrooms] = useState<ClassroomCardData[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
+// Stores pastel backgrounds for cards without thumbnails.
+const PASTELS = ["#FADADD", "#DAE8FA", "#DAF5E8", "#FAF0DA", "#E8DAFA", "#DAF5FA"];
+// Stores matching text colors for pastel cards.
+const PASTEL_TEXT = ["#C97A85", "#6A9AC9", "#5AB88A", "#C9A060", "#8A60C9", "#4AAEC4"];
+// Stores gradient swatches for list row avatars.
+const GRADS = [
+  "linear-gradient(135deg,#6C6FEF,#9B9EF7)",
+  "linear-gradient(135deg,#4F52C2,#6C6FEF)",
+  "linear-gradient(135deg,#0DB85E,#6C6FEF)",
+  "linear-gradient(135deg,#0099E6,#4F52C2)",
+];
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/v1/student/classrooms', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setClassrooms(Array.isArray(data) ? data : (data.classrooms ?? []));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load classes');
-    } finally {
-      setLoading(false);
-    }
+// Injects page-level CSS so the student page matches admin catalog styling.
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+.cat-root { min-height:100%; font-family:${T.bFont}; color:${T.text}; padding-bottom:80px; }
+.cat-root *, .cat-root *::before, .cat-root *::after { box-sizing:border-box; margin:0; padding:0; }
+.cat-page {
+  background:${T.white};
+  border-radius:16px;
+  border:1px solid ${T.border};
+  margin:28px 20%;
+  padding:36px 44px 48px;
+  box-shadow:0 1px 4px rgba(108,111,239,.04);
+}
+.cat-title { font-family:${T.dFont}; font-size:24px; font-weight:900; color:${T.text}; margin-bottom:22px; }
+.cat-search {
+  display:flex; align-items:center; gap:8px; background:white; border:1.5px solid ${T.border};
+  border-radius:10px; padding:9px 14px; margin-bottom:14px; transition:border-color .15s, box-shadow .15s;
+}
+.cat-search:focus-within { border-color:${T.violet}; box-shadow:0 0 0 3px ${T.violetL}; }
+.cat-search input {
+  flex:1; border:none; outline:none; font-family:${T.bFont}; font-size:13.5px; color:${T.text}; background:transparent;
+}
+.cat-search input::placeholder { color:${T.mutedL}; }
+.cat-clear-btn { border:none; background:none; cursor:pointer; color:${T.mutedL}; font-size:18px; line-height:1; padding:0; }
+.cat-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+.cat-view-toggle {
+  display:flex; background:white; border:1.5px solid ${T.border}; border-radius:9px; overflow:hidden; margin-left:auto;
+}
+.cat-vbtn {
+  padding:7px 10px; border:none; background:transparent; color:${T.mutedL}; cursor:pointer;
+  display:flex; align-items:center; transition:all .13s;
+}
+.cat-vbtn.on { background:${T.violetL}; color:${T.violetD}; }
+.cat-result-count {
+  font-size:12px; color:${T.muted}; font-weight:600; margin-bottom:16px; display:flex; align-items:center; gap:10px;
+}
+.cat-result-count::after { content:''; flex:1; height:1px; background:${T.border}; }
+.cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,200px)); gap:18px; }
+.cat-card {
+  background:white; border-radius:12px; border:1px solid ${T.border}; cursor:pointer; display:flex; flex-direction:column;
+  overflow:hidden; transition:transform .17s, box-shadow .17s, border-color .17s;
+}
+.cat-card:hover { transform:translateY(-2px); box-shadow:0 4px 14px rgba(108,111,239,.10); border-color:${T.violet}; }
+.cat-card-thumb {
+  width:100%; aspect-ratio:1/1; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center;
+}
+.cat-card-thumb-img { width:100%; height:100%; object-fit:cover; display:block; }
+.cat-card-thumb-initial { font-family:${T.dFont}; font-size:clamp(36px,9vw,56px); font-weight:900; opacity:0.75; }
+.cat-card-body { padding:11px 13px 13px; border-top:1px solid ${T.border}; }
+.cat-card-title {
+  font-family:${T.bFont}; font-size:12.5px; font-weight:600; color:${T.text}; line-height:1.35;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.cat-card-sub { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:5px; }
+.cat-card-sub-item { font-size:10.5px; color:${T.muted}; font-weight:500; display:flex; align-items:center; gap:3px; }
+.cat-list { display:flex; flex-direction:column; gap:9px; }
+.cat-row {
+  background:white; border-radius:12px; border:1.5px solid ${T.border}; display:flex; align-items:center; gap:12px;
+  padding:10px 14px; cursor:pointer; transition:all .16s;
+}
+.cat-row:hover {
+  border-color:${T.violet}; box-shadow:0 2px 10px rgba(108,111,239,.08); transform:translateX(2px);
+}
+.cat-row-swatch {
+  width:40px; height:40px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-family:${T.dFont}; font-size:17px; font-weight:900; color:white;
+}
+.cat-row-info { flex:1; min-width:0; }
+.cat-row-title {
+  font-family:${T.dFont}; font-size:14px; font-weight:800; color:${T.text};
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px;
+}
+.cat-row-meta { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.cat-row-meta-item { font-size:11.5px; color:${T.muted}; font-weight:500; display:flex; align-items:center; gap:3px; }
+.cat-row-prog { width:80px; flex-shrink:0; }
+.cat-track { height:3px; background:${T.border}; border-radius:999px; overflow:hidden; }
+.cat-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,${T.lime},${T.teal}); transition:width .5s; }
+.cat-skeleton { border-radius:12px; overflow:hidden; background:white; border:1px solid ${T.border}; }
+.cat-skel-sq { width:100%; aspect-ratio:1/1; background:#eef0fe; opacity:.7; }
+.cat-skel-body { padding:11px 13px 13px; border-top:1px solid ${T.border}; }
+.cat-skel-line { border-radius:6px; margin-bottom:7px; background:#eef0fe; opacity:.7; }
+.cat-empty {
+  min-height:42vh; display:flex; align-items:center; justify-content:center; padding:40px; text-align:center;
+}
+.cat-empty-card {
+  background:white; border:1px solid ${T.border}; border-radius:20px; padding:34px 36px; max-width:440px; width:100%;
+  box-shadow:0 6px 24px rgba(108,111,239,.07);
+}
+.cat-empty-title { font-family:${T.dFont}; font-size:22px; font-weight:900; color:${T.text}; margin-bottom:8px; }
+.cat-empty-sub { font-size:13px; color:${T.sub}; line-height:1.7; max-width:300px; margin:0 auto; }
+.cat-no-res { display:flex; flex-direction:column; align-items:center; padding:50px 24px; text-align:center; }
+.cat-no-res-emoji { font-size:34px; margin-bottom:12px; opacity:.35; }
+.cat-no-res-title { font-family:${T.dFont}; font-size:17px; font-weight:900; color:${T.text}; margin-bottom:5px; }
+.cat-no-res-sub { font-size:12.5px; color:${T.muted}; }
+@media(max-width:768px){ .cat-page { margin:16px 16px; padding:22px 20px 28px; } .cat-grid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; } }
+@media(max-width:480px){ .cat-grid { grid-template-columns:repeat(2,1fr); gap:10px; } }
+`;
+
+// Defines student classroom entity used by this page.
+type StudentClassroom = {
+  id: number;
+  name: string;
+  teacher_name?: string;
+  course?: {
+    id: number;
+    title: string;
+    thumbnail_url?: string | null;
+  };
+  progress?: number;
+  completed?: boolean;
+};
+
+// Renders micro-icons used by the catalog toolbar and metadata rows.
+const I = {
+  Search: () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.7" /><path d="M14 14l4 4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>,
+  Grid: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" /></svg>,
+  List: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>,
+  Teacher: () => <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.4" /><path d="M1 14c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>,
+};
+
+// Renders loading placeholder card while classrooms are still loading.
+const Skel = ({ i }: { i: number }) => (
+  <div className="cat-skeleton" style={{ animationDelay: `${i * 0.05}s` }}>
+    <div className="cat-skel-sq" />
+    <div className="cat-skel-body">
+      <div className="cat-skel-line" style={{ height: 12, width: "70%" }} />
+      <div className="cat-skel-line" style={{ height: 10, width: "46%" }} />
+    </div>
+  </div>
+);
+
+// Renders catalog card in grid mode.
+const Card = ({ classroom, idx, onOpen }: { classroom: StudentClassroom; idx: number; onOpen: (classroom: StudentClassroom) => void }) => {
+  // Stores color fill for cards without thumbnail.
+  const pastel = PASTELS[idx % PASTELS.length];
+  // Stores initial letter color for cards without thumbnail.
+  const pastelText = PASTEL_TEXT[idx % PASTEL_TEXT.length];
+  // Stores card thumbnail URL when provided by API.
+  const thumb = classroom.course?.thumbnail_url ?? null;
+  // Stores initial letter shown when no thumbnail exists.
+  const initial = (classroom.name || "?")[0].toUpperCase();
+  // Stores teacher display name fallback.
+  const teacherName = classroom.teacher_name || "Teacher";
+  return (
+    <div className="cat-card" onClick={() => onOpen(classroom)}>
+      <div className="cat-card-thumb" style={{ background: thumb ? "#eee" : pastel }}>
+        {thumb
+          ? <img className="cat-card-thumb-img" src={thumb} alt={classroom.name} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          : <span className="cat-card-thumb-initial" style={{ color: pastelText }}>{initial}</span>}
+      </div>
+      <div className="cat-card-body">
+        <div className="cat-card-title">{classroom.name}</div>
+        <div className="cat-card-sub">
+          <span className="cat-card-sub-item"><I.Teacher /> {teacherName}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Renders catalog row in list mode.
+const Row = ({ classroom, idx, onOpen }: { classroom: StudentClassroom; idx: number; onOpen: (classroom: StudentClassroom) => void }) => {
+  // Stores gradient fill for list row swatch.
+  const grad = GRADS[idx % GRADS.length];
+  // Stores normalized progress percentage.
+  const pct = Math.max(0, Math.min(100, Math.round(classroom.progress ?? 0)));
+  // Stores teacher display name fallback.
+  const teacherName = classroom.teacher_name || "Teacher";
+  return (
+    <div className="cat-row" onClick={() => onOpen(classroom)}>
+      <div className="cat-row-swatch" style={{ background: grad }}>{(classroom.name || "?")[0].toUpperCase()}</div>
+      <div className="cat-row-info">
+        <div className="cat-row-title">{classroom.name}</div>
+        <div className="cat-row-meta">
+          <span className="cat-row-meta-item"><I.Teacher /> {teacherName}</span>
+        </div>
+      </div>
+      <div className="cat-row-prog">
+        <div style={{ fontSize: 10, color: T.muted, fontWeight: 600, marginBottom: 3, textAlign: "right" }}>{pct}%</div>
+        <div className="cat-track"><div className="cat-fill" style={{ width: `${pct}%` }} /></div>
+      </div>
+    </div>
+  );
+};
+
+// Renders student classes page using admin-like catalog visual structure.
+export default function MyClassesPage() {
+  const navigate = useNavigate();
+  // Reuses the global classroom transition trigger so student navigation matches teacher icon transition behavior.
+  const { startTeacherClassroomOpen } = useTeacherClassroomTransition();
+  const [classrooms, setClassrooms] = useState<StudentClassroom[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    // Loads student classrooms from API and updates page state.
+    const loadClassrooms = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch("/api/v1/student/classrooms", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const nextClassrooms = Array.isArray(data) ? data : (data.classrooms ?? []);
+        setClassrooms(Array.isArray(nextClassrooms) ? nextClassrooms : []);
+      } catch {
+        // Prevents hard failure and keeps UX clear when API call fails.
+        toast.error("Failed to load classes");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadClassrooms();
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Adds Cmd/Ctrl+K shortcut to focus page search input quickly.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
-  return { classrooms, loading, error, reload: load };
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type FilterTab = 'all' | 'active' | 'live' | 'done';
-
-// ─── Skeleton card (matches ClassroomCard v2 geometry) ────────────────────────
-
-function SkeletonCard() {
-  return (
-    <div className="flex flex-col rounded-2xl bg-white ring-1 ring-slate-200/80 shadow-sm overflow-hidden">
-      {/* Banner */}
-      <div className="h-[72px] bg-slate-100 animate-pulse" />
-      <div className="px-4 pt-3.5 pb-4 space-y-3">
-        <div className="flex items-start gap-2.5">
-          <div className="-mt-7 h-10 w-10 rounded-xl bg-white ring-2 ring-white shadow-md shrink-0 overflow-hidden">
-            <div className="h-full w-full bg-slate-100 animate-pulse" />
-          </div>
-          <div className="flex-1 pt-0.5 space-y-1.5">
-            <div className="h-3.5 w-3/4 rounded bg-slate-100 animate-pulse" />
-            <div className="h-2.5 w-1/2 rounded bg-slate-100 animate-pulse" />
-          </div>
-        </div>
-        <div className="h-2.5 w-2/3 rounded bg-slate-100 animate-pulse" />
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-full bg-slate-100 animate-pulse shrink-0" />
-          <div className="flex-1 space-y-1">
-            <div className="h-1.5 w-full rounded-full bg-slate-100 animate-pulse" />
-            <div className="h-2.5 w-1/2 rounded bg-slate-100 animate-pulse" />
-          </div>
-        </div>
-        <div className="h-9 w-full rounded-xl bg-slate-100 animate-pulse mt-1" />
-      </div>
-    </div>
-  );
-}
-
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
-function EmptyNoClasses() {
-  return (
-    <div className="col-span-full flex flex-col items-center justify-center gap-6 py-24 text-center">
-      {/* Illustrated icon */}
-      <div className="relative flex h-24 w-24 items-center justify-center">
-        {/* Glow rings */}
-        <div className="absolute inset-0 rounded-full bg-teal-50 opacity-60" />
-        <div className="absolute inset-4 rounded-full bg-teal-100 opacity-60" />
-        <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-teal-600 text-white shadow-lg">
-          <GraduationCap className="h-7 w-7" />
-        </div>
-      </div>
-      <div className="space-y-2 max-w-xs">
-        <p className="text-lg font-bold text-slate-800">No classes yet</p>
-        <p className="text-sm leading-relaxed text-slate-500">
-          Ask your teacher to enrol you in a course and you'll see your classes here.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function EmptyNoResults({ query, onClear }: { query: string; onClear: () => void }) {
-  return (
-    <div className="col-span-full flex flex-col items-center justify-center gap-5 py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-        <Search className="h-7 w-7" />
-      </div>
-      <div className="space-y-1.5">
-        <p className="font-semibold text-slate-700">No results for "{query}"</p>
-        <p className="text-sm text-slate-400">Try a different keyword or clear the search.</p>
-      </div>
-      <button
-        onClick={onClear}
-        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-      >
-        Clear search
-      </button>
-    </div>
-  );
-}
-
-function EmptyFilterNoResults({ filter, onClear }: { filter: FilterTab; onClear: () => void }) {
-  const messages: Record<FilterTab, string> = {
-    all:    '',
-    active: 'You have no classes currently in progress.',
-    live:   'No live lessons right now.',
-    done:   'You haven\'t completed any classes yet.',
-  };
-  return (
-    <div className="col-span-full flex flex-col items-center justify-center gap-5 py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-        <Layers className="h-7 w-7" />
-      </div>
-      <div className="space-y-1.5">
-        <p className="font-semibold text-slate-700">{messages[filter]}</p>
-      </div>
-      <button
-        onClick={onClear}
-        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-      >
-        Show all classes
-      </button>
-    </div>
-  );
-}
-
-// ─── Error state ──────────────────────────────────────────────────────────────
-
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="col-span-full">
-      <div className="flex flex-col items-center justify-center gap-5 rounded-2xl border border-red-100 bg-red-50 px-6 py-12 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-400">
-          <WifiOff className="h-6 w-6" />
-        </div>
-        <div className="space-y-1.5">
-          <p className="font-semibold text-red-800">Couldn't load your classes</p>
-          <p className="text-sm text-red-500">{message}</p>
-        </div>
-        <button
-          onClick={onRetry}
-          className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white px-5 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Try again
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Stat chip ────────────────────────────────────────────────────────────────
-
-function StatChip({
-  value, label, highlight,
-}: {
-  value: number | string;
-  label: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div className={`flex flex-col items-center rounded-2xl px-4 py-2.5 ${highlight ? 'bg-white/20' : 'bg-white/10'}`}>
-      <span className={`text-xl font-bold tabular-nums leading-tight ${highlight ? 'text-red-200' : 'text-white'}`}>
-        {value}
-      </span>
-      <span className="text-[10px] font-medium uppercase tracking-wider text-white/70">{label}</span>
-    </div>
-  );
-}
-
-// ─── Filter tab ───────────────────────────────────────────────────────────────
-
-interface FilterTabConfig {
-  value: FilterTab;
-  label: string;
-  count?: number;
-  icon?: React.ReactNode;
-}
-
-function FilterTabs({
-  tabs, value, onChange,
-}: {
-  tabs: FilterTabConfig[];
-  value: FilterTab;
-  onChange: (v: FilterTab) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
-      {tabs.map((tab) => (
-        <button
-          key={tab.value}
-          onClick={() => onChange(tab.value)}
-          className={[
-            'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',
-            value === tab.value
-              ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/80'
-              : 'text-slate-500 hover:text-slate-700',
-          ].join(' ')}
-        >
-          {tab.icon && <span className={value === tab.value ? 'text-teal-500' : 'text-slate-400'}>{tab.icon}</span>}
-          {tab.label}
-          {tab.count !== undefined && tab.count > 0 && (
-            <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${
-              value === tab.value ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-500'
-            }`}>
-              {tab.count}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ─── Attention spotlight row ──────────────────────────────────────────────────
-
-function AttentionRow({
-  classrooms,
-  onEnter,
-}: {
-  classrooms: ClassroomCardData[];
-  onEnter: (c: ClassroomCardData) => void;
-}) {
-  if (!classrooms.length) return null;
-
-  return (
-    <div className="mb-6">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
-        </span>
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-          Needs your attention
-        </span>
-      </div>
-
-      <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
-        {classrooms.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => onEnter(c)}
-            className="group flex min-w-[220px] shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:border-teal-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
-          >
-            {/* Urgency icon */}
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-              c.live_session_active
-                ? 'bg-red-50 text-red-500'
-                : c.has_test_due
-                ? 'bg-amber-50 text-amber-500'
-                : 'bg-emerald-50 text-emerald-500'
-            }`}>
-              {c.live_session_active ? (
-                <Radio className="h-4 w-4" />
-              ) : c.has_test_due ? (
-                <AlertCircle className="h-4 w-4" />
-              ) : (
-                <ClipboardCheck className="h-4 w-4" />
-              )}
-            </div>
-
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">{c.name}</p>
-              <p className={`text-[10px] font-semibold ${
-                c.live_session_active ? 'text-red-500' : c.has_test_due ? 'text-amber-500' : 'text-emerald-600'
-              }`}>
-                {c.live_session_active ? '🔴 Live now' : c.has_test_due ? 'Test due' : 'New task'}
-              </p>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── MyClassesPage ────────────────────────────────────────────────────────────
-
-export default function MyClassesPage() {
-  const navigate                           = useNavigate();
-  const { user }                           = useAuth();
-  const { classrooms, loading, error, reload } = useMyClassrooms();
-  const [searchQuery, setSearchQuery]      = useState('');
-  const [activeFilter, setActiveFilter]   = useState<FilterTab>('all');
-
-  const firstName  = user?.first_name ?? 'there';
-  const activeCount   = classrooms.filter((c) => c.live_session_active).length;
-  const doneCount     = classrooms.filter((c) => c.completed || (c.progress ?? 0) === 100).length;
-  const inProgressCnt = classrooms.filter(
-    (c) => !c.completed && (c.progress ?? 0) > 0 && (c.progress ?? 0) < 100,
-  ).length;
-  const avgProgress = classrooms.length
-    ? Math.round(classrooms.reduce((s, c) => s + (c.progress ?? 0), 0) / classrooms.length)
-    : 0;
-
-  // Needs attention: live > test due > new task
-  const attentionItems = useMemo(
-    () => classrooms.filter((c) => c.live_session_active || c.has_test_due || c.has_new_task),
-    [classrooms],
-  );
-
-  // Filter + search
+  // Filters classroom collection by text query across classroom and course titles.
   const filtered = useMemo(() => {
-    let result = classrooms;
+    const normalizedQuery = query.toLowerCase().trim();
+    return classrooms.filter((classroom) => {
+      const classroomName = classroom.name?.toLowerCase() ?? "";
+      const courseName = classroom.course?.title?.toLowerCase() ?? "";
+      const teacherName = classroom.teacher_name?.toLowerCase() ?? "";
+      return !normalizedQuery || classroomName.includes(normalizedQuery) || courseName.includes(normalizedQuery) || teacherName.includes(normalizedQuery);
+    });
+  }, [classrooms, query]);
 
-    // Tab filter
-    switch (activeFilter) {
-      case 'active':
-        result = result.filter((c) => !c.completed && (c.progress ?? 0) > 0 && (c.progress ?? 0) < 100);
-        break;
-      case 'live':
-        result = result.filter((c) => c.live_session_active);
-        break;
-      case 'done':
-        result = result.filter((c) => c.completed || (c.progress ?? 0) === 100);
-        break;
-    }
+  // Opens selected classroom route in student classroom mode.
+  const handleOpen = (classroom: StudentClassroom) => {
+    // Starts the same transition animation used by teacher course cards before route change.
+    startTeacherClassroomOpen();
+    navigate(`/student/classroom/${classroom.id}`);
+  };
 
-    // Text search
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.teacher_name?.toLowerCase().includes(q) ?? false) ||
-          (c.course?.title.toLowerCase().includes(q) ?? false),
-      );
-    }
-
-    return result;
-  }, [classrooms, searchQuery, activeFilter]);
-
-  const handleEnter = useCallback(
-    (classroom: ClassroomCardData) => navigate(`/student/classroom/${classroom.id}`),
-    [navigate],
-  );
-
-  // Filter tabs config
-  const filterTabs: FilterTabConfig[] = [
-    { value: 'all',    label: 'All',         count: classrooms.length },
-    { value: 'active', label: 'In Progress', count: inProgressCnt,  icon: <TrendingUp className="h-3 w-3" /> },
-    { value: 'live',   label: 'Live',        count: activeCount,    icon: <Radio className="h-3 w-3" /> },
-    { value: 'done',   label: 'Completed',   count: doneCount,      icon: <Sparkles className="h-3 w-3" /> },
-  ];
-
-  // Determine time-of-day greeting
-  const hour = new Date().getHours();
-  const timeGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  // Stores whether user applied active search text.
+  const isFiltered = !!query.trim();
 
   return (
-    <div className="min-h-full">
+    <>
+      <style>{CSS}</style>
+      <div className="cat-root">
+        <div className="cat-page">
+          <div className="cat-title">My Classes</div>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          Hero banner
-      ════════════════════════════════════════════════════════════════════ */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-teal-600 via-teal-700 to-teal-800">
-        {/* Decorative SVG geometry */}
-        <svg
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden
-        >
-          <defs>
-            <pattern id="hero-grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#hero-grid)" />
-        </svg>
-
-        {/* Glow blobs */}
-        <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-teal-400/20 blur-3xl" aria-hidden />
-        <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-cyan-300/20 blur-2xl" aria-hidden />
-
-        <div className="relative px-6 py-8 md:px-10 md:py-10">
-          {/* Greeting */}
-          <div className="mb-1 flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white">
-              <GraduationCap className="h-4 w-4" />
-            </div>
-            <span className="text-xs font-semibold uppercase tracking-widest text-teal-200">
-              Student Portal
-            </span>
+          <div className="cat-search">
+            <I.Search />
+            <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search classes..." />
+            {query && <button className="cat-clear-btn" onClick={() => setQuery("")}>x</button>}
           </div>
 
-          <h1 className="mt-1 text-2xl font-bold leading-snug text-white sm:text-3xl">
-            {timeGreeting}, {firstName} 👋
-          </h1>
-          <p className="mt-1 text-sm text-teal-200">
-            {loading
-              ? 'Loading your classes…'
-              : classrooms.length === 0
-              ? 'You\'re not enrolled in any classes yet.'
-              : `You're enrolled in ${classrooms.length} class${classrooms.length === 1 ? '' : 'es'}.`
-            }
-          </p>
+          <div className="cat-toolbar">
+            <div className="cat-view-toggle">
+              <button className={`cat-vbtn ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")} title="Grid"><I.Grid /></button>
+              <button className={`cat-vbtn ${view === "list" ? "on" : ""}`} onClick={() => setView("list")} title="List"><I.List /></button>
+            </div>
+          </div>
 
-          {/* Stats strip */}
           {!loading && classrooms.length > 0 && (
-            <div className="mt-5 flex flex-wrap items-center gap-2">
-              <StatChip value={classrooms.length} label="Classes" />
-              <StatChip value={`${avgProgress}%`} label="Avg progress" />
-              {doneCount > 0 && <StatChip value={doneCount} label="Completed" />}
-              {activeCount > 0 && (
-                <StatChip value={activeCount} label="Live now" highlight />
-              )}
+            <div className="cat-result-count">
+              {isFiltered
+                ? `${filtered.length} of ${classrooms.length} classes`
+                : `${classrooms.length} class${classrooms.length !== 1 ? "es" : ""}`}
+            </div>
+          )}
+
+          {loading && (
+            <div className="cat-grid">
+              {[...Array(6)].map((_, i) => <Skel key={i} i={i + 1} />)}
+            </div>
+          )}
+
+          {!loading && classrooms.length === 0 && (
+            <div className="cat-empty">
+              <div className="cat-empty-card">
+                <h2 className="cat-empty-title">No classes yet</h2>
+                <p className="cat-empty-sub">Ask your teacher to enroll you in a course and it will appear here.</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && classrooms.length > 0 && filtered.length === 0 && (
+            <div className="cat-no-res">
+              <div className="cat-no-res-emoji">🔍</div>
+              <div className="cat-no-res-title">No classes match</div>
+              <div className="cat-no-res-sub">Try adjusting your search query.</div>
+              <button
+                style={{ marginTop: 14, border: "none", background: T.violetL, color: T.violetD, fontFamily: T.dFont, fontSize: 12.5, fontWeight: 700, padding: "7px 16px", borderRadius: 9, cursor: "pointer" }}
+                onClick={() => setQuery("")}
+              >
+                Clear search
+              </button>
+            </div>
+          )}
+
+          {!loading && classrooms.length > 0 && view === "grid" && (
+            <div className="cat-grid">
+              {filtered.map((classroom, index) => (
+                <Card key={classroom.id} classroom={classroom} idx={index} onOpen={handleOpen} />
+              ))}
+            </div>
+          )}
+
+          {!loading && classrooms.length > 0 && view === "list" && (
+            <div className="cat-list">
+              {filtered.map((classroom, index) => (
+                <Row key={classroom.id} classroom={classroom} idx={index} onOpen={handleOpen} />
+              ))}
             </div>
           )}
         </div>
       </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          Main content
-      ════════════════════════════════════════════════════════════════════ */}
-      <div className="px-4 py-6 md:px-8 lg:px-10">
-
-        {/* ── Filter + Search bar ──────────────────────────────────────── */}
-        {!loading && !error && classrooms.length > 0 && (
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            {/* Segment tabs */}
-            <FilterTabs
-              tabs={filterTabs}
-              value={activeFilter}
-              onChange={(v) => { setActiveFilter(v); setSearchQuery(''); }}
-            />
-
-            {/* Search */}
-            <div className="relative flex-1 max-w-sm">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search classes…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-full border border-slate-200 bg-white py-2 pl-9 pr-9 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-all"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                  aria-label="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Result count hint */}
-            {searchQuery && (
-              <span className="shrink-0 text-xs text-slate-400">
-                {filtered.length} result{filtered.length !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* ── Attention spotlight (hidden when filtering) ──────────────── */}
-        {!loading && !error && !searchQuery && activeFilter === 'all' && (
-          <AttentionRow classrooms={attentionItems} onEnter={handleEnter} />
-        )}
-
-        {/* ── Grid ────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {loading ? (
-            Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
-          ) : error ? (
-            <ErrorState message={error} onRetry={reload} />
-          ) : classrooms.length === 0 ? (
-            <EmptyNoClasses />
-          ) : filtered.length === 0 ? (
-            searchQuery ? (
-              <EmptyNoResults query={searchQuery} onClear={() => setSearchQuery('')} />
-            ) : (
-              <EmptyFilterNoResults filter={activeFilter} onClear={() => setActiveFilter('all')} />
-            )
-          ) : (
-            filtered.map((classroom) => (
-              <ClassroomCard
-                key={classroom.id}
-                classroom={classroom}
-                onEnter={handleEnter}
-              />
-            ))
-          )}
-        </div>
-      </div>
-    </div>
+    </>
   );
 }

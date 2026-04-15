@@ -1,0 +1,1759 @@
+/**
+ * DragToGap.css
+ *
+ * Styles for both:
+ *   - DragToGapEditorPage  (teacher creates the exercise)
+ *   - DragToGapBlock       (student takes / teacher previews)
+ *
+ * Design tokens match the app's existing palette.
+ */
+
+/* ─── Shared tokens ─────────────────────────────────────────────────────────── */
+
+:root {
+  --dtg-accent: #06b6d4;
+  --dtg-accent-dark: #0891b2;
+  --dtg-accent-light: #ecfeff;
+  --dtg-green: #22c55e;
+  --dtg-green-light: #dcfce7;
+  --dtg-red: #ef4444;
+  --dtg-red-light: #fee2e2;
+  --dtg-bar-bg: #f1f5f9;
+  --dtg-border: #e2e8f0;
+  --dtg-text: #1e293b;
+  --dtg-sub: #64748b;
+  --dtg-muted: #94a3b8;
+  --dtg-white: #ffffff;
+  --dtg-radius: 10px;
+  --dtg-chip-radius: 6px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   EDITOR HEADBAR
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.dtg-headbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 44px;
+  background: var(--dtg-white);
+  border-bottom: 1px solid #eef0f6;
+  box-shadow: 0 1px 3px rgba(30, 41, 59, 0.06);
+  flex-shrink: 0;
+  margin: 0 -24px;
+  padding: 0 24px;
+}
+
+.dtg-headbar-left,
+.dtg-headbar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.dtg-headbar-center {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.dtg-headbar-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dtg-text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.dtg-headbar-chevron {
+  color: var(--dtg-sub);
+  flex-shrink: 0;
+}
+
+.dtg-headbar-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dtg-sub);
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+
+.dtg-headbar-icon-btn:hover {
+  background: #f1f5f9;
+  color: var(--dtg-text);
+}
+
+.dtg-headbar-left .dtg-headbar-icon-btn:first-child {
+  color: #a78bfa;
+}
+.dtg-headbar-left .dtg-headbar-icon-btn:first-child:hover {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.dtg-headbar-close:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   EDITOR PAGE LAYOUT
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.dtg-editor-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  font-family: inherit;
+  color: var(--dtg-text);
+}
+
+.dtg-editor-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Title row ────────────────────────────────────────────────────────────── */
+
+.dtg-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+  padding-top: 14px;
+}
+
+.dtg-index {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dtg-accent);
+  min-width: 28px;
+  flex-shrink: 0;
+}
+
+.dtg-title-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dtg-text);
+  font-family: inherit;
+  padding: 6px 0;
+}
+
+.dtg-title-input::placeholder {
+  color: var(--dtg-muted);
+}
+
+/* ── Words bar (top grey chip area) ──────────────────────────────────────── */
+
+.dtg-words-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  background: var(--dtg-bar-bg);
+  border-radius: var(--dtg-radius);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1.5px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.dtg-words-bar-hint {
+  font-size: 12px;
+  color: var(--dtg-muted);
+  font-style: italic;
+}
+
+/* ── Shared chip base ─────────────────────────────────────────────────────── */
+
+.dtg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 6px;
+  border-radius: var(--dtg-chip-radius);
+  background: var(--dtg-white);
+  border: 1.5px solid var(--dtg-border);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dtg-text);
+  user-select: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(30, 41, 59, 0.05);
+}
+
+.dtg-chip svg {
+  color: var(--dtg-muted);
+  flex-shrink: 0;
+}
+
+/* Editor bar chips — in words-bar (teacher editor), draggable-looking */
+.dtg-chip--bar {
+  cursor: grab;
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+}
+
+.dtg-chip--bar:hover {
+  border-color: var(--dtg-accent);
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.15);
+  cursor: grab;
+}
+
+/* Teacher preview chips (in block, non-interactive) */
+.dtg-chip--preview {
+  cursor: default;
+}
+
+/* Student draggable chips */
+.dtg-chip--draggable {
+  cursor: grab;
+  transition:
+    box-shadow 0.15s,
+    opacity 0.15s,
+    border-color 0.15s;
+}
+
+.dtg-chip--draggable:hover {
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2);
+  border-color: var(--dtg-accent);
+}
+
+.dtg-chip--draggable:active {
+  cursor: grabbing;
+}
+
+.dtg-chip--used {
+  opacity: 0.32;
+  cursor: default;
+  pointer-events: none;
+  background: var(--dtg-bar-bg);
+}
+
+.dtg-chip--dragging {
+  opacity: 0.45;
+}
+
+/* ── Main editor area ─────────────────────────────────────────────────────── */
+
+.dtg-main-editor {
+  position: relative;
+  min-height: 120px;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: var(--dtg-radius);
+  background: var(--dtg-white);
+  padding: 14px 16px 14px 40px; /* extra left padding for the insert button */
+  cursor: text;
+  transition: border-color 0.15s;
+}
+
+.dtg-main-editor--focused {
+  border-color: var(--dtg-accent);
+}
+
+/* In insert mode, text cursor becomes crosshair to signal "click to insert" */
+.dtg-main-editor--insert-mode .dtg-text-seg,
+.dtg-main-editor--insert-mode .dtg-segments {
+  cursor: crosshair;
+}
+
+.dtg-placeholder {
+  font-size: 14px;
+  color: var(--dtg-muted);
+  cursor: text;
+  line-height: 1.6;
+}
+
+.dtg-segments {
+  display: inline;
+  line-height: 2.4;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.dtg-text-seg {
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-width: 2px;
+  caret-color: var(--dtg-accent);
+  cursor: text;
+}
+
+.dtg-text-seg:empty::before {
+  content: "\200b"; /* zero-width space keeps caret visible */
+}
+
+/* ── Gap inside the editor ────────────────────────────────────────────────── */
+
+.dtg-gap-wrap {
+  display: inline;
+  position: relative;
+}
+
+.dtg-gap-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: middle;
+  border-radius: 7px;
+  padding: 1px 2px;
+  transition: background 0.12s;
+}
+
+.dtg-gap-inner--active {
+  background: rgba(6, 182, 212, 0.06);
+}
+
+/* Gap input (shows answer when filled) */
+.dtg-gap-chip {
+  display: inline-block;
+  min-width: 56px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1.5px solid var(--dtg-accent);
+  border-radius: 6px;
+  background: var(--dtg-accent-light);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dtg-text);
+  text-align: center;
+  outline: none;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+  font-family: inherit;
+  vertical-align: middle;
+}
+
+.dtg-gap-chip--empty {
+  border-style: dashed;
+}
+
+.dtg-gap-chip--active {
+  border-color: var(--dtg-accent);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18);
+}
+
+/* Filled gap chip — grey/disabled look */
+.dtg-gap-chip--filled {
+  background: var(--dtg-bar-bg);
+  border-color: var(--dtg-border);
+  border-style: solid;
+  color: var(--dtg-sub);
+  cursor: pointer; /* still clickable to re-edit */
+}
+
+.dtg-gap-chip--filled:hover {
+  border-color: var(--dtg-accent);
+  background: #f0fdff;
+}
+
+/* Dot indicator (visual only, not interactive) */
+.dtg-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.dtg-dot--green {
+  background: var(--dtg-green);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+.dtg-dot--empty {
+  background: var(--dtg-muted);
+}
+
+/* ── Left-corner insert button (? and [ ]) ──────────────────────────────── */
+
+.dtg-insert-btn {
+  position: absolute;
+  top: 12px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  transition:
+    border-color 0.12s,
+    color 0.12s,
+    background 0.12s;
+  user-select: none;
+  font-family: inherit;
+}
+
+/* "?" step */
+.dtg-insert-btn--question {
+  background: transparent;
+  border: 1.5px solid var(--dtg-muted);
+  font-size: 13px;
+  color: var(--dtg-muted);
+}
+
+.dtg-insert-btn--question:hover {
+  border-color: var(--dtg-accent);
+  color: var(--dtg-accent);
+  background: var(--dtg-accent-light);
+}
+
+/* "[ ]" step */
+.dtg-insert-btn--bracket {
+  background: var(--dtg-accent-light);
+  border: 1.5px solid var(--dtg-accent);
+  font-size: 9px;
+  letter-spacing: -1px;
+  color: var(--dtg-accent-dark);
+}
+
+.dtg-insert-btn--bracket:hover {
+  background: var(--dtg-accent);
+  color: var(--dtg-white);
+  border-color: var(--dtg-accent);
+}
+
+/* ── Bottom answer panel ──────────────────────────────────────────────────── */
+
+.dtg-bottom-panel {
+  margin-top: 6px;
+  border: 1.5px solid var(--dtg-accent);
+  border-radius: var(--dtg-radius);
+  background: var(--dtg-white);
+  box-shadow: 0 4px 20px rgba(6, 182, 212, 0.1);
+  overflow: hidden;
+  animation: dtg-panel-in 0.15s ease;
+}
+
+@keyframes dtg-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dtg-bottom-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px 8px;
+  border-bottom: 1px solid var(--dtg-border);
+  background: #f8fdff;
+}
+
+.dtg-bottom-panel-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dtg-accent-dark);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.dtg-bottom-panel-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  background: transparent;
+  border: 1px solid var(--dtg-border);
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--dtg-muted);
+  font-size: 12px;
+  font-family: inherit;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.dtg-bottom-panel-delete:hover {
+  background: var(--dtg-red-light);
+  color: var(--dtg-red);
+  border-color: var(--dtg-red);
+}
+
+.dtg-bottom-panel-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dtg-answer-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: 7px;
+  padding: 8px 11px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--dtg-text);
+  outline: none;
+  resize: none;
+  line-height: 1.5;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  background: var(--dtg-white);
+}
+
+.dtg-answer-textarea:focus {
+  border-color: var(--dtg-accent);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+}
+
+.dtg-answer-textarea::placeholder {
+  color: var(--dtg-muted);
+}
+
+.dtg-bottom-panel-hint {
+  font-size: 12.5px;
+  color: var(--dtg-muted);
+}
+
+.dtg-variant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dtg-variant-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.dtg-variant-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dtg-variant-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--dtg-accent);
+}
+
+.dtg-variant-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: 7px;
+  padding: 8px 11px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--dtg-text);
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  background: var(--dtg-white);
+}
+
+.dtg-variant-input:focus {
+  border-color: var(--dtg-accent);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+}
+
+.dtg-variant-input::placeholder {
+  color: var(--dtg-muted);
+}
+
+.dtg-variant-remove {
+  padding: 7px 10px;
+  border: 1px solid var(--dtg-border);
+  border-radius: 7px;
+  background: var(--dtg-white);
+  color: var(--dtg-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    border-color 0.12s,
+    color 0.12s,
+    background 0.12s;
+}
+
+.dtg-variant-remove:hover {
+  border-color: var(--dtg-red);
+  color: var(--dtg-red);
+  background: var(--dtg-red-light);
+}
+
+.dtg-variant-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 8px 12px;
+  border: 1px dashed var(--dtg-accent);
+  border-radius: 8px;
+  background: #f8fdff;
+  color: var(--dtg-accent-dark);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+
+.dtg-variant-add:hover {
+  background: var(--dtg-accent-light);
+  border-color: var(--dtg-accent-dark);
+}
+
+.dtg-bottom-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dtg-bottom-panel-cancel {
+  padding: 7px 16px;
+  border-radius: 7px;
+  border: 1.5px solid var(--dtg-border);
+  background: var(--dtg-white);
+  color: var(--dtg-sub);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.12s;
+}
+
+.dtg-bottom-panel-cancel:hover {
+  border-color: var(--dtg-sub);
+}
+
+.dtg-bottom-panel-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 18px;
+  border-radius: 7px;
+  border: none;
+  background: var(--dtg-accent);
+  color: var(--dtg-white);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.dtg-bottom-panel-confirm:hover:not(:disabled) {
+  background: var(--dtg-accent-dark);
+}
+
+.dtg-bottom-panel-confirm--disabled,
+.dtg-bottom-panel-confirm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Generate button ─────────────────────────────────────────────────────── */
+
+.dtg-generate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 16px auto 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--dtg-muted);
+  font-family: inherit;
+  transition: color 0.15s;
+  padding: 4px 12px;
+}
+
+.dtg-generate-btn:hover {
+  color: var(--dtg-accent);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+.dtg-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--dtg-border);
+}
+
+.dtg-pro-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--dtg-sub);
+  margin-right: auto;
+}
+
+.dtg-footer-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.dtg-btn-cancel {
+  padding: 9px 22px;
+  border-radius: 8px;
+  border: 1.5px solid var(--dtg-border);
+  background: var(--dtg-white);
+  color: var(--dtg-sub);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.dtg-btn-cancel:hover {
+  border-color: var(--dtg-sub);
+}
+
+.dtg-btn-save {
+  padding: 9px 26px;
+  border-radius: 8px;
+  border: none;
+  background: var(--dtg-accent);
+  color: var(--dtg-white);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
+}
+
+.dtg-btn-save:hover:not(:disabled) {
+  background: var(--dtg-accent-dark);
+}
+
+.dtg-btn-save:disabled,
+.dtg-btn-save--disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   STUDENT / TEACHER-PREVIEW BLOCK  (DragToGapBlock)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.dtg-block {
+  position: relative;
+  background: var(--dtg-white);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dtg-block--teacher {
+  background: #fafbfc;
+}
+
+.dtg-block-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dtg-text);
+}
+
+/* ── Pool bar (top chips in block) ───────────────────────────────────────── */
+
+.dtg-pool-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 46px;
+  background: var(--dtg-bar-bg);
+  border-radius: var(--dtg-radius);
+  padding: 8px 12px;
+  align-items: center;
+  border: 1.5px dashed transparent;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+/* Highlight pool bar as a drop target when dragging */
+.dtg-pool-bar:has(.dtg-chip--dragging) {
+  border-color: var(--dtg-border);
+}
+
+.dtg-pool-bar-empty {
+  font-size: 12px;
+  color: var(--dtg-muted);
+  font-style: italic;
+}
+
+/* ── Exercise text ───────────────────────────────────────────────────────── */
+
+.dtg-text {
+  font-size: 15px;
+  line-height: 2.5;
+  color: var(--dtg-text);
+  word-break: break-word;
+}
+
+/* ── Drop zones ──────────────────────────────────────────────────────────── */
+
+.dtg-drop-zone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  height: 30px;
+  margin: 0 8px;
+  padding: 0 10px;
+  border: 1.5px dashed var(--dtg-border);
+  border-radius: 6px;
+  background: var(--dtg-bar-bg);
+  vertical-align: middle;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dtg-text);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+  position: relative;
+}
+
+.dtg-drop-zone--over {
+  border-color: var(--dtg-accent);
+  background: var(--dtg-accent-light);
+}
+
+.dtg-drop-zone--filled {
+  border-style: solid;
+  border-color: var(--dtg-border);
+  background: var(--dtg-white);
+  cursor: pointer;
+}
+
+.dtg-drop-zone--filled:hover {
+  border-color: var(--dtg-red);
+  background: var(--dtg-red-light);
+}
+
+.dtg-drop-zone--correct {
+  border-color: var(--dtg-green) !important;
+  background: var(--dtg-white) !important;
+  color: var(--dtg-text);
+  cursor: default;
+}
+
+/* Teacher-only: highlights the canonical gap while dragging a matching chip */
+.dtg-drop-zone--teacher-hint {
+  border-color: #c4b5fd !important;
+  background: #faf5ff !important;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DRAG WORD TO IMAGE
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.dti-editor-board {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 8px 2px 4px;
+}
+
+.dti-editor-card {
+  position: relative;
+  flex: 0 0 188px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: 14px;
+  background: var(--dtg-white);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.dti-editor-card-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--dtg-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--dtg-muted);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.dti-editor-card-remove:hover {
+  background: var(--dtg-red-light);
+  border-color: var(--dtg-red);
+  color: var(--dtg-red);
+}
+
+.dti-image-slot {
+  width: 100%;
+  height: 148px;
+  border: 1.5px dashed var(--dtg-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.15s;
+  padding: 0;
+}
+
+.dti-image-slot:hover {
+  border-color: var(--dtg-accent);
+  background: var(--dtg-accent-light);
+}
+
+.dti-image-slot:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.dti-image-slot--filled {
+  border-style: solid;
+  background: #eff6ff;
+}
+
+.dti-image-slot-upload {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--dtg-accent-dark);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dti-image-slot-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dti-answer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.dti-answer-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--dtg-text);
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  background: var(--dtg-white);
+}
+
+.dti-answer-input:focus {
+  border-color: var(--dtg-accent);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+}
+
+.dti-answer-input::placeholder {
+  color: var(--dtg-muted);
+}
+
+.dti-upload-error {
+  font-size: 12px;
+  color: #b91c1c;
+  line-height: 1.4;
+}
+
+.dti-add-card {
+  flex: 0 0 58px;
+  align-self: center;
+  width: 58px;
+  height: 58px;
+  border: 1.5px dashed var(--dtg-accent);
+  border-radius: 16px;
+  background: #f8fdff;
+  color: var(--dtg-accent-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    transform 0.12s;
+}
+
+.dti-add-card:hover {
+  background: var(--dtg-accent-light);
+  border-color: var(--dtg-accent-dark);
+  transform: translateY(-1px);
+}
+
+.dti-block {
+  gap: 16px;
+}
+
+.twi-block {
+  gap: 16px;
+}
+
+.twi-helper-bar {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: var(--dtg-radius);
+  background: var(--dtg-bar-bg);
+  color: var(--dtg-sub);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.dti-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.dti-player-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.dti-player-image-shell {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+}
+
+.dti-player-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dti-player-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dtg-muted);
+  font-size: 13px;
+}
+
+.dti-player-drop-zone {
+  min-height: 40px;
+  border: 1.5px dashed var(--dtg-border);
+  border-radius: 10px;
+  background: var(--dtg-white);
+  color: var(--dtg-text);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+
+.dti-player-drop-zone--over {
+  border-color: var(--dtg-accent);
+  background: var(--dtg-accent-light);
+}
+
+.dti-player-drop-zone--filled {
+  border-style: solid;
+}
+
+.dti-player-drop-zone--filled:hover {
+  border-color: var(--dtg-red);
+  background: var(--dtg-red-light);
+}
+
+.dti-player-drop-zone--correct {
+  border-color: var(--dtg-green) !important;
+  background: var(--dtg-green-light) !important;
+  color: #166534;
+}
+
+.dti-player-drop-zone--wrong {
+  border-color: var(--dtg-red) !important;
+  background: var(--dtg-red-light) !important;
+  color: #991b1b;
+}
+
+.dti-player-drop-zone--teacher-hint {
+  border-color: #c4b5fd !important;
+  background: #faf5ff !important;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
+}
+
+.dti-player-drop-placeholder {
+  color: var(--dtg-muted);
+  font-weight: 500;
+}
+
+.twi-player-grid {
+  align-items: start;
+}
+
+.twi-player-card {
+  align-items: stretch;
+}
+
+.sfi-player-grid {
+  align-items: start;
+}
+
+.sfi-player-card {
+  min-width: 0;
+}
+
+.sfi-player-select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.twi-player-input {
+  width: 100% !important;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+}
+
+.dtg-drop-zone--wrong {
+  border-color: var(--dtg-red) !important;
+  background: var(--dtg-red-light) !important;
+  color: #991b1b;
+  cursor: default;
+}
+
+.dtg-drop-placeholder {
+  display: inline-block;
+  width: 40px;
+  height: 2px;
+  background: var(--dtg-muted);
+  border-radius: 2px;
+  opacity: 0.4;
+}
+
+/* Teacher answer display in block */
+.dtg-gap-answer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  padding: 2px 10px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--dtg-green-light);
+  border: 1.5px solid var(--dtg-green);
+  color: #166534;
+  font-size: 13px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* ── Check button ─────────────────────────────────────────────────────────── */
+
+.dtg-check-btn {
+  align-self: flex-start;
+  padding: 9px 22px;
+  border-radius: 8px;
+  border: 1.5px solid var(--dtg-border);
+  background: var(--dtg-white);
+  color: var(--dtg-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: not-allowed;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.dtg-check-btn--ready {
+  background: var(--dtg-accent);
+  border-color: var(--dtg-accent);
+  color: var(--dtg-white);
+  cursor: pointer;
+}
+
+.dtg-check-btn--ready:hover {
+  background: var(--dtg-accent-dark);
+  border-color: var(--dtg-accent-dark);
+}
+
+/* ── Result area ──────────────────────────────────────────────────────────── */
+
+.dtg-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.dtg-result--correct {
+  color: #166534;
+  background: var(--dtg-green-light);
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: block;
+}
+
+.dtg-result--wrong {
+  color: #991b1b;
+}
+
+.dtg-retry-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1.5px solid var(--dtg-red);
+  background: transparent;
+  color: var(--dtg-red);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.dtg-retry-btn:hover {
+  background: var(--dtg-red-light);
+}
+
+/* ── Type word in gap ─────────────────────────────────────────────────────── */
+
+.twg-block {
+  gap: 12px;
+}
+
+.twg-helper-bar {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: var(--dtg-radius);
+  background: var(--dtg-bar-bg);
+  color: var(--dtg-sub);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.twg-text {
+  line-height: 2.7;
+}
+
+.twg-gap-input {
+  display: inline-flex;
+  align-items: center;
+  min-width: 72px;
+  height: 34px;
+  margin: 0 8px;
+  padding: 0 10px;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: 7px;
+  background: var(--dtg-white);
+  color: var(--dtg-text);
+  font-size: 13px;
+  font-weight: 500;
+  vertical-align: middle;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.twg-gap-input::placeholder {
+  color: var(--dtg-muted);
+}
+
+.twg-gap-input:focus {
+  border-color: var(--dtg-accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.twg-gap-input--correct {
+  border-color: var(--dtg-green);
+  background: var(--dtg-green-light);
+  color: #166534;
+}
+
+.twg-gap-input--wrong {
+  border-color: var(--dtg-red);
+  background: var(--dtg-red-light);
+  color: #991b1b;
+}
+
+/* ── Select word form ─────────────────────────────────────────────────────── */
+
+.swf-block {
+  gap: 12px;
+}
+
+.swf-helper-bar {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: var(--dtg-radius);
+  background: var(--dtg-bar-bg);
+  color: var(--dtg-sub);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.swf-text {
+  line-height: 2.7;
+}
+
+.swf-gap-select {
+  display: inline-flex;
+  align-items: center;
+  min-width: 96px;
+  height: 34px;
+  margin: 0 8px;
+  padding: 0 36px 0 10px;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: 7px;
+  background-color: var(--dtg-white);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--dtg-muted) 50%),
+    linear-gradient(135deg, var(--dtg-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 1px),
+    calc(100% - 12px) calc(50% - 1px);
+  background-size:
+    6px 6px,
+    6px 6px;
+  background-repeat: no-repeat;
+  color: var(--dtg-text);
+  font-size: 13px;
+  font-weight: 500;
+  vertical-align: middle;
+  outline: none;
+  appearance: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background-color 0.15s;
+}
+
+.swf-gap-select:focus {
+  border-color: var(--dtg-accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.swf-gap-select--correct {
+  border-color: var(--dtg-green);
+  background-color: var(--dtg-green-light);
+  color: #166534;
+}
+
+.swf-gap-select--wrong {
+  border-color: var(--dtg-red);
+  background-color: var(--dtg-red-light);
+  color: #991b1b;
+}
+
+/* Teacher-only line under dropdowns / inputs (not rendered for students) */
+.swf-teacher-answer-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #7c3aed;
+  letter-spacing: 0.01em;
+}
+
+/* ── Build sentence ───────────────────────────────────────────────────────── */
+
+.bs-block {
+  gap: 16px;
+}
+
+.bs-prompt {
+  font-size: 13px;
+  color: var(--dtg-sub);
+  line-height: 1.6;
+}
+
+.bs-sentences {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bs-sentence-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1.5px solid var(--dtg-border);
+}
+
+.bs-sentence-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dtg-muted);
+}
+
+/* Word bank scoped to one sentence row (chips only for that line) */
+.bs-sentence-pool {
+  flex-wrap: wrap;
+}
+
+.bs-slot-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.bs-drop-zone {
+  margin: 0;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+/* ── Match pairs ──────────────────────────────────────────────────────────── */
+
+.mp-editor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1.5px solid var(--dtg-border);
+  background: #f8fafc;
+}
+
+.mp-editor-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px;
+  gap: 12px;
+  align-items: center;
+}
+
+.mp-editor-col-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dtg-muted);
+}
+
+.mp-editor-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mp-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px;
+  gap: 12px;
+  align-items: center;
+}
+
+.mp-editor-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--dtg-border);
+  border-radius: 12px;
+  padding: 11px 13px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--dtg-text);
+  background: var(--dtg-white);
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.mp-editor-input:focus {
+  border-color: var(--dtg-accent);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+}
+
+.mp-editor-input::placeholder {
+  color: var(--dtg-muted);
+}
+
+.mp-editor-remove {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--dtg-border);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--dtg-muted);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.mp-editor-remove:hover {
+  background: var(--dtg-red-light);
+  border-color: var(--dtg-red);
+  color: var(--dtg-red);
+}
+
+.mp-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.mp-editor-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--dtg-accent-dark);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.mp-block {
+  gap: 16px;
+}
+
+.mp-player-board {
+  position: relative;
+  padding: 8px 0;
+}
+
+.mp-player-columns {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+}
+
+.mp-player-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mp-player-column--right {
+  align-items: stretch;
+}
+
+.mp-player-item {
+  min-height: 46px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--dtg-border);
+  background: var(--dtg-white);
+  color: var(--dtg-text);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 1px 2px rgba(30, 41, 59, 0.05);
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+
+.mp-player-item:hover {
+  transform: translateY(-1px);
+}
+
+.mp-player-item--right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.mp-player-item--teacher-hint {
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
+  border-color: #c4b5fd !important;
+  background: #faf5ff !important;
+}
+
+.mp-player-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .dtg-dot,
+  .dtg-chip,
+  .dtg-drop-zone,
+  .twg-gap-input,
+  .swf-gap-select,
+  .mp-player-item,
+  .dtg-btn-save,
+  .dtg-check-btn,
+  .dtg-bottom-panel {
+    transition: none;
+    animation: none;
+  }
+}
+/* ── AI-generated scene description hint (DragWordToImageEditorPage) ── */
+.dti-card-description {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: #6b6f8e;
+  line-height: 1.45;
+  font-style: italic;
+  text-align: center;
+  padding: 0 4px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ── Teacher guided-fill gap input ─────────────────────────────────────────── */
+/* Same shape as the student input but purple-tinted so the teacher knows        */
+/* their typing is broadcast live to students.                                   */
+
+.twg-gap-input--teacher {
+  border-color: #6c6fef;
+  background: #eef0fe;
+  color: #4f52c2;
+  box-shadow: 0 0 0 2px rgba(108, 111, 239, 0.18);
+}
+
+.twg-gap-input--teacher:focus {
+  border-color: #4f52c2;
+  box-shadow: 0 0 0 3px rgba(108, 111, 239, 0.28);
+  background: #e8ebfd;
+  color: #3a3d9e;
+}
+
+.twg-gap-input--teacher::placeholder {
+  color: #a5a8ef;
+}

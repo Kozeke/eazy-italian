@@ -18,13 +18,19 @@ Supported formats
   .vtt   → SubtitleParser
   .srt   → SubtitleParser
   .docx  → DocxParser  (python-docx)
+  JPG/JPEG/PNG → ImageParser  (anthropic vision)
 """
 from __future__ import annotations
 
+import logging
+
 from app.services.document_parsers.base import BaseParser, ParsedDocument, ParserError
+
+logger = logging.getLogger(__name__)
 from app.services.document_parsers.pdf_parser import PDFParser
 from app.services.document_parsers.subtitle_parser import SubtitleParser
 from app.services.document_parsers.docx_parser import DocxParser
+from app.services.document_parsers.image_parser import ImageParser
 
 __all__ = [
     "BaseParser",
@@ -35,6 +41,7 @@ __all__ = [
     "DocxParser",
     "get_parser",
     "SUPPORTED_EXTENSIONS",
+    "ImageParser",
 ]
 
 # Registry — order matters: first match wins
@@ -42,6 +49,7 @@ _REGISTRY: list[BaseParser] = [
     PDFParser(),
     SubtitleParser(),
     DocxParser(),
+    ImageParser(),
 ]
 
 SUPPORTED_EXTENSIONS: set[str] = {
@@ -53,19 +61,36 @@ SUPPORTED_EXTENSIONS: set[str] = {
 
 def get_parser(filename: str, mimetype: str = "") -> BaseParser:
     """
-    Return the right parser for *filename*.
-
+    Return the appropriate parser for the given file.
+ 
+    Parameters
+    ----------
+    filename : str
+        Original filename (extension is the primary dispatch key).
+    mimetype : str, optional
+        MIME type hint from the HTTP Content-Type header.
+ 
+    Returns
+    -------
+    BaseParser
+        A parser instance capable of handling the file.
+ 
     Raises
     ------
     ParserError
-        If no parser supports the given file type.
+        If no registered parser supports the file type.
     """
     for parser in _REGISTRY:
         if parser.can_handle(filename, mimetype):
+            logger.debug(
+                "get_parser: '%s' (mime=%r) → %s",
+                filename, mimetype, type(parser).__name__,
+            )
             return parser
-
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "unknown"
+ 
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "(none)"
     raise ParserError(
-        f"No parser available for '.{ext}' files. "
-        f"Supported: {sorted(SUPPORTED_EXTENSIONS)}"
+        f"No parser available for file type '.{ext}' "
+        f"(filename={filename!r}, mimetype={mimetype!r}). "
+        "Supported types: pdf, docx, vtt, srt, jpg, jpeg, png."
     )

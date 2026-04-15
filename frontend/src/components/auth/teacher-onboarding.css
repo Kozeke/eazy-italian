@@ -1,40 +1,38 @@
 /* teacher-onboarding.css
  *
- * Design tokens + layout for the teacher registration / onboarding wizard.
- * Keeps teacher styling entirely separate from student-tokens.css.
- *
- * Palette: clean white base · indigo / sky blue accents · generous whitespace
- * Typography: DM Sans display + Inter body
+ * Architecture role:
+ * Shared style layer for the teacher registration/onboarding flow, aligned with
+ * the AdminCoursesCatalog visual system so auth pages feel consistent.
  */
 
- @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap");
+ @import url("https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap");
 
  /* ──────────────────────────────────────────────────────
     TOKEN LAYER
  ────────────────────────────────────────────────────── */
  :root {
    /* Brand */
-   --t-indigo:      #4f46e5;
-   --t-indigo-soft: #eef2ff;
-   --t-indigo-mid:  #c7d2fe;
-   --t-indigo-dark: #3730a3;
+  --t-indigo:      #6c6fef;
+  --t-indigo-soft: #eef0fe;
+  --t-indigo-mid:  #c7caff;
+  --t-indigo-dark: #4f52c2;
  
-   --t-sky:        #0ea5e9;
-   --t-sky-soft:   #e0f2fe;
-   --t-teal:       #0d9488;
-   --t-teal-soft:  #ccfbf1;
+  --t-sky:        #0099e6;
+  --t-sky-soft:   #daeeff;
+  --t-teal:       #00bcd4;
+  --t-teal-soft:  #e0f7fa;
  
    /* Neutrals */
    --t-white:  #ffffff;
-   --t-bg:     #f9fafb;
-   --t-border: #e5e7eb;
-   --t-line:   #f3f4f6;
+  --t-bg:     #f7f7fa;
+  --t-border: #e8e8f0;
+  --t-line:   #f1f1f7;
  
    /* Text */
-   --t-text:    #111827;
-   --t-sub:     #374151;
-   --t-muted:   #6b7280;
-   --t-light:   #9ca3af;
+  --t-text:    #18181b;
+  --t-sub:     #52525b;
+  --t-muted:   #71717a;
+  --t-light:   #a1a1aa;
  
    /* Feedback */
    --t-green:      #16a34a;
@@ -46,12 +44,12 @@
    --t-radius:    12px;
    --t-radius-lg: 18px;
    --t-radius-xl: 24px;
-   --t-shadow:    0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
-   --t-shadow-md: 0 4px 20px rgba(79,70,229,.12);
-   --t-shadow-lg: 0 8px 32px rgba(79,70,229,.14);
+  --t-shadow:    0 1px 4px rgba(108,111,239,.04);
+  --t-shadow-md: 0 4px 14px rgba(108,111,239,.12);
+  --t-shadow-lg: 0 8px 24px rgba(108,111,239,.14);
  
    /* Typography */
-   --t-font-display: "DM Sans", system-ui, sans-serif;
+  --t-font-display: "Nunito", system-ui, sans-serif;
    --t-font-body:    "Inter", system-ui, sans-serif;
  }
  
@@ -164,7 +162,7 @@
    flex-direction: column;
    align-items: center;
    justify-content: center;
-   padding: 2rem 1.5rem;
+  padding: 1.5rem 1rem;
    min-height: 100vh;
    overflow-y: auto;
  }
@@ -174,15 +172,16 @@
  ────────────────────────────────────────────────────── */
  .tof-card {
    width: 100%;
-   max-width: 440px;
+  max-width: 400px;
    background: var(--t-white);
    border-radius: var(--t-radius-xl);
+  border: 1px solid var(--t-border);
    box-shadow: var(--t-shadow);
-   padding: 2.5rem;
+  padding: 1.75rem;
  }
  
  .tof-card--wide {
-   max-width: 520px;
+  max-width: 460px;
  }
  
  /* Wordmark / logo */
@@ -190,9 +189,9 @@
    display: flex;
    align-items: center;
    gap: .55rem;
-   margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
    font-family: var(--t-font-display);
-   font-size: 1.125rem;
+  font-size: 1rem;
    font-weight: 700;
    color: var(--t-indigo);
    text-decoration: none;
@@ -204,7 +203,7 @@
  
  /* Step header */
  .tof-step-header {
-   margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
  }
  
  .tof-step-header__eyebrow {
@@ -218,7 +217,7 @@
  
  .tof-step-header__title {
    font-family: var(--t-font-display);
-   font-size: 1.625rem;
+  font-size: 1.35rem;
    font-weight: 700;
    color: var(--t-text);
    margin-bottom: .375rem;
@@ -226,7 +225,7 @@
  }
  
  .tof-step-header__sub {
-   font-size: .9375rem;
+  font-size: .8125rem;
    color: var(--t-muted);
    line-height: 1.5;
  }
@@ -238,11 +237,11 @@
    display: flex;
    flex-direction: column;
    gap: .375rem;
-   margin-bottom: 1.125rem;
+  margin-bottom: .8rem;
  }
  
  .tof-label {
-   font-size: .8125rem;
+  font-size: .75rem;
    font-weight: 600;
    color: var(--t-sub);
  }
@@ -250,12 +249,12 @@
  .tof-input,
  .tof-select {
    width: 100%;
-   height: 46px;
-   padding: 0 .875rem;
+  height: 40px;
+  padding: 0 .75rem;
    border: 1.5px solid var(--t-border);
    border-radius: var(--t-radius);
    font-family: var(--t-font-body);
-   font-size: .9375rem;
+  font-size: .8125rem;
    color: var(--t-text);
    background: var(--t-white);
    transition: border-color .15s, box-shadow .15s;
@@ -311,11 +310,11 @@
    align-items: center;
    justify-content: center;
    gap: .5rem;
-   height: 48px;
-   padding: 0 1.75rem;
+  height: 40px;
+  padding: 0 1.1rem;
    border-radius: var(--t-radius);
    font-family: var(--t-font-body);
-   font-size: .9375rem;
+  font-size: .8125rem;
    font-weight: 600;
    cursor: pointer;
    border: none;
@@ -330,7 +329,7 @@
  .tof-btn--primary {
    background: var(--t-indigo);
    color: #fff;
-   box-shadow: 0 1px 3px rgba(79,70,229,.25);
+  box-shadow: 0 1px 3px rgba(108,111,239,.25);
  }
  .tof-btn--primary:hover:not(:disabled) {
    background: var(--t-indigo-dark);
@@ -354,8 +353,8 @@
  .tof-btn--full { width: 100%; }
  
  .tof-btn--lg {
-   height: 54px;
-   font-size: 1rem;
+  height: 44px;
+  font-size: .875rem;
    border-radius: 14px;
  }
  
@@ -391,17 +390,17 @@
  ────────────────────────────────────────────────────── */
  .tof-otp-row {
    display: flex;
-   gap: .625rem;
+  gap: .45rem;
    justify-content: center;
-   margin: 1.5rem 0;
+  margin: 1rem 0;
  }
  
  .tof-otp-cell {
-   width: 52px;
-   height: 60px;
+  width: 44px;
+  height: 48px;
    border: 1.5px solid var(--t-border);
    border-radius: var(--t-radius);
-   font-size: 1.5rem;
+  font-size: 1.2rem;
    font-weight: 700;
    font-family: var(--t-font-display);
    text-align: center;
@@ -455,7 +454,7 @@
    display: flex;
    justify-content: space-between;
    align-items: center;
-   margin-bottom: 3rem;
+  margin-bottom: 1.5rem;
  }
  
  .tof-intro__slide {
@@ -464,31 +463,31 @@
    display: flex;
    flex-direction: column;
    align-items: center;
-   gap: 1.75rem;
+  gap: 1rem;
    animation: tof-slide-in .3s cubic-bezier(.22,1,.36,1) both;
  }
  
  .tof-intro__illus {
-   width: 200px;
-   height: 200px;
+  width: 148px;
+  height: 148px;
    border-radius: 50%;
    display: flex;
    align-items: center;
    justify-content: center;
-   font-size: 5rem;
+  font-size: 3.5rem;
    flex-shrink: 0;
  }
  
  .tof-intro__heading {
    font-family: var(--t-font-display);
-   font-size: 1.75rem;
+  font-size: 1.35rem;
    font-weight: 700;
    color: var(--t-text);
    line-height: 1.25;
  }
  
  .tof-intro__body {
-   font-size: 1rem;
+  font-size: .875rem;
    color: var(--t-muted);
    line-height: 1.6;
    max-width: 360px;
@@ -500,7 +499,7 @@
    display: flex;
    align-items: center;
    justify-content: space-between;
-   margin-top: 2.5rem;
+  margin-top: 1.25rem;
  }
  
  /* ──────────────────────────────────────────────────────
@@ -518,16 +517,16 @@
  }
  
  .tof-trial__check {
-   width: 80px;
-   height: 80px;
+  width: 62px;
+  height: 62px;
    border-radius: 50%;
    background: var(--t-green-soft);
    color: var(--t-green);
-   font-size: 2.25rem;
+  font-size: 1.7rem;
    display: flex;
    align-items: center;
    justify-content: center;
-   margin-bottom: 1.75rem;
+  margin-bottom: 1rem;
    animation: tof-pop .45s cubic-bezier(.34,1.56,.64,1) both;
  }
  
@@ -538,18 +537,18 @@
  
  .tof-trial__heading {
    font-family: var(--t-font-display);
-   font-size: 2rem;
+  font-size: 1.45rem;
    font-weight: 700;
    color: var(--t-text);
    margin-bottom: .625rem;
  }
  
  .tof-trial__sub {
-   font-size: 1rem;
+  font-size: .875rem;
    color: var(--t-muted);
    max-width: 340px;
    line-height: 1.55;
-   margin-bottom: 2.5rem;
+  margin-bottom: 1.5rem;
  }
  
  .tof-trial__badge {
@@ -558,11 +557,11 @@
    gap: .5rem;
    background: var(--t-indigo-soft);
    color: var(--t-indigo);
-   font-size: .875rem;
-   font-weight: 600;
-   padding: .5rem 1.125rem;
+  font-size: .75rem;
+  font-weight: 600;
+  padding: .4rem .85rem;
    border-radius: 100px;
-   margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
  }
  
  /* ──────────────────────────────────────────────────────
@@ -595,30 +594,30 @@
  
  .tof-next__heading {
    font-family: var(--t-font-display);
-   font-size: 1.75rem;
+  font-size: 1.35rem;
    font-weight: 700;
    color: var(--t-text);
    margin-bottom: .625rem;
  }
  
  .tof-next__sub {
-   font-size: .9375rem;
+  font-size: .8125rem;
    color: var(--t-muted);
-   margin-bottom: 2.5rem;
+  margin-bottom: 1.5rem;
    line-height: 1.55;
  }
  
  .tof-next__actions {
    display: flex;
    flex-direction: column;
-   gap: 1rem;
+  gap: .7rem;
  }
  
  .tof-cta-card {
    display: flex;
    align-items: center;
-   gap: 1.25rem;
-   padding: 1.375rem 1.5rem;
+  gap: .8rem;
+  padding: .95rem 1rem;
    background: var(--t-white);
    border: 1.5px solid var(--t-border);
    border-radius: var(--t-radius-lg);
@@ -641,13 +640,13 @@
  }
  
  .tof-cta-card__icon {
-   width: 48px;
-   height: 48px;
+  width: 38px;
+  height: 38px;
    border-radius: 12px;
    display: flex;
    align-items: center;
    justify-content: center;
-   font-size: 1.5rem;
+  font-size: 1.1rem;
    flex-shrink: 0;
  }
  
@@ -660,14 +659,14 @@
  
  .tof-cta-card__title {
    font-family: var(--t-font-display);
-   font-size: 1rem;
+  font-size: .875rem;
    font-weight: 700;
    color: var(--t-text);
    margin-bottom: .2rem;
  }
  
  .tof-cta-card__desc {
-   font-size: .8125rem;
+  font-size: .75rem;
    color: var(--t-muted);
  }
  
@@ -708,10 +707,10 @@
  .tof-link:hover { text-decoration: underline; }
  
  .tof-footer-text {
-   font-size: .875rem;
+  font-size: .75rem;
    color: var(--t-muted);
    text-align: center;
-   margin-top: 1.5rem;
+  margin-top: 1rem;
  }
  
  /* Spinner */

@@ -80,18 +80,18 @@ const { user, role } = useAuth();
 const isTeacher = role === 'teacher' || role === 'admin';
 
 // 2. Wrap content in LiveSessionProvider
-<LiveSessionProvider
-  classroomId={Number(courseId)}   // or actual classroom.id
-  role={isTeacher ? 'teacher' : 'student'}
-  userId={user?.id ?? null}
-  onUnitChange={handleLiveUnitChange}
-  onSlideChange={handleLiveSlideChange}
-  onSectionChange={handleLiveSectionChange}
->
-  {/* ... rest of classroom ... */}
-  <LiveSessionBanner />          {/* student banner */}
-  <TeacherLiveControls ... />    {/* teacher floating panel */}
-</LiveSessionProvider>
+// <LiveSessionProvider
+//   classroomId={Number(courseId)}   // or actual classroom.id
+//   role={isTeacher ? 'teacher' : 'student'}
+//   userId={user?.id ?? null}
+//   onUnitChange={handleLiveUnitChange}
+//   onSlideChange={handleLiveSlideChange}
+//   onSectionChange={handleLiveSectionChange}
+// >
+//   {/* ... rest of classroom ... */}
+//   <LiveSessionBanner />          {/* student banner */}
+//   <TeacherLiveControls ... />    {/* teacher floating panel */}
+// </LiveSessionProvider>
 ```
 
 ---

@@ -1,0 +1,268 @@
+/* ============================================================
+   exercise-design-system.css — LinguAI v2
+   Premium educational SaaS design tokens.
+   Soft, airy, ProgressMe-family aesthetic.
+   ============================================================ */
+
+   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+   :root {
+     /* ── LinguAI brand ──────────────────────────────────── */
+     --li-primary:         #6c6fef;
+     --li-primary-dark:    #4f52c2;
+     --li-primary-mid:     #8285f3;
+     --li-tint:            #eef0fe;
+     --li-tint-hover:      #e4e7fd;
+     --li-tint-border:     #cdd0f7;
+     --li-glow:            rgba(108, 111, 239, 0.13);
+   
+     /* ── Page / surfaces ────────────────────────────────── */
+     --li-bg:              #f7f7fa;       /* page canvas */
+     --li-surface:         #ffffff;       /* cards, panels */
+     --li-surface-soft:    #fafbff;       /* card header band */
+     --li-surface-hover:   #f3f4fe;       /* hover bg */
+   
+     /* ── Borders ────────────────────────────────────────── */
+     --li-border:          #e8eaf4;       /* default */
+     --li-border-soft:     #f1f2fa;       /* very subtle dividers */
+     --li-border-strong:   #d2d5ef;
+   
+     /* ── Ink ────────────────────────────────────────────── */
+     --li-ink:             #1a1d3a;       /* primary — deep navy */
+     --li-ink-2:           #3e4272;       /* secondary */
+     --li-ink-3:           #7578a4;       /* tertiary / labels */
+     --li-ink-4:           #aeb1cc;       /* placeholder */
+     --li-ink-5:           #d4d6ea;       /* very faint */
+   
+     /* ── Semantic ───────────────────────────────────────── */
+     --li-green:           #17a865;
+     --li-green-bg:        #edfbf4;
+     --li-green-border:    #9fe6c2;
+     --li-amber:           #df8e0a;
+     --li-amber-bg:        #fff8eb;
+     --li-amber-border:    #fcd27a;
+     --li-red:             #e03c3c;
+     --li-red-bg:          #fff1f1;
+     --li-red-border:      #f5aaaa;
+     --li-teal:            #0d9488;
+     --li-teal-bg:         #f0fdfa;
+     --li-teal-border:     #5eead4;
+   
+     /* ── Shadows ────────────────────────────────────────── */
+     --li-shadow-xs:       0 1px 2px rgba(26, 29, 58, 0.05);
+     --li-shadow-sm:       0 1px 4px rgba(26, 29, 58, 0.06), 0 1px 2px rgba(26, 29, 58, 0.04);
+     --li-shadow-md:       0 4px 16px rgba(108, 111, 239, 0.07), 0 1px 4px rgba(26, 29, 58, 0.04);
+     --li-shadow-card:     0 0 0 1px rgba(108, 111, 239, 0.07),
+                           0 8px 32px rgba(108, 111, 239, 0.07),
+                           0 2px 6px rgba(26, 29, 58, 0.04);
+     --li-shadow-lg:       0 16px 48px rgba(108, 111, 239, 0.11), 0 4px 14px rgba(26, 29, 58, 0.05);
+     --li-shadow-btn:      0 2px 8px rgba(108, 111, 239, 0.34);
+     --li-shadow-btn-hover:0 4px 18px rgba(108, 111, 239, 0.44);
+     --li-shadow-footer:   0 -4px 20px rgba(26, 29, 58, 0.04);
+   
+     /* ── Radii ──────────────────────────────────────────── */
+     --li-r-xs:  4px;
+     --li-r-sm:  8px;
+     --li-r-md:  12px;
+     --li-r-lg:  16px;
+     --li-r-xl:  20px;
+     --li-r-2xl: 28px;
+   
+     /* ── Type ───────────────────────────────────────────── */
+     --li-font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+     --li-text-2xs:  10px;
+     --li-text-xs:   11px;
+     --li-text-sm:   12px;
+     --li-text-md:   13px;
+     --li-text-base: 14px;
+     --li-text-lg:   16px;
+     --li-text-xl:   20px;
+   
+     /* ── Motion ─────────────────────────────────────────── */
+     --li-ease:        cubic-bezier(0.4, 0, 0.2, 1);
+     --li-ease-out:    cubic-bezier(0, 0, 0.2, 1);
+     --li-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+     --li-fast:  110ms;
+     --li-base:  180ms;
+     --li-slow:  280ms;
+   
+     /* ── Z ──────────────────────────────────────────────── */
+     --li-z-rail:    10;
+     --li-z-header:  20;
+     --li-z-pop:     40;
+     --li-z-toast:   60;
+   
+     /* ── Legacy aliases so old var() refs still resolve ── */
+     --ex-violet:        var(--li-primary);
+     --ex-violet-dark:   var(--li-primary-dark);
+     --ex-violet-mid:    var(--li-primary-mid);
+     --ex-violet-light:  var(--li-tint);
+     --ex-violet-border: var(--li-tint-border);
+     --ex-violet-glow:   var(--li-glow);
+     --ex-bg:            var(--li-surface);
+     --ex-bg-soft:       var(--li-surface-soft);
+     --ex-bg-hover:      var(--li-surface-hover);
+     --ex-bg-canvas:     var(--li-bg);
+     --ex-border:        var(--li-border);
+     --ex-border-soft:   var(--li-border-soft);
+     --ex-ink:           var(--li-ink);
+     --ex-ink-mid:       var(--li-ink-2);
+     --ex-ink-light:     var(--li-ink-3);
+     --ex-ink-xlight:    var(--li-ink-4);
+     --ex-ink-ghost:     var(--li-ink-5);
+     --ex-red:           var(--li-red);
+     --ex-red-bg:        var(--li-red-bg);
+     --ex-red-border:    var(--li-red-border);
+     --ex-red-light:     var(--li-red-bg);
+     --ex-amber:         var(--li-amber);
+     --ex-amber-bg:      var(--li-amber-bg);
+     --ex-amber-border:  var(--li-amber-border);
+     --ex-green:         var(--li-green);
+     --ex-green-bg:      var(--li-green-bg);
+     --ex-green-border:  var(--li-green-border);
+     --ex-green-light:   var(--li-green-bg);
+     --ex-teal:          var(--li-teal);
+     --ex-teal-bg:       var(--li-teal-bg);
+     --ex-teal-border:   var(--li-teal-border);
+     --ex-teal-light:    var(--li-teal-bg);
+     --ex-r-xs:          var(--li-r-xs);
+     --ex-r-sm:          var(--li-r-sm);
+     --ex-r-md:          var(--li-r-md);
+     --ex-r-lg:          var(--li-r-lg);
+     --ex-r-xl:          var(--li-r-xl);
+     --ex-r-2xl:         var(--li-r-2xl);
+     --ex-shadow-xs:     var(--li-shadow-xs);
+     --ex-shadow-sm:     var(--li-shadow-sm);
+     --ex-shadow-md:     var(--li-shadow-md);
+     --ex-shadow-lg:     var(--li-shadow-lg);
+     --ex-shadow-violet: var(--li-shadow-btn);
+     --ex-shadow-drag:   var(--li-shadow-lg);
+     --ex-trans-fast:    var(--li-fast) var(--li-ease);
+     --ex-trans-base:    var(--li-base) var(--li-ease);
+     --ex-trans-slow:    var(--li-slow) var(--li-ease);
+     --ex-text-xs:       var(--li-text-xs);
+     --ex-text-sm:       var(--li-text-sm);
+     --ex-text-base:     var(--li-text-md);
+     --ex-text-md:       var(--li-text-base);
+     --ex-text-lg:       var(--li-text-lg);
+     --ex-text-xl:       var(--li-text-xl);
+     --ex-z-sidebar:     var(--li-z-rail);
+     --ex-z-header:      var(--li-z-header);
+     --ex-z-overlay:     30;
+     --ex-z-dropdown:    var(--li-z-pop);
+     --ex-z-toast:       var(--li-z-toast);
+   }
+   
+   /* ── Base reset ───────────────────────────────────────────── */
+   .ex-root *,
+   .ex-root *::before,
+   .ex-root *::after {
+     box-sizing: border-box;
+     -webkit-font-smoothing: antialiased;
+     -moz-osx-font-smoothing: grayscale;
+   }
+   
+   .ex-root {
+     font-family: var(--li-font);
+     color: var(--li-ink);
+     background: var(--li-bg);
+     line-height: 1.5;
+   }
+   
+   /* ── Scrollbar ────────────────────────────────────────────── */
+   .ex-scroll::-webkit-scrollbar       { width: 4px; height: 4px; }
+   .ex-scroll::-webkit-scrollbar-track { background: transparent; }
+   .ex-scroll::-webkit-scrollbar-thumb { background: var(--li-border); border-radius: 99px; }
+   .ex-scroll::-webkit-scrollbar-thumb:hover { background: var(--li-ink-5); }
+   
+   /* ── Keyframes ────────────────────────────────────────────── */
+   @keyframes ex-slide-in {
+     from { opacity: 0; transform: translateY(10px); }
+     to   { opacity: 1; transform: translateY(0); }
+   }
+   @keyframes ex-fade-in {
+     from { opacity: 0; }
+     to   { opacity: 1; }
+   }
+   @keyframes ex-scale-in {
+     from { opacity: 0; transform: scale(0.96); }
+     to   { opacity: 1; transform: scale(1); }
+   }
+   @keyframes ex-slide-up {
+     from { opacity: 0; transform: translateY(10px); }
+     to   { opacity: 1; transform: translateY(0); }
+   }
+   @keyframes ex-shake {
+     0%, 100% { transform: translateX(0); }
+     20%       { transform: translateX(-4px); }
+     40%       { transform: translateX(4px); }
+     60%       { transform: translateX(-3px); }
+     80%       { transform: translateX(3px); }
+   }
+   @keyframes ex-bounce-in {
+     0%   { transform: scale(0.82); opacity: 0; }
+     60%  { transform: scale(1.04); opacity: 1; }
+     100% { transform: scale(1); }
+   }
+   @keyframes ex-shimmer-bar {
+     0%   { background-position: 200% center; }
+     100% { background-position: -200% center; }
+   }
+   
+   .ex-animate-slide-in  { animation: ex-slide-in  220ms var(--li-ease) both; }
+   .ex-animate-fade-in   { animation: ex-fade-in   180ms var(--li-ease) both; }
+   .ex-animate-scale-in  { animation: ex-scale-in  200ms var(--li-ease) both; }
+   .ex-animate-slide-up  { animation: ex-slide-up  220ms var(--li-ease-out) both; }
+   .ex-animate-shake     { animation: ex-shake     350ms var(--li-ease); }
+   .ex-animate-bounce-in { animation: ex-bounce-in 300ms var(--li-ease-spring) both; }
+   
+   /* Stagger */
+   .ex-stagger > *:nth-child(1) { animation-delay:   0ms; }
+   .ex-stagger > *:nth-child(2) { animation-delay:  35ms; }
+   .ex-stagger > *:nth-child(3) { animation-delay:  70ms; }
+   .ex-stagger > *:nth-child(4) { animation-delay: 105ms; }
+   .ex-stagger > *:nth-child(5) { animation-delay: 140ms; }
+   .ex-stagger > *:nth-child(6) { animation-delay: 175ms; }
+   
+   /* ── Sidebar hover ────────────────────────────────────────── */
+   .ex-sidebar-item:hover .ex-sidebar-remove { opacity: 1 !important; }
+   
+   /* ── Focus ────────────────────────────────────────────────── */
+   .ex-focusable:focus-visible {
+     outline: none;
+     box-shadow: 0 0 0 3px var(--li-glow), 0 0 0 1.5px var(--li-primary);
+   }
+   
+   /* ── Answer states ────────────────────────────────────────── */
+   .ex-answer-correct   { border-color: var(--li-green-border) !important; background: var(--li-green-bg) !important; }
+   .ex-answer-incorrect { border-color: var(--li-red-border) !important;   background: var(--li-red-bg) !important; animation: ex-shake 350ms var(--li-ease); }
+   .ex-answer-selected  { border-color: var(--li-teal-border) !important;  background: var(--li-teal-bg) !important; }
+   
+   /* ── DnD ghost ────────────────────────────────────────────── */
+   .ex-drag-ghost { opacity: 0.28 !important; border-style: dashed !important; }
+   
+   /* ── Progress bar ─────────────────────────────────────────── */
+   .ex-progress-bar { height: 3px; border-radius: 99px; background: var(--li-border-soft); overflow: hidden; }
+   .ex-progress-bar-fill {
+     height: 100%; border-radius: 99px;
+     background: linear-gradient(90deg, var(--li-primary-dark) 0%, var(--li-primary) 100%);
+     transition: width var(--li-slow) var(--li-ease);
+   }
+   
+   /* ── Error banner ─────────────────────────────────────────── */
+   .ex-error-banner {
+     display: flex; align-items: center; gap: 10px;
+     padding: 10px 24px;
+     background: var(--li-red-bg);
+     border-bottom: 1px solid var(--li-red-border);
+     font-size: var(--li-text-sm); color: var(--li-red); font-weight: 500;
+     animation: ex-slide-up 180ms var(--li-ease-out) both;
+   }
+   
+   /* ── Type grid ────────────────────────────────────────────── */
+   .ex-type-grid {
+     display: grid;
+     grid-template-columns: 1fr 1fr;
+     gap: 3px;
+     padding: 4px;
+   }

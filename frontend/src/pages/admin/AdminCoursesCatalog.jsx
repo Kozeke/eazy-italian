@@ -7,6 +7,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { coursesApi } from "../../services/api";
 import toast from "react-hot-toast";
+import CreateCourseModal from "./components/CreateCourseModal";
+import { useTeacherClassroomTransition } from "../../contexts/TeacherClassroomTransitionContext";
 
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 const T = {
@@ -538,7 +540,7 @@ const Card = ({course, idx, onOpen}) => {
 
   return (
     <div className="cat-card" style={{animationDelay:`${idx*.04}s`}}
-      onClick={()=>onOpen(course.id)}>
+      onClick={()=>onOpen(course)}>
       {/* Square thumb */}
       <div className="cat-card-thumb" style={{background: thumb ? "#eee" : pastel}}>
         {thumb
@@ -566,7 +568,7 @@ const Row = ({course, idx, onOpen, onEdit, onDelete}) => {
     ? Math.round(((course.published_units_count ?? 0) / course.units_count) * 100) : 0;
   return (
     <div className="cat-row" style={{animationDelay:`${idx*.04}s`}}
-      onClick={()=>onOpen(course.id)}>
+      onClick={()=>onOpen(course)}>
       <div className="cat-row-swatch" style={{background:grad}}>
         {(course.title||"?")[0].toUpperCase()}
       </div>
@@ -621,12 +623,14 @@ const DelModal = ({course, busy, onConfirm, onCancel}) => (
    ═══════════════════════════════════════════════════════════════════════════ */
 export default function AdminCoursesCatalog() {
   const navigate = useNavigate();
+  const { startTeacherClassroomOpen } = useTeacherClassroomTransition();
   const [courses,  setCourses]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [query,    setQuery]    = useState("");
   const [view,     setView]     = useState("grid");
   const [toDelete, setToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const searchRef = useRef(null);
 
   useEffect(()=>{
@@ -653,9 +657,14 @@ export default function AdminCoursesCatalog() {
     );
   }, [courses, query]);
 
-  const handleOpen   = id => navigate(`/admin/courses/${id}`);
+  const handleOpen = course => {
+    startTeacherClassroomOpen();
+    const cid = course.id;
+    const uid = course.first_unit_id;
+    navigate(uid ? `/teacher/classroom/${cid}/${uid}` : `/teacher/classroom/${cid}`);
+  };
   const handleEdit   = id => navigate(`/admin/courses/${id}/edit`);
-  const handleNew    = ()  => navigate("/admin/courses/builder");
+  const handleNew    = ()  => setCreateModalOpen(true);
   const handleDelete = async () => {
     if (!toDelete) return;
     setDeleting(true);
@@ -780,6 +789,11 @@ export default function AdminCoursesCatalog() {
 
         </div>
       </div>
+
+      <CreateCourseModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+      />
 
       {toDelete && (
         <DelModal

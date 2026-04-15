@@ -6,8 +6,9 @@
  * After last slide → goTo(STEPS.DETAILS).
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { STEPS, WizardState } from "./TeacherRegisterFlow";
+import { LinguAiLogo } from "../global/LinguAiLogo";
 
 interface Props {
   wizard: WizardState;
@@ -82,9 +83,8 @@ export default function TeacherOnboardingIntro({ goTo }: Props) {
     <div className="tof-intro">
       {/* Top bar */}
       <div className="tof-intro__top">
-        <a href="/" className="tof-wordmark" style={{ marginBottom: 0 }}>
-          <span className="tof-wordmark__flag">🇮🇹</span>
-          EZ Italian
+        <a href="/" className="tof-wordmark" style={{ marginBottom: 0 }} aria-label="LinguAI home">
+          <LinguAiLogo height={42} showWordmark />
         </a>
 
         <button

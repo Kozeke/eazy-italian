@@ -54,8 +54,23 @@ export function selectPrimaryItem<T extends { order_index?: number }>(
 
 // ─── BuildLessonFlowOptions ───────────────────────────────────────────────────
 
+export interface PresentationGroup {
+  id:      number;
+  title?:  string;
+  slides:  ReviewSlide[];
+}
+
 export interface BuildLessonFlowOptions {
+  /**
+   * When provided, the builder emits one LessonFlowSlidesItem per group so
+   * each presentation gets its own "Edit Slides" button.
+   * Takes precedence over `slides` + `slidesPresentationId`.
+   */
+  presentationGroups?: PresentationGroup[];
+
+  /** Legacy flat list — used only when presentationGroups is absent/empty. */
   slides:          ReviewSlide[];
+  slidesPresentationId?: number | null;
   viewedSlideIds:  string[];
   slidesCompleted: boolean;
 
@@ -115,7 +130,9 @@ function videoStatus(
 // ─── buildLessonFlow ──────────────────────────────────────────────────────────
 
 export function buildLessonFlow({
+  presentationGroups,
   slides,
+  slidesPresentationId,
   viewedSlideIds,
   slidesCompleted,
   tasks = [],
@@ -130,15 +147,40 @@ export function buildLessonFlow({
   const items: LessonFlowItem[] = [];
 
   // ── Slides ──────────────────────────────────────────────────────────────────
-  if (slides.length > 0) {
+  const groups = presentationGroups && presentationGroups.length > 0
+    ? presentationGroups
+    : null;
+
+  if (groups) {
+    // Merge all presentation groups into one unified slides item so navigation
+    // flows seamlessly across all slides with a single counter and progress bar.
+    // The first group's presentationId is stored so the teacher Edit button
+    // opens that presentation (the most common case with 1 presentation).
+    const allSlides = groups.flatMap((g) => g.slides);
+    if (allSlides.length > 0) {
+      const slidesItem: LessonFlowSlidesItem = {
+        type:           'slides',
+        id:             `slides-pres-${groups[0].id}`,
+        label:          groups.length === 1 ? (groups[0].title ?? 'Lesson') : 'Lesson',
+        slides:         allSlides,
+        presentationId: groups[0].id,
+        status:         slidesStatus(allSlides, slidesCompleted, viewedSlideIds),
+        locked,
+        forcedSlide:    forcedSlide ?? undefined,
+      };
+      items.push(slidesItem);
+    }
+  } else if (slides.length > 0) {
+    // Legacy path: single merged slides item (non-segment / student mode)
     const slidesItem: LessonFlowSlidesItem = {
-      type:        'slides',
-      id:          'slides-main',
-      label:       'Lesson Slides',
+      type:           'slides',
+      id:             'slides-main',
+      label:          'Lesson',
       slides,
-      status:      slidesStatus(slides, slidesCompleted, viewedSlideIds),
-      locked:      locked,
-      forcedSlide: forcedSlide ?? undefined,
+      presentationId: slidesPresentationId ?? undefined,
+      status:         slidesStatus(slides, slidesCompleted, viewedSlideIds),
+      locked,
+      forcedSlide:    forcedSlide ?? undefined,
     };
     items.push(slidesItem);
   }
@@ -164,12 +206,10 @@ export function buildLessonFlow({
   }
 
   // ── Tasks (all of them, sorted by order_index) ──────────────────────────────
-  const publishedTasks = tasks
-    .filter((t: any) => {
-      // Include all tasks; filter out explicitly hidden ones if the field exists
-      if (t.is_visible_to_students === false) return false;
-      return true;
-    })
+  // No visibility filtering here — the API endpoint is responsible for
+  // deciding which tasks to return (admin endpoint returns all, student
+  // endpoint returns all too since the classroom always shows everything).
+  const publishedTasks = [...tasks]
     .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0));
 
   for (const task of publishedTasks) {

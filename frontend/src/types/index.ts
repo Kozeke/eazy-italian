@@ -314,6 +314,11 @@ export interface Student {
   is_active: boolean;
 }
 
+export interface AdminStudentCreateResponse extends Student {
+  temporary_password: string;
+  login_url: string;
+}
+
 export interface GradeRow {
   attempt_id: number;
   student: string;

@@ -73,13 +73,15 @@ export type LessonFlowItemStatus =
 // ─── Individual item types ────────────────────────────────────────────────────
 
 export type LessonFlowSlidesItem = {
-  type:        'slides';
-  id:          string;
-  label?:      string;
-  slides:      import('../../../../pages/admin/shared').ReviewSlide[];
-  status:      LessonFlowItemStatus;
-  locked?:     boolean;
-  forcedSlide?: number;
+  type:            'slides';
+  id:              string;
+  label?:          string;
+  slides:          import('../../../../pages/admin/shared').ReviewSlide[];
+  status:          LessonFlowItemStatus;
+  locked?:         boolean;
+  forcedSlide?:    number;
+  /** Backend presentation id — used by teacher Edit Slides button. */
+  presentationId?: number;
 };
 
 export type LessonFlowTaskItem = {

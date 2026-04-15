@@ -17,6 +17,7 @@ from app.models.unit import Unit
 from app.models.video import Video
 from app.models.task import Task
 from app.schemas.test import TestResponse, TestCreate, TestUpdate
+from app.services.grading_service import grade_question, aggregate_results, GradingResult
 
 router = APIRouter()
 
@@ -491,160 +492,147 @@ async def upload_question_image(
         raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")
 
 @router.post("/{test_id}/questions", status_code=status.HTTP_201_CREATED)
+@router.post("/{test_id}/questions", status_code=status.HTTP_201_CREATED)
 def add_question_to_test(
     test_id: int,
     question_data: Dict[str, Any],
     current_user: User = Depends(get_current_teacher),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Add a question to a test"""
+    """
+    Add a question to a test (test must belong to current teacher).
+ 
+    Accepted question types (first wave):
+      multiple_choice, true_false, cloze_input, cloze_drag,
+      matching_pairs, ordering_words, ordering_sentences, open_answer
+ 
+    Legacy types still accepted: cloze, visual
+    (cloze is silently remapped to cloze_input)
+    """
     from app.models.test import Question, TestQuestion, QuestionType
-    
-    # Get test
+    from app.services.question_service import (
+        build_question_from_schema,
+        normalise_type,
+    )
+    from app.schemas.question import (
+        MultipleChoiceQuestionCreate,
+        TrueFalseQuestionCreate,
+        ClozeInputQuestionCreate,
+        ClozeDragQuestionCreate,
+        MatchingPairsQuestionCreate,
+        OrderingWordsQuestionCreate,
+        OrderingSentencesQuestionCreate,
+        OpenAnswerQuestionCreate,
+    )
+ 
+    # ── 1. Authorise ──────────────────────────────────────────────────────────
     test = db.query(Test).filter(Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
-    
     if test.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to modify this test")
-    
-    # Determine level for the question
-    # Priority: 1) from question_data, 2) from test's unit
-    # Level is required by database, so we must have a value
-    level = question_data.get('level')
+ 
+    # ── 2. Resolve level ─────────────────────────────────────────────────────
+    level = question_data.get("level")
     if not level and test.unit_id:
-        # Get unit to extract level
         unit = db.query(Unit).filter(Unit.id == test.unit_id).first()
         if unit and unit.level:
-            level = unit.level.value  # Convert enum to string value
-    
-    # If level is still not set, raise an error
+            level = unit.level.value if hasattr(unit.level, "value") else unit.level
     if not level:
         raise HTTPException(
             status_code=400,
-            detail="Question level is required. Provide 'level' in request or ensure test has a unit with a level."
+            detail="Question level is required. Provide 'level' or ensure the test has a unit with a level.",
         )
-    
-    # Create question
-    question_type_input = question_data.get('type')
-    
-    # Normalize question type to lowercase to match enum values
-    if isinstance(question_type_input, str):
-        # Convert to lowercase and handle underscores
-        question_type_normalized = question_type_input.lower().strip()
-    else:
-        question_type_normalized = str(question_type_input).lower().strip()
-    
-    # Map common variations to enum values
-    type_mapping = {
-        'open_answer': 'open_answer',
-        'openanswer': 'open_answer',
-        'multiple_choice': 'multiple_choice',
-        'multiplechoice': 'multiple_choice',
-        'cloze': 'cloze',
-        'visual': 'visual',
+ 
+    # ── 3. Normalise type string ──────────────────────────────────────────────
+    raw_type = question_data.get("type", "")
+    canonical_type = normalise_type(raw_type)
+ 
+    # Inject canonical type + prompt_rich alias so schemas validate cleanly
+    payload = dict(question_data)
+    payload["type"] = canonical_type
+    payload["level"] = level
+    # Support both "prompt" and "prompt_rich" as input keys
+    if "prompt" in payload and "prompt_rich" not in payload:
+        payload["prompt_rich"] = payload["prompt"]
+ 
+    # ── 4. Typed-schema path (first-wave types) ───────────────────────────────
+    _TYPED_SCHEMA_MAP = {
+        "multiple_choice":    MultipleChoiceQuestionCreate,
+        "true_false":         TrueFalseQuestionCreate,
+        "cloze_input":        ClozeInputQuestionCreate,
+        "cloze_drag":         ClozeDragQuestionCreate,
+        "matching_pairs":     MatchingPairsQuestionCreate,
+        "ordering_words":     OrderingWordsQuestionCreate,
+        "ordering_sentences": OrderingSentencesQuestionCreate,
+        "open_answer":        OpenAnswerQuestionCreate,
     }
-    question_type_normalized = type_mapping.get(question_type_normalized, question_type_normalized)
-    
-    # Get enum by value - this ensures we use the lowercase value
-    try:
-        question_type_enum = QuestionType(question_type_normalized)
-    except ValueError:
-        # If that fails, try by name (for backwards compatibility)
+ 
+    schema_cls = _TYPED_SCHEMA_MAP.get(canonical_type)
+ 
+    if schema_cls is not None:
         try:
-            if isinstance(question_type_input, str):
-                question_type_enum = QuestionType[question_type_input.upper()]
-            else:
-                raise ValueError("Invalid question type")
-        except (KeyError, AttributeError, ValueError):
+            schema = schema_cls(**payload)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        question = build_question_from_schema(schema, current_user.id, level_fallback=level)
+ 
+    else:
+        # ── 5. Legacy path (visual, matching, ordering, etc.) ─────────────────
+        try:
+            question_type_enum = QuestionType(canonical_type)
+        except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid question type: {question_type_input}. Valid types: {[e.value for e in QuestionType]}"
+                detail=f"Invalid question type: {raw_type}. Valid types: {[e.value for e in QuestionType]}",
             )
-    
-    # Get the enum value (should be lowercase like 'open_answer')
-    question_type_value = question_type_enum.value
-    
-    # Debug: Verify we have the correct value
-    if question_type_value != question_type_normalized:
-        print(f"[WARNING] Enum value mismatch: normalized={question_type_normalized}, enum.value={question_type_value}")
-    
-    # Explicitly set the type using the enum value to ensure SQLAlchemy uses lowercase
-    # SQLAlchemy should handle this automatically, but we're being explicit to avoid issues
-    # Create question with enum object - SQLAlchemy should use .value for str enums
-    # But we ensure normalization happened first
-    question = Question(
-        type=question_type_enum,  # Pass enum object - SQLAlchemy will use .value for str enums
-        prompt_rich=question_data.get('prompt', ''),
-        points=question_data.get('score', 1.0),
-        autograde=question_data.get('autograde', True),
-        question_metadata=question_data.get('metadata', {}),
-        level=level,  # Set level field
-        created_by=current_user.id
-    )
-    
-    # Type-specific configuration - use normalized value
-    if question_type_value == 'multiple_choice':
-        question.options = question_data.get('options', [])
-        question.correct_answer = {"correct_option_ids": question_data.get('correct_option_ids', [])}
-        question.shuffle_options = question_data.get('shuffle_options', True)
-    elif question_type_value == 'open_answer':
-        question.expected_answer_config = question_data.get('expected', {})
-        question.correct_answer = {"expected": question_data.get('expected', {})}
-        question.manual_review_threshold = question_data.get('manual_review_if_below')
-    elif question_type_value == 'cloze':
-        question.gaps_config = question_data.get('gaps', [])
-        question.correct_answer = {"gaps": question_data.get('gaps', [])}
-    elif question_type_value == 'visual':
-        # Visual questions can have different answer types (multiple_choice, single_choice, open_answer, true_false)
-        answer_type = question_data.get('answer_type', 'multiple_choice')
-        question.question_metadata = question_data.get('metadata', {})
-        question.question_metadata['answer_type'] = answer_type
-        
-        # Handle media (image) - always set for visual questions
-        if question_type_value == 'visual':
-            # Always set media for visual questions, even if empty
-            media_data = question_data.get('media', [])
-            question.media = media_data if media_data else []
-            print(f"[DEBUG] Setting media for visual question: {question.media}, type: {type(question.media)}")
-        elif question_data.get('media'):
-            question.media = question_data.get('media', [])
-        
-        # Set options and correct answer based on answer_type
-        if answer_type in ['multiple_choice', 'single_choice']:
-            question.options = question_data.get('options', [])
-            question.correct_answer = {"correct_option_ids": question_data.get('correct_option_ids', [])}
-            question.shuffle_options = question_data.get('shuffle_options', True)
-        elif answer_type == 'open_answer':
-            question.expected_answer_config = question_data.get('expected', {})
-            question.correct_answer = {"expected": question_data.get('expected', {})}
-        elif answer_type == 'true_false':
-            question.options = [
-                {"id": "true", "text": "True"},
-                {"id": "false", "text": "False"}
-            ]
-            question.correct_answer = {"correct_option_ids": question_data.get('correct_option_ids', [])}
-    
+ 
+        qt = question_type_enum.value
+        question = Question(
+            type=question_type_enum,
+            prompt_rich=question_data.get("prompt") or question_data.get("prompt_rich", ""),
+            points=question_data.get("score", 1.0),
+            autograde=question_data.get("autograde", True),
+            question_metadata=question_data.get("metadata", {}),
+            level=level,
+            created_by=current_user.id,
+        )
+ 
+        if qt == "visual":
+            answer_type = question_data.get("answer_type", "multiple_choice")
+            meta = dict(question_data.get("metadata", {}))
+            meta["answer_type"] = answer_type
+            question.question_metadata = meta
+            question.media = question_data.get("media", [])
+            if answer_type in ("multiple_choice", "single_choice"):
+                question.options = question_data.get("options", [])
+                question.correct_answer = {"correct_option_ids": question_data.get("correct_option_ids", [])}
+                question.shuffle_options = question_data.get("shuffle_options", True)
+            elif answer_type == "open_answer":
+                question.expected_answer_config = question_data.get("expected", {})
+                question.correct_answer = {"expected": question_data.get("expected", {})}
+            elif answer_type == "true_false":
+                question.options = [{"id": "true", "text": "True"}, {"id": "false", "text": "False"}]
+                question.correct_answer = {"correct_option_ids": question_data.get("correct_option_ids", [])}
+        else:
+            # Absolute fallback — store raw correct_answer if provided
+            question.correct_answer = question_data.get("correct_answer", {})
+ 
+    # ── 6. Persist ────────────────────────────────────────────────────────────
     db.add(question)
     db.flush()
-    
-    # Link question to test
+ 
     max_order = db.query(TestQuestion).filter(TestQuestion.test_id == test_id).count()
     test_question = TestQuestion(
         test_id=test_id,
         question_id=question.id,
         order_index=max_order,
-        points=question_data.get('score', 1.0)
+        points=question_data.get("score", 1.0),
     )
-    
     db.add(test_question)
     db.commit()
     db.refresh(question)
-    
-    # Debug: Check media after commit and refresh
-    if question_type_value == 'visual':
-        print(f"[DEBUG] After commit - Question {question.id} media: {question.media}, type: {type(question.media)}")
-    
+ 
     return {"id": question.id, "message": "Question added successfully"}
 
 @router.get("/{test_id}/questions")
@@ -893,259 +881,193 @@ def start_test(
 @router.post("/{test_id}/submit")
 def submit_test(
     test_id: int,
-    answers: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    answers: dict,          # FastAPI injects Dict[str, Any] from JSON body
+    current_user,           # User = Depends(get_current_user)
+    db,                     # Session = Depends(get_db)
 ):
-    """Submit test answers and calculate score - requires enrollment if test belongs to a course"""
+    """
+    Submit test answers and calculate score.
+ 
+    Router is intentionally thin:
+      1. Validate request context (enrollment, active attempt).
+      2. Load attempt + questions.
+      3. Delegate per-question grading to grading_service.grade_question().
+      4. Aggregate totals.
+      5. Persist and return response.
+    """
+    from datetime import timezone
     from app.models.test import TestAttempt, AttemptStatus, TestQuestion
-    
-    # Get test to check enrollment
+    from sqlalchemy import and_
+    from sqlalchemy.orm import joinedload
+    from app.services.grading_service import grade_question as svc_grade, aggregate_results
+ 
+    # ── 1. Guard checks ───────────────────────────────────────────────────────
+ 
     test = db.query(Test).filter(Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
-    
-    # Check enrollment if test belongs to a unit with a course
+ 
     if test.unit_id:
         check_unit_access(db, current_user, test.unit_id)
-    
-    # Get the active attempt
-    attempt = db.query(TestAttempt).filter(
-        and_(
-            TestAttempt.test_id == test_id,
-            TestAttempt.student_id == current_user.id,
-            TestAttempt.status == AttemptStatus.IN_PROGRESS
+ 
+    attempt = (
+        db.query(TestAttempt)
+        .filter(
+            and_(
+                TestAttempt.test_id == test_id,
+                TestAttempt.student_id == current_user.id,
+                TestAttempt.status == AttemptStatus.IN_PROGRESS,
+            )
         )
-    ).order_by(TestAttempt.started_at.desc()).first()
-    
+        .order_by(TestAttempt.started_at.desc())
+        .first()
+    )
     if not attempt:
         raise HTTPException(status_code=404, detail="No active test attempt found")
-    
-    # Get test
-    test = db.query(Test).filter(Test.id == test_id).first()
-    if not test:
-        raise HTTPException(status_code=404, detail="Test not found")
-    
-    # Get all questions with their correct answers
-    test_questions = db.query(TestQuestion).options(
-        joinedload(TestQuestion.question)
-    ).filter(TestQuestion.test_id == test_id).all()
-    
-    # Grade the test
-    total_score = 0
-    max_score = 0
-    results_detail = {}
-    
-    # Debug: print the incoming answers
-    print(f"DEBUG: Incoming answers payload: {answers}")
-    
-    # Try to get answers from the payload
-    # Frontend sends {"answers": {"answers": {question_id: answer}}}
-    # Need to unwrap the double nesting
-    if isinstance(answers, dict):
-        submitted_answers = answers.get('answers', {})
-        # If there's another 'answers' key inside, unwrap it
-        if isinstance(submitted_answers, dict) and 'answers' in submitted_answers:
-            submitted_answers = submitted_answers['answers']
-    else:
-        submitted_answers = {}
-    
-    print(f"DEBUG: Extracted submitted_answers: {submitted_answers}")
-    
+ 
+    # ── 2. Load questions ─────────────────────────────────────────────────────
+ 
+    test_questions = (
+        db.query(TestQuestion)
+        .options(joinedload(TestQuestion.question))
+        .filter(TestQuestion.test_id == test_id)
+        .all()
+    )
+ 
+    submitted_answers = _extract_answers(answers)
+    logger.info(f"[submit_test] test_id={test_id} submitted_answers keys={list(submitted_answers.keys())}")
+ 
+    # ── 3. Grade each question via the service ────────────────────────────────
+ 
+    from app.services.grading_service import GradingResult
+ 
+    results_detail: dict = {}
+    grading_results: dict[str, GradingResult] = {}
+ 
     for tq in test_questions:
         q = tq.question
         question_id = str(q.id)
-        max_score += tq.points
-        
+        max_pts = tq.points
+ 
         student_answer = submitted_answers.get(question_id)
-        is_correct = False
-        points_earned = 0
-        
-        # Debug logging
-        logger.info(f"[DEBUG] Question {question_id}: type={q.type.value}, type.name={q.type.name}, autograde={q.autograde}")
-        logger.info(f"[DEBUG] Question {question_id}: correct_answer={q.correct_answer}")
-        logger.info(f"[DEBUG] Question {question_id}: student_answer={student_answer} (type: {type(student_answer)})")
-        
-        if q.autograde:
-            # Auto-grade based on question type
-            # Check if it's a visual question
-            is_visual = q.type.value == "visual" or q.type.name == "VISUAL"
-            
-            if is_visual:
-                # Visual questions can have different answer types
-                answer_type = q.question_metadata.get("answer_type", "multiple_choice") if q.question_metadata else "multiple_choice"
-                logger.info(f"[DEBUG] Visual question {question_id}: answer_type={answer_type}, question_metadata={q.question_metadata}")
-                
-                if answer_type in ["multiple_choice", "single_choice", "true_false"]:
-                    # These all use correct_option_ids format
-                    correct_ids = q.correct_answer.get('correct_option_ids', [])
-                    # Normalize student_answer to a list for comparison
-                    if isinstance(student_answer, str):
-                        student_answer_list = [student_answer]
-                    elif isinstance(student_answer, list):
-                        student_answer_list = student_answer
-                    else:
-                        student_answer_list = []
-                    
-                    # Compare sets to handle order differences
-                    student_set = set(student_answer_list)
-                    correct_set = set(correct_ids)
-                    logger.info(f"[DEBUG] Visual question {question_id}: Comparing sets - student={student_set}, correct={correct_set}, match={student_set == correct_set}")
-                    
-                    if student_set == correct_set:
-                        is_correct = True
-                        points_earned = tq.points
-                        logger.info(f"[DEBUG] Visual question {question_id}: ✅ Correct! student={student_answer_list}, correct={correct_ids}")
-                    else:
-                        logger.info(f"[DEBUG] Visual question {question_id}: ❌ Incorrect! student={student_answer_list}, correct={correct_ids}")
-                
-                elif answer_type == "open_answer":
-                    # Open answer grading for visual questions
-                    expected_config = q.expected_answer_config or {}
-                    if expected_config.get('mode') == 'keywords':
-                        keywords = expected_config.get('keywords', [])
-                        # Simple keyword matching (can be enhanced)
-                        student_text = (student_answer or "").lower()
-                        matches = sum(1 for kw in keywords if kw.get('text', '').lower() in student_text)
-                        if matches > 0:
-                            is_correct = True
-                            points_earned = tq.points
-                    elif expected_config.get('mode') == 'regex':
-                        import re
-                        pattern = expected_config.get('pattern', '')
-                        if pattern and re.search(pattern, str(student_answer or ""), re.IGNORECASE):
-                            is_correct = True
-                            points_earned = tq.points
-            
-            elif q.type.value == 'multiple_choice':
-                correct_ids = q.correct_answer.get('correct_option_ids', [])
-                # Normalize student_answer to a list for comparison
-                # Frontend sends single selection as a string, multiple as an array
-                if isinstance(student_answer, str):
-                    student_answer_list = [student_answer]
-                elif isinstance(student_answer, list):
-                    student_answer_list = student_answer
-                else:
-                    student_answer_list = []
-                
-                # Compare sets to handle order differences
-                if set(student_answer_list) == set(correct_ids):
-                    is_correct = True
-                    points_earned = tq.points
-            
-            elif q.type.value == 'open_answer':
-                # Simple keyword matching for now
-                expected_config = q.expected_answer_config or {}
-                if expected_config.get('mode') == 'keywords':
-                    keywords = expected_config.get('keywords', [])
-                    if student_answer and isinstance(student_answer, str):
-                        answer_lower = student_answer.lower()
-                        matched = sum(1 for kw in keywords if kw.get('text', '').lower() in answer_lower)
-                        if matched >= len(keywords) * 0.6:  # 60% keyword match
-                            is_correct = True
-                            points_earned = tq.points
-            
-            elif q.type.value == 'cloze':
-                # Check gaps
-                gaps_config = q.gaps_config or []
-                if isinstance(student_answer, dict):
-                    correct_gaps = 0
-                    for gap in gaps_config:
-                        gap_id = gap.get('id')
-                        correct_answer = gap.get('answer', '').strip().lower()
-                        student_gap_answer = student_answer.get(gap_id, '').strip().lower()
-                        if correct_answer == student_gap_answer:
-                            correct_gaps += 1
-                    
-                    if correct_gaps == len(gaps_config):
-                        is_correct = True
-                        points_earned = tq.points
-                    elif gap.get('partial_credit') and correct_gaps > 0:
-                        points_earned = (correct_gaps / len(gaps_config)) * tq.points
-        
-        total_score += points_earned
-        
+ 
+        # Delegate entirely to grading service (handles all types + fallback)
+        result: GradingResult = svc_grade(q, student_answer, max_pts)
+ 
+        grading_results[question_id] = result
+ 
+        logger.info(
+            f"[submit_test] q={question_id} type={q.type.value} "
+            f"mode={result.grading_mode} correct={result.is_correct} "
+            f"score={result.score}/{max_pts} fallback={result.used_fallback}"
+        )
+ 
+        # Build per-question result payload (backward-compatible shape)
         question_payload = {
             "id": q.id,
             "type": q.type.value,
             "prompt": q.prompt_rich,
-            "points": tq.points,
+            "points": max_pts,
             "options": q.options or [],
             "correct_answer": q.correct_answer,
             "expected_answer_config": q.expected_answer_config,
             "gaps_config": q.gaps_config,
             "explanation": q.explanation_rich,
         }
-
+ 
         results_detail[question_id] = {
             "question_id": q.id,
             "student_answer": student_answer,
-            "is_correct": is_correct,
-            "points_earned": points_earned,
-            "points_possible": tq.points,
-            "question": question_payload
+            "is_correct": result.is_correct,
+            "points_earned": result.score,
+            "points_possible": max_pts,
+            "grading_mode": result.grading_mode,
+            "used_fallback": result.used_fallback,
+            "question": question_payload,
+            # Include rich grading metadata (gap breakdowns, keyword ratios, etc.)
+            # so teacher review tools can surface it without re-grading.
+            **({"grading_metadata": result.metadata} if result.metadata else {}),
         }
-    
-    # Calculate percentage
-    percentage = (total_score / max_score * 100) if max_score > 0 else 0
-    
-    # Update attempt
-    from datetime import timezone
-    submitted_at = datetime.now(timezone.utc)
+ 
+    # ── 4. Aggregate ──────────────────────────────────────────────────────────
+ 
+    totals = aggregate_results(grading_results, test.passing_score)
+    total_score = totals["total_earned"]
+    max_score = totals["total_possible"]
+    percentage = totals["percentage"]
+    passed = totals["passed"]
+ 
+    # ── 5. Persist ────────────────────────────────────────────────────────────
+ 
+    submitted_at = __import__("datetime").datetime.now(timezone.utc)
     attempt.submitted_at = submitted_at
     attempt.score = percentage
     attempt.detail = results_detail
     attempt.status = AttemptStatus.COMPLETED
-    
-    # Calculate time taken in seconds
+ 
+    # Time taken
     time_taken_seconds = 0
-    if attempt.started_at and submitted_at:
-        # Ensure both datetimes are timezone-aware for comparison
-        if attempt.started_at.tzinfo is None:
-            # If started_at is naive, assume it's UTC
-            started_at = attempt.started_at.replace(tzinfo=timezone.utc)
-        else:
-            started_at = attempt.started_at
-        time_delta = submitted_at - started_at
-        time_taken_seconds = int(time_delta.total_seconds())
-    
+    if attempt.started_at:
+        started = (
+            attempt.started_at.replace(tzinfo=timezone.utc)
+            if attempt.started_at.tzinfo is None
+            else attempt.started_at
+        )
+        time_taken_seconds = int((submitted_at - started).total_seconds())
+ 
     db.commit()
     db.refresh(attempt)
-    
-    # Check if passed
-    passed = percentage >= test.passing_score
-    
-    # Create notification for test completion
+ 
+    # Notify (best-effort)
     from app.services.notification_service import notify_test_completed
     try:
         notify_test_completed(db, current_user.id, test_id, test.title, percentage, passed)
-    except Exception as e:
-        # Don't fail submission if notification fails
-        print(f"Failed to create test notification: {e}")
-    
-    # Calculate remaining attempts (only count completed attempts)
+    except Exception as exc:
+        logger.warning(f"[submit_test] notification failed: {exc}")
+ 
+    # Remaining attempts
     attempts_remaining = None
-    if test.settings and test.settings.get('max_attempts'):
-        completed_attempts_count = db.query(TestAttempt).filter(
+    if test.settings and test.settings.get("max_attempts"):
+        completed_count = db.query(TestAttempt).filter(
             and_(
                 TestAttempt.test_id == test_id,
                 TestAttempt.student_id == current_user.id,
-                TestAttempt.status == AttemptStatus.COMPLETED
+                TestAttempt.status == AttemptStatus.COMPLETED,
             )
         ).count()
-        attempts_remaining = test.settings['max_attempts'] - completed_attempts_count
-    
+        attempts_remaining = test.settings["max_attempts"] - completed_count
+ 
     return {
         "attempt_id": attempt.id,
         "score": percentage,
         "passed": passed,
         "points_earned": total_score,
         "points_possible": max_score,
-        "results": results_detail if test.settings.get('show_results_immediately', True) else None,
+        "results": results_detail if test.settings.get("show_results_immediately", True) else None,
         "submitted_at": attempt.submitted_at,
         "time_taken_seconds": time_taken_seconds,
-        "attempts_remaining": attempts_remaining
+        "attempts_remaining": attempts_remaining,
+        # New: surface whether any questions need teacher review
+        "requires_manual_review": totals.get("requires_manual_review", False),
     }
+
+def _extract_answers(raw: dict) -> dict:
+    """
+    Unwrap the (possibly double-nested) answers payload.
+ 
+    Frontend sends one of:
+      {"answers": {question_id: answer}}
+      {"answers": {"answers": {question_id: answer}}}   ← double-nested
+ 
+    Returns the innermost {question_id: answer} mapping.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    submitted = raw.get("answers", {})
+    # Unwrap one more level if still nested
+    if isinstance(submitted, dict) and "answers" in submitted:
+        submitted = submitted["answers"]
+    return submitted if isinstance(submitted, dict) else {}
 
 @router.get("/{test_id}/attempts")
 def get_test_attempts(

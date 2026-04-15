@@ -94,6 +94,37 @@ class LocalLlamaProvider(AIProvider):
             logger.warning("Ollama warm-up failed (will retry on first request): %s", exc)
             return False
 
+    def _base_options(self) -> dict[str, Any]:
+        """
+        Common Ollama generation options shared by generate() and generate_stream().
+
+        num_ctx     — context window size in tokens. Many Ollama models default
+                      to 2048, which is often exhausted by a large system prompt
+                      alone, leaving no room for output. 8192 matches llama-3.x
+                      and gives comfortable headroom for 10-sentence exercises.
+        num_predict — maximum *output* tokens. Groq uses 4096; we match that
+                      here so large requests (10 sentences, many gaps) are never
+                      cut short. Users can override via the `options` constructor
+                      argument or the OLLAMA_* env-vars.
+        stop        — "\n}\n" was deliberately removed. It fired prematurely on
+                      any nested closing brace inside the JSON object (e.g. the
+                      last entry of the "gaps" dict), truncating the response
+                      before the top-level object was closed. We rely on the
+                      model's natural EOS token and num_predict instead.
+        temperature — kept low (0.2) for deterministic structured JSON output.
+        """
+        return {
+            **self.options,
+            "num_ctx":     self.options.get("num_ctx",     8192),
+            "num_predict": self.options.get("num_predict", 8192),
+            "stop": self.options.get("stop", [
+                "\n```",   # model wrapping output in a markdown fence
+                "```",     # fence without a leading newline
+                "</s>",    # some models use this as an explicit EOS token
+            ]),
+            "temperature": self.options.get("temperature", 0.2),
+        }
+
     # ── AIProvider ────────────────────────────────────────────────────────────
 
     def generate(self, prompt: str) -> str:
@@ -105,16 +136,7 @@ class LocalLlamaProvider(AIProvider):
             "model":   self.model,
             "prompt":  prompt,
             "stream":  False,
-            "options": {
-                **self.options,
-                "num_predict": self.options.get("num_predict", 2048),  # safety ceiling only — stop sequences fire first
-                "stop": self.options.get("stop", [
-                    "\n}\n",           # JSON object closed with trailing newline
-                    "\n```",           # model wrapping in markdown fence
-                    "</s>",            # some models use this as EOS
-                ]),
-                "temperature": self.options.get("temperature", 0.2),  # keep this low for structured output
-            },
+            "options": self._base_options(),
         }
 
         logger.debug("Ollama request → model=%s", self.model)
@@ -163,17 +185,8 @@ class LocalLlamaProvider(AIProvider):
         payload = {
             "model":   self.model,
             "prompt":  prompt,
-            "stream":  True,   # ← the only difference from generate()
-            "options": {
-                **self.options,
-                "num_predict": self.options.get("num_predict", 2048),  # safety ceiling only — stop sequences fire first
-                "stop": self.options.get("stop", [
-                    "\n}\n",           # JSON object closed with trailing newline
-                    "\n```",           # model wrapping in markdown fence
-                    "</s>",            # some models use this as EOS
-                ]),
-                "temperature": self.options.get("temperature", 0.2),  # keep this low for structured output
-            },
+            "stream":  True,   # <- the only difference from generate()
+            "options": self._base_options(),
         }
 
         try:

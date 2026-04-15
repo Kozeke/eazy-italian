@@ -1,23 +1,9 @@
 /**
- * LoginPage.tsx  (v4 — ProgressMe-faithful)
+ * LoginPage.tsx
  *
- * Visual direction from ProgressMe reference screenshot:
- * ──────────────────────────────────────────────────────
- * • Pure white page background — no tint
- * • Logo + wordmark centered above the form area
- * • No card box / no outer shadow — form floats on white
- * • Segmented tab switcher: single rounded-rect border container,
- *   two equal-width options, active = darker text + subtle fill,
- *   inactive = muted gray text
- * • Inputs: light gray bg (#F4F5F7), transparent border at rest,
- *   subtle border on focus; left-side icon in muted gray
- * • "Forgot password?" sits inline below inputs as small muted underline link
- * • CTA: full-width, solid vivid sky-blue (#29B6F6), white text
- * • No gradients, no shadows, no decorative panels
- *
- * All auth logic is unchanged:
- *   password login · magic-code send · EmailVerification reuse ·
- *   role-based redirects · next-path handling
+ * Architecture role:
+ * This page handles teacher/student authentication while preserving the existing
+ * password and magic-code login logic, and applies the AdminCoursesCatalog visual style.
  */
 
 import React, { useState, useMemo, useRef } from 'react';
@@ -26,40 +12,51 @@ import { ArrowRight, Sparkles, Mail, Key, Eye, EyeOff, Loader2 } from 'lucide-re
 import EmailVerification from './EmailVerification';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { LinguAiLogo } from '../global/LinguAiLogo';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 type LoginMode = 'password' | 'magic';
 
 /* ─── Design tokens ──────────────────────────────────────────── */
 const c = {
-  page:             '#FFFFFF',
-  inputBg:          '#F4F5F7',
-  inputBorderFocus: '#C5CAD3',
-  inputText:        '#1A1D23',
-  inputIcon:        '#B0B7C3',
-  inputPlaceholder: '#B0B7C3',
+  pageBg:            '#F7F7FA',
+  pageCard:          '#FFFFFF',
+  pageCardBorder:    '#E8E8F0',
+  textMain:          '#18181B',
+  textSub:           '#52525B',
+  textMuted:         '#A1A1AA',
+  textMutedLight:    '#D4D4D8',
+  violet:            '#6C6FEF',
+  violetDark:        '#4F52C2',
+  violetLight:       '#EEF0FE',
+  inputBg:           '#FFFFFF',
+  inputBorder:       '#E8E8F0',
+  inputBorderFocus:  '#6C6FEF',
+  inputText:         '#18181B',
+  inputIcon:         '#A1A1AA',
+  inputPlaceholder:  '#D4D4D8',
 
-  segBorder:        '#E0E3EB',
-  segActiveBg:      '#F0F2F5',
-  segActiveText:    '#1A1D23',
-  segInactiveText:  '#9CA3AF',
+  segBorder:         '#E8E8F0',
+  segActiveBg:       '#EEF0FE',
+  segActiveText:     '#4F52C2',
+  segInactiveText:   '#A1A1AA',
 
-  btnBg:            '#29B6F6',
-  btnHover:         '#039BE5',
-  btnText:          '#FFFFFF',
-  btnDisabled:      '#A5D8F3',
+  btnBg:             '#6C6FEF',
+  btnHover:          '#4F52C2',
+  btnText:           '#FFFFFF',
+  btnDisabled:       '#C7CAFF',
 
-  forgotColor:      '#9CA3AF',
-  forgotHover:      '#4B5563',
-  linkColor:        '#29B6F6',
-  mutedText:        '#9CA3AF',
+  forgotColor:       '#A1A1AA',
+  forgotHover:       '#52525B',
+  linkColor:         '#6C6FEF',
+  mutedText:         '#A1A1AA',
 
-  errorText:        '#DC2626',
-  errorBorder:      '#FCA5A5',
-  errorBg:          '#FEF2F2',
-  tipBg:            '#EFF9FF',
-  tipBorder:        '#BAE6FD',
-  tipText:          '#0369A1',
+  errorText:         '#DC2626',
+  errorBorder:       '#FCA5A5',
+  errorBg:           '#FEF2F2',
+  tipBg:             '#EEF0FE',
+  tipBorder:         '#C7CAFF',
+  tipText:           '#4F52C2',
 } as const;
 
 /* ─── Shell ──────────────────────────────────────────────────── */
@@ -67,39 +64,31 @@ function LoginShell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       minHeight: '100dvh',
-      background: c.page,
+      background: c.pageBg,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '24px 16px 56px',
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      padding: '20px 14px 40px',
+      fontFamily: "'Inter', system-ui, sans-serif",
     }}>
-      {/* Logo */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        marginBottom: '28px',
-      }}>
-        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-          <rect width="34" height="34" rx="9" fill="#EFF9FF"/>
-          <path d="M17 7C12.3 7 8.5 10.8 8.5 15.5V25.5C8.5 26.3 9.2 27 10 27H17V7Z" fill="#29B6F6"/>
-          <path d="M17 7C21.7 7 25.5 10.8 25.5 15.5V25.5C25.5 26.3 24.8 27 24 27H17V7Z" fill="#F97316" opacity="0.9"/>
-          <rect x="15.75" y="7" width="2.5" height="20" rx="1" fill="white" opacity="0.55"/>
-        </svg>
-        <span style={{
-          fontSize: '19px',
-          fontWeight: 700,
-          color: '#1A1D23',
-          letterSpacing: '-0.025em',
-        }}>
-          EZ Italian
-        </span>
+      {/* Logo keeps brand anchor while page adopts catalog shell style */}
+      <div style={{ marginBottom: '12px' }}>
+        <a href="/" style={{ display: 'inline-block' }} aria-label="LinguAI home">
+          <LinguAiLogo height={46} showWordmark />
+        </a>
       </div>
 
-      {/* Form area */}
-      <div style={{ width: '100%', maxWidth: '300px' }}>
+      {/* White container mirrors the AdminCoursesCatalog card shell */}
+      <div style={{
+        width: '100%',
+        maxWidth: '360px',
+        background: c.pageCard,
+        borderRadius: '14px',
+        border: `1px solid ${c.pageCardBorder}`,
+        boxShadow: '0 1px 4px rgba(108,111,239,.04)',
+        padding: '22px 18px 18px',
+      }}>
         {children}
       </div>
     </div>
@@ -112,10 +101,11 @@ function SegTabs({ mode, onChange }: { mode: LoginMode; onChange: (m: LoginMode)
     <div style={{
       display: 'flex',
       border: `1.5px solid ${c.segBorder}`,
-      borderRadius: '9px',
-      padding: '3px',
-      marginBottom: '16px',
+      borderRadius: '8px',
+      padding: '2px',
+      marginBottom: '10px',
       gap: '2px',
+      background: '#FFFFFF',
     }}>
       {(['password', 'magic'] as LoginMode[]).map(m => {
         const active = mode === m;
@@ -126,13 +116,13 @@ function SegTabs({ mode, onChange }: { mode: LoginMode; onChange: (m: LoginMode)
             onClick={() => onChange(m)}
             style={{
               flex: 1,
-              height: '32px',
+              height: '30px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '5px',
-              fontSize: '13px',
-              fontWeight: active ? 600 : 400,
+              fontSize: '12px',
+              fontWeight: active ? 700 : 500,
               color: active ? c.segActiveText : c.segInactiveText,
               background: active ? c.segActiveBg : 'transparent',
               border: 'none',
@@ -170,13 +160,14 @@ function Field({ icon, type = 'text', placeholder, value, onChange, rightSlot, a
       display: 'flex',
       alignItems: 'center',
       background: c.inputBg,
-      border: `1.5px solid ${focused ? c.inputBorderFocus : 'transparent'}`,
+      border: `1.5px solid ${focused ? c.inputBorderFocus : c.inputBorder}`,
       borderRadius: '8px',
-      height: '44px',
-      padding: '0 12px',
-      transition: 'border-color 0.15s',
+      height: '42px',
+      padding: '0 10px',
+      transition: 'border-color 0.15s, box-shadow 0.15s',
+      boxShadow: focused ? `0 0 0 3px ${c.violetLight}` : 'none',
     }}>
-      <span style={{ display: 'flex', color: c.inputIcon, marginRight: '9px', flexShrink: 0 }}>
+      <span style={{ display: 'flex', color: c.inputIcon, marginRight: '8px', flexShrink: 0 }}>
         {icon}
       </span>
       <input
@@ -193,7 +184,7 @@ function Field({ icon, type = 'text', placeholder, value, onChange, rightSlot, a
           background: 'transparent',
           border: 'none',
           outline: 'none',
-          fontSize: '14px',
+          fontSize: '13px',
           color: c.inputText,
           minWidth: 0,
         }}
@@ -211,11 +202,11 @@ function Field({ icon, type = 'text', placeholder, value, onChange, rightSlot, a
 function ErrorMsg({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      padding: '8px 12px',
+      padding: '7px 10px',
       background: c.errorBg,
       border: `1px solid ${c.errorBorder}`,
       borderRadius: '7px',
-      fontSize: '13px',
+      fontSize: '12px',
       color: c.errorText,
       lineHeight: 1.4,
     }}>
@@ -240,17 +231,17 @@ function PrimaryBtn({ loading, icon, children, disabled, style, ...rest }: BtnPr
       onMouseLeave={() => setHov(false)}
       style={{
         width: '100%',
-        height: '44px',
+        height: '42px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '6px',
-        fontSize: '14px',
-        fontWeight: 600,
+        gap: '5px',
+        fontSize: '13px',
+        fontWeight: 700,
         color: c.btnText,
         background: isDisabled ? c.btnDisabled : (hov ? c.btnHover : c.btnBg),
         border: 'none',
-        borderRadius: '8px',
+        borderRadius: '9px',
         cursor: isDisabled ? 'not-allowed' : 'pointer',
         transition: 'background 0.15s',
         letterSpacing: '0.005em',
@@ -295,7 +286,8 @@ export default function LoginPage() {
       return;
     }
     if (user?.role === 'teacher') {
-      navigate(!user.onboarding_completed ? '/admin/onboarding' : '/admin/dashboard', { replace: true });
+      // First-time teachers used to go to /admin/onboarding; they now land on the course catalog instead
+      navigate(!user.onboarding_completed ? '/admin/courses' : '/admin/dashboard', { replace: true });
     } else {
       navigate('/student/classes', { replace: true });
     }
@@ -371,6 +363,7 @@ export default function LoginPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
         @keyframes pmSpin { to { transform: rotate(360deg); } }
         @keyframes pmFadeUp {
           from { opacity: 0; transform: translateY(5px); }
@@ -380,6 +373,26 @@ export default function LoginPage() {
       `}</style>
 
       <LoginShell>
+        <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+          <h1 style={{
+            margin: 0,
+            fontFamily: "'Nunito', system-ui, sans-serif",
+            fontSize: '20px',
+            fontWeight: 900,
+            color: c.textMain,
+          }}>
+            Welcome back
+          </h1>
+          <p style={{
+            margin: '4px 0 0',
+            fontSize: '12px',
+            color: c.textSub,
+            lineHeight: 1.5,
+          }}>
+            Sign in to continue to your classroom workspace.
+          </p>
+        </div>
+
         {/* Magic OTP step — EmailVerification reused unchanged */}
         {mode === 'magic' && magicSent ? (
           <div style={{ animation: 'pmFadeUp 0.2s ease-out' }}>
@@ -394,7 +407,7 @@ export default function LoginPage() {
             {mode === 'password' && (
               <form
                 onSubmit={handlePasswordLogin}
-                style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}
               >
                 <Field
                   icon={<Mail style={{ width: 16, height: 16 }} />}
@@ -431,7 +444,7 @@ export default function LoginPage() {
                     type="button"
                     style={{
                       background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                      fontSize: '12.5px', color: c.forgotColor,
+                      fontSize: '12px', color: c.forgotColor, fontWeight: 600,
                       textDecoration: 'underline', transition: 'color 0.15s',
                     }}
                     onMouseEnter={e => (e.currentTarget.style.color = c.forgotHover)}
@@ -447,7 +460,7 @@ export default function LoginPage() {
                   type="submit"
                   loading={loading}
                   icon={<ArrowRight style={{ width: 15, height: 15 }} />}
-                  style={{ marginTop: '6px' }}
+                  style={{ marginTop: '4px' }}
                 >
                   Sign in
                 </PrimaryBtn>
@@ -458,7 +471,7 @@ export default function LoginPage() {
             {mode === 'magic' && (
               <form
                 onSubmit={handleSendMagicCode}
-                style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}
               >
                 <Field
                   icon={<Mail style={{ width: 16, height: 16 }} />}
@@ -472,11 +485,11 @@ export default function LoginPage() {
 
                 <p style={{
                   margin: 0,
-                  padding: '8px 11px',
+                  padding: '7px 9px',
                   background: c.tipBg,
                   border: `1px solid ${c.tipBorder}`,
                   borderRadius: '7px',
-                  fontSize: '12.5px',
+                  fontSize: '12px',
                   color: c.tipText,
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -493,7 +506,7 @@ export default function LoginPage() {
                   type="submit"
                   loading={loading}
                   icon={<Sparkles style={{ width: 13, height: 13 }} />}
-                  style={{ marginTop: '6px' }}
+                  style={{ marginTop: '4px' }}
                 >
                   Send magic code
                 </PrimaryBtn>
@@ -502,9 +515,9 @@ export default function LoginPage() {
 
             {/* Sign up link */}
             <p style={{
-              marginTop: '20px',
+              marginTop: '14px',
               textAlign: 'center',
-              fontSize: '13px',
+              fontSize: '12px',
               color: c.mutedText,
             }}>
               No account?{' '}
@@ -513,7 +526,7 @@ export default function LoginPage() {
                 onClick={() => navigate('/register')}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: '13px', fontWeight: 600, color: c.linkColor, padding: 0,
+                  fontSize: '12px', fontWeight: 600, color: c.linkColor, padding: 0,
                 }}
               >
                 Sign up free

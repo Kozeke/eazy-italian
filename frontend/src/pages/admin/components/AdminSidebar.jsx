@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CreateCourseModal from "./CreateCourseModal";
+import { SHELL_SIDEBAR_COLLAPSED_WIDTH, SHELL_SIDEBAR_EXPANDED_WIDTH } from "../../../components/layout/shellDimensions";
 
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 const T = {
@@ -29,8 +30,10 @@ const T = {
   mutedL:    "#D4D4D8",
 };
 
-const COLLAPSED_W = 60;
-const EXPANDED_W  = 220;
+// Stores collapsed sidebar width in pixels and keeps teacher/student shells aligned.
+const COLLAPSED_W = SHELL_SIDEBAR_COLLAPSED_WIDTH;
+// Stores expanded sidebar width in pixels and keeps teacher/student shells aligned.
+const EXPANDED_W  = SHELL_SIDEBAR_EXPANDED_WIDTH;
 
 /* ── SVG icons ───────────────────────────────────────────────────────────── */
 const IcoBook  = () => (
@@ -49,42 +52,6 @@ const IcoUsers = () => (
     <circle cx="8" cy="7" r="3" stroke="currentColor" strokeWidth="1.5"/>
     <path d="M2 17c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     <path d="M14 4a3 3 0 0 1 0 6M18 17c0-2.761-1.79-5.11-4.266-5.817" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-  </svg>
-);
-const IcoGrades = () => (
-  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-    <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-    <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const IcoLayers = () => (
-  <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-    <path d="M10 2L2 7l8 5 8-5-8-5Z" stroke="currentColor" strokeWidth="1.4"/>
-    <path d="M2 13l8 5 8-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-  </svg>
-);
-const IcoVideo = () => (
-  <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-    <rect x="2" y="5" width="12" height="10" rx="2" stroke="currentColor" strokeWidth="1.4"/>
-    <path d="M14 8.5l4-2v7l-4-2V8.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-  </svg>
-);
-const IcoTask = () => (
-  <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-    <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.4"/>
-    <path d="M7 7h6M7 10h4M7 13h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-  </svg>
-);
-const IcoTest = () => (
-  <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-    <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.4"/>
-    <path d="M7 7h2v2H7V7ZM11 7h2v2h-2V7ZM7 11h2v2H7v-2ZM11 11h2v2h-2v-2Z" fill="currentColor" opacity=".65"/>
-  </svg>
-);
-const IcoChevron = ({ open }) => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
-    style={{ transform: open ? "rotate(90deg)" : "rotate(0)", transition: "transform .2s" }}>
-    <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 /* ── CSS ─────────────────────────────────────────────────────────────────── */
@@ -482,7 +449,6 @@ const CSS = `
 export default function AdminSidebar() {
   const location = useLocation();
   const navigate  = useNavigate();
-  const [contentOpen, setContentOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const path = location.pathname;
@@ -528,19 +494,19 @@ export default function AdminSidebar() {
           </button>
 
           {/* ③ GRADES */}
-          <button
+          {/* <button
             className={`asb-item ${isActive("/admin/grades") ? "active" : ""}`}
             onClick={navTo("/admin/grades")}
           >
             <div className="asb-active-dot" />
             <span className="asb-ico"><IcoGrades /></span>
             <span className="asb-item-label">Grades</span>
-          </button>
+          </button> */}
 
           <div className="asb-divider" />
 
           {/* ④ CONTENT LIBRARY */}
-          <button className="asb-lib-btn" onClick={() => setContentOpen(o => !o)}>
+          {/* <button className="asb-lib-btn" onClick={() => setContentOpen(o => !o)}>
             <span className="asb-ico"><IcoLayers /></span>
             <span className="asb-lib-label">Content Library</span>
             <span className="asb-lib-chevron"><IcoChevron open={contentOpen} /></span>
@@ -581,7 +547,7 @@ export default function AdminSidebar() {
               <span className="asb-ico"><IcoTest /></span>
               <span className="asb-sub-item-label">Tests</span>
             </button>
-          </div>
+          </div> */}
 
         </div>
 

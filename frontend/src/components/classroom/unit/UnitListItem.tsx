@@ -1,23 +1,30 @@
 /**
- * UnitListItem.tsx  (v2 — Focused Learning Mode / Design System)
+ * UnitListItem.tsx  (v5 — reliable hover action cluster)
  *
- * Premium unit row for the UnitSelectorModal.
+ * Root-cause fixes from v4/v3:
+ * ─────────────────────────────
+ * • NEW `showActions?: boolean` prop — controls whether the hover cluster
+ *   renders at all. Previously `hasActions` was derived from callback presence,
+ *   but callers (UnitSelectorModal) spread an empty object when isTeacher=false,
+ *   making the cluster silently invisible forever.
+ *   Callers now pass `showActions={isTeacher}` explicitly.
  *
- * What changed from v1:
- * ─────────────────────
- * • Visual identity: each row has a floating number "medallion" that shows
- *   a teal fill for the active unit and a teal checkmark ring for completed.
- * • Content chips redesigned: Slides/Task/Test with distinct teal/amber/emerald
- *   colors rather than a generic grey slate.
- * • Locked state: full-row opacity + lock icon, subtle strikethrough feel.
- * • Current state: teal-50 background + left accent border (3 px teal-500).
- * • Completed state: subtle emerald-50 tint + checkmark medallion.
- * • Hover state: light teal tint (not just grey) for on-brand feel.
- * • Slide count / task / test use recognizable icons with per-type color.
- * • Keyboard accessible: focus-visible ring in teal.
+ * • Removed the `hidden group-hover:flex` anti-pattern. Tailwind JIT purges
+ *   `group-hover:flex` when it only appears in a ternary — replaced with a
+ *   pure opacity + pointer-events approach so the cluster is always in the DOM
+ *   (when showActions=true), just invisible until hover.
+ *
+ * • Status icon uses `group-hover:opacity-0` transition instead of
+ *   `group-hover:hidden` — both icon and cluster coexist in layout, no reflow.
+ *
+ * • `onOpen` and `onShare` props added (were absent from v3 project file).
+ *
+ * • Dropdown closes on Escape key.
+ *
+ * • Locked units: `actionsOn` is false regardless of `showActions`.
  */
 
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   BookOpen,
   FileText,
@@ -26,6 +33,14 @@ import {
   Lock,
   PlayCircle,
   Presentation,
+  AlignJustify,
+  Share2,
+  MoreHorizontal,
+  EyeOff,
+  Copy,
+  Pen,
+  Trash2,
+  Sparkles,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -53,6 +68,19 @@ export type UnitListItemProps = {
   isCompleted?: boolean;
   isLocked?: boolean;
   onClick: () => void;
+  /**
+   * Set true (e.g. when isTeacher) to enable the hover action cluster.
+   * Defaults to false so existing call sites without this prop are unaffected.
+   */
+  showActions?: boolean;
+  // Action callbacks — all optional
+  onOpen?:     (unit: any) => void;
+  onShare?:    (unit: any) => void;
+  onGenerate?: (unit: any) => void;
+  onHide?:     (unit: any) => void;
+  onCopy?:     (unit: any) => void;
+  onEdit?:     (unit: any) => void;
+  onDelete?:   (unit: any) => void;
 };
 
 // ─── Level colors ─────────────────────────────────────────────────────────────
@@ -96,6 +124,80 @@ function ContentChip({
   );
 }
 
+// ─── Unit action dropdown ─────────────────────────────────────────────────────
+
+function UnitActionDropdown({
+  unit,
+  onClose,
+  onGenerate,
+  onHide,
+  onCopy,
+  onEdit,
+  onDelete,
+}: {
+  unit: any;
+  onClose: () => void;
+  onGenerate?: (u: any) => void;
+  onHide?:     (u: any) => void;
+  onCopy?:     (u: any) => void;
+  onEdit?:     (u: any) => void;
+  onDelete?:   (u: any) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const menuItem = (
+    icon: React.ReactNode,
+    label: string,
+    cb: () => void,
+    destructive = false,
+  ) => (
+    <button
+      onClick={(e) => { e.stopPropagation(); cb(); onClose(); }}
+      className={[
+        'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors',
+        destructive
+          ? 'text-red-500 hover:bg-red-50'
+          : 'text-slate-700 hover:bg-slate-50',
+      ].join(' ')}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-1 z-50 w-48 rounded-xl bg-white shadow-lg ring-1 ring-slate-200 py-1 overflow-hidden"
+    >
+      {onGenerate && menuItem(<Sparkles className="h-4 w-4 shrink-0" />, 'Сгенерировать AI', () => onGenerate(unit))}
+      {menuItem(<EyeOff className="h-4 w-4 shrink-0" />, 'Скрыть урок',   () => onHide?.(unit))}
+      {menuItem(<Copy   className="h-4 w-4 shrink-0" />, 'Копировать',    () => onCopy?.(unit))}
+      {menuItem(<Pen    className="h-4 w-4 shrink-0" />, 'Редактировать', () => onEdit?.(unit))}
+      <div className="border-t border-slate-100" />
+      {menuItem(<Trash2 className="h-4 w-4 shrink-0" />, 'Удалить',       () => onDelete?.(unit), true)}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function UnitListItem({
@@ -104,17 +206,28 @@ export default function UnitListItem({
   isCompleted = false,
   isLocked = false,
   onClick,
+  showActions = false,
+  onOpen,
+  onShare,
+  onGenerate,
+  onHide,
+  onCopy,
+  onEdit,
+  onDelete,
 }: UnitListItemProps) {
-  const locked = isLocked || unit.is_visible_to_students === false;
-  const cc      = unit.content_count;
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const locked    = isLocked || unit.is_visible_to_students === false;
+  // Cluster is active only when explicitly requested AND the unit isn't locked
+  const actionsOn = showActions && !locked;
+
+  const cc       = unit.content_count;
   const levelCls = unit.level ? (LEVEL_COLORS[unit.level] ?? 'bg-slate-100 text-slate-600') : null;
 
-  // Determine which content chips to show
   const hasSlides = (cc?.slides ?? cc?.videos ?? 0) > 0;
   const hasTask   = (cc?.tasks  ?? 0) > 0;
   const hasTest   = (cc?.tests  ?? 0) > 0;
 
-  // Medallion appearance
   const medallion = locked
     ? { bg: 'bg-slate-100 text-slate-300', icon: null }
     : isCurrent
@@ -123,18 +236,13 @@ export default function UnitListItem({
     ? { bg: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200', icon: 'check' }
     : { bg: 'bg-slate-100 text-slate-400 group-hover:bg-teal-50 group-hover:text-teal-600', icon: null };
 
+  const iconBtn = 'rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors';
+
   return (
-    <li>
-      <button
-        disabled={locked}
-        onClick={onClick}
-        role="option"
-        aria-selected={isCurrent}
-        aria-disabled={locked}
+    <li className="group relative">
+      <div
         className={[
-          'group relative w-full px-4 py-3.5 text-left transition-all duration-150',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-400',
-          'disabled:cursor-not-allowed',
+          'relative w-full px-4 py-3.5 transition-all duration-150',
           isCurrent
             ? 'bg-teal-50/70 border-l-[3px] border-teal-500'
             : isCompleted && !locked
@@ -144,95 +252,182 @@ export default function UnitListItem({
         ].join(' ')}
       >
         <div className="flex items-center gap-3.5">
-          {/* ── Number medallion ──────────────────────────────────────── */}
-          <div
-            className={[
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all duration-150',
-              medallion.bg,
-            ].join(' ')}
-            aria-hidden
+
+          {/* ── Clickable title area ────────────────────────────────────────── */}
+          <button
+            disabled={locked}
+            onClick={onClick}
+            role="option"
+            aria-selected={isCurrent}
+            aria-disabled={locked}
+            className="flex flex-1 min-w-0 items-center gap-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-400 disabled:cursor-not-allowed"
           >
-            {medallion.icon === 'check' ? (
-              <CheckCircle2 className="h-4 w-4" />
-            ) : (
-              unit.order_index ?? '—'
-            )}
-          </div>
-
-          {/* ── Main content ──────────────────────────────────────────── */}
-          <div className="min-w-0 flex-1">
-            {/* Title row */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span
-                className={[
-                  'text-[13px] font-semibold leading-snug transition-colors',
-                  isCurrent
-                    ? 'text-teal-800'
-                    : locked
-                    ? 'text-slate-400'
-                    : isCompleted
-                    ? 'text-slate-600'
-                    : 'text-slate-800 group-hover:text-teal-700',
-                ].join(' ')}
-              >
-                {unit.title}
-              </span>
-
-              {levelCls && unit.level && (
-                <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${levelCls}`}>
-                  {unit.level}
-                </span>
-              )}
-
-              {isCurrent && (
-                <span className="shrink-0 rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold text-teal-700">
-                  Now studying
-                </span>
+            {/* Number medallion */}
+            <div
+              className={[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all duration-150',
+                medallion.bg,
+              ].join(' ')}
+              aria-hidden
+            >
+              {medallion.icon === 'check' ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                unit.order_index ?? '—'
               )}
             </div>
 
-            {/* Content chips */}
-            {(hasSlides || hasTask || hasTest) && (
-              <div className="mt-1.5 flex items-center gap-1 flex-wrap">
-                {hasSlides && (
-                  <ContentChip
-                    icon={Presentation}
-                    label={`${cc?.slides ?? cc?.videos ?? 0} slides`}
-                    color="teal"
-                  />
+            {/* Main text + chips */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span
+                  className={[
+                    'text-[13px] font-semibold leading-snug transition-colors',
+                    isCurrent
+                      ? 'text-teal-800'
+                      : locked
+                      ? 'text-slate-400'
+                      : isCompleted
+                      ? 'text-slate-600'
+                      : 'text-slate-800 group-hover:text-teal-700',
+                  ].join(' ')}
+                >
+                  {unit.title}
+                </span>
+
+                {levelCls && unit.level && (
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${levelCls}`}>
+                    {unit.level}
+                  </span>
                 )}
-                {hasTask && (
-                  <ContentChip
-                    icon={FileText}
-                    label={`${cc?.tasks ?? 0} task${(cc?.tasks ?? 0) !== 1 ? 's' : ''}`}
-                    color="amber"
-                  />
+
+                {isCurrent && (
+                  <span className="shrink-0 rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+                    Now studying
+                  </span>
                 )}
-                {hasTest && (
-                  <ContentChip
-                    icon={FlaskConical}
-                    label={`${cc?.tests ?? 0} test${(cc?.tests ?? 0) !== 1 ? 's' : ''}`}
-                    color="emerald"
+              </div>
+
+              {(hasSlides || hasTask || hasTest) && (
+                <div className="mt-1.5 flex items-center gap-1 flex-wrap">
+                  {hasSlides && (
+                    <ContentChip
+                      icon={Presentation}
+                      label={`${cc?.slides ?? cc?.videos ?? 0} slides`}
+                      color="teal"
+                    />
+                  )}
+                  {hasTask && (
+                    <ContentChip
+                      icon={FileText}
+                      label={`${cc?.tasks ?? 0} task${(cc?.tasks ?? 0) !== 1 ? 's' : ''}`}
+                      color="amber"
+                    />
+                  )}
+                  {hasTest && (
+                    <ContentChip
+                      icon={FlaskConical}
+                      label={`${cc?.tests ?? 0} test${(cc?.tests ?? 0) !== 1 ? 's' : ''}`}
+                      color="emerald"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/*
+             * Status icon — always rendered to hold layout width.
+             * Fades out on hover when the action cluster is active.
+             */}
+            <span
+              className={[
+                'shrink-0 ml-1 transition-opacity duration-150',
+                actionsOn ? 'group-hover:opacity-0' : '',
+              ].join(' ')}
+              aria-hidden
+            >
+              {locked ? (
+                <Lock className="h-4 w-4 text-slate-300" />
+              ) : isCurrent ? (
+                <PlayCircle className="h-4 w-4 text-teal-500" />
+              ) : isCompleted ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              ) : (
+                <BookOpen className="h-4 w-4 text-slate-300 group-hover:text-teal-400 transition-colors" />
+              )}
+            </span>
+          </button>
+
+          {/*
+           * ── Hover action cluster ─────────────────────────────────────────────
+           *
+           * Key design: always in the DOM when actionsOn=true. Uses opacity +
+           * pointer-events toggled by group-hover rather than display:none/flex.
+           * This is the only pattern guaranteed to work with Tailwind's JIT purge.
+           *
+           *   Resting:  opacity-0, pointer-events-none  (invisible, not clickable)
+           *   Hovered:  opacity-100, pointer-events-auto (visible, clickable)
+           */}
+          {actionsOn && (
+            <div
+              className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Drag handle — visual affordance only */}
+              <button
+                className={iconBtn}
+                aria-label="Reorder"
+                tabIndex={-1}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <AlignJustify className="h-4 w-4" />
+              </button>
+
+              {/* Share */}
+              <button
+                className={iconBtn}
+                aria-label="Share unit"
+                tabIndex={-1}
+                onClick={(e) => { e.stopPropagation(); onShare?.(unit); }}
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
+
+              {/* Three-dot menu */}
+              <div className="relative">
+                <button
+                  className={iconBtn}
+                  aria-label="More options"
+                  tabIndex={-1}
+                  onClick={(e) => { e.stopPropagation(); setDropdownOpen((v) => !v); }}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+                {dropdownOpen && (
+                  <UnitActionDropdown
+                    unit={unit}
+                    onClose={() => setDropdownOpen(false)}
+                    onGenerate={onGenerate}
+                    onHide={onHide}
+                    onCopy={onCopy}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
                   />
                 )}
               </div>
-            )}
-          </div>
 
-          {/* ── Status icon ───────────────────────────────────────────── */}
-          <span className="shrink-0 ml-1" aria-hidden>
-            {locked ? (
-              <Lock className="h-4 w-4 text-slate-300" />
-            ) : isCurrent ? (
-              <PlayCircle className="h-4 w-4 text-teal-500" />
-            ) : isCompleted ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-            ) : (
-              <BookOpen className="h-4 w-4 text-slate-300 group-hover:text-teal-400 transition-colors" />
-            )}
-          </span>
+              {/* "Открыть урок" pill */}
+              <button
+                className="ml-1 rounded-full bg-[#4DD8E0] px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-400 transition-colors whitespace-nowrap"
+                onClick={(e) => { e.stopPropagation(); onOpen ? onOpen(unit) : onClick(); }}
+              >
+                Открыть урок
+              </button>
+            </div>
+          )}
+
         </div>
-      </button>
+      </div>
     </li>
   );
 }

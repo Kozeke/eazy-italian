@@ -82,12 +82,14 @@ export default function TeacherClassroomHeader({ course, onExit }: TeacherClassr
           position: sticky;
           top: 0;
           z-index: 40;
-          height: 56px;
+          /* Align with teacher ClassroomHeader: 48px row + 1px border */
+          height: 49px;
+          box-sizing: border-box;
           background: #fff;
-          border-bottom: 1px solid #F0EDF8;
+          border-bottom: 1px solid #e2e8f0;
           display: flex;
           align-items: center;
-          padding: 0 20px;
+          padding: 0 16px;
           gap: 12px;
           font-family: 'Sora', system-ui, sans-serif;
         }

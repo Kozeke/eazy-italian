@@ -1,0 +1,298 @@
+/* ============================================================
+   ExerciseBlockMenu.css
+   Three-dots dropdown overlay for exercise blocks in teacher mode.
+   ============================================================ */
+
+/* ── Wrapper ──────────────────────────────────────────────── */
+
+.ebm-wrapper {
+  position: relative;
+  display: block;
+  width: 100%; /* stretch to fill the .vlp-blocks column */
+}
+
+/* ── Trigger button (⋯) ───────────────────────────────────── */
+
+.ebm-trigger {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 50; /* above exercise card content (.dtg-block position:relative) */
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(108, 111, 239, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #6c6fef;
+  cursor: pointer;
+  transition:
+    background 0.13s,
+    border-color 0.13s,
+    color 0.13s,
+    box-shadow 0.13s,
+    opacity 0.13s;
+
+  /* Always visible in teacher mode — full opacity on hover / active */
+  opacity: 0.7;
+  pointer-events: auto;
+}
+
+/* Full visibility on wrapper hover or when menu is open */
+.ebm-wrapper:hover .ebm-trigger,
+.ebm-trigger--active {
+  opacity: 1;
+}
+
+.ebm-trigger:hover,
+.ebm-trigger--active {
+  background: #eef0fe;
+  border-color: #a5a8f3;
+  color: #4f52c2;
+  box-shadow:
+    0 1px 4px rgba(108, 111, 239, 0.18),
+    0 0 0 3px rgba(108, 111, 239, 0.08);
+}
+
+/* ── Dropdown menu (position overridden inline via portal) ── */
+
+.ebm-menu {
+  /* position + top/right set inline by DropdownPortal via getBoundingClientRect */
+  z-index: 9999;
+
+  min-width: 232px;
+  background: #ffffff;
+  border: 1px solid #e4e6fb;
+  border-radius: 14px;
+  box-shadow:
+    0 4px 6px -1px rgba(108, 111, 239, 0.08),
+    0 10px 30px -4px rgba(108, 111, 239, 0.18),
+    0 0 0 0.5px rgba(108, 111, 239, 0.06);
+  padding: 6px;
+
+  animation: ebmIn 0.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top right;
+}
+
+@keyframes ebmIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ── Menu items ───────────────────────────────────────────── */
+
+.ebm-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: #3d3f5c;
+  font-size: 13.5px;
+  font-weight: 450;
+  font-family: inherit;
+  transition:
+    background 0.1s,
+    color 0.1s;
+  white-space: nowrap;
+}
+
+.ebm-item:hover {
+  background: #f4f5fd;
+  color: #1c1f3a;
+}
+
+.ebm-item--danger {
+  color: #dc2626;
+}
+
+.ebm-item--danger:hover {
+  background: #fff1f1;
+  color: #b91c1c;
+}
+
+.ebm-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.ebm-item:hover .ebm-item-icon {
+  opacity: 1;
+}
+
+.ebm-item-label {
+  flex: 1;
+  line-height: 1.3;
+}
+
+/* "Новая версия" badge */
+.ebm-item-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #eef0fe;
+  color: #6c6fef;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Divider ──────────────────────────────────────────────── */
+
+.ebm-divider {
+  height: 1px;
+  background: #f0f1fb;
+  margin: 5px 2px;
+}
+
+/**
+* ExerciseBlockMenu.css  (v2 — adds .ebm-item--highlight)
+*
+* Only the new rule is shown here — append this to the existing file.
+* All prior rules are unchanged.
+*/
+
+/* ── Highlight variant — used for "Copy to Homework" ─────────────────────────
+ Teal accent so the action is visually prominent at the top of the menu.
+ ─────────────────────────────────────────────────────────────────────────── */
+
+.ebm-item--highlight {
+  background: #f0fdf4;
+  color: #0d9488;
+}
+
+.ebm-item--highlight .ebm-item-icon {
+  color: #0d9488;
+}
+
+.ebm-item--highlight:hover {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.ebm-item--highlight:hover .ebm-item-icon {
+  color: #0f766e;
+}
+
+/* ── Reset confirmation panel (teacher broadcast) ────────────────────────────
+ Appears inside the dropdown in place of the normal menu items when the
+ teacher clicks "Сбросить ответы". Uses design system amber/warning accent
+ for the icon and destructive-primary for the confirm button.
+ ─────────────────────────────────────────────────────────────────────────── */
+
+.ebm-confirm {
+padding: 4px 2px 2px;
+display: flex;
+flex-direction: column;
+gap: 10px;
+min-width: 232px;
+animation: ebmIn 0.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ebm-confirm__header {
+display: flex;
+align-items: center;
+gap: 8px;
+padding: 6px 8px 0;
+}
+
+.ebm-confirm__icon {
+display: flex;
+align-items: center;
+justify-content: center;
+width: 26px;
+height: 26px;
+border-radius: 8px;
+background: #fff7ed;         /* amber-50 */
+color: #d97706;              /* amber-600 */
+flex-shrink: 0;
+}
+
+.ebm-confirm__title {
+font-size: 13px;
+font-weight: 600;
+color: #1c1f3a;
+line-height: 1.3;
+}
+
+.ebm-confirm__body {
+margin: 0;
+padding: 0 8px;
+font-size: 12px;
+color: #64748b;
+line-height: 1.5;
+}
+
+.ebm-confirm__actions {
+display: flex;
+gap: 6px;
+padding: 2px 6px 6px;
+}
+
+.ebm-confirm__btn {
+flex: 1;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+gap: 5px;
+height: 32px;
+border: none;
+border-radius: 9px;
+font-size: 12.5px;
+font-weight: 600;
+font-family: inherit;
+cursor: pointer;
+transition: background 0.13s, color 0.13s, box-shadow 0.13s;
+}
+
+.ebm-confirm__btn--cancel {
+background: #f1f2f8;
+color: #64748b;
+}
+
+.ebm-confirm__btn--cancel:hover {
+background: #e4e6f0;
+color: #374151;
+}
+
+.ebm-confirm__btn--confirm {
+background: #6C6FEF;         /* primary */
+color: #ffffff;
+box-shadow: 0 1px 4px rgba(108, 111, 239, 0.25);
+}
+
+.ebm-confirm__btn--confirm:hover {
+background: #4F52C2;         /* primary-dark */
+box-shadow: 0 2px 8px rgba(79, 82, 194, 0.30);
+}
+
+.ebm-confirm__btn--confirm:active {
+background: #4F52C2;
+box-shadow: none;
+transform: scale(0.97);
+}

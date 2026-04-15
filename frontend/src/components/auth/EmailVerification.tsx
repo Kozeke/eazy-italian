@@ -1,17 +1,11 @@
 /**
- * EmailVerification.tsx  (v2 — Student Design System)
+ * EmailVerification.tsx
  *
  * 6-digit OTP code entry.
  *
- * What changed from v1:
- * ─────────────────────
- * • Uses teal focus rings + teal fill for entered digits (student identity).
- * • Entering the last digit auto-submits (no manual click required).
- * • Individual digit boxes: cleaner sizing, transition effects.
- * • Resend section: cooldown progress ring replaces bare countdown text.
- * • Success state: scaled-up ring icon with celebration animation.
- * • Mobile: digit boxes expand to fill available width.
- * • Uses ErrorMsg from RegisterPage for consistent error display.
+ * Architecture role:
+ * This component handles OTP verification for magic login/email verification and
+ * shares auth primitives with register/login while following the catalog style palette.
  */
 
 import React, { useRef, useState, useEffect } from 'react';
@@ -123,17 +117,17 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
   // ── Success state ───────────────────────────────────────────────────────────
   if (success) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-10 text-center" style={{ animation: 'authStepIn 0.3s ease-out' }}>
-        <div className="relative flex h-20 w-20 items-center justify-center">
+      <div className="flex flex-col items-center justify-center gap-3 py-8 text-center" style={{ animation: 'authStepIn 0.3s ease-out' }}>
+        <div className="relative flex h-16 w-16 items-center justify-center">
           {/* Pulse ring */}
-          <div className="absolute inset-0 rounded-full bg-teal-100 animate-ping opacity-40" />
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-teal-50 ring-4 ring-teal-200">
-            <CheckCircle className="h-9 w-9 text-teal-500" />
+          <div className="absolute inset-0 rounded-full animate-ping opacity-40" style={{ background: '#EEF0FE' }} />
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-full ring-4" style={{ background: '#EEF0FE', borderColor: '#C7CAFF' }}>
+            <CheckCircle className="h-7 w-7" style={{ color: '#6C6FEF' }} />
           </div>
         </div>
         <div>
-          <p className="text-xl font-bold text-slate-900">Email verified!</p>
-          <p className="mt-1 text-sm text-slate-500">Redirecting you now…</p>
+          <p className="text-lg font-bold text-slate-900">Email verified!</p>
+          <p className="mt-1 text-xs text-slate-500">Redirecting you now…</p>
         </div>
       </div>
     );
@@ -143,15 +137,15 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
   return (
     <div>
       {/* Icon */}
-      <div className="mb-6 flex justify-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 ring-1 ring-teal-200 shadow-sm">
-          <Mail className="h-7 w-7 text-teal-600" />
+      <div className="mb-4 flex justify-center">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl ring-1 shadow-sm" style={{ background: '#EEF0FE', borderColor: '#C7CAFF' }}>
+          <Mail className="h-5 w-5" style={{ color: '#4F52C2' }} />
         </div>
       </div>
 
-      <div className="text-center mb-7">
-        <h2 className="text-xl font-bold text-slate-900">Check your inbox</h2>
-        <p className="mt-1.5 text-sm text-slate-500">
+      <div className="text-center mb-5">
+        <h2 className="text-lg font-bold text-slate-900">Check your inbox</h2>
+        <p className="mt-1 text-xs text-slate-500">
           We sent a 6-digit code to{' '}
           <span className="font-semibold text-slate-700">{email}</span>
         </p>
@@ -159,7 +153,7 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
 
       <form onSubmit={handleVerify}>
         <div
-          className="flex justify-center gap-2 mb-5"
+          className="flex justify-center gap-1.5 mb-4"
           onPaste={handlePaste}
           style={{ animation: error ? 'shake 0.35s ease' : undefined }}
         >
@@ -184,20 +178,26 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
               onChange={(e) => handleDigitChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
               className={[
-                'h-13 w-11 sm:w-12 rounded-xl border-2 text-center text-xl font-bold text-slate-900',
+                'rounded-lg border-2 text-center text-lg font-bold text-slate-900',
                 'transition-all duration-150 focus:outline-none focus:scale-105',
                 d
-                  ? 'border-teal-400 bg-teal-50 text-teal-800 focus:ring-3 focus:ring-teal-100'
-                  : 'border-slate-200 bg-slate-50 hover:border-slate-300 focus:border-teal-400 focus:ring-3 focus:ring-teal-100',
+                  ? 'text-indigo-900 focus:ring-3'
+                  : 'border-slate-200 bg-slate-50 hover:border-slate-300 focus:ring-3',
               ].join(' ')}
-              style={{ height: 52 }}
+              style={{
+                height: 44,
+                width: 38,
+                borderColor: d ? '#6C6FEF' : undefined,
+                background: d ? '#EEF0FE' : undefined,
+                boxShadow: 'none',
+              }}
             />
           ))}
         </div>
 
         {error && <ErrorMsg>{error}</ErrorMsg>}
 
-        <div className="mt-4">
+        <div className="mt-3">
           <PrimaryButton type="submit" loading={loading}>
             Verify email
           </PrimaryButton>
@@ -205,12 +205,13 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
       </form>
 
       {/* Resend */}
-      <div className="mt-5 flex justify-center">
+      <div className="mt-4 flex justify-center">
         <button
           type="button"
           onClick={handleResend}
           disabled={resendCooldown > 0 || resending}
-          className="flex items-center gap-1.5 text-sm font-medium text-slate-400 transition-colors hover:text-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex items-center gap-1.5 text-sm font-medium text-slate-400 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ color: resendCooldown > 0 ? '#A1A1AA' : '#6C6FEF' }}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${resending ? 'animate-spin' : ''}`} />
           {resendCooldown > 0 ? (

@@ -39,7 +39,7 @@ export default function TeacherEmptyClassroom({
           display: flex;
           align-items: center;
           justify-content: center;
-          min-height: calc(100vh - 56px); /* subtract header height */
+          min-height: calc(100vh - 49px); /* ClassroomHeader: h-12 + border */
           padding: 48px 24px;
           background: #fff;
         }

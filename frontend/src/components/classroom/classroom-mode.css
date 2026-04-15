@@ -1,147 +1,693 @@
-/**
- * classroom-mode.css  (v3 — viewport-fitted lesson workspace)
- *
- * New in v3:
- * ─────────
- * • The sticky classroom header now sets --lp-header-h on itself via a
- *   CSS custom property so the lesson workspace can calculate
- *   `height: calc(100dvh - var(--lp-header-h))` exactly.
- *
- * • Two header height tiers are defined here based on whether the lesson
- *   progress rail sub-bar is visible:
- *
- *     No rail   → single bar  ≈ 56px   → --lp-header-h: 56px
- *     With rail → double bar  ≈ 100px  → --lp-header-h: 100px
- *
- *   The header element itself adds .classroom-header--has-rail when the
- *   lessonRail prop is present, triggering the second tier.
- *
- * • ClassroomLayout's global 3px progress underline is factored into
- *   --lp-header-h so the workspace never sits behind it.
- *
- * All v2 rules (sidebar hiding, scroll lock, animation keyframes) are
- * preserved unchanged.
- */
+/* ═══════════════════════════════════════════════════════════════════════════
+   classroom-mode.css  — INLINE TAB SWITCHER  (v7)
+   Namespace: .ch-inline-tabs / .ch-inline-tab  (ch = classroom-header)
+   Design system: #6C6FEF primary · #EEF0FE tint · #F7F7FA bg · rounded-12
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Hide global shell elements in classroom mode ──────────────────────── */
-body.classroom-mode .app-sidebar,
-body.classroom-mode .admin-sidebar,
-body.classroom-mode aside[data-sidebar],
-body.classroom-mode [data-role="sidebar"],
-body.classroom-mode .admin-topbar,
-body.classroom-mode [data-role="admin-nav"],
-body.classroom-mode .student-sidebar,
-body.classroom-mode .student-app-topbar {
-  display: none !important;
+/* ── Pill container ──────────────────────────────────────────────────────── */
+
+.ch-inline-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: #f1f2f8;        /* very light blue-grey tray */
+  border-radius: 12px;
+  flex-shrink: 0;
 }
 
-/* ── Classroom shell fills viewport exactly ────────────────────────────── */
-body.classroom-mode .classroom-layout {
+/* ── Individual tab pill ─────────────────────────────────────────────────── */
+
+.ch-inline-tab {
+  /* Reset */
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+
+  /* Layout */
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  white-space: nowrap;
+
+  /* Typography */
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: #64748b;              /* slate-500 inactive */
+
+  /* Shape */
+  border-radius: 9px;
+  background: transparent;
+
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ch-inline-tab:focus {
+  outline: none;
+}
+
+.ch-inline-tab:focus-visible {
+  outline: 2px solid #6c6fef;
+  outline-offset: 1px;
+}
+
+.ch-inline-tab:hover:not(.ch-inline-tab--active) {
+  color: #475569;              /* slate-600 */
+  background: #e8eaf5;
+}
+
+/* ── Active pill ─────────────────────────────────────────────────────────── */
+
+.ch-inline-tab--active {
+  background: #ffffff;
+  color: #6c6fef;              /* primary */
+  box-shadow:
+    0 1px 3px rgba(108, 111, 239, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Icon ────────────────────────────────────────────────────────────────── */
+
+.ch-inline-tab__icon {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.65;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+
+.ch-inline-tab--active .ch-inline-tab__icon {
+  opacity: 1;
+}
+
+/* ── Label ───────────────────────────────────────────────────────────────── */
+
+.ch-inline-tab__label {
+  letter-spacing: 0.01em;
+}
+
+/* ── Count badge ─────────────────────────────────────────────────────────── */
+
+.ch-inline-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+
+  /* Inactive: subtle slate pill */
+  background: #e2e8f0;        /* slate-200 */
+  color: #64748b;              /* slate-500 */
+
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+/* Badge on active tab uses brand tint */
+.ch-inline-tab--active .ch-inline-tab__badge {
+  background: #eef0fe;        /* primary tint */
+  color: #6c6fef;              /* primary */
+}
+
+/* Micro-bounce when homework item added (add class `ch-inline-tab__badge--pop` via JS) */
+@keyframes ch-badge-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  70%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+.ch-inline-tab__badge--pop {
+  animation: ch-badge-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Responsive: hide labels on very small screens ───────────────────────── */
+
+@media (max-width: 640px) {
+  .ch-inline-tab {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .ch-inline-tab__label {
+    display: none;
+  }
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   classroom-mode.css — ONLINE PRESENCE  (append to existing file)
+   Namespace: .ch-presence-*
+   Design system: #6C6FEF primary · #EEF0FE tint · #F7F7FA bg
+   Google-Docs-style overlapping avatar cluster for teacher view.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Outer wrapper (positions the dropdown anchor) ────────────────────────── */
+
+.ch-presence-cluster {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Stacked avatar row ────────────────────────────────────────────────────── */
+
+.ch-presence-stack {
+  display: inline-flex;
+  align-items: center;
+  /* Negative margin creates the overlap — each child moves left by 8px */
+  flex-direction: row;
+}
+
+.ch-presence-stack > * + * {
+  margin-left: -12px;
+}
+
+/* ── Single avatar ────────────────────────────────────────────────────────── */
+
+.ch-presence-avatar {
+  position: relative;
+  border-radius: 50%;
+  /* Green ring = online indicator; layers: white gap → green ring → white separator */
+  box-shadow:
+    0 0 0 2px #ffffff,   /* white gap between avatar and ring */
+    0 0 0 4px #22c55e,   /* green ring */
+    0 0 0 6px #ffffff;   /* white spacer between ring and overlap neighbour */
+  cursor: default;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, z-index 0s;
+  z-index: 0;
+}
+
+.ch-presence-avatar:hover {
+  transform: translateY(-2px) scale(1.08);
+  z-index: 10;
+}
+
+.ch-presence-avatar__img {
   width: 100%;
-  height: 100dvh;
-  height: 100vh; /* fallback */
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.ch-presence-avatar__initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+
+/* ── Name tooltip ────────────────────────────────────────────────────────── */
+
+.ch-presence-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: #1e293b;          /* slate-800 */
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 50;
+  /* Subtle fade-in */
+  animation: ch-tooltip-in 0.1s ease forwards;
+}
+
+.ch-presence-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #1e293b;
+}
+
+@keyframes ch-tooltip-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(3px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);   }
+}
+
+/* ── Overflow "+N" pill ──────────────────────────────────────────────────── */
+
+.ch-presence-overflow {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #ffffff;
+
+  background: #EEF0FE;          /* primary tint */
+  color: #4F52C2;               /* primary dark */
+  font-size: 10px;
+  font-weight: 700;
+
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.ch-presence-overflow:hover {
+  background: #6C6FEF;
+  color: #ffffff;
+  transform: translateY(-2px) scale(1.08);
+}
+
+.ch-presence-overflow:focus-visible {
+  outline: 2px solid #6C6FEF;
+  outline-offset: 2px;
+}
+
+/* ── "N online" text label ───────────────────────────────────────────────── */
+
+.ch-presence-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;               /* slate-500 */
+  white-space: nowrap;
+  user-select: none;
+}
+
+.ch-presence-label__dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;          /* green-500 */
+  flex-shrink: 0;
+  /* Subtle pulse */
+  animation: ch-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes ch-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  50%       { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);  }
+}
+
+/* ── Invisible click-away backdrop ──────────────────────────────────────── */
+
+.ch-presence-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+}
+
+/* ── Expanded dropdown ───────────────────────────────────────────────────── */
+
+.ch-presence-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;   /* slate-200 */
+  border-radius: 12px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.07),
+    0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  padding: 6px;
+  z-index: 40;
+  animation: ch-dropdown-in 0.15s ease forwards;
+}
+
+@keyframes ch-dropdown-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+.ch-presence-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  transition: background 0.1s ease;
+}
+
+.ch-presence-dropdown__item:hover {
+  background: #F7F7FA;
+}
+
+.ch-presence-dropdown__avatar {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.ch-presence-dropdown__avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.ch-presence-dropdown__name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1e293b;               /* slate-800 */
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   classroom-mode.css — ICON BUTTONS  (v9 append)
+   Namespace: .ch-icon-btn
+   Used by: UserPlus (add-student) and LogOut (exit) in ClassroomHeader.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base icon button ────────────────────────────────────────────────────── */
+
+.ch-icon-btn {
+  /* Reset */
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+
+  /* Layout */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  /* Size */
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+
+  /* Default neutral state */
+  background: transparent;
+  color: #64748b;               /* slate-500 */
+
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease,
+    box-shadow 0.15s ease;
 }
 
-/* ── Body scroll lock (unit selector modal open) ────────────────────────── */
-body.classroom-mode-locked {
-  overflow: hidden;
+.ch-icon-btn:focus {
+  outline: none;
 }
 
-/* ── Classroom header: header height variables ──────────────────────────── */
-
-/*
- * Single bar (no rail): 48px main bar + 3px global progress rail = 51px.
- * We round up to 52px for breathing room.
- */
-.classroom-header {
-  /* Consumed by .lp-workspace in lesson-workspace.css */
-  --lp-header-h: 52px;
-
-  /* Glass effect */
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  backdrop-filter: blur(12px) saturate(180%);
+.ch-icon-btn:focus-visible {
+  outline: 2px solid #6C6FEF;
+  outline-offset: 2px;
 }
 
-/*
- * Double bar (with lesson progress rail): 48px main bar + ~32px sub-bar = ~80px.
- * ClassroomHeader adds this modifier class when lessonRail is present.
- */
-.classroom-header--has-rail {
-  --lp-header-h: 84px;
+/* ── Add-student variant ─────────────────────────────────────────────────── */
+
+.ch-icon-btn--add {
+  background: #EEF0FE;          /* primary tint */
+  color: #6C6FEF;               /* primary */
 }
 
-/*
- * On mobile the sub-bar is slightly shorter (no horizontal padding extras).
- * Adjustment: keep the same 108px — it's a comfortable safe default.
- */
-
-/*
- * Propagate the header's --lp-header-h to :root so .lp-workspace
- * (which is a sibling of the header, not a child) can read it.
- *
- * We do this by re-declaring it on the .classroom-layout ancestor, which
- * wraps both the header and the workspace.
- */
-.classroom-layout {
-  --lp-header-h: 52px;  /* default — overridden below */
+.ch-icon-btn--add:hover {
+  background: #6C6FEF;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(108, 111, 239, 0.28);
 }
 
-.classroom-layout:has(.classroom-header--has-rail) {
-  --lp-header-h: 84px;
+.ch-icon-btn--add:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
-/* Fallback for browsers without :has() — JS in ClassroomPage can set
-   style="--lp-header-h: Xpx" directly on .classroom-layout. */
+.ch-icon-btn--add:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
 
-/* ── Unit selector modal animation ─────────────────────────────────────── */
-@keyframes unit-selector-in {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(-8px);
+/* ── Exit variant ────────────────────────────────────────────────────────── */
+
+.ch-icon-btn--exit {
+  background: transparent;
+  color: #94a3b8;               /* slate-400 — subtler than add */
+}
+
+.ch-icon-btn--exit:hover {
+  background: #fee2e2;          /* red-100 */
+  color: #dc2626;               /* red-600 */
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.14);
+}
+
+.ch-icon-btn--exit:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   classroom-mode.css — FAR-RIGHT PANEL  (viewport-pinned presence + exit)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   The header uses a two-layer strategy:
+   • .ch-main-bar-inner   — centred max-w-7xl flex row (left + tabs + change-unit)
+                            gets extra right-padding to reserve room for the panel.
+   • .ch-far-right-panel  — position:absolute; right:0 — always hugs the
+                            true browser-viewport right edge at any screen width.
+
+   Responsive right-padding on both layers matches Tailwind's px-4/6/8 scale
+   so items never crowd the screen edge on any device.
+*/
+
+/* ── Centred bar: reserve space on the right for the absolute panel ──────── */
+
+.ch-main-bar-inner {
+  /* Default: ~88px = 16px base px + ~72px panel width */
+  padding-right: calc(1rem + 80px);
+}
+
+@media (max-width: 639px) {
+  .ch-main-bar-inner {
+    /* Reserve extra room for three icon buttons on mobile. */
+    padding-right: calc(1rem + 124px);
+    gap: 0.5rem;
   }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
+}
+
+@media (min-width: 768px) {
+  /* md: 24px base px */
+  .ch-main-bar-inner {
+    padding-right: calc(1.5rem + 80px);
   }
 }
 
-@keyframes unit-selector-out {
-  from {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.96) translateY(-8px);
+@media (min-width: 1024px) {
+  /* lg: 32px base px */
+  .ch-main-bar-inner {
+    padding-right: calc(2rem + 80px);
   }
 }
 
-.unit-selector-panel[data-state="open"] {
-  animation: unit-selector-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+/* ── Far-right panel ─────────────────────────────────────────────────────── */
+
+.ch-far-right-panel {
+  position: absolute;
+  right: 1rem;           /* matches px-4 */
+  top: 0;
+  height: 100%;
+
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;           /* gap-2 */
+  flex-shrink: 0;
 }
 
-.unit-selector-panel[data-state="closed"] {
-  animation: unit-selector-out 0.14s ease-in forwards;
-}
-
-/* ── Global progress rail (top-of-viewport) ─────────────────────────────── */
-body.classroom-mode [role="progressbar"] {
-  z-index: 9999;
-}
-
-/* ── Reduce classroom header height on very small screens ───────────────── */
-@media (max-width: 374px) {
-  .classroom-header {
+@media (max-width: 639px) {
+  .ch-main-row {
     height: auto;
     min-height: 48px;
+    align-items: flex-start;
+    padding-top: 4px;
+    padding-bottom: 4px;
   }
 
-  .classroom-layout {
-    --lp-header-h: 48px;
+  .ch-main-inner {
+    height: auto;
+    min-height: 40px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    align-items: center;
   }
 
-  .classroom-layout:has(.classroom-header--has-rail) {
-    --lp-header-h: 80px;
+  .ch-left-group {
+    min-width: 0;
+    flex: 1 1 auto;
   }
+
+  .ch-main-spacer {
+    display: none;
+  }
+
+  .ch-right-content {
+    order: 2;
+    margin-left: 0;
+    width: calc(100% - 132px);
+    min-width: 0;
+    justify-content: flex-end;
+    padding-right: 6px;
+  }
+
+  .ch-tabs-wrap {
+    order: 3;
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .ch-tabs-wrap::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ch-tabs-wrap .ch-inline-tabs {
+    max-width: 100%;
+  }
+
+  .ch-far-right-panel {
+    gap: 0.25rem;
+  }
+
+  .ch-icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .ch-change-unit-btn {
+    max-width: 100%;
+    min-width: 0;
+    padding: 5px 9px;
+    border-radius: 999px;
+  }
+
+  .ch-change-unit-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .ch-change-unit-label--mobile {
+    max-width: 72px;
+  }
+}
+
+@media (min-width: 768px) {
+  .ch-far-right-panel {
+    right: 1.5rem;       /* matches md:px-6 */
+  }
+}
+
+@media (min-width: 1024px) {
+  .ch-far-right-panel {
+    right: 2rem;         /* matches lg:px-8 */
+  }
+}
+
+@media (max-width: 767px) {
+  .ch-presence-cluster {
+    display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   classroom-mode.css — ANSWERS ICON BUTTON  (v10 append)
+   Namespace: .ch-icon-btn--answers
+   Used by: LayoutGrid (student answers panel toggle) in ClassroomHeader.
+   Append this block to the end of classroom-mode.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Answers button — neutral state ─────────────────────────────────────── */
+
+.ch-icon-btn--answers {
+  background: transparent;
+  color: #94a3b8;               /* slate-400 — same resting weight as exit */
+}
+
+.ch-icon-btn--answers:hover:not(:disabled) {
+  background: #EEF0FE;          /* primary tint */
+  color: #6C6FEF;               /* primary */
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(108, 111, 239, 0.18);
+}
+
+.ch-icon-btn--answers:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.ch-icon-btn--answers:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ── Active / panel-open state ───────────────────────────────────────────── */
+
+.ch-icon-btn--answers-active {
+  background: #6C6FEF !important;  /* primary fill */
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(108, 111, 239, 0.32);
+}
+
+.ch-icon-btn--answers-active:hover:not(:disabled) {
+  background: #4F52C2 !important;  /* primary-dark on hover */
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(79, 82, 194, 0.30);
 }

@@ -21,8 +21,8 @@
  *
  * Routing integration:
  *   This component is mounted at /register/teacher (or wherever RegisterPage routes for teacher role).
- *   The existing LoginPage redirects teachers with onboarding_completed=false to /admin/onboarding.
- *   /admin/onboarding should render <TeacherOnboardingPage /> (existing AI course builder).
+ *   LoginPage sends teachers with onboarding_completed=false to /admin/courses (course catalog).
+ *   /admin/onboarding still renders <TeacherOnboardingPage /> when opened directly.
  *   "Generate course" button here → navigate('/admin/onboarding')
  *   "Dashboard" button → navigate('/admin/dashboard')
  */

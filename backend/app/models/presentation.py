@@ -2,13 +2,11 @@
 """
 Presentation and PresentationSlide models.
 
-A Presentation is a slide deck that belongs to a Unit (same level as Video/Task/Test).
-Teachers create presentations as an alternative to video content — useful when
-recording a full video is impractical.
-
-Each Presentation owns an ordered list of PresentationSlides.
-Slides are stored as individual rows so they can be reordered, added, or removed
-without serialising the whole deck into a single JSON blob.
+Change summary (segment migration)
+------------------------------------
++ segment_id FK → segments.id (SET NULL on delete, nullable during migration)
++ segment relationship added
++ unit_id kept for backward compat / direct unit queries
 """
 
 from __future__ import annotations
@@ -45,26 +43,26 @@ class PresentationStatus(str, enum.Enum):
 
 class Presentation(Base):
     """
-    A slide-deck attached to a Unit.
+    A slide-deck attached to a Segment (and indirectly to a Unit).
 
-    Mirrors the Video model structure so the frontend can treat both
-    as interchangeable "content items" inside a unit.
+    Hierarchy: Unit → Segment → Presentation
     """
     __tablename__ = "presentations"
 
-    id          = Column(Integer, primary_key=True, index=True)
-    unit_id     = Column(Integer, ForeignKey("units.id", ondelete="CASCADE"), nullable=False, index=True)
+    id         = Column(Integer, primary_key=True, index=True)
+    unit_id    = Column(Integer, ForeignKey("units.id",    ondelete="CASCADE"), nullable=False, index=True)
+    segment_id = Column(Integer, ForeignKey("segments.id", ondelete="SET NULL"), nullable=True,  index=True)  # ✅ NEW
 
     # ── Core metadata ──────────────────────────────────────────────────────────
     title       = Column(String(255), nullable=False)
     description = Column(Text,        nullable=True)
 
-    # ── Presentation-level AI generation inputs (stored for re-generation) ─────
-    topic              = Column(String(500), nullable=True)   # original generation topic
-    level              = Column(String(50),  nullable=True)   # e.g. "A1", "B2", "high school"
-    duration_minutes   = Column(Integer,     nullable=True)   # target duration used at generation time
-    language           = Column(String(50),  nullable=True)   # generation language, e.g. "Italian"
-    learning_goals     = Column(JSON,        nullable=True)   # list[str] — stored for regeneration
+    # ── Presentation-level AI generation inputs ────────────────────────────────
+    topic              = Column(String(500), nullable=True)
+    level              = Column(String(50),  nullable=True)
+    duration_minutes   = Column(Integer,     nullable=True)
+    language           = Column(String(50),  nullable=True)
+    learning_goals     = Column(JSON,        nullable=True)
     target_audience    = Column(String(255), nullable=True)
 
     # ── Publishing ─────────────────────────────────────────────────────────────
@@ -85,15 +83,16 @@ class Presentation(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # ── Relationships ──────────────────────────────────────────────────────────
-    unit             = relationship("Unit", back_populates="presentations")
-    slides           = relationship(
+    unit            = relationship("Unit",    back_populates="presentations")
+    segment         = relationship("Segment", back_populates="presentations")   # ✅ NEW
+    slides          = relationship(
         "PresentationSlide",
         back_populates="presentation",
         cascade="all, delete-orphan",
         order_by="PresentationSlide.order_index",
     )
-    created_by_user  = relationship("User", foreign_keys=[created_by])
-    updated_by_user  = relationship("User", foreign_keys=[updated_by])
+    created_by_user = relationship("User", foreign_keys=[created_by])
+    updated_by_user = relationship("User", foreign_keys=[updated_by])
 
     # ── Computed helpers ───────────────────────────────────────────────────────
 
@@ -111,7 +110,6 @@ class Presentation(Base):
 
     @property
     def is_available(self) -> bool:
-        """True if students can see this presentation right now."""
         if not self.is_visible_to_students:
             return False
         if self.is_draft or self.is_archived:
@@ -137,10 +135,8 @@ class Presentation(Base):
 class PresentationSlide(Base):
     """
     A single slide inside a Presentation.
-
-    Stores AI-generated (or manually authored) content.
-    All list fields (bullet_points, examples) are JSON arrays of strings.
-    image_url points to an SVG / PNG served from /api/v1/static/slides/<uuid>.
+    Unchanged from original — no segment relationship needed here
+    (slides belong to a Presentation, not directly to a Segment).
     """
     __tablename__ = "presentation_slides"
 
@@ -152,27 +148,17 @@ class PresentationSlide(Base):
         index=True,
     )
 
-    # ── Slide content ──────────────────────────────────────────────────────────
     title         = Column(String(500), nullable=False)
-    bullet_points = Column(JSON, default=list, nullable=False)   # list[str]
-    examples      = Column(JSON, default=list, nullable=True)    # list[str] | null
+    bullet_points = Column(JSON, default=list, nullable=False)
+    examples      = Column(JSON, default=list, nullable=True)
     exercise      = Column(Text, nullable=True)
     teacher_notes = Column(Text, nullable=True)
-
-    # ── Media ──────────────────────────────────────────────────────────────────
-    # Populated when the AI image provider enriches the deck.
-    # Path relative to /api/v1/static/  (e.g. "slides/abc123.svg")
     image_url     = Column(String(1000), nullable=True)
-    image_alt     = Column(String(500),  nullable=True)  # accessibility text
-
-    # ── Layout / ordering ──────────────────────────────────────────────────────
+    image_alt     = Column(String(500),  nullable=True)
     order_index   = Column(Integer, default=0, nullable=False)
-
-    # ── Audit ──────────────────────────────────────────────────────────────────
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
     updated_at    = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # ── Relationships ──────────────────────────────────────────────────────────
     presentation  = relationship("Presentation", back_populates="slides")
 
     def __repr__(self) -> str:
