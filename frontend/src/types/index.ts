@@ -3,9 +3,12 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
+  // Stores full display name returned by backend when available.
+  full_name?: string;
   role: 'student' | 'teacher';
   locale: string;
   email_verified_at?: string;
+  // Stores per-user notification and profile preferences such as phone, timezone, native_language.
   notification_prefs: Record<string, any>;
   is_active: boolean;
   created_at: string;
@@ -312,6 +315,10 @@ export interface Student {
   last_name: string;
   email: string;
   is_active: boolean;
+  // Stores the last successful login timestamp used on admin student profile page.
+  last_login?: string | null;
+  // Stores optional notification preferences such as phone, native_language, timezone.
+  notification_prefs?: Record<string, any>;
 }
 
 export interface AdminStudentCreateResponse extends Student {

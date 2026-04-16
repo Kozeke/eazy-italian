@@ -37,7 +37,9 @@ import { useCourseGeneration } from "../../hooks/useCourseGeneration";
 import ClassroomLayout from "../../components/classroom/ClassroomLayout";
 import ClassroomHeader from "../../components/classroom/ClassroomHeader";
 import type { ClassroomTab } from "../../components/classroom/ClassroomHeader";
-import LessonWorkspace from "../../components/classroom/lesson/LessonWorkspace";
+import LessonWorkspace, {
+  type LessonWorkspaceProps,
+} from "../../components/classroom/lesson/LessonWorkspace";
 import HomeworkPlayer from "../../components/classroom/lesson/flow/homework/HomeworkPlayer";
 import UnitSelectorModal from "../../components/classroom/unit/UnitSelectorModal";
 import type { CreatingUnitMode } from "../../components/classroom/unit/UnitSelectorModal";
@@ -58,7 +60,6 @@ import { useStudentUnit } from "../../hooks/useStudentUnit";
 import { useUnitPresentation } from "../../hooks/useUnitPresentation";
 import { useAuth } from "../../hooks/useAuth";
 import { useOnlinePresence } from "../../hooks/useOnlinePresence";
-import { useLiveStudents } from "../../hooks/useLiveStudents";
 import { useTeacherClassroomTransition } from "../../contexts/TeacherClassroomTransitionContext";
 import { HomeworkProvider, useHomework } from "../../contexts/HomeworkContext";
 import { HomeworkSyncPrefixProvider } from "../../contexts/HomeworkSyncPrefixContext";
@@ -170,7 +171,8 @@ function areRailStatesEqual(
   if (prevItems.length !== nextItems.length) return false;
   return prevItems.every((p, i) => {
     const n = nextItems[i];
-    return p.label === n.label && p.state === n.state;
+    return (p as any).label === (n as any).label &&
+      (p as any).status === (n as any).status;
   });
 }
 
@@ -573,10 +575,10 @@ function ClassroomPageInner({
   // ── Inline test submission ─────────────────────────────────────────────────
   const handleSubmitTest = useCallback(
     async (payload: { test_id: number; answers: Record<string, string> }) => {
-      const result = await testsApi.submitTest(payload.test_id, payload.answers);
+      const submitResult = await testsApi.submitTest(payload.test_id, payload.answers);
       dispatch({ type: "TEST_ATTEMPTED" });
       reloadUnit();
-      return result;
+      return submitResult;
     },
     [reloadUnit],
   );
@@ -916,11 +918,11 @@ function ClassroomPageInner({
   }, [routerLocation.key, isTeacher, hw.hydrated]);
 
   // ── LessonWorkspace props ─────────────────────────────────────────────────
-  const lessonWorkspaceProps = useMemo(
+  const lessonWorkspaceProps = useMemo<LessonWorkspaceProps>(
     () => ({
       mode: isTeacher ? ("teacher" as const) : ("student" as const),
-      unit: unitDetail ?? null,
-      slides: presentationSlides,
+      unit: (unitDetail as unknown as LessonWorkspaceProps["unit"]),
+      slides: presentationSlides as unknown as LessonWorkspaceProps["slides"],
       slidesLoading,
       slidesError: slidesError ?? undefined,
       loading: courseLoading || (unitLoading && unitDetail == null),
@@ -943,10 +945,11 @@ function ClassroomPageInner({
       onUnitReloaded: reloadUnit,
       startInManualBuilder: manualBuilderActive,
       sidePanelOpen,
-      units,
+      units: units as unknown as LessonWorkspaceProps["units"],
       completedUnitIds,
       courseTitle: course?.title,
-      onSelectUnit: handleSelectUnit,
+      // Cast ensures Unit shape differences between hooks and workspace stay internal.
+      onSelectUnit: handleSelectUnit as unknown as LessonWorkspaceProps["onSelectUnit"],
       onAddUnit: handleAddUnit,
       onFinishUnit: handleFinishUnit,
       segmentRefreshKey: state.segmentVersion,

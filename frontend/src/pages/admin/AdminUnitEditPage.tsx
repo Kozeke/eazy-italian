@@ -1037,7 +1037,7 @@ export default function AdminUnitEditPage() {
 
   /* ── Save ── */
   const handleSave = useCallback(async () => {
-    if (!unitId || saving) return;
+    if (!unitId || saving || !unit) return;
     try {
       setSaving(true);
       const payload: Partial<Unit> = {
@@ -1046,7 +1046,8 @@ export default function AdminUnitEditPage() {
         level:       form.level as Unit['level'],
         order_index: typeof form.order_index === 'string' && form.order_index === "" ? 0 : (typeof form.order_index === 'number' ? form.order_index : parseInt(String(form.order_index), 10)),
         status:      form.status as Unit['status'],
-        is_visible_to_students: form.status === 'published' ? true : unit.is_visible_to_students,
+        is_visible_to_students:
+          form.status === 'published' ? true : unit.is_visible_to_students,
       };
       const updatedUnit = await unitsApi.updateUnit(parseInt(unitId), payload);
       setUnit(updatedUnit);

@@ -21,8 +21,8 @@
  *   visible without requiring the student to scroll to the bottom.
  */
 
-import React, {
-  useState, useCallback, useEffect, useRef,
+import {
+  useState, useCallback, useEffect,
 } from 'react';
 import {
   ChevronLeft, ChevronRight, ImageOff,

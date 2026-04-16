@@ -47,7 +47,6 @@ import type { StudentTask, StudentTest } from '../../hooks/useStudentUnit';
 // ── Live session (student + teacher) ──────────────────────────────────────
 import { LiveSessionProvider }  from '../../components/classroom/live/LiveSessionProvider';
 import { LiveSessionBanner }    from '../../components/classroom/live/LiveSessionBanner';
-import TeacherLiveControls      from '../../components/classroom/live/TeacherLiveControls';
 import type { LiveSection }     from '../../components/classroom/live/liveSession.types';
 import { tasksApi, testsApi, unitsApi } from '../../services/api';
 
@@ -546,14 +545,6 @@ function ClassroomPageInner({
             <EmptyLesson unitTitle={unitDetail.title} />
           )}
         </main>
-
-        {/* Teacher live controls — shown when a teacher joins as observer */}
-        <TeacherLiveControls
-          currentUnitId={currentUnit?.id ?? null}
-          totalSlides={presentationSlides.length}
-          hasTask={hasTaskContent}
-          hasTest={hasTestContent}
-        />
 
       </ClassroomLayout>
     </LiveSessionProvider>

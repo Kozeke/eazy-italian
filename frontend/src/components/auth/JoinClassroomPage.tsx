@@ -20,6 +20,16 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, BookOpen, Hash, Sparkles, CheckCircle2 } from 'lucide-react';
 import { AuthShell, PrimaryButton, ErrorMsg } from './RegisterPage';
 
+// Extends the base AuthShell props with optional metadata fields for this page.
+type ExtendedAuthShellProps = React.ComponentProps<typeof AuthShell> & {
+  eyebrow?: string;
+  headline?: string;
+  sub?: string;
+};
+
+// Typed wrapper so we can safely pass eyebrow/headline/sub into the shell.
+const ExtendedAuthShell = AuthShell as React.FC<ExtendedAuthShellProps>;
+
 const CODE_LENGTH = 6;
 
 export default function JoinClassroomPage() {
@@ -102,7 +112,7 @@ export default function JoinClassroomPage() {
   // ── Success ─────────────────────────────────────────────────────────────────
   if (success) {
     return (
-      <AuthShell eyebrow="Student Portal" headline="You're in!" sub="Setting up your classroom…">
+      <ExtendedAuthShell eyebrow="Student Portal" headline="You're in!" sub="Setting up your classroom…">
         <div className="flex flex-col items-center gap-5 py-12 text-center" style={{ animation: 'authStepIn 0.3s ease-out' }}>
           <div className="relative flex h-20 w-20 items-center justify-center">
             <div className="absolute inset-0 rounded-full bg-teal-100 animate-ping opacity-40" />
@@ -115,12 +125,12 @@ export default function JoinClassroomPage() {
             <p className="mt-1 text-sm text-slate-500">Taking you there now…</p>
           </div>
         </div>
-      </AuthShell>
+      </ExtendedAuthShell>
     );
   }
 
   return (
-    <AuthShell
+    <ExtendedAuthShell
       eyebrow="Student Portal"
       headline="Join a Classroom"
       sub="Enter the invite code your teacher gave you."
@@ -216,6 +226,6 @@ export default function JoinClassroomPage() {
           </p>
         </div>
       </div>
-    </AuthShell>
+    </ExtendedAuthShell>
   );
 }

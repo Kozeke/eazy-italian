@@ -792,5 +792,57 @@ function LinkBtn({ children, onClick }: { children: React.ReactNode; onClick?: (
   );
 }
 
+// Renders a simple step header used by legacy auth screens.
+export function StepHeader({ eyebrow, title, subtitle }: { eyebrow?: string; title: string; subtitle?: string }) {
+  return (
+    <div className="mb-6 text-center">
+      {eyebrow && (
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 mb-1">
+          {eyebrow}
+        </p>
+      )}
+      <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
+        {title}
+      </h1>
+      {subtitle && (
+        <p className="mt-1 text-xs text-slate-500">
+          {subtitle}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Renders a labeled input with RegisterPage visual language for legacy auth.
+export function AuthInput({
+  label,
+  type = 'text',
+  placeholder,
+  value,
+  onChange,
+  autoFocus,
+}: {
+  label: string;
+  type?: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+  autoFocus?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold text-slate-600">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-0 transition-colors placeholder:text-slate-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+      />
+    </div>
+  );
+}
+
 // ─── Exports (backward compat) ────────────────────────────────────────────────
 export { Shell as AuthShell, Shell as MinimalAuthShell, Err as ErrorMsg, BackRow as BackButton, BigBtn as PrimaryButton };

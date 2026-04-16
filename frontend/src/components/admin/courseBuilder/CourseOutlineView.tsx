@@ -23,7 +23,7 @@
  * Module cards use graduated violet-to-warm gradient accents.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { CourseOutline, WizardConfig } from './AiCourseWizard';
 
 // ─── Re-export for convenience ─────────────────────────────────────────────────

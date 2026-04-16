@@ -6,7 +6,7 @@
  * Auto-advances to NEXT after a short delay, or user clicks "Continue".
  */
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { STEPS, WizardState } from "./TeacherRegisterFlow";
 
 interface Props {
