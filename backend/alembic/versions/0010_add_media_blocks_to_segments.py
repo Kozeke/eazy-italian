@@ -17,16 +17,31 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "segments",
-        sa.Column(
-            "media_blocks",
-            postgresql.JSONB(astext_type=sa.Text()),
-            nullable=False,
-            server_default=sa.text("'[]'::jsonb"),
-        ),
-    )
+    # Holds the connection used to verify whether media_blocks already exists.
+    connection = op.get_bind()
+    # Stores the existence check result for the media_blocks column.
+    media_blocks_exists = connection.execute(
+        sa.text(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'segments'
+              AND column_name = 'media_blocks'
+            """
+        )
+    ).fetchone()
+    if media_blocks_exists is None:
+        op.add_column(
+            "segments",
+            sa.Column(
+                "media_blocks",
+                postgresql.JSONB(astext_type=sa.Text()),
+                nullable=False,
+                server_default=sa.text("'[]'::jsonb"),
+            ),
+        )
 
 
 def downgrade() -> None:
-    op.drop_column("segments", "media_blocks")
+    op.execute("ALTER TABLE segments DROP COLUMN IF EXISTS media_blocks")
