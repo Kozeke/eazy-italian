@@ -24,7 +24,11 @@
  * Only the WS endpoint is required.
  */
 
-import type { LiveSocketMessage, LiveSessionPayload, LiveEventName } from '../../components/classroom/live/liveSession.types';
+import type {
+  LiveSocketMessage,
+  LiveSessionPayload,
+  LiveEventName,
+} from '../../components/classroom/live/liveSession.types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -98,6 +98,44 @@ export interface WsSnapshot {
   patches: Record<string, unknown>;
 }
 
+/**
+ * High‑level live session payload used by the dedicated live transport.
+ * The backend may attach extra fields; the frontend only relies on the
+ * documented ones.
+ */
+export interface LiveSessionPayload {
+  classroom_id: number;
+  unit_id: number | null;
+  slide_index: number | null;
+  /**
+   * Currently active section in the lesson player.
+   * `"slides"`  → presentation slides
+   * `"task"`    → inline tasks
+   * `"test"`    → inline tests
+   */
+  section: "slides" | "task" | "test" | null;
+  teacher_id?: number | null;
+  student_count?: number | null;
+  timestamp?: number;
+  [key: string]: unknown;
+}
+
+/** Canonical event names sent over the live WebSocket channel. */
+export type LiveEventName =
+  | "SESSION_STARTED"
+  | "SESSION_ENDED"
+  | "SLIDE_CHANGED"
+  | "SECTION_CHANGED"
+  | "UNIT_CHANGED"
+  | "STUDENT_JOINED"
+  | "STUDENT_LEFT";
+
+/** Raw WS message envelope used by `liveSessionTransport.ts`. */
+export interface LiveSocketMessage {
+  event: LiveEventName;
+  payload: LiveSessionPayload;
+}
+
 // ─── Lesson UI (teacher → students) ───────────────────────────────────────────
 /** Teacher patches this; student lesson players scroll `[data-lesson-focus-anchor]` into view */
 export const LIVE_LESSON_FOCUS_BLOCK_KEY = "lesson/focus_block" as const;
@@ -119,4 +157,11 @@ export const LIVE_LESSON_RESET_BLOCK_KEY = "lesson/reset_block" as const;
 export interface LiveLessonResetBlockPayload {
   blockId: string;
   t: number;
+}
+
+// ─── Live lesson section model ────────────────────────────────────────────────
+
+export interface LiveSection {
+  id: string;
+  label: string;
 }
