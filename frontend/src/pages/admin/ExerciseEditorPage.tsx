@@ -5,7 +5,6 @@
  * Workspace rendered full-viewport with mode="standalone".
  */
 
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ExerciseEditorWorkspace from '../../components/classroom/lesson/exercise/ExerciseEditorWorkspace';
 import { QuestionDraft } from '../../components/classroom/lesson/editors/QuestionEditorRenderer';

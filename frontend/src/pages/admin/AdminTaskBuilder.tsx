@@ -39,8 +39,6 @@ import { T } from "./TeacherOnboarding";
 // ── AI generation (secondary in-builder flow) ──────────────────────────────
 import {
   AITaskGenerationWizard,
-  generateTasksAI,
-  type TaskGenFormData,
 } from "./AITaskGenerationWizard";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */

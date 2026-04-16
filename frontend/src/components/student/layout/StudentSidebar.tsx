@@ -5,7 +5,6 @@
  * collapsed by default, expands on hover, and keeps page content stationary.
  */
 
-import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { SHELL_HEADER_HEIGHT, SHELL_SIDEBAR_COLLAPSED_WIDTH, SHELL_SIDEBAR_EXPANDED_WIDTH } from "../../layout/shellDimensions";
 

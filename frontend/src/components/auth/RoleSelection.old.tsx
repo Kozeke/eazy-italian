@@ -3,7 +3,6 @@
  * Visual card picker: Teacher vs Student
  */
 
-import React from 'react';
 import { BookOpen, GraduationCap, CheckCircle2 } from 'lucide-react';
 
 interface RoleSelectionProps {

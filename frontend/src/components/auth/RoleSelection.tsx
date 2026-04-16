@@ -13,7 +13,6 @@
  * • Added role-specific feature chips below description.
  */
 
-import React from 'react';
 import { BookOpen, GraduationCap, CheckCircle2, ChevronRight } from 'lucide-react';
 
 interface RoleSelectionProps {

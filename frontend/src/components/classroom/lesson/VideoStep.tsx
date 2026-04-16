@@ -22,7 +22,7 @@
  * TODO(backend): Remove the placeholder branch once the API delivers video data.
  */
 
-import React, {
+import {
   useState, useCallback, useRef, useEffect,
 } from 'react';
 import {
@@ -210,7 +210,7 @@ interface NativePlayerProps {
 }
 
 function NativePlayer({
-  src, thumbnail, title, durationSeconds, onProgressUpdate, watched, locked,
+  src, thumbnail, title, durationSeconds: _durationSeconds, onProgressUpdate, watched: _watched, locked,
 }: NativePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 

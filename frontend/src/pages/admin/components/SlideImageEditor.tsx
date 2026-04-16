@@ -20,7 +20,7 @@
  *   here for the lesson-by-lesson workflow.
  */
 
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import {
   ReviewSlide, useImageRegen,
   LazyImage, MiniDiagram,

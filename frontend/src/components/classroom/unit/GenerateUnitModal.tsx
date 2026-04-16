@@ -65,13 +65,6 @@ const INSTRUCTION_LANGS = [
   { value: "portuguese", label: "Portuguese" },
 ];
 
-const ACCEPTED_TYPES = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-];
 const ACCEPTED_EXT = ".pdf,.docx,.txt,.ppt,.pptx";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
