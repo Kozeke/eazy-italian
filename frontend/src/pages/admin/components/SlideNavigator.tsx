@@ -15,7 +15,7 @@
  *   is set once at generation time.
  */
 
-import React, { useRef, useState, DragEvent } from "react";
+import { useRef, useState, DragEvent } from "react";
 import {
   ReviewSlide, ThemeSpec,
   themeBg, themeAccent, themeText,

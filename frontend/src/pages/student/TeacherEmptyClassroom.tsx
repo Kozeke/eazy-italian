@@ -168,7 +168,9 @@ export default function TeacherEmptyClassroom({
 
           {/* Text */}
           <div className="tec-text">
-            <h2 className="tec-heading">Create learning material</h2>
+            <h2 className="tec-heading">
+              {courseTitle ? `Create material for ${courseTitle}` : 'Create learning material'}
+            </h2>
             <p className="tec-sub">
               This course has no units yet.
               <br />

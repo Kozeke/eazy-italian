@@ -28,7 +28,7 @@
  *   skeleton, animation) is preserved from v3.
  */
 
-import React, {
+import {
   useState, useCallback, useRef, useEffect,
 } from 'react';
 import {

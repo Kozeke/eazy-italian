@@ -19,7 +19,7 @@
  * Student mode  → read-only; if url is empty shows a friendly placeholder.
  */
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { ImageIcon, VideoIcon, Music2, Link2, CheckCircle2 } from "lucide-react";
 import type { ExerciseBlockProps } from "../exerciseBlock.types";
 

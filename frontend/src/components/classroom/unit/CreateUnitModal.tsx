@@ -10,7 +10,6 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Upload, Plus, UploadCloud } from 'lucide-react';
-import { type UnitEditData } from './EditUnitModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

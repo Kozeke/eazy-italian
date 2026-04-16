@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Upload, Plus, HelpCircle } from 'lucide-react';
+import { X, Upload, Plus } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -445,93 +445,6 @@ function LoadingPanel({ title }: { title: string }) {
   );
 }
 
-// ─── QuestionSlide ────────────────────────────────────────────────────────────
-
-function QuestionSlide({
-  question, index, total, selected, onSelect, disabled,
-}: {
-  question: TestQuestion;
-  index:    number;
-  total:    number;
-  selected: string | null;
-  onSelect: (id: string) => void;
-  disabled: boolean;
-}) {
-  // Normalise display text: prompt > question_text > text > fallback
-  const text    = question.prompt ?? question.question_text ?? question.text ?? `Question ${index + 1}`;
-  const options = question.options ?? [];
-
-  return (
-    <div className="space-y-4 test-step-question-enter">
-      <p className="text-[15px] font-bold leading-snug text-slate-900">
-        <span className="mr-2 tabular-nums text-[13px] font-normal text-slate-400">
-          {index + 1}/{total}
-        </span>
-        {/* Render prompt as HTML if it contains tags, else plain */}
-        {text && text.includes('<') ? (
-          <span dangerouslySetInnerHTML={{ __html: text }} />
-        ) : (
-          text
-        )}
-      </p>
-      {options.length > 0 ? (
-        <div className="space-y-2">
-          {options.map((opt) => {
-            const optId   = String(opt.id);
-            const optText = opt.option_text ?? opt.text ?? '';
-            const isSel   = selected === optId;
-            return (
-              <label
-                key={opt.id}
-                className={[
-                  'group flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3',
-                  'text-[13.5px] leading-relaxed transition-all duration-150 select-none',
-                  'focus-within:ring-2 focus-within:ring-emerald-400/50',
-                  disabled ? 'cursor-default' : 'hover:shadow-sm',
-                  isSel
-                    ? 'border-emerald-400 bg-emerald-50 text-emerald-900 shadow-[0_0_0_1px_theme(colors.emerald.300/30)]'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80',
-                ].join(' ')}
-              >
-                <span
-                  className={[
-                    'mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-all',
-                    isSel
-                      ? 'border-emerald-500 bg-emerald-500'
-                      : 'border-slate-300 bg-white group-hover:border-slate-400',
-                  ].join(' ')}
-                >
-                  {isSel && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
-                </span>
-                <input
-                  type="radio"
-                  name={`test-q-${question.id}`}
-                  value={optId}
-                  checked={isSel}
-                  onChange={() => !disabled && onSelect(optId)}
-                  disabled={disabled}
-                  className="sr-only"
-                />
-                <span className="flex-1">{optText}</span>
-              </label>
-            );
-          })}
-        </div>
-      ) : (
-        /* Cloze / open-ended fallback — single text input */
-        <input
-          type="text"
-          value={selected ?? ''}
-          onChange={(e) => !disabled && onSelect(e.target.value)}
-          disabled={disabled}
-          placeholder="Your answer…"
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13.5px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 disabled:opacity-60"
-        />
-      )}
-    </div>
-  );
-}
-
 // ─── QuestionNavBar ───────────────────────────────────────────────────────────
 
 function QuestionNavBar({
@@ -682,6 +595,7 @@ function ResultsPanel({
   nextStepLabel?: string;
   onContinue?:    () => void;
 }) {
+  void answers;
   const score   = attempt.score ?? null;
   const passed  = attempt.passed ?? null;
   const colors  = score != null ? scoreColor(score, test.passing_score ?? null) : null;

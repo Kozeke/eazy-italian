@@ -14,20 +14,6 @@ import AIExerciseGeneratorModal, {
 } from './AI_generation/AIExerciseGeneratorModal';
 import './DragToGap.css';
 
-// ── Design tokens (matches project-wide system) ───────────────────────────────
-const C = {
-  primary:   '#6C6FEF',
-  primaryDk: '#4F52C2',
-  tint:      '#EEF0FE',
-  bg:        '#F7F7FA',
-  white:     '#FFFFFF',
-  text:      '#1C1F3A',
-  sub:       '#6B6F8E',
-  muted:     '#A8ABCA',
-  border:    '#E8EAFD',
-  success:   '#10B981',
-};
-
 interface Props {
   initialTitle?: string;
   initialDraft?: TestDraft;

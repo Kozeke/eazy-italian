@@ -80,9 +80,9 @@
  * lesson-workspace.css (which provides the .lp-* classroom layout classes).
  */
 
-import React from 'react';
+import React, { Fragment } from 'react';
 import {
-  CheckCircle2, Clock, Circle, AlertCircle, BookOpen, Search,
+  CheckCircle2, Clock, Circle, AlertCircle, Search,
   Loader2, RefreshCw, ChevronRight, Sparkles,
 } from 'lucide-react';
 
@@ -1714,7 +1714,7 @@ export function StatsStrip({
   return (
     <div className={['flex items-center gap-4', className].join(' ')}>
       {stats.map((stat, i) => (
-        <React.Fragment key={i}>
+        <Fragment key={i}>
           {i > 0 && <div className="h-8 w-px bg-slate-200" />}
           <div className="text-right">
             <p className={['text-2xl font-bold tabular-nums', stat.color ?? 'text-slate-900'].join(' ')}>
@@ -1722,7 +1722,7 @@ export function StatsStrip({
             </p>
             <p className="text-xs font-medium text-slate-400">{stat.label}</p>
           </div>
-        </React.Fragment>
+        </Fragment>
       ))}
     </div>
   );

@@ -9,7 +9,7 @@
  * Unknown types log a warning and render nothing — they never crash the page.
  */
 
-import React, { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { getExerciseLoader } from "./exerciseRegistry";
 import type { ExerciseBlockProps } from "./exerciseBlock.types";
 

@@ -22,7 +22,6 @@ import {
   X, Sparkles, Wand2, Upload, ChevronDown, ChevronUp,
   ThumbsUp, ThumbsDown, ArrowLeft, Send, CheckCircle,
 } from "lucide-react";
-import { unitsApi } from "../../../../../services/api";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {

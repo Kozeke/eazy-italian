@@ -5,7 +5,7 @@
  * Teacher mode: + hover toolbar (Edit / Delete / Move Up / Move Down).
  */
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 
 import type { LessonFlowItem } from "../lessonFlow.types";

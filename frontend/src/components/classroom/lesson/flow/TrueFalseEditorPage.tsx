@@ -105,7 +105,7 @@ function aiQuestionToTrueFalseQuestion(raw: Record<string, unknown>): TestQuesti
   const typedDraft: TrueFalseDraft = {
     ...trueDraft,
     prompt,
-    correct_answer: isTrue,
+    correct_option_id: isTrue ? 'true' : 'false',
   };
 
   return {
