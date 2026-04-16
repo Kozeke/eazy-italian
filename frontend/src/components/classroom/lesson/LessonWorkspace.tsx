@@ -937,7 +937,7 @@ function LessonWorkspace({
                      bg-amber-50 px-4 py-2.5 text-[13px] text-amber-700"
         >
           <span className="font-medium">Slides unavailable:</span>
-          <span>{slidesError}</span>
+          <span>Please try again later.</span>
         </div>
       )}
 
