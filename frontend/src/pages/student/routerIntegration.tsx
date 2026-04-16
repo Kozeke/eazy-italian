@@ -13,11 +13,10 @@
 
 // ── Example: React Router v6 createBrowserRouter ────────────────────────────
 
-import React from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
-import AdminLayout  from './components/admin/AdminLayout';
-import ClassroomPage from './pages/student/ClassroomPage';
+import AdminLayout  from '../../components/admin/AdminLayout';
+import ClassroomPage from './ClassroomPage';
 
 // existing student pages (paths are illustrative — match your project)
 // import StudentCoursesPage from './pages/student/StudentCoursesPage';

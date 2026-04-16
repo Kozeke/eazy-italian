@@ -505,8 +505,8 @@ function ClassroomPageInner({
             <ErrorState message={courseError} onBack={handleBack} />
           ) : useLessonWorkspace ? (
             <LessonWorkspace
-              unit={unitDetail ?? null}
-              slides={presentationSlides}
+              unit={unitDetail as any}
+              slides={presentationSlides as any}
               slidesLoading={slidesLoading}
               slidesError={slidesError ?? undefined}
               loading={contentLoading}
@@ -524,8 +524,8 @@ function ClassroomPageInner({
             />
           ) : (
             <LessonWorkspace
-              unit={unitDetail ?? null}
-              slides={presentationSlides}
+              unit={unitDetail as any}
+              slides={presentationSlides as any}
               slidesLoading={slidesLoading}
               slidesError={slidesError ?? undefined}
               loading={contentLoading}

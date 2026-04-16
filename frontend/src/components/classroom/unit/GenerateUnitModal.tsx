@@ -508,7 +508,7 @@ export default function GenerateUnitModal({
                   <>
                     {/* Topic */}
                     <div>
-                      <Label>Topic *</Label>
+                      {/* <Label>Topic *</Label> */}
                       <input
                         type="text"
                         value={topic}
@@ -528,7 +528,7 @@ export default function GenerateUnitModal({
 
                     {/* Description */}
                     <div>
-                      <Label>Description</Label>
+                      {/* <Label>Description</Label> */}
                       <textarea
                         value={description}
                         onChange={e => setDescription(e.target.value)}
@@ -547,7 +547,7 @@ export default function GenerateUnitModal({
                         onBlur={e => { e.target.style.borderColor = description ? C.primary : C.border; }}
                       />
                       <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
-                        Optional — the more detail you add, the more targeted the exercises will be.
+                        {/* The more detail you add, the more targeted the exercises will be. */}
                       </div>
                     </div>
                   </>
@@ -556,7 +556,7 @@ export default function GenerateUnitModal({
                 {/* ── FILE TAB ─────────────────────────────────────────────── */}
                 {activeTab === "file" && (
                   <div>
-                    <Label>Upload File</Label>
+                    {/* <Label>Upload File</Label> */}
 
                     {/* Hidden file input */}
                     <input
@@ -653,7 +653,7 @@ export default function GenerateUnitModal({
                     )}
 
                     <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>
-                      The AI will extract content from your file and generate exercises based on it.
+                      {/* The AI will extract content from your file and generate exercises based on it. */}
                     </div>
                   </div>
                 )}
@@ -686,18 +686,20 @@ export default function GenerateUnitModal({
                   />
                 )}
 
-                {/* ── Cost estimate pill ───────────────────────────────────── */}
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: C.tint, borderRadius: 10, padding: "10px 14px",
-                }}>
-                  <Layers size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.5 }}>
-                    This will create <strong>{numSegments} segment{numSegments > 1 ? "s" : ""}</strong> with up to{" "}
-                    <strong>{selectedTypes.size * numSegments} exercise{selectedTypes.size * numSegments > 1 ? "s" : ""}</strong>.
-                    Generation may take 20–60 seconds.
-                  </span>
-                </div>
+                {/* ── Cost estimate pill (visible after Generate is clicked) ── */}
+                {loading && (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    background: C.tint, borderRadius: 10, padding: "10px 14px",
+                  }}>
+                    <Layers size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.5 }}>
+                      This will create <strong>{numSegments} segment{numSegments > 1 ? "s" : ""}</strong> with up to{" "}
+                      <strong>{selectedTypes.size * numSegments} exercise{selectedTypes.size * numSegments > 1 ? "s" : ""}</strong>.
+                      Generation may take 20–60 seconds.
+                    </span>
+                  </div>
+                )}
 
                 {/* ── Generate button ──────────────────────────────────────── */}
                 <button

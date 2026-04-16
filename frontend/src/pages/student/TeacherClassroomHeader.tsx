@@ -12,8 +12,6 @@
  * to hide the admin sidebar.
  */
 
-import React from 'react';
-
 interface TeacherClassroomHeaderProps {
   course: {
     id: number;

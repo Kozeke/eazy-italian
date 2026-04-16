@@ -18,13 +18,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ClipboardList,
   FileText,
-  CheckCircle2,
   Clock,
   TrendingUp,
   ChevronDown,
   MessageSquare,
   Award,
-  BookOpen,
   Filter,
   X,
 } from 'lucide-react';
@@ -32,14 +30,10 @@ import {
 import {
   PageContainer,
   PageHeader,
-  Card,
-  CardBody,
   Badge,
   StatusBadge,
   EmptyState,
   ErrorBanner,
-  SkeletonBlock,
-  SkeletonText,
 } from '../../components/student/design-system/student-design-system';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

@@ -9,8 +9,6 @@
  *   onCreateMaterial — called when teacher clicks "Create material"
  */
 
-import React from 'react';
-
 interface TeacherEmptyClassroomProps {
   courseTitle?: string;
   onCreateMaterial: () => void;
