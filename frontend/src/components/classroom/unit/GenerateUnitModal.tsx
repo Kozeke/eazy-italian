@@ -89,6 +89,35 @@ interface Props {
 
 type Tab = "ai" | "file";
 
+// Safely reads JSON payloads and prevents raw parser errors from leaking to users.
+async function parseJsonPayload<T>(response: Response, fallbackMessage: string): Promise<T> {
+  // Captures response body once so empty payloads can be handled explicitly.
+  const responseBodyText = await response.text();
+  if (!responseBodyText || !responseBodyText.trim()) {
+    throw new Error(fallbackMessage);
+  }
+  try {
+    return JSON.parse(responseBodyText) as T;
+  } catch {
+    throw new Error(fallbackMessage);
+  }
+}
+
+// Extracts an API error message while tolerating empty/non-JSON error bodies.
+async function parseErrorMessage(response: Response): Promise<string> {
+  // Uses a resilient default when backend does not send structured JSON details.
+  const defaultErrorMessage = `Server error ${response.status}`;
+  try {
+    // Reads text first to avoid Response.json throwing on empty body.
+    const errorBodyText = await response.text();
+    if (!errorBodyText || !errorBodyText.trim()) return defaultErrorMessage;
+    const parsedError = JSON.parse(errorBodyText) as { detail?: string; message?: string };
+    return parsedError.detail || parsedError.message || defaultErrorMessage;
+  } catch {
+    return defaultErrorMessage;
+  }
+}
+
 // ── Micro components ───────────────────────────────────────────────────────────
 function Spinner({ size = 18, color = C.primary }: { size?: number; color?: string }) {
   return (
@@ -308,10 +337,12 @@ export default function GenerateUnitModal({
         }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `Server error ${res.status}`);
+        throw new Error(await parseErrorMessage(res));
       }
-      const data: GenerateResult = await res.json();
+      const data = await parseJsonPayload<GenerateResult>(
+        res,
+        "Generation finished but the server returned an empty or invalid response.",
+      );
       setResult(data);
       onSuccess?.(data);
     } catch (err: any) {
@@ -347,10 +378,12 @@ export default function GenerateUnitModal({
         body: formData,
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `Server error ${res.status}`);
+        throw new Error(await parseErrorMessage(res));
       }
-      const data: GenerateResult = await res.json();
+      const data = await parseJsonPayload<GenerateResult>(
+        res,
+        "Generation finished but the server returned an empty or invalid response.",
+      );
       setResult(data);
       onSuccess?.(data);
     } catch (err: any) {

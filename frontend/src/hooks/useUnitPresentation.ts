@@ -58,6 +58,28 @@ export interface UseUnitPresentationResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Converts unknown fetch/parsing failures into a safe user-facing message.
+function getPresentationLoadErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    // Hides low-level JSON parser details (for example HTML fallback pages).
+    if (error instanceof SyntaxError || /Unexpected token </i.test(error.message)) {
+      return 'Slides are temporarily unavailable.';
+    }
+    return error.message || 'Slides are temporarily unavailable.';
+  }
+  return 'Slides are temporarily unavailable.';
+}
+
+// Safely parses JSON responses and fails with a controlled message.
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  // Reads header once to verify this endpoint really returned JSON.
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new Error('Slides are temporarily unavailable.');
+  }
+  return (await response.json()) as T;
+}
+
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -129,7 +151,7 @@ export function useUnitPresentation(
         throw new Error(`Failed to load presentations (HTTP ${presRes.status})`);
       }
 
-      const presData: PresentationMeta[] = await presRes.json();
+      const presData = await parseJsonResponse<PresentationMeta[]>(presRes);
 
       // Pick the first visible presentation by order_index
       // TODO: apply is_visible_to_students filter when backend honours it
@@ -166,7 +188,7 @@ export function useUnitPresentation(
         throw new Error(`Failed to load slides (HTTP ${slidesRes.status})`);
       }
 
-      const slidesData: PresentationSlide[] = await slidesRes.json();
+      const slidesData = await parseJsonResponse<PresentationSlide[]>(slidesRes);
       const ordered = [...(slidesData ?? [])].sort(
         (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
       );
@@ -176,7 +198,7 @@ export function useUnitPresentation(
       setSlides(ordered.map(toReviewSlide));
     } catch (err) {
       if (requestId !== activeRequestIdRef.current) return;
-      setError(err instanceof Error ? err.message : 'Could not load presentation');
+      setError(getPresentationLoadErrorMessage(err));
       setPresentation(null);
       setSlides([]);
     } finally {
