@@ -21,12 +21,12 @@
  *   visible without requiring the student to scroll to the bottom.
  */
 
-import {
+import React, {
   useState, useCallback, useEffect,
 } from 'react';
 import {
   ChevronLeft, ChevronRight, ImageOff,
-  ArrowRight, CheckCircle2, Lock,
+  ArrowRight, CheckCircle2,
 } from 'lucide-react';
 import type { ReviewSlide } from '../../../pages/admin/shared';
 import { useKeyboardNav, LazyImage } from '../../../pages/admin/shared';

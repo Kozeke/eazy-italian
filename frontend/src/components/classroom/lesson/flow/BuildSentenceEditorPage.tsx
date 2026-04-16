@@ -9,7 +9,6 @@ import QuestionEditorRenderer, {
 } from '../editors/QuestionEditorRenderer';
 import { draftToApiPayload, validateDraft } from '../editors/questionPayload';
 import './DragToGap.css';
-import { Sparkles } from 'lucide-react';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';

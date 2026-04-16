@@ -21,7 +21,7 @@
  * • All accent colours updated to teal (student identity).
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   ArrowRight,
   Radio,

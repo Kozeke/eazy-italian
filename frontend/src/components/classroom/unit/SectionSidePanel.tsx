@@ -209,7 +209,15 @@ export default function SectionSidePanel({
         boxShadow: '0 4px 24px 0 rgba(0, 0, 0, 0.06)',
         overflow: 'hidden',
       }}
-      aria-label={useSegmentMode ? 'Section navigator' : 'Unit navigator'}
+      aria-label={
+        useSegmentMode
+          ? courseTitle
+            ? `${courseTitle} sections`
+            : 'Section navigator'
+          : courseTitle
+          ? `${courseTitle} units`
+          : 'Unit navigator'
+      }
     >
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}

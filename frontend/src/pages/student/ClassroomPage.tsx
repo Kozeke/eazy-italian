@@ -1123,7 +1123,7 @@ function ClassroomPageInner({
         editCourseAge={editCourseSeed.initialAge}
         editCourseLevel={editCourseSeed.initialLevel}
         editCourseType={editCourseSeed.initialType}
-        onGenerateSuccess={(result) => {
+        onGenerateSuccess={() => {
           setUnitSelectorOpen(false);
           const newUnitId = generatingUnitIdRef.current;
           generatingUnitIdRef.current = null;

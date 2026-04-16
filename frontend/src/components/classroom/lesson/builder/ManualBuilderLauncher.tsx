@@ -264,7 +264,7 @@ export default function ManualBuilderLauncher({
           </div>
 
           {/* Slide shortcut — full-width banner */}
-          <SlideShortcut onBack={onBack} />
+          <SlideShortcut />
 
           {/* Other content types */}
           <p className="mt-5 mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
@@ -315,7 +315,7 @@ export default function ManualBuilderLauncher({
 // a flag indicating "slide" mode — the exercise page handles image/video/audio
 // blocks on a white canvas.
 
-function SlideShortcut({ onBack }: { onBack: () => void }) {
+function SlideShortcut() {
   const navigate = useNavigate();
   const location = useLocation();
   const [hov, setHov] = React.useState(false);

@@ -20,7 +20,7 @@
  * beyond the thumbnail fetch.  Save / back buttons live in the shell.
  */
 
-import React, {
+import {
   useState,
   useCallback,
   useEffect,

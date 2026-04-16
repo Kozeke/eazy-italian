@@ -38,7 +38,6 @@ import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
 import './DragToGap.css';
-import { useLiveSyncField } from '../../../../hooks/useLiveSession';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

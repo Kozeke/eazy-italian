@@ -36,6 +36,7 @@ async function markOnboardingComplete() {
 }
 
 export default function TeacherNextActionStep({ wizard }: Props) {
+  void wizard;
   const [loading, setLoading] = useState<"ai" | "dashboard" | null>(null);
 
   const handleAI = async () => {

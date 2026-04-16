@@ -11,11 +11,9 @@
  */
 
 export type { SlideProgress } from './SlideStep';
-
-import React from 'react';
 import SlideStep from './SlideStep';
-import type { SlideProgress } from './SlideStep';
 import type { ReviewSlide } from '../../../pages/admin/shared';
+import type { SlideProgress } from './SlideStep';
 
 // ─── Types (unchanged public API) ─────────────────────────────────────────────
 

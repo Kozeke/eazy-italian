@@ -29,7 +29,7 @@ import type {
 
 // ─── Accent maps (kept for PlayerFrame/Header consumers) ─────────────────────
 
-const ICON_BG: Record<string, string> = {
+export const ICON_BG: Record<string, string> = {
   slides: 'bg-teal-50 text-teal-600',
   task:   'bg-amber-50 text-amber-600',
   test:   'bg-emerald-50 text-emerald-700',

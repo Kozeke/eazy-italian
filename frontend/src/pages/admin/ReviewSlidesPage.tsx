@@ -144,47 +144,6 @@ function LessonObjectiveBar({ objective }: { objective: string }) {
 }
 
 /**
- * Card shown at the bottom of the right settings sidebar (Mode B).
- * Lets the teacher quickly move to the next lesson without scrolling to the footer.
- */
-function NextLessonCard({
-  next,
-  onDone,
-  onNext,
-  saving,
-}: {
-  next:       NextLessonInfo;
-  onDone:     () => void;
-  onNext:     () => void;
-  saving:     boolean;
-}) {
-  return (
-    <section className="rv-next-card" aria-label="Next lesson">
-      <h3 className="rv-set-hd" style={{ marginBottom: 6 }}>Up Next</h3>
-      <div className="rv-next-meta">
-        <span className="rv-next-module">{next.moduleTitle}</span>
-        <span className="rv-next-title">{next.title}</span>
-      </div>
-      <button
-        className="rv-act-btn rv-act-btn--next"
-        onClick={onNext}
-        disabled={saving}
-      >
-        {saving
-          ? <><span className="rv-spin-inline" /> Saving…</>
-          : <>Generate next lesson →</>}
-      </button>
-      <button
-        className="rv-act-btn rv-act-btn--alll"
-        onClick={onDone}
-      >
-        ← All lessons
-      </button>
-    </section>
-  );
-}
-
-/**
  * Shown at the very bottom of the slide canvas when there is a next lesson.
  * Gives a visually prominent CTA that's impossible to miss after reviewing
  * the last slide.

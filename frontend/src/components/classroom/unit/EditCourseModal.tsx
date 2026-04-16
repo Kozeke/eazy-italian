@@ -8,7 +8,7 @@
  * The modal resizes when switching tabs (Основные is taller, Теги is shorter).
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, Upload } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -131,7 +131,6 @@ export default function EditCourseModal({
   open,
   onClose,
   onSave,
-  onDelete,
   initialTitle = '',
   initialDescription = '',
   initialLanguage = 'en',
@@ -149,7 +148,6 @@ export default function EditCourseModal({
   const [age, setAge] = useState(initialAge);
   const [level, setLevel] = useState(initialLevel);
   const [type, setType] = useState(initialType);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // True while onSave (API) is in flight — disables actions to avoid double submit
   const [saveInFlight, setSaveInFlight] = useState(false);
 
@@ -166,7 +164,6 @@ export default function EditCourseModal({
       setAge(initialAge);
       setLevel(initialLevel);
       setType(initialType);
-      setShowDeleteConfirm(false);
       setSaveInFlight(false);
       requestAnimationFrame(() => titleRef.current?.focus());
     }
@@ -204,17 +201,6 @@ export default function EditCourseModal({
       setSaveInFlight(false);
     }
   };
-
-  const handleDelete = () => {
-    if (showDeleteConfirm) {
-      onDelete?.();
-      onClose();
-    } else {
-      setShowDeleteConfirm(true);
-    }
-  };
-
-  const selectedLang = LANGUAGES.find((l) => l.value === language) ?? LANGUAGES[0];
 
   // Tab sizes: basics is taller, tags is shorter
   const isBasics = activeTab === 'basics';

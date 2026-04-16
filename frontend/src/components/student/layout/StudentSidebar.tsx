@@ -168,6 +168,7 @@ export default function StudentSidebar({
   open,
   onClose,
 }: StudentSidebarProps) {
+  void open;
   const location = useLocation();
   const navigate = useNavigate();
 
