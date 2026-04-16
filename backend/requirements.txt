@@ -19,9 +19,12 @@ emails==0.6.0
 python-dotenv==1.0.0
 httpx==0.25.2
 pgvector==0.2.4
-sentence-transformers>=3.0,<6
-pymupdf>=1.24.0
-python-docx>=1.1.0
+# Optional RAG stack (disabled to keep Docker image small).
+# Re-enable these when you need local embeddings/document ingestion again.
+# sentence-transformers pulls heavy transitive dependencies (torch/nvidia/triton).
+# sentence-transformers>=3.0,<6
+# pymupdf>=1.24.0
+# python-docx>=1.1.0
 pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-cov==4.1.0
