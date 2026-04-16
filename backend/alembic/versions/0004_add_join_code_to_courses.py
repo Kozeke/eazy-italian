@@ -38,20 +38,17 @@ def upgrade() -> None:
           AND table_name = 'courses'
           AND column_name = 'join_code'
     """))
-    if result.fetchone() is None:
+    # Tracks whether join_code already exists on courses.
+    join_code_exists = result.fetchone() is not None
+    if not join_code_exists:
         # Add the column
         op.add_column(
             "courses",
             sa.Column("join_code", sa.String(10), nullable=True)
         )
-        
-        # Create unique index on join_code
-        op.create_index(
-            "ix_courses_join_code",
-            "courses",
-            ["join_code"],
-            unique=True
-        )
+
+    # Create unique index on join_code when missing.
+    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_courses_join_code ON courses (join_code)")
 
 
 def downgrade() -> None:
