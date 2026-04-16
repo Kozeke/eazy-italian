@@ -10,7 +10,15 @@ from app.core.database import Base
 
 # Import all models so SQLAlchemy can create tables
 from app.models import Course, Unit, User, Video, Task, Test, Progress, EmailCampaign, VideoProgress
+from app.models.presentation import Presentation, PresentationSlide
+from app.models.live_session import LiveSession
+import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
@@ -93,6 +101,17 @@ except Exception as e:
 
 # Include API router AFTER static mount
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+@app.on_event("startup")
+async def start_presence_eviction():
+    """
+    Launch the background task that prunes stale presence entries.
+    Runs every 60 s; evicts users whose last heartbeat is older than 90 s.
+    Safe to call multiple times – start_eviction_task() is idempotent.
+    """
+    from app.api.v1.endpoints.presence_rest import start_eviction_task
+    start_eviction_task(interval_seconds=60, max_age_seconds=90)
 
 
 @app.on_event("startup")
@@ -193,6 +212,21 @@ async def startup_event():
             # If you want one-time migrations, we can add a migration_tracking table
             try:
                 with engine.connect() as conn:
+                    # ── Ensure Presentations tables exist (idempotent) ───────────────
+                    # We prefer SQLAlchemy's table DDL (checkfirst=True) so column types
+                    # (including enums) always match the ORM models.
+                    try:
+                        from app.models.presentation import Presentation, PresentationSlide
+
+                        Presentation.__table__.create(bind=conn, checkfirst=True)
+                        PresentationSlide.__table__.create(bind=conn, checkfirst=True)
+                        conn.commit()
+                        print("✅ Ensured presentations tables exist", flush=True)
+                    except Exception as exc:
+                        # Non-fatal — endpoints will still work if tables already exist,
+                        # and deployments without presentations can ignore this.
+                        print(f"⚠️  Presentations table ensure failed: {exc}", flush=True)
+
                     # Add missing columns to questions table if they don't exist
                     question_migrations = [
                         ("shuffle_options", "BOOLEAN DEFAULT FALSE"),
@@ -580,7 +614,7 @@ async def startup_event():
                                 id SERIAL PRIMARY KEY,
                                 title VARCHAR(255) NOT NULL,
                                 description TEXT,
-                                level courselevel NOT NULL,
+                                level courselevel,
                                 status coursestatus NOT NULL DEFAULT 'draft',
                                 publish_at TIMESTAMP WITH TIME ZONE,
                                 order_index INTEGER NOT NULL DEFAULT 0,
@@ -659,6 +693,25 @@ async def startup_event():
                         conn.execute(add_thumbnail_path)
                         conn.commit()
                         print("âœ… Added thumbnail_path column to courses table")
+
+                    # Allow creating draft courses without a level selected yet
+                    check_level_nullable = text("""
+                        SELECT is_nullable
+                        FROM information_schema.columns
+                        WHERE table_name = 'courses'
+                          AND column_name = 'level'
+                    """)
+                    result = conn.execute(check_level_nullable)
+                    level_info = result.fetchone()
+                    if level_info and level_info[0] == 'NO':
+                        print("Making courses.level nullable...")
+                        make_level_nullable = text("""
+                            ALTER TABLE courses
+                            ALTER COLUMN level DROP NOT NULL
+                        """)
+                        conn.execute(make_level_nullable)
+                        conn.commit()
+                        print("âœ… Made courses.level nullable")
                     
                     # Create or migrate video_progress table
                     check_video_progress_table = text("""

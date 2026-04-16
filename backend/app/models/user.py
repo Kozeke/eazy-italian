@@ -27,6 +27,7 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
     subscription_type = Column(Enum(SubscriptionType), default=SubscriptionType.FREE, nullable=False)
+    onboarding_completed = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

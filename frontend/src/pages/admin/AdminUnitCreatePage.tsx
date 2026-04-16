@@ -339,6 +339,54 @@ export default function AdminUnitCreatePage() {
     }
   };
 
+  /**
+   * "Generate Slides with AI" button handler.
+   *
+   * The slide generator's Save flow calls POST /admin/units/{unit_id}/presentations,
+   * so it needs a real unit ID in the URL.  If the unit hasn't been saved yet we
+   * silently create a draft first, then navigate with ?unitId=<id>.
+   * If the title is empty we ask the user to fill it in before continuing.
+   */
+  const handleNavigateToSlideGenerator = async () => {
+    // If already saved, navigate immediately
+    if (savedUnitId) {
+      navigate(`/admin/slides/generate?unitId=${savedUnitId}`);
+      return;
+    }
+
+    // Need a title to create the draft
+    if (!formData.title.trim()) {
+      toast.error('Введите название юнита, чтобы сохранить черновик перед генерацией слайдов');
+      return;
+    }
+
+    // Save as draft silently, then navigate
+    try {
+      setSaving(true);
+      const saved = await unitsApi.createUnit({
+        title:                  formData.title,
+        level:                  formData.level as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2',
+        description:            formData.description,
+        goals:                  formData.goals,
+        tags:                   formData.tags,
+        status:                 'draft',
+        publish_at:             formData.publish_at || undefined,
+        order_index:            formData.order_index,
+        course_id:              formData.course_id || undefined,
+        is_visible_to_students: false,
+        meta_title:             formData.meta_title,
+        meta_description:       formData.meta_description,
+      });
+      setSavedUnitId(saved.id);
+      toast.success(`Юнит сохранён как черновик (ID: ${saved.id}) — открываем генератор слайдов`);
+      navigate(`/admin/slides/generate?unitId=${saved.id}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Не удалось сохранить юнит перед генерацией слайдов');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleResetGeneration = () => {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     setGeneration({ status: 'idle', testId: null, pollUrl: null, questionCount: 0, errorMessage: null });
@@ -684,6 +732,17 @@ export default function AdminUnitCreatePage() {
               <Plus className="h-4 w-4 mr-1" />
               Создать новый
             </button>
+            {type === 'video' && (
+              <button
+                onClick={handleNavigateToSlideGenerator}
+                disabled={saving}
+                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                title={savedUnitId ? "Открыть генератор слайдов" : "Сохранить черновик и открыть генератор слайдов"}
+              >
+                {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                ✨ Generate Slides with AI
+              </button>
+            )}
           </div>
         </div>
         

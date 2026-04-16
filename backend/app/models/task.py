@@ -37,6 +37,7 @@ class Task(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)  # Allow no unit
+    segment_id = Column(Integer, ForeignKey("segments.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     content = Column(Text, nullable=True)
@@ -44,7 +45,10 @@ class Task(Base):
     # Use native_enum=False to store as VARCHAR, but we'll use enum values
     # This ensures we use lowercase values like "listening" instead of enum names like "LISTENING"
     type = Column(Enum(TaskType, native_enum=False, values_callable=lambda x: [e.value for e in TaskType]), default=TaskType.MANUAL, nullable=False)
-    auto_task_type = Column(Enum(AutoTaskType, native_enum=False, values_callable=lambda x: [e.value for e in AutoTaskType]), nullable=True)
+    # auto_task_type: Database has native enum 'autotasktype' with uppercase values (SCQ, MCQ, etc.)
+    # These match the Python enum NAMES, not values. Use native_enum=True to use enum names.
+    # When None, SQLAlchemy should properly handle it as NULL for the enum type.
+    auto_task_type = Column(Enum(AutoTaskType, native_enum=True, create_constraint=False, name='autotasktype'), nullable=True)
     status = Column(Enum(TaskStatus, native_enum=False, values_callable=lambda x: [e.value for e in TaskStatus]), default=TaskStatus.DRAFT, nullable=False)
     publish_at = Column(DateTime(timezone=True), nullable=True)
     order_index = Column(Integer, default=0, nullable=False)
@@ -75,6 +79,7 @@ class Task(Base):
 
     # Relationships
     unit = relationship("Unit", back_populates="tasks")
+    segment = relationship("Segment", back_populates="tasks")
     created_by_user = relationship("User", back_populates="created_tasks")
     submissions = relationship("TaskSubmission", back_populates="task", cascade="all, delete-orphan")
 

@@ -1,0 +1,395 @@
+/**
+ * HomeworkPlayer.css
+ *
+ * Styles for the HomeworkPlayer component.
+ * Shares the same design tokens and visual language as lesson-vertical.css
+ * but has its own flat (section-less) layout.
+ * Vertical scroll matches VerticalLessonPlayer: one scrollport on the shell,
+ * scrollbar hidden (same technique as `.vlp-root`).
+ */
+
+/* ── Player shell (scroll root — mirrors .vlp-root in lesson-vertical.css) ─ */
+
+.hw-player {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    background: #ffffff;
+    border-radius: var(--lp-player-radius, 16px);
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.06);
+  }
+
+  .hw-player::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* ── Header ───────────────────────────────────────────────── */
+  
+  .hw-player-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 1.75rem 1.75rem 0;
+  }
+  
+  .hw-player-lesson-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1c1f3a;
+    line-height: 1.3;
+    margin: 0;
+    flex: 1;
+  }
+  
+  .hw-player-header-rule {
+    height: 2px;
+    background: linear-gradient(90deg, #6c6fef 0%, #e8eafd 100%);
+    border-radius: 2px;
+    margin: 14px 1.75rem 0;
+    flex-shrink: 0;
+  }
+
+  /* ── Student status + submit ─────────────────────────────────────────── */
+
+  .hw-status-banner {
+    flex-shrink: 0;
+    padding: 0 1.75rem 12px;
+  }
+
+  .hw-status-banner__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .hw-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #eef0fe;
+    color: #4f52c2;
+  }
+
+  .hw-submit-review-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    background: #6c6fef;
+    color: #fff;
+    transition: opacity 0.15s;
+  }
+
+  .hw-submit-review-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .hw-teacher-feedback {
+    margin: 10px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #475569;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .hw-player-body--locked {
+    pointer-events: none;
+    opacity: 0.92;
+  }
+  
+  .hw-player-header-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 99px;
+    background: #6c6fef;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0 6px;
+  }
+  
+  /* ── Body — grows with content; vertical scroll is on .hw-player (hidden bar) ─ */
+  
+  .hw-player-body {
+    flex: 1 0 auto;
+    min-height: min-content;
+    overflow: visible;
+  }
+  
+  /* ── Empty state ──────────────────────────────────────────── */
+  
+  .hw-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    padding: 2.5rem 1.75rem;
+    min-height: 220px;
+  }
+  
+  .hw-empty-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1c1f3a;
+    margin: 0;
+  }
+  
+  .hw-empty-sub {
+    font-size: 13px;
+    color: #94a3b8;
+    margin: 0;
+    max-width: 280px;
+    line-height: 1.5;
+  }
+
+  /* Two action cards */
+  .hw-empty-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .hw-empty-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 28px 16px;
+    border-radius: 14px;
+    border: 1.5px solid #e2e4fb;
+    background: #fff;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 4px rgba(108, 111, 239, 0.05);
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .hw-empty-card:hover {
+    border-color: #a5a8f3;
+    background: #f7f7fe;
+    color: #4f52c2;
+    box-shadow: 0 3px 14px rgba(108, 111, 239, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .hw-empty-card:active {
+    transform: scale(0.97);
+  }
+
+  .hw-empty-card:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Active/selected card (Выбрать упражнение) */
+  .hw-empty-card--active {
+    border-color: #6c6fef;
+    color: #6c6fef;
+    background: #eef0fe;
+  }
+
+  .hw-empty-card--active:hover {
+    background: #e4e6fd;
+    border-color: #4f52c2;
+    color: #4f52c2;
+  }
+
+  .hw-empty-card-icon {
+    flex-shrink: 0;
+  }
+  
+  /* ── Block list ───────────────────────────────────────────── */
+  
+  .hw-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 1.25rem 1.5rem 1.5rem;
+  }
+  
+  /* Divider between blocks — matches .vlp-blocks pattern */
+  .hw-blocks > * + * {
+    position: relative;
+  }
+  
+  .hw-blocks > * + *::before {
+    content: "";
+    display: block;
+    height: 1px;
+    background: #e4e5e9;
+    margin: 0 20px 1.5rem;
+    border-radius: 1px;
+    opacity: 0.75;
+  }
+  
+  .hw-blocks > * {
+    padding-top: 1.5rem;
+  }
+  
+  .hw-blocks > *:first-child {
+    padding-top: 0;
+  }
+  
+  /* ── Individual block row (positioning context for badge) ── */
+  
+  .hw-block-row {
+    position: relative;
+  }
+  
+  /* ── "Из урока" copied badge ──────────────────────────────── */
+  
+  .hw-block-badge-from-lesson {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 99px;
+    background: #eef0fe;
+    color: #6c6fef;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    border: 1px solid #d4d6fb;
+    pointer-events: none;
+  }
+  
+  /* ── Add exercise buttons ─────────────────────────────────── */
+
+  .hw-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 20px;
+    border-radius: 99px;
+    border: 1.5px dashed #c4c7f0;
+    background: #f7f7fe;
+    color: #6c6fef;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.14s ease;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+
+  .hw-add-btn:hover {
+    background: #eef0fe;
+    border-color: #6c6fef;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 12px rgba(108, 111, 239, 0.12);
+  }
+
+  .hw-add-btn:active {
+    transform: scale(0.97);
+  }
+
+  /* "Создать упражнение" variant — solid primary style */
+  .hw-add-btn--create {
+    border-style: solid;
+    border-color: #6c6fef;
+    background: #6c6fef;
+    color: #fff;
+  }
+
+  .hw-add-btn--create:hover {
+    background: #4f52c2;
+    border-color: #4f52c2;
+    box-shadow: 0 4px 14px rgba(108, 111, 239, 0.28);
+  }
+
+  .hw-add-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 1.25rem 0 0.25rem;
+    border-top: 1px dashed #e4e5e9;
+    margin-top: 1.25rem;
+  }
+  
+  /* ── Entry animation ──────────────────────────────────────── */
+  
+  @keyframes hwBlockIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  
+  .hw-block-row {
+    animation: hwBlockIn 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* ── Inline media block (HomeworkInlineMediaBlock) ────────── */
+
+  .hw-media-block {
+    overflow: hidden;
+  }
+
+  .hw-media-block__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e8eafd;
+    background: #f7f7fa;
+  }
+
+  .hw-media-block__icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #eef0fe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c6fef;
+    flex-shrink: 0;
+  }
+
+  .hw-media-block__label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #1c1f3a;
+    flex: 1;
+  }
+
+  .hw-media-block__body {
+    padding: 16px;
+  }

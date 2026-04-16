@@ -13,6 +13,24 @@ class UserCreate(UserBase):
     password: str
     role: UserRole = UserRole.STUDENT
 
+
+class AdminStudentCreateRequest(BaseModel):
+    email: EmailStr
+    first_name: str
+    phone: Optional[str] = None
+    native_language: Optional[str] = None
+    timezone: Optional[str] = None
+    # Stores teacher id sent by admin UI to explicitly mark student ownership.
+    teacher_id: Optional[int] = None
+
+# Stores editable fields for updating an existing student profile from admin UI.
+class AdminStudentUpdateRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    first_name: Optional[str] = None
+    phone: Optional[str] = None
+    native_language: Optional[str] = None
+    timezone: Optional[str] = None
+
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     first_name: Optional[str] = None
@@ -26,7 +44,21 @@ class UserLogin(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+class MagicCodeRequest(BaseModel):
+    email: EmailStr
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 class UserResponse(UserBase):
     id: int
@@ -40,6 +72,13 @@ class UserResponse(UserBase):
     subscription: Optional[str] = None
     subscription_ends_at: Optional[datetime] = None
     enrolled_courses_count: int = 0
+    onboarding_completed: bool = False
 
     class Config:
         from_attributes = True
+
+
+# Stores response payload returned after admin creates a student account.
+class AdminStudentCreateResponse(UserResponse):
+    temporary_password: str
+    login_url: str

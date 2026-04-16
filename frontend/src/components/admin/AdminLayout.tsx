@@ -53,14 +53,15 @@ export default function AdminLayout({}: AdminLayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const isCourseBuilderRoute = location.pathname === '/admin/courses/builder';
   // Sidebar open/close state for mobile
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // Search query state for quick search functionality
   const [searchQuery, setSearchQuery] = useState('');
 
   // Handle user logout and redirect to login
-  const handleLogout = () => {
-    const loggedOut = logout();
+  const handleLogout = async () => {
+    const loggedOut = await logout();
     // Only navigate if logout was actually performed (not blocked by active test)
     if (loggedOut) {
       navigate('/login');
@@ -264,9 +265,9 @@ export default function AdminLayout({}: AdminLayoutProps) {
           </div>
         </header>
 
-        {/* Page content – centered, like course management pages */}
-        <main className="flex-1 overflow-auto">
-          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Page content – full-height for the course builder, centered elsewhere */}
+        <main className={isCourseBuilderRoute ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 overflow-auto'}>
+          <div className={isCourseBuilderRoute ? 'h-full min-h-0' : 'mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8'}>
             <Outlet />
           </div>
         </main>

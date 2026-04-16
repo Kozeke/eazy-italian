@@ -154,7 +154,7 @@ export default function AdminTaskDetailPage() {
                 Отправки
               </button>
               <button
-                onClick={() => navigate(`/admin/tasks/${id}/edit`)}
+                onClick={() => navigate(`/admin/tasks/${id}/builder`)}
                 className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
               >
                 <Edit className="w-4 h-4 mr-2" />

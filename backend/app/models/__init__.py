@@ -6,11 +6,16 @@ from .video_progress import VideoProgress
 from .task import Task, TaskSubmission
 from .test import Test, TestQuestion, TestAttempt, Question
 from .progress import Progress
+from .segment import Segment, SegmentStatus
 from .email import EmailCampaign, EmailLog
+from .email_verification import EmailVerificationCode
 from .subscription import Subscription, SubscriptionLevel, UserSubscription
 from .enrollment import CourseEnrollment
 from .notification import Notification, NotificationType
 from .lesson_chunk import LessonChunk
+from .presentation import Presentation, PresentationSlide
+from .live_session import LiveSession
+from .homework_submission import UnitHomeworkSubmission, HomeworkSubmissionStatus
 
 __all__ = [
     "User",
@@ -27,8 +32,11 @@ __all__ = [
     "TestAttempt",
     "Question",
     "Progress",
+    "Segment",
+    "SegmentStatus",
     "EmailCampaign",
     "EmailLog",
+    "EmailVerificationCode",
     "Subscription",
     "SubscriptionLevel",
     "UserSubscription",
@@ -36,4 +44,9 @@ __all__ = [
     "Notification",
     "NotificationType",
     "LessonChunk",
+    "Presentation",
+    "PresentationSlide",
+    "LiveSession",
+    "UnitHomeworkSubmission",
+    "HomeworkSubmissionStatus",
 ]

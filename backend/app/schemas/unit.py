@@ -99,6 +99,9 @@ class UnitDetailResponse(UnitResponse):
     videos: List[Dict[str, Any]] = []
     tasks: List[Dict[str, Any]] = []
     tests: List[Dict[str, Any]] = []
+    segments: List[Dict[str, Any]] = []
+    # Unit-level homework media/exercise blocks (same JSON shape as GET …/homework)
+    homework_blocks: List[Dict[str, Any]] = []
 
     class Config:
         from_attributes = True

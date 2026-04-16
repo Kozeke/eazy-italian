@@ -65,3 +65,22 @@ def get_current_student(current_user: User = Depends(get_current_user)) -> User:
             detail="Not enough permissions"
         )
     return current_user
+
+def get_current_user_from_token(token: str, db: Session) -> User | None:
+    """Get user from token string (for WebSocket authentication)"""
+    try:
+        payload = verify_token(token)
+        if payload is None:
+            return None
+        
+        user_id: int = payload.get("sub")
+        if user_id is None:
+            return None
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None or not user.is_active:
+            return None
+        
+        return user
+    except Exception:
+        return None

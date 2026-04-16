@@ -20,6 +20,7 @@ class Video(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    segment_id = Column(Integer, ForeignKey("segments.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     source_type = Column(Enum(VideoSourceType), nullable=False)
@@ -44,6 +45,7 @@ class Video(Base):
 
     # Relationships
     unit = relationship("Unit", back_populates="videos")
+    segment = relationship("Segment", back_populates="videos")
     created_by_user = relationship("User", foreign_keys=[created_by], back_populates="created_videos")
     updated_by_user = relationship("User", foreign_keys=[updated_by])
     user_progress = relationship("VideoProgress", back_populates="video", cascade="all, delete-orphan")

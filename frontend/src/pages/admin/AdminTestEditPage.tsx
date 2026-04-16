@@ -672,7 +672,7 @@ const AdminTestEditPage: React.FC = () => {
           </div>
 
           {/* Tabs */}
-          <div className="mt-4 border-b border-gray-200">
+            <div className="mt-4 border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
                 {[
                   { id: 'questions', label: 'Вопросы', count: questions.length },
@@ -713,7 +713,7 @@ const AdminTestEditPage: React.FC = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold text-gray-900">Вопросы теста</h2>
-              <div className="flex space-x-2">
+                <div className="flex space-x-2">
                   <button
                     onClick={addMCQQuestion}
                     className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
@@ -934,12 +934,12 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                 <RefreshCw className={`w-4 h-4 ${isRegenerating ? 'animate-spin' : ''}`} />
               </button>
             )}
-            <button
-              onClick={onRemove}
-              className="p-1 text-red-600 hover:text-red-800"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+              <button
+                onClick={onRemove}
+                className="p-1 text-red-600 hover:text-red-800"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
           </div>
         </div>
       </div>
@@ -1029,12 +1029,12 @@ const MCQFields: React.FC<{ question: Question; onUpdate: (updates: Partial<Ques
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700">Варианты ответов</label>
-        <button
-          onClick={addOption}
-          className="text-sm text-primary-600 hover:text-primary-700"
-        >
-          + Добавить вариант
-        </button>
+          <button
+            onClick={addOption}
+            className="text-sm text-primary-600 hover:text-primary-700"
+          >
+            + Добавить вариант
+          </button>
       </div>
       {question.options?.map(option => (
         <div key={option.id} className="flex items-center space-x-2">

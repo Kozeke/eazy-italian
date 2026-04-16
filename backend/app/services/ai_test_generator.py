@@ -43,7 +43,7 @@ def _build_default_provider() -> AIProvider:
     Provider-specific configuration is handled entirely through env-vars
     inside each provider's __init__, so no extra config is needed here.
     """
-    provider_name = os.environ.get("AI_PROVIDER", "ollama").strip().lower()
+    provider_name = os.environ.get("AI_PROVIDER", "groq").strip().lower()
 
     if provider_name == "groq":
         from app.services.ai.providers.groq_provider import GroqProvider

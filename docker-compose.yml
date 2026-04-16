@@ -62,6 +62,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/eazy_italian
       - REDIS_URL=redis://redis:6379
@@ -79,7 +81,7 @@ services:
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002
       # AI Provider Configuration
       - AI_PROVIDER=groq
-      - GROQ_API_KEY=your-groq-api-key-here
+      - GROQ_API_KEY=${GROQ_API_KEY:-your-groq-api-key}
       - GROQ_MODEL=llama-3.3-70b-versatile
       - GROQ_TIMEOUT=60
       # RAG + Ollama (container on Docker network)
@@ -88,6 +90,11 @@ services:
       - EMBEDDING_MODEL=LaBSE
       - RAG_TOP_K=5
       - RAG_MIN_SIMILARITY=0.3
+      # Hugging Face Configuration (for image generation)
+      - HF_API_KEY=${HF_API_KEY:-your-huggingface-api-key}
+      - HF_MODEL=black-forest-labs/FLUX.1-schnell
+      - HF_WIDTH=512
+      - HF_HEIGHT=384
     ports:
       - "8000:8000"
     volumes:

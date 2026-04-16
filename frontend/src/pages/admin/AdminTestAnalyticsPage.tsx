@@ -326,7 +326,7 @@ export default function AdminTestAnalyticsPage() {
           </div>
 
           <button
-            onClick={() => navigate(`/admin/tests/${id}/edit`)}
+            onClick={() => navigate(`/admin/tests/${id}/builder`)}
             className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors"
           >
             Редактировать тест

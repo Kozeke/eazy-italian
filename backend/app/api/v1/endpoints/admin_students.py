@@ -1,21 +1,327 @@
-from fastapi import APIRouter, Depends, HTTPException
+"""Teacher-admin student management endpoints scoped to teacher-owned students."""
+
+import secrets
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.auth import get_current_teacher
+from app.core.security import get_password_hash
 from app.models.user import User, UserRole
 from app.models.course import Course
 from app.models.enrollment import CourseEnrollment
 from app.models.subscription import (
     Subscription,
+    SubscriptionName,
     UserSubscription
 )
 from app.schemas.subscription import ChangeSubscriptionRequest
-from app.schemas.user import UserResponse, UserUpdate
-from app.services.user_service import UserService
+from app.schemas.user import (
+    AdminStudentCreateRequest,
+    AdminStudentCreateResponse,
+    AdminStudentUpdateRequest,
+    UserResponse,
+)
 
 router = APIRouter()
+
+class StudentEnrollmentRequest(BaseModel):
+    course_id: int
+
+
+def _is_student_created_by_teacher(student: User, teacher_id: int) -> bool:
+    """Check whether student profile metadata marks current teacher as creator."""
+    # Stores profile metadata map where admin-created student ownership is persisted.
+    student_profile_meta = student.notification_prefs or {}
+    # Stores raw teacher identifier saved during student creation flow.
+    raw_creator_teacher_id = student_profile_meta.get("created_by_teacher_id")
+    try:
+        # Stores normalized integer creator identifier to avoid int/str mismatch issues.
+        normalized_creator_teacher_id = int(raw_creator_teacher_id)
+    except (TypeError, ValueError):
+        return False
+    return normalized_creator_teacher_id == teacher_id
+
+
+def _get_teacher_owned_student_or_403(
+    db: Session,
+    student_id: int,
+    teacher_id: int,
+) -> User:
+    """Fetch student and enforce that current teacher created this account."""
+    # Stores the target student entity looked up by request path parameter.
+    student = db.query(User).filter(
+        User.id == student_id,
+        User.role == UserRole.STUDENT
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # Stores ownership check result to gate cross-teacher student access.
+    student_belongs_to_teacher = _is_student_created_by_teacher(student, teacher_id)
+    if not student_belongs_to_teacher:
+        raise HTTPException(
+            status_code=403,
+            detail="Student was not created by current teacher",
+        )
+
+    return student
+
+
+# Builds a unified response object for both new and existing student create flows.
+def _build_admin_student_create_response(
+    student: User,
+    temporary_password: str,
+) -> AdminStudentCreateResponse:
+    """Build create-student response payload shared by create and attach flows."""
+    # Stores payload fields reused from ORM object and appends credential-sharing fields.
+    student_response_payload = {
+        "id": student.id,
+        "email": student.email,
+        "first_name": student.first_name,
+        "last_name": student.last_name,
+        "role": student.role,
+        "is_active": student.is_active,
+        "created_at": student.created_at,
+        "updated_at": student.updated_at,
+        "last_login": student.last_login,
+        "email_verified_at": student.email_verified_at,
+        "notification_prefs": student.notification_prefs or {},
+        "subscription": None,
+        "subscription_ends_at": None,
+        "enrolled_courses_count": 0,
+        "onboarding_completed": False,
+        "locale": student.locale,
+    }
+    return AdminStudentCreateResponse(
+        **student_response_payload,
+        temporary_password=temporary_password,
+        login_url="/login",
+    )
+
+
+@router.post("", response_model=AdminStudentCreateResponse, status_code=status.HTTP_201_CREATED)
+def create_student(
+    payload: AdminStudentCreateRequest,
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db),
+):
+    """Create a student account from the admin students page."""
+    # Stores teacher id from payload when provided, otherwise falls back to auth context.
+    requested_teacher_id = payload.teacher_id or current_user.id
+    if requested_teacher_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Payload teacher_id must match authenticated teacher",
+        )
+
+    # Stores a short temporary password so admin can share student login credentials.
+    temporary_password = f"{secrets.randbelow(9000) + 1000}"
+    # Stores hashed password value because only hashes should be persisted in database.
+    temp_password_hash = get_password_hash(temporary_password)
+
+    existing_user = db.query(User).filter(User.email == payload.email).first()
+    if existing_user:
+        if existing_user.role != UserRole.STUDENT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered by non-student account",
+            )
+
+        # Stores cleaned full-name value from single name field.
+        normalized_name = payload.first_name.strip()
+        if not normalized_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Student name is required",
+            )
+        # Stores tokenized name chunks used to populate first and last name columns.
+        name_parts = normalized_name.split()
+        # Stores first token as first name required by the users table.
+        parsed_first_name = name_parts[0]
+        # Stores remaining tokens as last-name fallback for one-token names.
+        parsed_last_name = " ".join(name_parts[1:]).strip() or "—"
+
+        # Stores mutable metadata map to update ownership and profile fields in one write.
+        profile_meta = dict(existing_user.notification_prefs or {})
+        profile_meta["phone"] = (payload.phone or "").strip() or None
+        profile_meta["native_language"] = (payload.native_language or "").strip() or None
+        profile_meta["timezone"] = (payload.timezone or "").strip() or None
+        profile_meta["created_by_teacher_id"] = requested_teacher_id
+
+        existing_user.first_name = parsed_first_name
+        existing_user.last_name = parsed_last_name
+        existing_user.password_hash = temp_password_hash
+        existing_user.is_active = True
+        existing_user.notification_prefs = profile_meta
+
+        # Stores existing active subscription row, if already assigned.
+        active_subscription = db.query(UserSubscription).filter(
+            UserSubscription.user_id == existing_user.id,
+            UserSubscription.is_active == True,
+        ).first()
+        if not active_subscription:
+            # Stores default FREE subscription lookup used when user has no active plan.
+            free_subscription = db.query(Subscription).filter(
+                Subscription.name == SubscriptionName.FREE,
+                Subscription.is_active == True,
+            ).first()
+            if free_subscription:
+                db.add(
+                    UserSubscription(
+                        user_id=existing_user.id,
+                        subscription_id=free_subscription.id,
+                        is_active=True,
+                    )
+                )
+
+        db.commit()
+        db.refresh(existing_user)
+        return _build_admin_student_create_response(
+            student=existing_user,
+            temporary_password=temporary_password,
+        )
+
+    # Split one "name" input into first/last fields required by the users table.
+    normalized_name = payload.first_name.strip()
+    if not normalized_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Student name is required",
+        )
+    name_parts = normalized_name.split()
+    parsed_first_name = name_parts[0]
+    parsed_last_name = " ".join(name_parts[1:]).strip() or "—"
+
+    # Store teacher-provided profile extras in notification_prefs until dedicated fields exist.
+    profile_meta = {
+        "phone": (payload.phone or "").strip() or None,
+        "native_language": (payload.native_language or "").strip() or None,
+        "timezone": (payload.timezone or "").strip() or None,
+        "created_by_teacher_id": requested_teacher_id,
+    }
+    student = User(
+        email=payload.email,
+        first_name=parsed_first_name,
+        last_name=parsed_last_name,
+        role=UserRole.STUDENT,
+        password_hash=temp_password_hash,
+        locale="ru",
+        notification_prefs=profile_meta,
+        is_active=True,
+    )
+    db.add(student)
+    db.flush()
+
+    # Attach FREE subscription to keep behavior aligned with normal registration flow.
+    free_subscription = db.query(Subscription).filter(
+        Subscription.name == SubscriptionName.FREE,
+        Subscription.is_active == True,
+    ).first()
+    if free_subscription:
+        db.add(
+            UserSubscription(
+                user_id=student.id,
+                subscription_id=free_subscription.id,
+                is_active=True,
+            )
+        )
+
+    db.commit()
+    db.refresh(student)
+    return _build_admin_student_create_response(
+        student=student,
+        temporary_password=temporary_password,
+    )
+
+
+@router.put("/{student_id}", response_model=UserResponse)
+def update_student(
+    student_id: int,
+    payload: AdminStudentUpdateRequest,
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db),
+):
+    """Update editable student profile fields from admin student view page."""
+    # Stores student entity and enforces that current teacher owns this account.
+    student = _get_teacher_owned_student_or_403(
+        db=db,
+        student_id=student_id,
+        teacher_id=current_user.id,
+    )
+
+    if payload.email is not None:
+        # Stores whether a different account already uses the requested email.
+        existing_user = db.query(User).filter(
+            User.email == payload.email,
+            User.id != student_id,
+        ).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
+        student.email = payload.email
+
+    if payload.first_name is not None:
+        # Stores cleaned full-name value from the single name field in admin modal.
+        normalized_name = payload.first_name.strip()
+        if not normalized_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Student name is required",
+            )
+        # Stores tokenized name parts to split into first/last columns.
+        name_parts = normalized_name.split()
+        # Stores first token as first name in the users table.
+        parsed_first_name = name_parts[0]
+        # Stores remaining tokens as last name fallback when present.
+        parsed_last_name = " ".join(name_parts[1:]).strip() or "—"
+        student.first_name = parsed_first_name
+        student.last_name = parsed_last_name
+
+    # Stores profile metadata map currently used for phone/language/timezone fields.
+    profile_meta = dict(student.notification_prefs or {})
+    if payload.phone is not None:
+        profile_meta["phone"] = payload.phone.strip() or None
+    if payload.native_language is not None:
+        profile_meta["native_language"] = payload.native_language.strip() or None
+    if payload.timezone is not None:
+        profile_meta["timezone"] = payload.timezone.strip() or None
+    student.notification_prefs = profile_meta
+
+    db.commit()
+    db.refresh(student)
+    return student
+
+
+@router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_student(
+    student_id: int,
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db),
+):
+    """Delete student account from admin student view page."""
+    # Stores student entity and enforces that current teacher owns this account.
+    student = _get_teacher_owned_student_or_403(
+        db=db,
+        student_id=student_id,
+        teacher_id=current_user.id,
+    )
+
+    # Prevent endpoint crash when foreign-key-linked student data blocks deletion.
+    try:
+        db.delete(student)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Не удалось удалить ученика из-за связанных данных",
+        )
 
 
 @router.get("", response_model=list[UserResponse])
@@ -25,47 +331,43 @@ def get_students(
     skip: int = 0,
     limit: int = 100
 ):
-    """Get students - only students enrolled in current teacher's courses with subscription info"""
-    # Get teacher's course IDs
-    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
-        Course.created_by == current_user.id
-    ).all()]
-    
-    if not teacher_course_ids:
-        return []
-    
-    # Get student IDs enrolled in teacher's courses
-    enrolled_student_ids = [e.user_id for e in db.query(CourseEnrollment.user_id).filter(
-        CourseEnrollment.course_id.in_(teacher_course_ids)
-    ).distinct().all()]
-    
-    if not enrolled_student_ids:
-        return []
-    
-    # Query students with enrolled courses count and active subscription
-    students_query = (
-        db.query(
-            User,
-            func.count(CourseEnrollment.id).label('enrolled_courses_count')
-        )
-        .outerjoin(CourseEnrollment, CourseEnrollment.user_id == User.id)
-        .filter(
-            and_(
-                User.role == UserRole.STUDENT,
-                User.id.in_(enrolled_student_ids)
+    """Get students created by current teacher with subscription info."""
+    # Stores full student pool before ownership filtering by metadata.
+    all_students = db.query(User).filter(User.role == UserRole.STUDENT).all()
+    # Stores students explicitly created by the current teacher account.
+    teacher_owned_students = [
+        student for student in all_students
+        if _is_student_created_by_teacher(student, current_user.id)
+    ]
+    # Stores slice of teacher-owned students according to requested pagination.
+    paginated_students = teacher_owned_students[skip:skip + limit]
+
+    # Stores student IDs used to fetch enrollment counters in one grouped query.
+    paginated_student_ids = [student.id for student in paginated_students]
+    # Stores enrollment count map to avoid one SQL query per student row.
+    enrollments_count_by_student_id = {}
+    if paginated_student_ids:
+        # Stores grouped enrollment counts for the paginated student set.
+        enrollment_rows = (
+            db.query(
+                CourseEnrollment.user_id,
+                func.count(CourseEnrollment.id).label("enrolled_courses_count"),
             )
+            .filter(CourseEnrollment.user_id.in_(paginated_student_ids))
+            .group_by(CourseEnrollment.user_id)
+            .all()
         )
-        .group_by(User.id)
-        .offset(skip)
-        .limit(limit)
-    )
-    
-    results = students_query.all()
-    
-    # Convert to response format with enrolled_courses_count
+        enrollments_count_by_student_id = {
+            user_id: enrolled_courses_count
+            for user_id, enrolled_courses_count in enrollment_rows
+        }
+
+    # Convert to response format with enrolled_courses_count.
     students_with_count = []
-    for student, enrolled_count in results:
-        # Get active subscription if exists
+    for student in paginated_students:
+        # Stores enrollment count resolved from grouped query map.
+        enrolled_count = enrollments_count_by_student_id.get(student.id, 0)
+        # Get active subscription if exists.
         active_user_sub = (
             db.query(UserSubscription)
             .filter(
@@ -106,6 +408,57 @@ def get_students(
     return students_with_count
 
 
+@router.post("/{student_id}/enrollments")
+def enroll_student_to_course(
+    student_id: int,
+    payload: StudentEnrollmentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+):
+    """Enroll a student into one teacher-owned course."""
+    # Stores student entity and enforces that current teacher owns this account.
+    _get_teacher_owned_student_or_403(
+        db=db,
+        student_id=student_id,
+        teacher_id=current_user.id,
+    )
+
+    course = db.query(Course).filter(
+        Course.id == payload.course_id,
+        Course.created_by == current_user.id
+    ).first()
+    if not course:
+        raise HTTPException(
+            status_code=404,
+            detail="Course not found in your courses"
+        )
+
+    existing_enrollment = db.query(CourseEnrollment).filter(
+        CourseEnrollment.user_id == student_id,
+        CourseEnrollment.course_id == payload.course_id
+    ).first()
+    if existing_enrollment:
+        return {
+            "student_id": student_id,
+            "course_id": payload.course_id,
+            "already_enrolled": True
+        }
+
+    db.add(
+        CourseEnrollment(
+            user_id=student_id,
+            course_id=payload.course_id
+        )
+    )
+    db.commit()
+
+    return {
+        "student_id": student_id,
+        "course_id": payload.course_id,
+        "already_enrolled": False
+    }
+
+
 @router.put("/{student_id}/subscription")
 def change_student_subscription(
     student_id: int,
@@ -113,40 +466,13 @@ def change_student_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher),
 ):
-    """Change student subscription - only for students enrolled in teacher's courses"""
-    # Get teacher's course IDs
-    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
-        Course.created_by == current_user.id
-    ).all()]
-    
-    if not teacher_course_ids:
-        raise HTTPException(
-            status_code=403, 
-            detail="Student is not enrolled in any of your courses"
-        )
-    
-    # Check if student is enrolled in teacher's courses
-    is_enrolled = db.query(CourseEnrollment).filter(
-        and_(
-            CourseEnrollment.user_id == student_id,
-            CourseEnrollment.course_id.in_(teacher_course_ids)
-        )
-    ).first()
-    
-    if not is_enrolled:
-        raise HTTPException(
-            status_code=403, 
-            detail="Student is not enrolled in any of your courses"
-        )
-    
-    # 1️⃣ Ensure student exists
-    student = db.query(User).filter(
-        User.id == student_id,
-        User.role == UserRole.STUDENT
-    ).first()
-
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+    """Change student subscription - only for students created by current teacher."""
+    # Stores student entity and enforces that current teacher owns this account.
+    _get_teacher_owned_student_or_403(
+        db=db,
+        student_id=student_id,
+        teacher_id=current_user.id,
+    )
 
     # 2️⃣ Find target subscription
     subscription = db.query(Subscription).filter(

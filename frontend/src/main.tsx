@@ -7,6 +7,7 @@ import './i18n'
 import App from './App.tsx'
 import './index.css'
 import { AuthProvider } from './hooks/useAuth'
+import { TeacherClassroomTransitionProvider } from './contexts/TeacherClassroomTransitionContext'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +23,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <TeacherClassroomTransitionProvider>
+            <App />
+          </TeacherClassroomTransitionProvider>
           <Toaster 
             position="top-right"
             toastOptions={{

@@ -1,10 +1,12 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './hooks/useAuth';
 import LayoutWrapper from './components/LayoutWrapper';
 import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
+import LoginPage from './components/auth/LoginPage';
+import RegisterPage from './components/auth/RegisterPage';
+import TeacherRegisterFlow from './components/auth/TeacherRegisterFlow';
+import JoinClassroomPage from './components/auth/JoinClassroomPage';
 import DashboardPage from './pages/DashboardPage';
 import CoursesPage from './pages/CoursesPage';
 import CourseDetailPage from './pages/CourseDetailPage';
@@ -18,46 +20,25 @@ import TestDetailPage from './pages/TestDetailPage';
 import TestTakingPage from './pages/TestTakingPage';
 import TestResultsPage from './pages/TestResultsPage';
 import ProfilePage from './pages/ProfilePage';
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
-import AdminUnitsPage from './pages/admin/AdminUnitsPage';
-import AdminUnitCreatePage from './pages/admin/AdminUnitCreatePage';
-import AdminUnitEditPage from './pages/admin/AdminUnitEditPage';
-import AdminUnitDetailPage from './pages/admin/AdminUnitDetailPage';
-import AdminVideosPage from './pages/admin/AdminVideosPage';
-import AdminVideoCreatePage from './pages/admin/AdminVideoCreatePage';
-import AdminVideoEditPage from './pages/admin/AdminVideoEditPage';
-import AdminTasksPage from './pages/admin/AdminTasksPage';
-import AdminTaskCreatePage from './pages/admin/AdminTaskCreatePage';
-import AdminTaskEditPage from './pages/admin/AdminTaskEditPage';
-import AdminTaskDetailPage from './pages/admin/AdminTaskDetailPage';
-import AdminTaskSubmissionsPage from './pages/admin/AdminTaskSubmissionsPage';
-import AdminTaskGradingPage from './pages/admin/AdminTaskGradingPage';
-import AdminTestsPage from './pages/admin/AdminTestsPage';
-import AdminTestCreatePage from './pages/admin/AdminTestCreatePage';
-import AdminTestEditPage from './pages/admin/AdminTestEditPage';
-import AdminTestDetailsPage from './pages/admin/AdminTestDetailsPage';
-import AdminTestAnalyticsPage from './pages/admin/AdminTestAnalyticsPage';
-import AdminQuestionBankPage from './pages/admin/AdminQuestionBankPage';
-import AdminStudentsPage from './pages/admin/AdminStudentsPage';
-import AdminStudentCreatePage from './pages/admin/AdminStudentCreatePage';
-import AdminStudentEditPage from './pages/admin/AdminStudentEditPage';
-import AdminStudentViewPage from './pages/admin/AdminStudentViewPage';
-import AdminEmailCampaignsPage from './pages/admin/AdminEmailCampaignsPage';
-import AdminGradesPage from './pages/admin/AdminGradesPage';
-import AdminGradeDetailPage from './pages/admin/AdminGradeDetailPage';
-import AdminProgressPage from './pages/admin/AdminProgressPage';
-import AdminSettingsPage from './pages/admin/AdminSettingsPage';
-import AdminAuditLogPage from './pages/admin/AdminAuditLogPage';
-import AdminCoursesPage from './pages/admin/AdminCoursesPage';
-import AdminCourseCreatePage from './pages/admin/AdminCourseCreatePage';
-import AdminCourseEditPage from './pages/admin/AdminCourseEditPage';
-import AdminLayout from './components/admin/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
+// @ts-ignore - AdminRoutes is a .jsx file, TypeScript types are inferred at runtime
+import AdminRoutes from './pages/admin/components/AdminRoutes';
+// Student app shell
+import StudentAppLayout from './components/student/layout/StudentAppLayout';
+import MyClassesPage from './components/student/dashboard/MyClassesPage';
+import GradesPage from './pages/student/GradesPage';
+import SettingsPage from './pages/student/SettingsPage';
+// Classroom mode
+import ClassroomPage from './pages/student/ClassroomPage.tsx';
+import AiBuilderPage from './pages/admin/courses/AiBuilderPage';
+import LoadingScreen from './components/global/LoadingScreen';
+import { useTeacherClassroomTransition } from './contexts/TeacherClassroomTransitionContext';
 
 function App() {
   const { t } = useTranslation();
   const { loading } = useAuth();
+  const { isTeacherClassroomOpening } = useTeacherClassroomTransition();
 
   if (loading) {
     return (
@@ -71,13 +52,56 @@ function App() {
   }
 
   return (
+    <>
+      <LoadingScreen isLoading={isTeacherClassroomOpening} />
     <Routes>
       {/* Public routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register/teacher" element={<TeacherRegisterFlow />} />
+      <Route path="/join-classroom" element={<JoinClassroomPage />} />
 
-      {/* Protected routes */}
+      {/* Student app shell (with sidebar) */}
+      <Route
+        path="/student"
+        element={
+          <ProtectedRoute>
+            <StudentAppLayout />
+          </ProtectedRoute>
+        }
+      >
+        {/* Redirect /student → /student/classes */}
+        <Route index element={<Navigate to="/student/classes" replace />} />
+        {/* My Classes dashboard */}
+        <Route path="classes" element={<MyClassesPage />} />
+        {/* Grades page */}
+        <Route path="grades" element={<GradesPage />} />
+        {/* Settings page */}
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+
+      {/* Classroom mode (full screen, no sidebar) */}
+      {/* ClassroomPage uses ClassroomLayout internally which adds 'classroom-mode' to <body> */}
+      {/* These are TOP-LEVEL routes - never nested inside StudentAppLayout */}
+      <Route
+        path="/student/classroom/:courseId"
+        element={
+          <ProtectedRoute>
+            <ClassroomPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/student/classroom/:courseId/:unitId"
+        element={
+          <ProtectedRoute>
+            <ClassroomPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Legacy protected routes (with old LayoutWrapper) */}
       <Route element={<ProtectedRoute><LayoutWrapper /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/courses" element={<CoursesPage />} />
@@ -94,58 +118,28 @@ function App() {
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
-             {/* Admin routes */}
-       <Route element={<AdminRoute><AdminLayout /></AdminRoute>}>
-         <Route path="/admin" element={<AdminDashboardPage />} />
-         
-         {/* Courses routes */}
-         <Route path="/admin/courses" element={<AdminCoursesPage />} />
-         <Route path="/admin/courses/new" element={<AdminCourseCreatePage />} />
-         <Route path="/admin/courses/:id" element={<AdminCoursesPage />} />
-         <Route path="/admin/courses/:id/edit" element={<AdminCourseEditPage />} />
-         
-         {/* Units routes */}
-         <Route path="/admin/units" element={<AdminUnitsPage />} />
-         <Route path="/admin/units/new" element={<AdminUnitCreatePage />} />
-         <Route path="/admin/units/:unitId" element={<AdminUnitDetailPage />} />
-         <Route path="/admin/units/:id/edit" element={<AdminUnitEditPage />} />
-         
-         {/* Videos routes */}
-         <Route path="/admin/videos" element={<AdminVideosPage />} />
-         <Route path="/admin/videos/new" element={<AdminVideoCreatePage />} />
-         <Route path="/admin/videos/:id/edit" element={<AdminVideoEditPage />} />
-         
-         {/* Tasks routes */}
-         <Route path="/admin/tasks" element={<AdminTasksPage />} />
-         <Route path="/admin/tasks/new" element={<AdminTaskCreatePage />} />
-         <Route path="/admin/tasks/:id" element={<AdminTaskDetailPage />} />
-         <Route path="/admin/tasks/:id/edit" element={<AdminTaskEditPage />} />
-         <Route path="/admin/tasks/:id/submissions" element={<AdminTaskSubmissionsPage />} />
-         <Route path="/admin/tasks/:id/submissions/:submissionId" element={<AdminTaskGradingPage />} />
-         
-         {/* Tests routes */}
-         <Route path="/admin/tests" element={<AdminTestsPage />} />
-         <Route path="/admin/tests/new" element={<AdminTestCreatePage />} />
-         <Route path="/admin/tests/:id" element={<AdminTestDetailsPage />} />
-         <Route path="/admin/tests/:id/edit" element={<AdminTestEditPage />} />
-         <Route path="/admin/tests/:id/analytics" element={<AdminTestAnalyticsPage />} />
-         
-         {/* Students routes */}
-         <Route path="/admin/students" element={<AdminStudentsPage />} />
-         <Route path="/admin/students/new" element={<AdminStudentCreatePage />} />
-        <Route path="/admin/students/:id" element={<AdminStudentViewPage />} />
-         <Route path="/admin/students/:id/edit" element={<AdminStudentEditPage />} />
-         
-         {/* Other admin routes */}
-         <Route path="/admin/questions" element={<AdminQuestionBankPage />} />
-         <Route path="/admin/email-campaigns" element={<AdminEmailCampaignsPage />} />
-         <Route path="/admin/grades" element={<AdminGradesPage />} />
-         <Route path="/admin/grades/:attemptId" element={<AdminGradeDetailPage />} />
-         <Route path="/admin/progress" element={<AdminProgressPage />} />
-         <Route path="/admin/settings" element={<AdminSettingsPage />} />
-         <Route path="/admin/audit-log" element={<AdminAuditLogPage />} />
-       </Route>
+      {/* ── Teacher classroom flow (full-screen, teacher-only) ── */}
+      <Route
+        path="/teacher/classroom/:courseId"
+        element={<AdminRoute><ClassroomPage /></AdminRoute>}
+      />
+      <Route
+        path="/teacher/classroom/:courseId/:unitId"
+        element={<AdminRoute><ClassroomPage /></AdminRoute>}
+      />
+      <Route
+        path="/teacher/classroom/:courseId/:unitId/editor"
+        element={<AdminRoute><ClassroomPage /></AdminRoute>}
+      />
+      <Route
+        path="/teacher/classroom/:courseId/:unitId/ai-builder"
+        element={<AdminRoute><AiBuilderPage /></AdminRoute>}
+      />
+
+      {/* Admin routes */}
+      <Route path="/admin/*" element={<AdminRoute><AdminRoutes /></AdminRoute>} />
     </Routes>
+    </>
   );
 }
 
