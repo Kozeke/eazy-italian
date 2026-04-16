@@ -15,7 +15,7 @@
 
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
-import AdminLayout  from '../components/admin/AdminLayout';
+import AdminLayout  from '../../components/admin/AdminLayout';
 import ClassroomPage from './ClassroomPage';
 
 // existing student pages (paths are illustrative — match your project)
