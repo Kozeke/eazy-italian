@@ -56,18 +56,42 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// Resolves API base URL for admin create flows across local/prod environments.
+const ADMIN_API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
+
+// Builds an absolute API URL from the configured base and a relative endpoint path.
+function buildAdminApiUrl(endpointPath) {
+  return `${ADMIN_API_BASE}/${endpointPath.replace(/^\/+/, '')}`;
+}
+
+// Parses JSON safely and reports empty/non-JSON payloads with actionable context.
+async function parseJsonResponse(res, fallbackMessage) {
+  const rawBody = await res.text();
+  if (!rawBody || !rawBody.trim()) {
+    throw new Error(fallbackMessage);
+  }
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    throw new Error(fallbackMessage);
+  }
+}
+
 async function apiCreateCourse(title) {
-  const res = await fetch('/api/v1/admin/courses', {
+  const res = await fetch(buildAdminApiUrl('/admin/courses'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ title, status: 'published', is_visible_to_students: true }),
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-  return res.json();
+  return parseJsonResponse(
+    res,
+    'Course was created but API returned an empty or invalid JSON response. Check VITE_API_BASE_URL and backend proxy settings.',
+  );
 }
 
 async function apiCreateUnit(courseId, title, orderIndex = 0, description = '') {
-  const res = await fetch('/api/v1/units/admin/units', {
+  const res = await fetch(buildAdminApiUrl('/units/admin/units'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
@@ -81,13 +105,13 @@ async function apiCreateUnit(courseId, title, orderIndex = 0, description = '') 
     }),
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-  return res.json();
+  return parseJsonResponse(res, 'Unit was created but API returned an empty or invalid JSON response.');
 }
 
 async function apiUploadThumbnail(courseId, file) {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`/api/v1/admin/courses/${courseId}/thumbnail`, {
+  const res = await fetch(buildAdminApiUrl(`/admin/courses/${courseId}/thumbnail`), {
     method: 'POST',
     headers: { ...authHeaders() },
     body: form,
@@ -101,13 +125,13 @@ async function apiUploadThumbnail(courseId, file) {
  * Returns { title, units: [...] }
  */
 async function apiGenerateOutline(description, level) {
-  const res = await fetch('/api/v1/course-builder/generate-outline', {
+  const res = await fetch(buildAdminApiUrl('/course-builder/generate-outline'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ description, level }),
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-  return res.json();
+  return parseJsonResponse(res, 'Outline generation returned an empty or invalid JSON response.');
 }
 
 /**
@@ -124,13 +148,13 @@ async function apiGenerateOutlineFromFiles(description, level, files) {
   form.append('level', level);
   for (const f of files) form.append('files', f);
 
-  const res = await fetch('/api/v1/course-builder/generate-outline-from-files', {
+  const res = await fetch(buildAdminApiUrl('/course-builder/generate-outline-from-files'), {
     method: 'POST',
     headers: { ...authHeaders() },   // no Content-Type — browser sets multipart boundary
     body: form,
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-  return res.json(); // { title, units, source_token }
+  return parseJsonResponse(res, 'Outline generation from files returned an empty or invalid JSON response.');
 }
 
 // ─── Tiny sub-components ──────────────────────────────────────────────────────
