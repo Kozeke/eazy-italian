@@ -2,7 +2,7 @@
  * TeacherNextActionStep.tsx
  *
  * Step 5: Final action — two strong CTAs.
- *   1. Generate my first course with AI → /admin/onboarding
+ *   1. Generate my first course with AI → /admin/courses (legacy /admin/onboarding + TeacherOnboarding.legacy.jsx disabled)
  *   2. Go to dashboard                  → /admin/dashboard
  *
  * Before navigating, marks onboarding as complete:
@@ -43,7 +43,9 @@ export default function TeacherNextActionStep({ wizard }: Props) {
     setLoading("ai");
     await markOnboardingComplete();
     // Use window.location to force full page reload and refresh auth context
-    window.location.href = "/admin/onboarding";
+    // Legacy: full-screen AI builder was /admin/onboarding (TeacherOnboarding.legacy.jsx — route commented in AdminRoutes).
+    // window.location.href = "/admin/onboarding";
+    window.location.href = "/admin/courses";
   };
 
   const handleDashboard = async () => {

@@ -93,6 +93,32 @@
   letter-spacing: 0.01em;
 }
 
+/* Narrow desktop/tablet: keep tab icons + homework badge without crowding the unit row */
+@media (max-width: 900px) and (min-width: 640px) {
+  .ch-inline-tab {
+    position: relative;
+    gap: 0;
+    padding: 6px 9px;
+  }
+
+  /* Visually hidden but still read by screen readers */
+  .ch-inline-tab__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .ch-inline-tab__badge {
+    margin-left: 2px;
+  }
+}
+
 /* ── Count badge ─────────────────────────────────────────────────────────── */
 
 .ch-inline-tab__badge {
@@ -490,45 +516,59 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   classroom-mode.css — FAR-RIGHT PANEL  (viewport-pinned presence + exit)
-   ═══════════════════════════════════════════════════════════════════════════
+   Shared horizontal inset — LessonWorkspace row, SectionSidePanel edge, header
+   Matches LessonWorkspace row: px-2 · sm:px-3 · lg:px-4
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-   The header uses a two-layer strategy:
-   • .ch-main-bar-inner   — centred max-w-7xl flex row (left + tabs + change-unit)
-                            gets extra right-padding to reserve room for the panel.
-   • .ch-far-right-panel  — position:absolute; right:0 — always hugs the
-                            true browser-viewport right edge at any screen width.
-
-   Responsive right-padding on both layers matches Tailwind's px-4/6/8 scale
-   so items never crowd the screen edge on any device.
-*/
-
-/* ── Centred bar: reserve space on the right for the absolute panel ──────── */
-
-.ch-main-bar-inner {
-  /* Default: ~88px = 16px base px + ~72px panel width */
-  padding-right: calc(1rem + 80px);
+.classroom-layout {
+  --classroom-align-gutter: 0.5rem;
 }
 
-@media (max-width: 639px) {
-  .ch-main-bar-inner {
-    /* Reserve extra room for three icon buttons on mobile. */
-    padding-right: calc(1rem + 124px);
-    gap: 0.5rem;
-  }
-}
-
-@media (min-width: 768px) {
-  /* md: 24px base px */
-  .ch-main-bar-inner {
-    padding-right: calc(1.5rem + 80px);
+@media (min-width: 640px) {
+  .classroom-layout {
+    --classroom-align-gutter: 0.75rem;
   }
 }
 
 @media (min-width: 1024px) {
-  /* lg: 32px base px */
-  .ch-main-bar-inner {
-    padding-right: calc(2rem + 80px);
+  .classroom-layout {
+    --classroom-align-gutter: 1rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   classroom-mode.css — FAR-RIGHT PANEL  (viewport-pinned presence + exit)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   The header uses a two-layer strategy:
+   • .ch-main-bar-inner   — centred max-w-7xl flex row (left + tabs + meta)
+                            gets extra right-padding to reserve room for the panel.
+   • .ch-far-right-panel  — position:absolute — change-unit + answers/add/presence
+                            + exit; `right` uses --classroom-align-gutter so the
+                            strip lines up with SectionSidePanel in LessonWorkspace.
+*/
+
+/* ── Centred bar: reserve space on the right for the absolute panel ──────── */
+
+/* Teacher row: change unit + answers + add student (+ presence from md) + exit */
+.ch-main-bar-inner {
+  padding-right: calc(var(--classroom-align-gutter) + 188px);
+}
+
+/* Student row: change unit + exit */
+.classroom-header--student .ch-main-bar-inner {
+  padding-right: calc(var(--classroom-align-gutter) + 142px);
+}
+
+@media (max-width: 639px) {
+  .classroom-header--teacher .ch-main-bar-inner {
+    padding-right: calc(var(--classroom-align-gutter) + 238px);
+    gap: 0.5rem;
+  }
+
+  .classroom-header--student .ch-main-bar-inner {
+    padding-right: calc(var(--classroom-align-gutter) + 146px);
+    gap: 0.5rem;
   }
 }
 
@@ -536,7 +576,7 @@
 
 .ch-far-right-panel {
   position: absolute;
-  right: 1rem;           /* matches px-4 */
+  right: var(--classroom-align-gutter);
   top: 0;
   height: 100%;
 
@@ -572,10 +612,19 @@
     display: none;
   }
 
-  .ch-right-content {
+  .classroom-header--teacher .ch-right-content {
     order: 2;
     margin-left: 0;
-    width: calc(100% - 132px);
+    width: calc(100% - 248px);
+    min-width: 0;
+    justify-content: flex-end;
+    padding-right: 6px;
+  }
+
+  .classroom-header--student .ch-right-content {
+    order: 2;
+    margin-left: 0;
+    width: calc(100% - 198px);
     min-width: 0;
     justify-content: flex-end;
     padding-right: 6px;
@@ -628,18 +677,6 @@
   }
 }
 
-@media (min-width: 768px) {
-  .ch-far-right-panel {
-    right: 1.5rem;       /* matches md:px-6 */
-  }
-}
-
-@media (min-width: 1024px) {
-  .ch-far-right-panel {
-    right: 2rem;         /* matches lg:px-8 */
-  }
-}
-
 @media (max-width: 767px) {
   .ch-presence-cluster {
     display: none;
@@ -649,8 +686,7 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    classroom-mode.css — ANSWERS ICON BUTTON  (v10 append)
    Namespace: .ch-icon-btn--answers
-   Used by: LayoutGrid (student answers panel toggle) in ClassroomHeader.
-   Append this block to the end of classroom-mode.css.
+   Used by: LayoutGrid (student answers panel toggle) in LessonWorkspace rail.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Answers button — neutral state ─────────────────────────────────────── */

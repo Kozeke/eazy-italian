@@ -1,19 +1,20 @@
 /**
- * ClassroomHeader.tsx  (v10 — multi-student Answers panel toggle)
+ * ClassroomHeader.tsx  (v13 — Change Unit in viewport-pinned strip)
  *
- * Changes from v9:
- * ─────────────────
- * • New `onToggleAnswersPanel` prop — teacher-only icon button (LayoutGrid)
- *   that opens/closes the StudentAnswersPanel.
- * • New `answersPanelOpen` prop — boolean for active state styling.
- * • The Answers button sits between the Add-student icon and the presence
- *   cluster, always visible for teachers when a live session is active.
- * • All v9 behaviour is preserved exactly.
+ * On the lesson tab the teacher opens StudentAnswersPanel from the left rail in
+ * LessonWorkspace. On the homework tab (no lesson workspace) the same toggle
+ * is rendered here in the far-right cluster.
  *
- * CSS additions live in classroom-mode.css under `.ch-icon-btn--answers`.
+ * The Change Unit control lives in `ch-far-right-panel` so its right inset matches
+ * `SectionSidePanel` (shared `--classroom-align-gutter` on `.classroom-layout`).
+ *
+ * Layout: `<header>` = (1) main bar row `ch-main-row`, (2) optional `lessonRail`
+ * slot (disabled — see commented block in this file), (3) mobile unit strip. The
+ * page body (`<main id="main-content">`) is a sibling rendered by ClassroomPage
+ * inside ClassroomLayout, not inside this header.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, type RefObject } from 'react';
 import {
   ArrowLeft,
   ChevronDown,
@@ -87,19 +88,15 @@ export interface ClassroomHeaderProps {
    */
   onAddStudent?: () => void;
 
-  // ── Answers panel (multi-student observer) ──────────────────────────────
   /**
-   * Called when the teacher clicks the "Answers" icon (LayoutGrid).
-   * Toggles the StudentAnswersPanel open/closed.
-   * Rendered only when isTeacher=true.
+   * Optional: homework-tab-only toggle for StudentAnswersPanel (lesson tab uses
+   * LessonWorkspace left rail instead).
    */
   onToggleAnswersPanel?: () => void;
-
-  /**
-   * Whether the Answers panel is currently open.
-   * Used to style the button as "active" when the panel is visible.
-   */
+  /** Whether StudentAnswersPanel is open — paired with onToggleAnswersPanel. */
   answersPanelOpen?: boolean;
+  /** Set on the header answers control so StudentAnswersPanel can pop over beside it (homework / narrow lesson). */
+  answersPanelHeaderButtonRef?: RefObject<HTMLButtonElement>;
 }
 
 // ─── Level badge ──────────────────────────────────────────────────────────────
@@ -316,6 +313,7 @@ export default function ClassroomHeader({
   onAddStudent,
   onToggleAnswersPanel,
   answersPanelOpen = false,
+  answersPanelHeaderButtonRef,
 }: ClassroomHeaderProps) {
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -336,7 +334,8 @@ export default function ClassroomHeader({
 
   const hasRail      = !!lessonRail && !!currentUnit;
   const showTabs     = !!currentUnit && !!onTabChange;
-  const showPresence = isTeacher && onlineUsers.length > 0;
+  // useOnlinePresence excludes the current user; any remaining entry is another person in the room (students).
+  const hasOnlineStudent = onlineUsers.length > 0;
 
   return (
     <>
@@ -344,6 +343,8 @@ export default function ClassroomHeader({
         className={[
           'sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm shadow-sm',
           'classroom-header',
+          // Reserves correct main-bar padding for the viewport-pinned icon cluster (teacher vs student)
+          isTeacher ? 'classroom-header--teacher' : 'classroom-header--student',
           hasRail ? 'classroom-header--has-rail' : '',
         ]
           .filter(Boolean)
@@ -356,17 +357,41 @@ export default function ClassroomHeader({
           <div className="mx-auto flex h-full w-full max-w-7xl items-center gap-3 px-4 md:px-6 lg:px-8 ch-main-bar-inner ch-main-inner">
 
             {/* LEFT: back → divider → course icon + name */}
-            <div className="flex shrink-0 items-center gap-2 ch-left-group">
+            <div className="flex min-w-0 shrink-0 items-center gap-2 ch-left-group">
               <button
                 onClick={onBack}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                 aria-label="Back to My Classes"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">My Classes</span>
+                <span className="hidden min-[480px]:inline sm:inline">Classes</span>
               </button>
 
               <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+
+              {/* Compact course context on very narrow screens (full row is hidden below `sm`) */}
+              <button
+                type="button"
+                onClick={onBack}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:hidden"
+                aria-label={`Leave classroom (${course.title})`}
+              >
+                {course.thumbnail_url ? (
+                  <img
+                    src={course.thumbnail_url}
+                    alt=""
+                    className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-slate-200"
+                  />
+                ) : (
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-violet-700 shadow-sm">
+                    <GraduationCap className="h-3.5 w-3.5 text-white" />
+                  </div>
+                )}
+                <span className="min-w-0 truncate text-xs font-semibold text-slate-800">
+                  {course.title}
+                </span>
+                {course.level && <LevelBadge level={course.level} />}
+              </button>
 
               <button
                 type="button"
@@ -409,7 +434,7 @@ export default function ClassroomHeader({
             {/* Spacer */}
             <div className="flex-1 ch-main-spacer" />
 
-            {/* ── Right content: unit title + teacher chip + change-unit ─── */}
+            {/* ── Right content: unit title (compact) + teacher chip (student) ─── */}
             <div className="flex items-center gap-2 ch-right-content">
 
               {/* Unit title (no-tabs mode) */}
@@ -422,7 +447,7 @@ export default function ClassroomHeader({
               {/* Teacher name chip (student view) */}
               {classroom?.teacher_name && !isTeacher && (
                 <div className="hidden items-center gap-1.5 lg:flex">
-                  <div className="flex h-6 w-6 items-center justify-content-center rounded-full bg-primary-100 text-[10px] font-bold text-primary-700">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-[10px] font-bold text-primary-700">
                     {classroom.teacher_name.charAt(0).toUpperCase()}
                   </div>
                   <span className="text-xs text-slate-500">
@@ -430,58 +455,65 @@ export default function ClassroomHeader({
                   </span>
                 </div>
               )}
-
-              <button
-                onClick={handleOpenChanger}
-                className="ch-change-unit-btn flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-              >
-                <span className="ch-change-unit-label hidden sm:inline">{currentUnit ? 'Change Unit' : 'Choose Unit'}</span>
-                <span className="ch-change-unit-label ch-change-unit-label--mobile sm:hidden">{currentUnit ? 'Unit' : 'Choose'}</span>
-                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-              </button>
             </div>
           </div>
 
           {/* ── Far-right panel: always pinned to the viewport right edge ─── */}
           <div className="ch-far-right-panel">
+            {/* Same horizontal inset as LessonWorkspace / SectionSidePanel (CSS variable on layout root). */}
+            <button
+              type="button"
+              onClick={handleOpenChanger}
+              className="ch-change-unit-btn flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              <span className="ch-change-unit-label hidden sm:inline">{currentUnit ? 'Change Unit' : 'Choose Unit'}</span>
+              <span className="ch-change-unit-label ch-change-unit-label--mobile sm:hidden">{currentUnit ? 'Unit' : 'Choose'}</span>
+              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+            </button>
 
             {/* TEACHER: answers icon + add-student + presence cluster + divider + exit */}
             {isTeacher && (
               <>
-                <div className="flex items-center gap-2">
-                  {/* Answers icon — opens StudentAnswersPanel to observe students */}
-                  <button
-                    type="button"
-                    onClick={onToggleAnswersPanel}
-                    aria-label="View student answers"
-                    aria-pressed={answersPanelOpen}
-                    title="Student answers"
-                    className={[
-                      'ch-icon-btn',
-                      answersPanelOpen ? 'ch-icon-btn--answers ch-icon-btn--answers-active' : 'ch-icon-btn--answers',
-                    ].join(' ')}
-                    disabled={!onToggleAnswersPanel}
-                  >
-                    <LayoutGrid size={15} strokeWidth={2.2} />
-                  </button>
+                {hasOnlineStudent && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      {/* Answers: homework always; lesson uses workspace rail except ≤480px (ClassroomPage). */}
+                      {onToggleAnswersPanel && (
+                        <button
+                          ref={answersPanelHeaderButtonRef ?? undefined}
+                          type="button"
+                          onClick={onToggleAnswersPanel}
+                          aria-label="View student answers"
+                          aria-pressed={answersPanelOpen}
+                          title="Student answers"
+                          className={[
+                            'ch-icon-btn',
+                            answersPanelOpen
+                              ? 'ch-icon-btn--answers ch-icon-btn--answers-active'
+                              : 'ch-icon-btn--answers',
+                          ].join(' ')}
+                        >
+                          <LayoutGrid size={15} strokeWidth={2.2} />
+                        </button>
+                      )}
 
-                  {/* Add-student icon */}
-                  <button
-                    type="button"
-                    onClick={onAddStudent}
-                    aria-label="Add student to classroom"
-                    className="ch-icon-btn ch-icon-btn--add"
-                    disabled={!onAddStudent}
-                  >
-                    <UserPlus size={15} strokeWidth={2.2} />
-                  </button>
+                      {/* Add-student icon */}
+                      <button
+                        type="button"
+                        onClick={onAddStudent}
+                        aria-label="Add student to classroom"
+                        className="ch-icon-btn ch-icon-btn--add"
+                        disabled={!onAddStudent}
+                      >
+                        <UserPlus size={15} strokeWidth={2.2} />
+                      </button>
 
-                  {showPresence && (
-                    <OnlinePresenceCluster users={onlineUsers} />
-                  )}
-                </div>
+                      <OnlinePresenceCluster users={onlineUsers} />
+                    </div>
 
-                <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+                    <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+                  </>
+                )}
 
                 <button
                   type="button"
@@ -512,8 +544,9 @@ export default function ClassroomHeader({
 
         </div>
 
-        {/* ── Lesson rail ───────────────────────────────────────────────────── */}
-        {hasRail && lessonRail}
+        {/* ── Lesson rail (lesson steps) — DISABLED ───────────────────────────── */}
+        {/* Was: {hasRail && lessonRail} — LessonProgressRail stubbed in LessonPlayerShared. */}
+        {/* {hasRail && lessonRail} */}
 
         {/* ── Mobile unit strip ─────────────────────────────────────────────── */}
         {currentUnit && !showTabs && (

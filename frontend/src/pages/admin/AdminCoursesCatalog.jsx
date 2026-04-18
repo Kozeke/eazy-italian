@@ -167,8 +167,10 @@ const CSS = `
 ════════════════════════════════ */
 .cat-grid {
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(180px,200px));
+  /* 1fr tracks fill the row so space aligns with .cat-page padding */
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
   gap:18px;
+  width:100%;
 }
 
 /* ── Create-course tile ──
@@ -183,6 +185,8 @@ const CSS = `
   cursor:pointer;
   transition:border-color .17s, background .17s;
   animation:cat-popIn .28s both;
+  /* Allows equal fr columns to shrink without forcing overflow */
+  min-width:0;
 }
 /* The "thumb" area — square, matches card thumb */
 .cat-create-thumb {
@@ -220,6 +224,8 @@ const CSS = `
   transition:transform .17s, box-shadow .17s, border-color .17s;
   animation:cat-popIn .3s both;
   box-shadow:none;
+  /* Allows equal fr columns to shrink without forcing overflow */
+  min-width:0;
 }
 .cat-card:hover {
   transform:translateY(-2px);
@@ -442,12 +448,16 @@ const CSS = `
 }
 
 /* responsive */
+/* ~tablet / small laptop: exactly three cards per row at 1024px-wide viewports */
+@media(max-width:1024px) and (min-width:769px){
+  .cat-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+}
 @media(max-width:768px){
   .cat-page { margin:16px 16px; padding:22px 20px 28px; }
   .cat-grid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; }
 }
 @media(max-width:480px){
-  .cat-grid { grid-template-columns:repeat(2,1fr); gap:10px; }
+  .cat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 }
 `;
 
@@ -561,7 +571,7 @@ const Card = ({course, idx, onOpen}) => {
 };
 
 /* ── Course row (list) ── */
-const Row = ({course, idx, onOpen, onEdit, onDelete}) => {
+const Row = ({course, idx, onOpen, onDelete}) => {
   const grad = GRADS[idx % GRADS.length];
   const st   = STATUS_CFG[course.status] || STATUS_CFG.draft;
   const pct  = (course.units_count ?? 0) > 0
@@ -588,7 +598,9 @@ const Row = ({course, idx, onOpen, onEdit, onDelete}) => {
       )}
       <span className="cat-row-status" style={{background:st.bg,color:st.color}}>{st.label}</span>
       <div className="cat-row-actions">
+        {/* Legacy course editor: route /admin/courses/:id/edit is disabled (see AdminCourseEditPage.legacy.tsx).
         <button className="cat-ico-btn" onClick={e=>{e.stopPropagation();onEdit(course.id);}}><I.Pencil/></button>
+        */}
         <button className="cat-ico-btn del" onClick={e=>{e.stopPropagation();onDelete(course);}}><I.Trash/></button>
       </div>
     </div>
@@ -663,7 +675,8 @@ export default function AdminCoursesCatalog() {
     const uid = course.first_unit_id;
     navigate(uid ? `/teacher/classroom/${cid}/${uid}` : `/teacher/classroom/${cid}`);
   };
-  const handleEdit   = id => navigate(`/admin/courses/${id}/edit`);
+  // Legacy: pointed at AdminCourseEditPage.legacy (route commented in AdminRoutes).
+  // const handleEdit = id => navigate(`/admin/courses/${id}/edit`);
   const handleNew    = ()  => setCreateModalOpen(true);
   const handleDelete = async () => {
     if (!toDelete) return;
@@ -775,7 +788,7 @@ export default function AdminCoursesCatalog() {
             <div className="cat-list">
               {filtered.map((c, i) => (
                 <Row key={c.id} course={c} idx={i}
-                  onOpen={handleOpen} onEdit={handleEdit} onDelete={setToDelete}/>
+                  onOpen={handleOpen} onDelete={setToDelete}/>
               ))}
               <button
                 onClick={handleNew}

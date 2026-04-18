@@ -3,6 +3,8 @@
  *
  * Pure renderer: groups flow items into sections, manages scroll, renders
  * SectionBlocks. No exercise-type knowledge here.
+ * (Header `LessonProgressRail` is not rendered here — it was lifted from LessonWorkspace
+ *  to ClassroomPage / ClassroomHeader; currently disabled project-wide.)
  *
  * Changes from v2:
  *   • Added onDeleteBlock, onReorderBlock, onEditBlock props and passes

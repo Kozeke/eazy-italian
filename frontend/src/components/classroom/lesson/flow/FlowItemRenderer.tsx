@@ -4,7 +4,9 @@
  * Looks up the registered component for item.type and renders it lazily.
  * SectionBlock replaces its <SlideBlock> loop with <FlowItemRenderer>.
  *
- * Lives flat alongside SectionBlock.tsx, SlideBlock.tsx, etc.
+ * Registry: exerciseRegistrations.ts. Legacy kinds (slides, video, task, test, …)
+ * still load ./blocks/SlideBlock, which imports lesson/SlideStep (via SlidesSection),
+ * VideoStep, TaskStep, TestStep.
  *
  * Unknown types log a warning and render nothing — they never crash the page.
  */

@@ -1,6 +1,10 @@
 /**
  * SlidesSection.tsx  (v3 — delegates to SlideStep)
  *
+ * lesson/flow wiring: VerticalLessonPlayer → SectionBlock → FlowItemRenderer
+ * → exerciseRegistrations ("slides" → blocks/SlideBlock) → SlidesSection → SlideStep.
+ * Not dead code — still the slide deck for legacy "slides" flow items.
+ *
  * What changed:
  *   • All rendering logic moved to SlideStep.tsx.
  *   • This file is now a thin adapter: it reads SlidesSectionProps (unchanged)

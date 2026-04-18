@@ -16,7 +16,8 @@ import sqlalchemy as sa
 
 # ── identifiers ────────────────────────────────────────────────────────────────
 revision      = "0005_live_sessions"
-down_revision = "0004_join_code"  # Chain after the existing migration
+# Follows ai_cache migration to keep one linear history
+down_revision = "0004_ai_cache"
 branch_labels = None
 depends_on    = None
 

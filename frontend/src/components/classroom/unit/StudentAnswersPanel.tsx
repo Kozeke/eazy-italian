@@ -20,13 +20,24 @@
  *
  * ─── Props ────────────────────────────────────────────────────────────────────
  *
- * open          — controlled visibility
- * onClose       — called when the user dismisses the panel
- * onlineUsers   — list from useOnlinePresence(); filtered to exclude the teacher
- * teacherUserId — used to filter the teacher out of the student list
+ * open              — controlled visibility
+ * onClose           — called when the user dismisses the panel
+ * onlineUsers       — list from useOnlinePresence(); filtered to exclude the teacher
+ * teacherUserId     — used to filter the teacher out of the student list
+ * railAnchorRef     — lesson answers rail in LessonWorkspace (primary on lesson tab)
+ * headerAnchorRef   — header answers icon (homework tab, or narrow lesson fallback)
+ * anchorRefreshKey  — optional bump when the workspace mounts so layout re-measures
  */
 
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { X, Users, HelpCircle } from 'lucide-react';
 import { LiveSessionContext } from '../live/LiveSessionProvider';
 import type { OnlineUser } from '../../../hooks/useOnlinePresence';
@@ -54,6 +65,12 @@ interface StudentAnswersPanelProps {
   homeworkRosterLoading?: boolean;
   /** After a successful teacher PATCH, parent can refetch the roster */
   onHomeworkReviewed?: () => void;
+  /** LessonWorkspace rail wrapper — preferred anchor on the lesson tab */
+  railAnchorRef?: RefObject<HTMLElement>;
+  /** ClassroomHeader answers icon — used for homework and when the rail is hidden */
+  headerAnchorRef?: RefObject<HTMLElement>;
+  /** Re-run popover positioning when the lesson shell or tab finishes loading */
+  anchorRefreshKey?: string | number;
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -106,8 +123,18 @@ export default function StudentAnswersPanel({
   homeworkRoster = [],
   homeworkRosterLoading = false,
   onHomeworkReviewed,
+  railAnchorRef,
+  headerAnchorRef,
+  anchorRefreshKey = 0,
 }: StudentAnswersPanelProps) {
   const ctx = useContext(LiveSessionContext);
+
+  // Fixed popover position beside the active answers control (rail or header button)
+  const [anchorPlacement, setAnchorPlacement] = useState<{
+    top: number;
+    left: number;
+    maxHeight: number;
+  } | null>(null);
 
   const observedStudentId  = ctx?.observedStudentId ?? null;
   const setObservedStudent = ctx?.setObservedStudentId;
@@ -131,6 +158,73 @@ export default function StudentAnswersPanel({
   useEffect(() => {
     setReviewFeedback('');
   }, [observedStudentId]);
+
+  // Keeps the popover aligned with the rail or header control while scrolling/resizing.
+  // We intentionally do NOT clear anchorPlacement when closing — the panel is hidden
+  // via CSS (opacity 0 / visibility hidden) so the stale position is invisible, and
+  // clearing it would snap the element to top-left mid-animation causing a brief flicker.
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const headerBar = 48;
+    const gap = 8;
+    const panelWidth = 256;
+
+    const tryRef = (ref?: RefObject<HTMLElement>): HTMLElement | null => {
+      const el = ref?.current ?? null;
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      if (b.width < 4 || b.height < 4) return null;
+      return el;
+    };
+
+    const measureAndPlace = () => {
+      const el =
+        variant === 'lesson'
+          ? tryRef(railAnchorRef) ?? tryRef(headerAnchorRef)
+          : tryRef(headerAnchorRef) ?? tryRef(railAnchorRef);
+      const r = el?.getBoundingClientRect();
+      if (!r || r.width < 4 || r.height < 4) {
+        setAnchorPlacement({
+          top: headerBar + gap,
+          left: gap,
+          maxHeight: Math.max(160, window.innerHeight - headerBar - gap * 2),
+        });
+        return;
+      }
+      let left = r.right + gap;
+      if (left + panelWidth > window.innerWidth - gap) {
+        left = Math.max(gap, r.left - panelWidth - gap);
+      }
+      const top = Math.max(headerBar + gap, r.top);
+      const maxHeight = Math.max(160, window.innerHeight - top - gap);
+      setAnchorPlacement({ top, left, maxHeight });
+    };
+
+    measureAndPlace();
+    window.addEventListener('resize', measureAndPlace);
+    window.addEventListener('scroll', measureAndPlace, true);
+
+    const ro = new ResizeObserver(measureAndPlace);
+    const observeAnchors = () => {
+      if (railAnchorRef?.current) ro.observe(railAnchorRef.current);
+      if (headerAnchorRef?.current) ro.observe(headerAnchorRef.current);
+    };
+    observeAnchors();
+
+    // Re-attach observers after LessonWorkspace paints the rail (ref was null on first frame)
+    const reobserveRaf = requestAnimationFrame(() => {
+      ro.disconnect();
+      observeAnchors();
+    });
+
+    return () => {
+      cancelAnimationFrame(reobserveRaf);
+      window.removeEventListener('resize', measureAndPlace);
+      window.removeEventListener('scroll', measureAndPlace, true);
+      ro.disconnect();
+    };
+  }, [open, railAnchorRef, headerAnchorRef, variant, anchorRefreshKey]);
 
   // ── Auto-select when exactly one student is online ───────────────────────
   const prevCountRef = useRef(students.length);
@@ -189,7 +283,16 @@ export default function StudentAnswersPanel({
 
       {/* ── Panel ──────────────────────────────────────────────────────── */}
       <aside
-        className={`sap-panel ${open ? 'sap-panel--open' : ''}`}
+        className={['sap-panel', open ? 'sap-panel--open' : ''].filter(Boolean).join(' ')}
+        style={
+          anchorPlacement
+            ? {
+                top: anchorPlacement.top,
+                left: anchorPlacement.left,
+                maxHeight: anchorPlacement.maxHeight,
+              }
+            : undefined
+        }
         aria-label="Student answers"
         role="complementary"
       >
@@ -371,26 +474,34 @@ export default function StudentAnswersPanel({
           background: transparent;
         }
 
-        /* ── Panel shell ────────────────────────────────────────────────── */
+        /* ── Panel: popover beside rail/header (no full-height right rail) ─ */
         .sap-panel {
           position: fixed;
-          top: 48px; /* below classroom header */
-          right: 0;
-          bottom: 0;
           z-index: 40;
           width: 256px;
           background: #ffffff;
-          border-left: 1px solid #e8eaed;
-          box-shadow: -4px 0 24px rgba(0, 0, 0, 0.07);
+          border: 1px solid #e8eaed;
+          border-radius: 14px;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
           display: flex;
           flex-direction: column;
-          transform: translateX(100%);
-          transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
           overflow: hidden;
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transform: scale(0.98);
+          transform-origin: top left;
+          transition:
+            opacity 0.16s ease,
+            transform 0.16s ease,
+            visibility 0.16s;
         }
 
         .sap-panel--open {
-          transform: translateX(0);
+          opacity: 1;
+          visibility: visible;
+          pointer-events: auto;
+          transform: scale(1);
         }
 
         /* ── Header ─────────────────────────────────────────────────────── */

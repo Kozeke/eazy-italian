@@ -6,10 +6,13 @@
  *     can show the task title instead of the generic "Task" string.
  *   • No other structural changes — the union, status type, and LessonFlow
  *     model are unchanged so existing consumers keep working.
+ *
+ * Runtime note: task rows still use `StudentTask` from ../TaskStep; slide progress
+ * type is re-exported from ../SlideStep. Vertical player reaches those UIs via
+ * FlowItemRenderer → blocks/SlideBlock.tsx (see exerciseRegistrations.ts).
  */
 
-// ─── Re-export SlideProgress so consumers can import from one place ───────────
-
+// Re-export from ../SlideStep — SlidesSection / SlideBlock depend on this shape.
 export type { SlideProgress } from '../SlideStep';
 
 // ─── Video progress ───────────────────────────────────────────────────────────

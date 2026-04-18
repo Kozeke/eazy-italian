@@ -10,6 +10,9 @@
  * Adding a new exercise type requires ZERO changes here.
  * Edit exerciseRegistrations.ts and create the block component.
  *
+ * Legacy slides/video/task/test items: FlowItemRenderer still resolves to
+ * blocks/SlideBlock.tsx, which wraps components under ../lesson/ (not under flow/).
+ *
  * Extracted to their own files (same folder):
  *   ImageCarouselEditor / ImageCarouselViewer  →  ./ImageCarousel
  *   FlowItemRenderer                           →  ./FlowItemRenderer

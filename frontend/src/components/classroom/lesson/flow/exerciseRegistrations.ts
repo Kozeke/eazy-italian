@@ -18,10 +18,10 @@
 
 import { registerExercise } from "./exerciseRegistry";
 
-// ── Existing types (all currently handled by SlideBlock) ──────────────────────
-// As you split SlideBlock into focused components, update the entries below
-// to point at the new files — e.g.:
-//   registerExercise("mcq", () => import("./McqBlock"));
+// ── Legacy flow item types → blocks/SlideBlock.tsx ────────────────────────────
+// SlideBlock re-exports the parent-folder UIs: SlidesSection (→ SlideStep),
+// VideoStep, TaskStep, TestStep. Splitting a type out? Point its registration
+// at a new block under ./blocks/ instead of SlideBlock.
 registerExercise("slides",        () => import("./blocks/SlideBlock"));
 registerExercise("mcq",           () => import("./blocks/SlideBlock"));
 registerExercise("cloze",         () => import("./blocks/SlideBlock"));

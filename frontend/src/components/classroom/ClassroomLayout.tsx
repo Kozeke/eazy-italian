@@ -34,6 +34,7 @@ export function useClassroomMode() {
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface ClassroomLayoutProps {
+  /** ClassroomPage order: ClassroomHeader → LiveSessionBanner → panels → `<main>`. */
   children: React.ReactNode;
   /** 0–100 — renders a hairline progress bar at the very top edge */
   progress?: number;

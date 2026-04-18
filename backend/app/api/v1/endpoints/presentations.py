@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.auth import get_current_teacher, get_current_user
 from app.core.database import get_db
 from app.core.enrollment_guard import check_unit_access
+from app.models.course import Course
 from app.models.presentation import Presentation, PresentationSlide, PresentationStatus
 from app.models.unit import Unit
 from app.models.user import User
@@ -335,6 +336,8 @@ async def create_presentation(
     return p
 
 
+# NOTE: Teacher classroom slide hydration uses GET /units/{unit_id}/presentations instead of this
+# admin list route (see list_unit_presentations_student + course-owner bypass in check_unit_access).
 @router.get(
     "/admin/units/{unit_id}/presentations",
     response_model=List[PresentationListItem],
@@ -535,6 +538,8 @@ async def create_slide(
     return slide
 
 
+# NOTE: Teacher classroom uses GET /presentations/{presentation_id}/slides (student route) instead
+# of this admin slides list (see get_presentation_slides_student + course-owner bypass).
 @router.get(
     "/admin/presentations/{presentation_id}/slides",
     response_model=List[SlideResponse],
@@ -771,19 +776,33 @@ async def list_unit_presentations_student(
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
-    
-    # Get published presentations visible to students
-    presentations = (
+
+    # True when the current teacher created the course that owns this unit (builder / classroom preview)
+    teacher_owns_course = False
+    if unit.course_id:
+        owning_course = db.query(Course).filter(Course.id == unit.course_id).first()
+        teacher_owns_course = bool(
+            owning_course
+            and current_user.is_teacher
+            and owning_course.created_by == current_user.id
+        )
+
+    base_query = (
         db.query(Presentation)
         .options(joinedload(Presentation.slides))
-        .filter(
-            Presentation.unit_id == unit_id,
-            Presentation.status == PresentationStatus.PUBLISHED,
-            Presentation.is_visible_to_students == True
-        )
-        .order_by(Presentation.order_index, Presentation.id)
-        .all()
+        .filter(Presentation.unit_id == unit_id)
     )
+    if teacher_owns_course:
+        presentations = base_query.order_by(Presentation.order_index, Presentation.id).all()
+    else:
+        presentations = (
+            base_query.filter(
+                Presentation.status == PresentationStatus.PUBLISHED,
+                Presentation.is_visible_to_students == True,
+            )
+            .order_by(Presentation.order_index, Presentation.id)
+            .all()
+        )
     
     return [_build_list_item(p) for p in presentations]
 
@@ -809,16 +828,27 @@ async def get_presentation_slides_student(
     
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
-    
-    # Check if presentation is published and visible to students
-    if presentation.status != PresentationStatus.PUBLISHED:
-        raise HTTPException(status_code=404, detail="Presentation not found")
-    
-    if not presentation.is_visible_to_students:
-        raise HTTPException(status_code=404, detail="Presentation not found")
-    
+
     # Check enrollment authorization via unit
     check_unit_access(db, current_user, presentation.unit_id)
+
+    # True when the current teacher owns the course for this presentation's unit (draft decks in classroom)
+    teacher_owns_course = False
+    if presentation.unit_id:
+        pres_unit = db.query(Unit).filter(Unit.id == presentation.unit_id).first()
+        if pres_unit and pres_unit.course_id:
+            owning_course = db.query(Course).filter(Course.id == pres_unit.course_id).first()
+            teacher_owns_course = bool(
+                owning_course
+                and current_user.is_teacher
+                and owning_course.created_by == current_user.id
+            )
+
+    if not teacher_owns_course:
+        if presentation.status != PresentationStatus.PUBLISHED:
+            raise HTTPException(status_code=404, detail="Presentation not found")
+        if not presentation.is_visible_to_students:
+            raise HTTPException(status_code=404, detail="Presentation not found")
     
     # Get slides
     slides = (

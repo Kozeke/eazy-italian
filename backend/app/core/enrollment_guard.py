@@ -45,7 +45,7 @@ def check_unit_access(db: Session, user: User, unit_id: int) -> None:
     """
     from fastapi import HTTPException, status
     
-    # Get the unit and its course
+    # Resolves the unit row for course scoping and teacher ownership checks
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if not unit:
         raise HTTPException(
@@ -55,6 +55,11 @@ def check_unit_access(db: Session, user: User, unit_id: int) -> None:
     
     if not unit.course_id:
         # Unit without course - allow access (legacy units)
+        return
+
+    # Teachers who created the course may access its units without a student enrollment row
+    course = db.query(Course).filter(Course.id == unit.course_id).first()
+    if course and user.is_teacher and course.created_by == user.id:
         return
     
     # Check course access

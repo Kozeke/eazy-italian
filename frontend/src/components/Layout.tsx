@@ -12,14 +12,10 @@ import { useAuth } from '../hooks/useAuth';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
-  BookOpen,
-  FileText,
   User,
   Menu,
   GraduationCap,
   LogOut,
-  BookMarked,
-  ClipboardList,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -33,20 +29,17 @@ export default function Layout({ children }: LayoutProps) {
   // Sidebar open/close state for mobile
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
-  // Navigation items for student area
+  // Primary hub: /student/classes (legacy /dashboard, /courses, /tasks, etc. → *.legacy.tsx + redirects in App.tsx)
   const navigation = [
-    { name: t('nav.dashboard'), href: '/dashboard', icon: Home },
-    { name: t('nav.courses'), href: '/courses', icon: BookMarked },
-    { name: t('nav.myCourses') || 'My Courses', href: '/my-courses', icon: BookOpen },
-    { name: t('nav.tasks'), href: '/tasks', icon: ClipboardList },
-    { name: t('nav.tests'), href: '/tests', icon: FileText },
+    { name: t('nav.myClasses') || t('nav.dashboard') || 'My classes', href: '/student/classes', icon: Home },
     { name: t('nav.profile'), href: '/profile', icon: User },
   ];
 
-  // Check if navigation item is active based on current route
-  const isActive = (href: string) => 
-    location.pathname === href || 
-    (href !== '/dashboard' && location.pathname.startsWith(href));
+  // Highlights the current nav item (student shell vs profile)
+  const isActive = (href: string) =>
+    href === '/profile'
+      ? location.pathname === '/profile'
+      : location.pathname.startsWith('/student');
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -69,7 +62,7 @@ export default function Layout({ children }: LayoutProps) {
       >
         {/* Brand / logo */}
         <div className="h-16 border-b border-slate-200 px-4 flex items-center gap-3">
-          <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2">
+          <Link to={user ? '/student/classes' : '/'} className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-600 to-primary-400 text-white shadow-sm">
               <GraduationCap className="h-5 w-5" />
             </div>

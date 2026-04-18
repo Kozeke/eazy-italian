@@ -25,7 +25,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
   }
 
   if (user.role !== 'teacher') {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/student/classes" replace />;
   }
 
   return <>{children}</>;

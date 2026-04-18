@@ -3,6 +3,16 @@
  *
  * Student mode: renders content block with completion badge.
  * Teacher mode: + hover toolbar (Edit / Delete / Move Up / Move Down).
+ *
+ * ─── Wiring to legacy step UIs (lesson/*.tsx, not lesson/flow/*.tsx) ───────────
+ * Vertical lesson stack: SectionBlock → FlowItemRenderer → (registry) → THIS FILE.
+ * exerciseRegistrations.ts maps slides | video | task | test | mcq | cloze here.
+ * This block still mounts the older presentational steps:
+ *   • slides  → SlidesSection → SlideStep
+ *   • video   → VideoStep
+ *   • task    → TaskStep
+ *   • test    → TestStep
+ * Newer exercise types bypass this file (their own blocks under flow/blocks/).
  */
 
 import { useState } from "react";

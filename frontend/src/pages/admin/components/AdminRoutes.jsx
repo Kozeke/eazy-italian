@@ -45,59 +45,75 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Routes, Route, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import AdminLayout             from "./AdminLayout";
 import api, { segmentsApi } from "../../../services/api";
 
-// Pages
+// Active admin pages
 import AdminDashboardPage      from "../AdminDashboardPage";
 import AdminCoursesCatalog     from "../AdminCoursesCatalog";
-import AdminCourseDetailPage   from "../AdminCourseDetailPage";
-import AdminCourseCreatePage   from "../AdminCourseCreatePage";
-import AdminCourseEditPage     from "../AdminCourseEditPage";
-
 import AdminStudentsPage       from "../AdminStudentsPage";
 import AdminStudentViewPage    from "../AdminStudentViewPage";
-import AdminGradesPage         from "../AdminGradesPage";
-import AdminGradeDetailPage    from "../AdminGradeDetailPage";
-
-import AdminUnitsPage          from "../AdminUnitsPage";
-import AdminUnitCreatePage     from "../AdminUnitCreatePage";
-import AdminUnitDetailPage     from "../AdminUnitDetailPage";
-import AdminUnitEditPage       from "../AdminUnitEditPage";
-
-import AdminVideosPage         from "../AdminVideosPage";
-import AdminVideoCreatePage    from "../AdminVideoCreatePage";
-import AdminVideoEditPage      from "../AdminVideoEditPage";
-
-import AdminTasksPage          from "../AdminTasksPage";
-import AdminTaskDetailPage     from "../AdminTaskDetailPage";
-import AdminTaskGradingPage    from "../AdminTaskGradingPage";
-import AdminTaskSubmissionsPage from "../AdminTaskSubmissionsPage";
-import { TaskBuilderPage }     from "../AdminTaskBuilder";
 import ExerciseEditorPage      from "../ExerciseEditorPage";
 import ExerciseDraftsPage      from "../ExerciseDraftsPage";
-import AdminTestsPage          from "../AdminTestsPage";
-import AdminTestCreatePage     from "../AdminTestCreatePage";
-import AdminTestDetailsPage    from "../AdminTestDetailsPage";
-import AdminTestEditPage       from "../AdminTestEditPage";
-import AdminTestAnalyticsPage  from "../AdminTestAnalyticsPage";
-import AdminTestPreviewPage    from "../AdminTestPreviewPage";
 
-import TeacherOnboardingPage   from "../TeacherOnboarding";
-import AdminGenerateSlidePage  from "../AdminGenerateSlidePage";
-import AdminPresentationEditPage from "../AdminPresentationEditPage";
-import { TestBuilderPage }     from "../AdminTestBuilder";
-
-import { ReviewSlidesPage }    from "../ReviewSlidesPage";
+/*
+ * Legacy-only admin pages (routes below are commented out). Sources live next to this file:
+ *   AdminCourseDetailPage.legacy.jsx, AdminCourseCreatePage.legacy.tsx, AdminCourseEditPage.legacy.tsx,
+ *   AdminGradesPage.legacy.tsx, AdminGradeDetailPage.legacy.tsx,
+ *   AdminUnitsPage.legacy.tsx, AdminUnitCreatePage.legacy.tsx, AdminUnitDetailPage.legacy.jsx, AdminUnitEditPage.legacy.tsx,
+ *   AdminVideosPage.legacy.tsx, AdminVideoCreatePage.legacy.tsx, AdminVideoEditPage.legacy.tsx,
+ *   AdminTasksPage.legacy.tsx, AdminTaskDetailPage.legacy.tsx, AdminTaskGradingPage.legacy.tsx, AdminTaskSubmissionsPage.legacy.tsx,
+ *   AdminTaskBuilder.legacy.tsx, AdminTestsPage.legacy.tsx, AdminTestCreatePage.legacy.tsx, AdminTestDetailsPage.legacy.tsx,
+ *   AdminTestEditPage.legacy.tsx, AdminTestAnalyticsPage.legacy.tsx, AdminTestPreviewPage.legacy.tsx,
+ *   TeacherOnboarding.legacy.jsx, AdminGenerateSlidePage.legacy.tsx, AdminPresentationEditPage.legacy.jsx,
+ *   AdminTestBuilder.legacy.jsx, ReviewSlidesPage.legacy.tsx,
+ *   AdminEmailCampaignsPage.legacy.tsx, AdminProgressPage.legacy.tsx, AdminQuestionBankPage.legacy.tsx,
+ *   AdminStudentCreatePage.legacy.tsx, AdminStudentEditPage.legacy.tsx,
+ *   AdminTaskCreatePage.legacy.tsx, AdminTaskEditPage.legacy.tsx,
+ *   AITaskGenerationWizard.legacy.tsx, AITestGenerationWizard.legacy.tsx,
+ *   CourseBuildScreen.legacy.jsx, CourseOutlineScreen.legacy.jsx,
+ *   CreateTestMethodPicker.legacy.tsx, CreateTaskMethodPicker.legacy.tsx,
+ *   SlideEditorPage.legacy.jsx, SlideEditor.legacy.tsx, SlideImageEditor.legacy.tsx, SlideNavigator.legacy.tsx, SlidePreview.legacy.tsx,
+ *   CourseFileUploadModal.legacy.jsx, AiBuilderPage.legacy.tsx (App.tsx), useAITaskGeneration.legacy.ts
+ *
+ * import AdminCourseDetailPage   from "../AdminCourseDetailPage.legacy";
+ * import AdminCourseCreatePage   from "../AdminCourseCreatePage.legacy";
+ * import AdminCourseEditPage     from "../AdminCourseEditPage.legacy";
+ * import AdminGradesPage         from "../AdminGradesPage.legacy";
+ * import AdminGradeDetailPage    from "../AdminGradeDetailPage.legacy";
+ * import AdminUnitsPage          from "../AdminUnitsPage.legacy";
+ * import AdminUnitCreatePage     from "../AdminUnitCreatePage.legacy";
+ * import AdminUnitDetailPage     from "../AdminUnitDetailPage.legacy";
+ * import AdminUnitEditPage       from "../AdminUnitEditPage.legacy";
+ * import AdminVideosPage         from "../AdminVideosPage.legacy";
+ * import AdminVideoCreatePage    from "../AdminVideoCreatePage.legacy";
+ * import AdminVideoEditPage      from "../AdminVideoEditPage.legacy";
+ * import AdminTasksPage          from "../AdminTasksPage.legacy";
+ * import AdminTaskDetailPage     from "../AdminTaskDetailPage.legacy";
+ * import AdminTaskGradingPage    from "../AdminTaskGradingPage.legacy";
+ * import AdminTaskSubmissionsPage from "../AdminTaskSubmissionsPage.legacy";
+ * import { TaskBuilderPage }     from "../AdminTaskBuilder.legacy";
+ * import AdminTestsPage          from "../AdminTestsPage.legacy";
+ * import AdminTestCreatePage     from "../AdminTestCreatePage.legacy";
+ * import AdminTestDetailsPage    from "../AdminTestDetailsPage.legacy";
+ * import AdminTestEditPage       from "../AdminTestEditPage.legacy";
+ * import AdminTestAnalyticsPage  from "../AdminTestAnalyticsPage.legacy";
+ * import AdminTestPreviewPage    from "../AdminTestPreviewPage.legacy";
+ * import TeacherOnboardingPage   from "../TeacherOnboarding.legacy";
+ * import AdminGenerateSlidePage  from "../AdminGenerateSlidePage.legacy";
+ * import AdminPresentationEditPage from "../AdminPresentationEditPage.legacy";
+ * import { TestBuilderPage }     from "../AdminTestBuilder.legacy";
+ * import { ReviewSlidesPage }    from "../ReviewSlidesPage.legacy";
+ */
 
 // NOTE: /teacher/classroom/* routes are registered at the top level in App.tsx
 
-// Redirect component for task edit route
-function TaskEditRedirect() {
-  const { id } = useParams();
-  return <Navigate to={`/admin/tasks/${id}/builder`} replace />;
-}
+// Legacy redirect for task edit route (re-enable with Task Builder routes):
+// function TaskEditRedirect() {
+//   const { id } = useParams();
+//   return <Navigate to={`/admin/tasks/${id}/builder`} replace />;
+// }
 
 function useExerciseDrafts() {
   const [drafts, setDrafts] = useState([]);
@@ -433,28 +449,28 @@ export default function AdminRoutes() {
   return (
     <Routes>
       {/* ── Onboarding: full-screen, no sidebar ── */}
-      <Route path="onboarding" element={<TeacherOnboardingPage />} />
+      {/* <Route path="onboarding" element={<TeacherOnboardingPage />} /> */}
 
       {/* ── Slide generator: full-screen ── */}
-      <Route path="generate-slide" element={<AdminGenerateSlidePage />} />
+      {/* <Route path="generate-slide" element={<AdminGenerateSlidePage />} /> */}
 
       {/* ── Presentation editor: full-screen (wraps SlideEditorPage) ── */}
-      <Route path="presentations/:presId/edit" element={<AdminPresentationEditPage />} />
+      {/* <Route path="presentations/:presId/edit" element={<AdminPresentationEditPage />} /> */}
 
       {/* ── Test Builder: full-screen (no sidebar) ── */}
-      <Route path="tests/:testId/builder" element={<TestBuilderPage />} />
+      {/* <Route path="tests/:testId/builder" element={<TestBuilderPage />} /> */}
       
       {/* ── Test Preview: full-screen (no sidebar) ── */}
-      <Route path="tests/:testId/preview" element={<AdminTestPreviewPage />} />
+      {/* <Route path="tests/:testId/preview" element={<AdminTestPreviewPage />} /> */}
       {/* ── Exercise Draft Picker: full-screen (no sidebar) ── */}
       <Route path="exercises/new"       element={<ExerciseDraftsPageRoute />} />
       {/* ── Exercise Editor: full-screen (no sidebar) ── */}
       <Route path="exercises/:id/edit"  element={<ExerciseEditorPage />} />
       {/* ── Task Builder: full-screen (no sidebar) ── */}
-      <Route path="tasks/builder" element={<TaskBuilderPage />} />
-      <Route path="tasks/builder/new" element={<TaskBuilderPage />} />
+      {/* <Route path="tasks/builder" element={<TaskBuilderPage />} /> */}
+      {/* <Route path="tasks/builder/new" element={<TaskBuilderPage />} /> */}
 
-      <Route path="tasks/:taskId/builder" element={<TaskBuilderPage />} />
+      {/* <Route path="tasks/:taskId/builder" element={<TaskBuilderPage />} /> */}
 
       {/* ── All other admin pages: inside sidebar layout ── */}
       <Route element={<AdminLayout />}>
@@ -465,10 +481,10 @@ export default function AdminRoutes() {
         {/* ── COURSES (primary) ── */}
         <Route path="courses">
           <Route index element={<AdminCoursesCatalog />} />
-          <Route path="builder" element={<TeacherOnboardingPage />} />
-          <Route path="new"     element={<AdminCourseCreatePage />} />
-          <Route path=":id"     element={<AdminCourseDetailPage />} />
-          <Route path=":id/edit" element={<AdminCourseEditPage />} />
+          {/* <Route path="builder" element={<TeacherOnboardingPage />} /> */}
+          {/* <Route path="new"     element={<AdminCourseCreatePage />} /> */}
+          {/* <Route path=":id"     element={<AdminCourseDetailPage />} /> */}
+          {/* <Route path=":id/edit" element={<AdminCourseEditPage />} /> */}
         </Route>
 
         {/* ── STUDENTS ── */}
@@ -478,47 +494,48 @@ export default function AdminRoutes() {
         </Route>
 
         {/* ── GRADES ── */}
-        <Route path="grades">
+        {/* <Route path="grades">
           <Route index element={<AdminGradesPage />} />
           <Route path=":id" element={<AdminGradeDetailPage />} />
-        </Route>
+        </Route> */}
 
         {/* ── UNITS (content library) ── */}
-        <Route path="units">
+        {/* <Route path="units">
           <Route index element={<AdminUnitsPage />} />
           <Route path="new"      element={<AdminUnitCreatePage />} />
           <Route path=":id"      element={<AdminUnitDetailPage />} />
           <Route path=":id/edit" element={<AdminUnitEditPage />} />
-        </Route>
+        </Route> */}
 
         {/* ── VIDEOS ── */}
-        <Route path="videos">
+        {/* <Route path="videos">
           <Route index element={<AdminVideosPage />} />
           <Route path="new"      element={<AdminVideoCreatePage />} />
           <Route path=":id/edit" element={<AdminVideoEditPage />} />
-        </Route>
+        </Route> */}
 
         {/* ── TASKS ── */}
-        <Route path="tasks">
+        {/* Legacy tasks hub + builder (see *.legacy.tsx); /tasks/new had pointed at disabled builder */}
+        {/* <Route path="tasks">
           <Route index element={<AdminTasksPage />} />
-          <Route path="new"              element={<Navigate to="/admin/tasks/builder/new" replace />} />
-          <Route path=":id"              element={<AdminTaskDetailPage />} />
-          <Route path=":id/edit"         element={<TaskEditRedirect />} />
-          <Route path=":id/grading"      element={<AdminTaskGradingPage />} />
-          <Route path=":id/submissions"  element={<AdminTaskSubmissionsPage />} />
-        </Route>
+          <Route path="new" element={<Navigate to="/admin/tasks/builder/new" replace />} />
+          <Route path=":id" element={<AdminTaskDetailPage />} />
+          <Route path=":id/edit" element={<TaskEditRedirect />} />
+          <Route path=":id/grading" element={<AdminTaskGradingPage />} />
+          <Route path=":id/submissions" element={<AdminTaskSubmissionsPage />} />
+        </Route> */}
 
         {/* ── TESTS ── */}
-        <Route path="tests">
+        {/* <Route path="tests">
           <Route index element={<AdminTestsPage />} />
           <Route path="new"          element={<AdminTestCreatePage />} />
           <Route path=":id"          element={<AdminTestDetailsPage />} />
           <Route path=":id/edit"     element={<AdminTestEditPage />} />
           <Route path=":id/analytics" element={<AdminTestAnalyticsPage />} />
-        </Route>
+        </Route> */}
 
         {/* ── SLIDE REVIEW ── */}
-        <Route path="slides/review" element={<ReviewSlidesPage />} />
+        {/* <Route path="slides/review" element={<ReviewSlidesPage />} /> */}
 
         {/* ── Catch-all → courses ── */}
         <Route path="*" element={<Navigate to="/admin/courses" replace />} />

@@ -10,22 +10,9 @@
  */
 
 import React from 'react';
-import {
-  CheckCircle2,
-  AlertCircle,
-  ArrowLeft,
-  BookOpen,
-  Presentation,
-  FileText,
-  ClipboardList,
-  Circle,
-  PlayCircle,
-} from 'lucide-react';
+import { AlertCircle, ArrowLeft, BookOpen } from 'lucide-react';
 
-import type {
-  LessonFlowItem,
-  LessonFlowItemStatus,
-} from './lessonFlow.types';
+import type { LessonFlowItem, LessonFlowItemStatus } from './lessonFlow.types';
 
 // ─── Accent maps (kept for PlayerFrame/Header consumers) ─────────────────────
 
@@ -36,35 +23,6 @@ export const ICON_BG: Record<string, string> = {
   video:  'bg-sky-50 text-sky-600',
   info:   'bg-indigo-50 text-indigo-600',
 };
-
-const RAIL_ACTIVE_BAR: Record<string, string> = {
-  slides: 'bg-teal-500',
-  task:   'bg-amber-500',
-  test:   'bg-emerald-600',
-  video:  'bg-sky-500',
-  info:   'bg-indigo-500',
-};
-
-const RAIL_ACTIVE_TEXT: Record<string, string> = {
-  slides: 'text-teal-700',
-  task:   'text-amber-700',
-  test:   'text-emerald-700',
-  video:  'text-sky-700',
-  info:   'text-indigo-700',
-};
-
-// ─── ItemIcon ─────────────────────────────────────────────────────────────────
-
-function ItemIcon({ type, size = 'md' }: { type: string; size?: 'sm' | 'md' | 'lg' }) {
-  const cls = size === 'lg' ? 'h-5 w-5' : size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
-  switch (type) {
-    case 'slides': return <Presentation className={cls} />;
-    case 'task':   return <FileText      className={cls} />;
-    case 'test':   return <ClipboardList className={cls} />;
-    case 'video':  return <PlayCircle    className={cls} />;
-    default:       return <Circle        className={cls} />;
-  }
-}
 
 // ─── PlayerFrame ──────────────────────────────────────────────────────────────
 
@@ -140,8 +98,9 @@ export function PlayerHeader({
   );
 }
 
-// ─── LessonProgressRail ───────────────────────────────────────────────────────
-// Rendered in ClassroomHeader — kept as-is.
+// ─── LessonProgressRail — UI disabled (header step strip) ────────────────────
+// Previous JSX lived here; wiring was ClassroomPage ← LessonWorkspace `onRailStateChange`.
+// Re-enable via git history + uncomment blocks in ClassroomPage, LessonWorkspace, ClassroomHeader.
 
 export interface LessonProgressRailProps {
   items:       LessonFlowItem[];
@@ -150,119 +109,9 @@ export interface LessonProgressRailProps {
   compact?:    boolean;
 }
 
-function buildRailLabel(item: LessonFlowItem, typeIdx: number, unique: boolean): string {
-  switch (item.type) {
-    case 'slides': return 'Slides';
-    case 'video':  return unique ? 'Video'   : `Video ${typeIdx}`;
-    case 'task':   return unique ? 'Task'    : `Task ${typeIdx}`;
-    case 'test':   return unique ? 'Test'    : `Test ${typeIdx}`;
-    default:       return 'Step';
-  }
-}
-
-export function LessonProgressRail({
-  items,
-  activeIndex,
-  onNavigate,
-  compact = false,
-}: LessonProgressRailProps) {
-  const completable = items.filter((i) => i.type !== 'divider');
-
-  const typeCounters: Record<string, number> = {};
-  const typeTotals:   Record<string, number> = {};
-  completable.forEach((i) => {
-    typeTotals[i.type] = (typeTotals[i.type] ?? 0) + 1;
-  });
-
-  const labelledItems = completable.map((item) => {
-    typeCounters[item.type] = (typeCounters[item.type] ?? 0) + 1;
-    const typeIdx = typeCounters[item.type];
-    const unique  = typeTotals[item.type] === 1;
-    return { item, label: buildRailLabel(item, typeIdx, unique) };
-  });
-
-  return (
-    <div className={compact ? 'mb-0' : 'mb-3'}>
-      <div
-        className={[
-          'flex items-stretch gap-0 overflow-x-auto no-scrollbar',
-          'bg-white border border-slate-100 rounded-2xl shadow-sm',
-        ].join(' ')}
-        role="tablist"
-        aria-label="Lesson steps"
-      >
-        {labelledItems.map(({ item, label }, idx) => {
-          const status    = (item as any).status as LessonFlowItemStatus;
-          const isActive  = idx === activeIndex;
-          const isDone    = status === 'completed';
-          const isLocked  = status === 'locked';
-
-          const activeBar  = RAIL_ACTIVE_BAR[item.type]  ?? 'bg-slate-700';
-          const activeText = RAIL_ACTIVE_TEXT[item.type] ?? 'text-slate-700';
-
-          const textCls = isActive
-            ? `${activeText} font-semibold`
-            : isDone
-            ? 'text-slate-500 font-medium'
-            : isLocked
-            ? 'text-slate-300 font-medium'
-            : 'text-slate-400 font-medium';
-
-          const iconCls = isActive
-            ? activeText
-            : isDone
-            ? 'text-emerald-500'
-            : 'text-slate-300';
-
-          return (
-            <React.Fragment key={item.id}>
-              {idx > 0 && (
-                <div className="self-center w-px h-6 bg-slate-100 shrink-0" aria-hidden />
-              )}
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-current={isActive ? 'step' : undefined}
-                disabled={isLocked}
-                onClick={() => !isLocked && onNavigate(idx)}
-                className={[
-                  'relative flex flex-col items-center justify-center gap-1',
-                  compact ? 'px-4 py-2.5 min-w-[72px]' : 'px-5 py-3 min-w-[80px]',
-                  'flex-1 shrink-0',
-                  'transition-colors duration-150 focus:outline-none',
-                  'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-300',
-                  isLocked ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50/80',
-                  idx === 0 ? 'rounded-l-2xl' : '',
-                  idx === labelledItems.length - 1 ? 'rounded-r-2xl' : '',
-                ].join(' ')}
-              >
-                <span className={`transition-colors duration-200 ${iconCls}`}>
-                  {isDone ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  ) : (
-                    <ItemIcon type={item.type} size="sm" />
-                  )}
-                </span>
-
-                <span className={`text-[11px] leading-none whitespace-nowrap transition-colors duration-200 ${textCls}`}>
-                  {label}
-                </span>
-
-                {isActive && (
-                  <span
-                    className={`absolute bottom-0 inset-x-3 h-[3px] rounded-full ${activeBar}`}
-                    aria-hidden
-                  />
-                )}
-              </button>
-            </React.Fragment>
-          );
-        })}
-      </div>
-    </div>
-  );
+// Stub keeps imports/types stable; props intentionally unused while rail is off.
+export function LessonProgressRail(_props: LessonProgressRailProps): null {
+  return null;
 }
 
 // ─── LessonRailState ─────────────────────────────────────────────────────────

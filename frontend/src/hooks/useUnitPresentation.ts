@@ -15,6 +15,11 @@
  *   visible ones are considered.
  *   TODO: If the backend adds a "primary_presentation" flag or a student
  *   visibility filter on this endpoint, apply it here.
+ *
+ * Teacher classroom (/teacher/classroom/…) uses these same student routes (not
+ * GET /admin/units/…/presentations nor GET /admin/presentations/…/slides) so
+ * slide hydration shares one code path; course-owning teachers get full deck
+ * access on the backend student handlers.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -104,11 +109,11 @@ function toReviewSlide(s: PresentationSlide): ReviewSlide {
 
 export function useUnitPresentation(
   unitId: number | null | undefined,
-  useAdminEndpoints = false,
 ): UseUnitPresentationResult {
   const [presentation, setPresentation] = useState<PresentationMeta | null>(null);
   const [slides, setSlides]             = useState<ReviewSlide[]>([]);
-  const [loading, setLoading]           = useState(Boolean(unitId));
+  // No network load while presentation GETs are disabled; avoids a one-frame "loading" flash
+  const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState<string | null>(null);
   const activeRequestIdRef = useRef(0);
 
@@ -127,17 +132,19 @@ export function useUnitPresentation(
     // Reset previous unit slides immediately to avoid stale render.
     setPresentation(null);
     setSlides((prev) => (prev.length > 0 ? [] : prev));
+    setLoading(false);
+    setError(null);
+
+    // Disabled: no GET /api/v1/units/{unitId}/presentations nor GET /api/v1/presentations/{id}/slides
+    /*
     setLoading(true);
     setError(null);
 
     try {
-      // Step 1: list all presentations for this unit (student endpoint)
-      const presRes = await fetch(
-        useAdminEndpoints
-          ? `/api/v1/admin/units/${unitId}/presentations`
-          : `/api/v1/units/${unitId}/presentations`,
-        { headers: { ...authHeaders() } }
-      );
+      // Step 1: list presentations for this unit (student-scoped URL; teachers use course-owner bypass on backend)
+      const presRes = await fetch(`/api/v1/units/${unitId}/presentations`, {
+        headers: { ...authHeaders() },
+      });
 
       if (!presRes.ok) {
         if (presRes.status === 404) {
@@ -168,13 +175,10 @@ export function useUnitPresentation(
         return;
       }
 
-      // Step 2: fetch slides for the chosen presentation (student endpoint)
-      const slidesRes = await fetch(
-        useAdminEndpoints
-          ? `/api/v1/admin/presentations/${primary.id}/slides`
-          : `/api/v1/presentations/${primary.id}/slides`,
-        { headers: { ...authHeaders() } }
-      );
+      // Step 2: fetch slides (student-scoped URL; avoids GET /admin/presentations/:id/slides)
+      const slidesRes = await fetch(`/api/v1/presentations/${primary.id}/slides`, {
+        headers: { ...authHeaders() },
+      });
 
       if (!slidesRes.ok) {
         if (slidesRes.status === 404) {
@@ -206,7 +210,8 @@ export function useUnitPresentation(
         setLoading(false);
       }
     }
-  }, [unitId, useAdminEndpoints]);
+    */
+  }, [unitId]);
 
   useEffect(() => {
     load();

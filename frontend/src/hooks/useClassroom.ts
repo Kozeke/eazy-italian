@@ -9,7 +9,7 @@
  * ─────────────────
  * 1. Fetch course metadata + units via coursesApi.getCourse (student endpoint)
  *    - getCourse returns course with nested units[] array
- *    - Reuses same endpoint as CourseDetailPage
+ *    - Reuses same endpoint as CourseDetailPage.legacy
  * 2. Extract and sort units from course response
  * 3. Resolve currentUnit from route param (or fallback to first published)
  * 4. Per-unit content (videos, tasks, tests) is loaded by useStudentUnit
