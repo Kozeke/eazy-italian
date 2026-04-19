@@ -7,14 +7,14 @@
  * Responsibilities:
  *   • Fetch segments from the API (teacher mode)
  *   • Hydrate inlineMediaBySectionId and carouselSlidesBySectionId from server data
- *   • Debounced autosave (500 ms) on every change
+ *   • Debounced autosave (500 ms) on every change (media, carousel, section titles)
  *   • Flush saves on unmount / before navigation
  *   • Reset all state when the active unit changes
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { segmentsApi } from "../services/api";
-import api from "../services/api";
+  import api from "../services/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ export function normaliseInlineMediaBlocks(blocks: unknown): InlineMediaBlock[] 
     .filter(
       (b) =>
         Boolean(b.id) &&
-        ["image", "video", "audio", "carousel_slides", "drag_to_gap", "drag_to_image", "type_word_to_image", "select_form_to_image", "type_word_in_gap", "select_word_form", "build_sentence", "match_pairs", "order_paragraphs", "sort_into_columns", "test_without_timer", "test_with_timer"].includes(
+        ["text", "image", "video", "audio", "carousel_slides", "drag_to_gap", "drag_to_image", "type_word_to_image", "select_form_to_image", "type_word_in_gap", "select_word_form", "build_sentence", "match_pairs", "order_paragraphs", "sort_into_columns", "test_without_timer", "test_with_timer"].includes(
           b.kind,
         ),
     );
@@ -156,10 +156,17 @@ interface Options {
   /** @deprecated ignored — kept so existing callers don't break */
   refreshKey?: number;
   /**
-   * In student mode the main unit endpoint already returns segments with full
-   * media_blocks.  Pass them here so we skip the separate /segments fetch
-   * (which returns segments WITHOUT media_blocks) and seed the hydration
-   * directly from the data we already have.
+   * Segments embedded in the full unit response (already contain media_blocks).
+   *
+   * Student mode:  this is the ONLY source — we never call /segments separately.
+   * Teacher mode:  used as an immediate seed so media_blocks render right away,
+   *                before the slower /admin/units/:id/segments fetch resolves.
+   *                The /segments response (which has richer metadata) overwrites
+   *                the seed once it arrives.
+   *
+   * In both modes the segments must belong to effectiveUnitId — the caller
+   * (LessonWorkspace) is responsible for passing `undefined` while the new
+   * unit is still loading so we never seed with stale data.
    */
   unitSegments?: UnitSegment[];
 }
@@ -167,17 +174,21 @@ interface Options {
 export function useSegmentPersistence({ effectiveUnitId, mode, unitSegments }: Options) {
   // ── Fetch segments ───────────────────────────────────────────────────────────
   const [fetchedSegments, setFetchedSegments] = useState<UnitSegment[]>([]);
+  /**
+   * Tracks which unit the current `fetchedSegments` were loaded for.
+   * Hydration is gated on this matching `effectiveUnitId` so that stale
+   * segments from the previously-viewed unit never pollute the new unit's
+   * inlineMediaBySectionId while the async fetch is still in-flight.
+   */
+  const [fetchedForUnitId, setFetchedForUnitId] = useState<number | null>(null);
 
-  // In student mode we use the segments that come embedded in the unit response
-  // (they already contain media_blocks).  Making a separate /segments call in
-  // student mode returns lightweight segment objects WITHOUT media_blocks, which
-  // causes inlineMediaBySectionId to stay empty and exercises never render.
   const isStudent = mode === "student";
 
   const refetchSegments = useCallback(async () => {
     if (isStudent) return; // students rely on unitSegments prop
     if (!effectiveUnitId) {
       setFetchedSegments([]);
+      setFetchedForUnitId(null);
       return;
     }
     try {
@@ -185,37 +196,94 @@ export function useSegmentPersistence({ effectiveUnitId, mode, unitSegments }: O
         `/admin/units/${effectiveUnitId}/segments`,
       );
       setFetchedSegments(getSortedSegments(data ?? []));
+      setFetchedForUnitId(effectiveUnitId);
     } catch {
       setFetchedSegments([]);
+      setFetchedForUnitId(null);
     }
   }, [effectiveUnitId, isStudent]);
 
-  // Teacher: fetch from the admin segments endpoint
+  // ── Teacher: seed immediately from unitSegments, then fetch full detail ──────
+  //
+  // Problem being solved:
+  //   The /admin/units/:id/segments fetch is async.  Between the unit-change
+  //   reset (which zeros fetchedForUnitId) and the fetch completing, the
+  //   hydration guard keeps inlineMediaBySectionId empty — so the teacher sees
+  //   a blank section for a noticeable moment, or worse, stale blocks from the
+  //   previous unit can leak through the `sortedSegments` fallback in
+  //   LessonWorkspace.
+  //
+  // Fix:
+  //   When `unitSegments` is already available for the current unit (the parent
+  //   full-unit response arrived first), stamp them as the initial fetchedSegments
+  //   so hydration can fire immediately.  The /segments fetch still runs in
+  //   parallel and overwrites with richer metadata once it lands.
+  //
+  //   Guard: we only stamp when unitSegments belong to effectiveUnitId.
+  //   LessonWorkspace passes `undefined` while the new unit is loading, so we
+  //   never accidentally seed with stale data from a previous unit.
+  useEffect(() => {
+    if (isStudent) return; // student path handled separately below
+    if (!effectiveUnitId) return;
+
+    const segments = getSortedSegments(unitSegments ?? []);
+    if (segments.length === 0) return; // still loading — wait for /segments fetch
+
+    // Only seed if these segments actually belong to the current unit.
+    // unitSegments[0].unit_id isn't always present, so we rely on the caller
+    // (LessonWorkspace) to pass undefined while a different unit is loading.
+    setFetchedSegments(segments);
+    setFetchedForUnitId(effectiveUnitId);
+  }, [isStudent, unitSegments, effectiveUnitId]);
+
+  // Teacher: fetch full segment detail (richer metadata, authoritative order).
+  // Runs in parallel with the seed above and overwrites once resolved.
   useEffect(() => {
     if (isStudent) return; // handled by the unitSegments sync below
     let cancelled = false;
     if (!effectiveUnitId) {
       setFetchedSegments([]);
+      setFetchedForUnitId(null);
       return;
     }
+    // Capture the unit id at fetch-start so we can stamp it alongside the data.
+    // This prevents a stale loadedMedia (still holding the previous unit's blocks)
+    // from triggering hydration for the new unit during the async gap.
+    const fetchingForUnitId = effectiveUnitId;
     void api
       .get<UnitSegment[]>(`/admin/units/${effectiveUnitId}/segments`)
       .then(({ data }) => {
-        if (!cancelled) setFetchedSegments(getSortedSegments(data ?? []));
+        if (!cancelled) {
+          setFetchedSegments(getSortedSegments(data ?? []));
+          setFetchedForUnitId(fetchingForUnitId);
+        }
       })
       .catch(() => {
-        if (!cancelled) setFetchedSegments([]);
+        if (!cancelled) {
+          // Keep the seed data in place if the fetch fails — better to show
+          // slightly less-rich data than to blank the section entirely.
+          if (fetchingForUnitId === effectiveUnitId) return;
+          setFetchedSegments([]);
+          setFetchedForUnitId(null);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, [effectiveUnitId, isStudent]);
 
-  // Student: sync directly from the unit's embedded segments (already have media_blocks)
+  // Student: sync directly from the unit's embedded segments (already have media_blocks).
+  // Only stamp fetchedForUnitId once we have real segments that belong to
+  // effectiveUnitId.  When unitSegments is undefined/empty it means the parent's
+  // fetch for the new unit is still in-flight — we clear segments but keep
+  // fetchedForUnitId as null so the hydration guard stays closed until real data
+  // arrives, preventing stale blocks from the previous unit leaking in.
   useEffect(() => {
     if (!isStudent) return;
-    setFetchedSegments(getSortedSegments(unitSegments ?? []));
-  }, [isStudent, unitSegments]);
+    const segments = getSortedSegments(unitSegments ?? []);
+    setFetchedSegments(segments);
+    setFetchedForUnitId(segments.length > 0 ? effectiveUnitId : null);
+  }, [isStudent, unitSegments, effectiveUnitId]);
 
   // ── State ────────────────────────────────────────────────────────────────────
   const [inlineMediaBySectionId, setInlineMediaBySectionId] = useState<
@@ -242,6 +310,10 @@ export function useSegmentPersistence({ effectiveUnitId, mode, unitSegments }: O
   const userEditedCarouselRef = useRef(new Set<string>());
   const mediaSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const carouselSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Latest title string per section key while the teacher is typing (used by the debounced PUT)
+  const pendingTitleBySectionRef = useRef<Record<string, string>>({});
+  // Debounce timers for PUT /admin/segments/{id} when section titles change
+  const titleSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const loadedMedia = useMemo(
     () => buildInlineMediaBySectionId(fetchedSegments),
@@ -257,14 +329,23 @@ export function useSegmentPersistence({ effectiveUnitId, mode, unitSegments }: O
   useEffect(() => {
     const prev = prevUnitIdRef.current;
     if (prev === undefined) { prevUnitIdRef.current = effectiveUnitId; return; }
-    if (effectiveUnitId != null && prev != null && effectiveUnitId !== prev) {
+    // Reset whenever the unit ID changes — including transitions through null
+    // (e.g. useStudentUnit briefly sets unit=null while loading the new unit).
+    // The old guard required BOTH prev and effectiveUnitId to be non-null, which
+    // meant a null→B or A→null transition never fired the reset, leaving stale
+    // media blocks from the previous unit visible until hydration for B replaced them.
+    if (effectiveUnitId !== prev) {
       Object.values(mediaSaveTimers.current).forEach(clearTimeout);
       mediaSaveTimers.current = {};
       Object.values(carouselSaveTimers.current).forEach(clearTimeout);
       carouselSaveTimers.current = {};
+      Object.values(titleSaveTimers.current).forEach(clearTimeout);
+      titleSaveTimers.current = {};
+      pendingTitleBySectionRef.current = {};
       setInlineMediaBySectionId({});
       setCarouselSlidesBySectionId({});
       setFetchedSegments([]);
+      setFetchedForUnitId(null);
       lastSavedMediaSigRef.current = {};
       lastSavedCarouselSigRef.current = {};
       userEditedMediaRef.current = new Set();
@@ -278,38 +359,47 @@ export function useSegmentPersistence({ effectiveUnitId, mode, unitSegments }: O
   // ── Hydration: inline media ──────────────────────────────────────────────────
   useEffect(() => {
     if (effectiveUnitId == null) return;
+    // Guard: only hydrate once fetchedSegments are confirmed to belong to the
+    // current unit. Without this, a stale loadedMedia (still holding the
+    // previous unit's blocks) would stamp wrong exercises into the new unit's
+    // sections during the async gap between unit change and fetch completion.
+    if (fetchedForUnitId !== effectiveUnitId) return;
     const key = `${effectiveUnitId}:${JSON.stringify(loadedMedia)}`;
     if (lastHydratedMediaKeyRef.current === key) return;
 
     setInlineMediaBySectionId((prev) => {
       const merged: Record<string, InlineMediaBlock[]> = {};
       for (const [sid, serverBlocks] of Object.entries(loadedMedia)) {
+        // Preserve any blocks the teacher added locally that haven't yet been
+        // confirmed by the server (optimistic UI). This is safe because we
+        // already confirmed fetchedForUnitId === effectiveUnitId above, so
+        // prev cannot contain blocks from a different unit at this point.
         const localOnly = (prev[sid] ?? []).filter(
           (b) => !serverBlocks.some((sb) => sb.id === b.id),
         );
         merged[sid] = localOnly.length > 0 ? [...serverBlocks, ...localOnly] : serverBlocks;
       }
-      for (const [sid, blocks] of Object.entries(prev)) {
-        if (!(sid in merged) && blocks.length > 0) merged[sid] = blocks;
-      }
+      // NOTE: we intentionally do NOT carry forward prev sections that have no
+      // server counterpart — doing so would re-introduce blocks from a
+      // previously-viewed unit that the reset already cleared.
       return merged;
     });
     lastSavedMediaSigRef.current = buildSignatureMap(loadedMedia);
     lastHydratedMediaKeyRef.current = key;
-  }, [effectiveUnitId, loadedMedia]);
+  }, [effectiveUnitId, fetchedForUnitId, loadedMedia]);
 
   // ── Hydration: carousel ──────────────────────────────────────────────────────
   useEffect(() => {
     if (effectiveUnitId == null) return;
+    // Same unit-match guard as inline media hydration above.
+    if (fetchedForUnitId !== effectiveUnitId) return;
     const key = `${effectiveUnitId}:carousel:${JSON.stringify(loadedCarousel)}`;
     if (lastHydratedCarouselKeyRef.current === key) return;
 
-    setCarouselSlidesBySectionId((prev) => {
-      const merged: Record<string, CarouselSlide[]> = { ...loadedCarousel };
-      for (const [sid, slides] of Object.entries(prev)) {
-        if (!(sid in merged) && slides.length > 0) merged[sid] = slides;
-      }
-      return merged;
+    setCarouselSlidesBySectionId((_prev) => {
+      // Use server data directly; prev could still hold slides from the old
+      // unit if the reset and this hydration landed in the same batch.
+      return { ...loadedCarousel };
     });
     for (const [sid, slides] of Object.entries(loadedCarousel)) {
       lastSavedCarouselSigRef.current[sid] = JSON.stringify(slides);
@@ -364,6 +454,44 @@ export function useSegmentPersistence({ effectiveUnitId, mode, unitSegments }: O
   }, [carouselSlidesBySectionId, mode, fetchedSegments]);
 
   // ── Flush (called before navigation and on unmount) ──────────────────────────
+  /**
+   * Applies a section title locally and schedules a debounced persist (teacher only).
+   */
+  const persistSegmentTitleDebounced = useCallback(
+    (sectionId: string, title: string) => {
+      if (mode !== "teacher") return;
+      pendingTitleBySectionRef.current[sectionId] = title;
+      setFetchedSegments((prev) => {
+        const segmentId = resolveSegmentIdForSection(sectionId, prev);
+        if (!segmentId) return prev;
+        return prev.map((s) => (s.id === segmentId ? { ...s, title } : s));
+      });
+      clearTimeout(titleSaveTimers.current[sectionId]);
+      titleSaveTimers.current[sectionId] = setTimeout(async () => {
+        const segs = segmentsRef.current;
+        const segmentId = resolveSegmentIdForSection(sectionId, segs);
+        const pending = pendingTitleBySectionRef.current[sectionId];
+        if (!segmentId || pending === undefined) {
+          delete titleSaveTimers.current[sectionId];
+          return;
+        }
+        const seg = segs.find((s) => s.id === segmentId);
+        const orderIdx = seg?.order_index ?? 0;
+        const payloadTitle =
+          pending.trim() || `Section ${orderIdx + 1}`;
+        try {
+          await segmentsApi.updateSegment(segmentId, { title: payloadTitle });
+        } catch (err) {
+          // Avoid losing edits silently — console is enough for now (same as media autosave)
+          console.error("Failed to save segment title", { sectionId, segmentId, err });
+        } finally {
+          delete titleSaveTimers.current[sectionId];
+        }
+      }, 500);
+    },
+    [mode],
+  );
+
   const flush = useCallback(() => {
     const media = inlineMediaRef.current;
     const carousel = carouselRef.current;
@@ -395,6 +523,21 @@ export function useSegmentPersistence({ effectiveUnitId, mode, unitSegments }: O
         .updateSegment(segmentId, { carousel_slides: slides })
         .then(() => { lastSavedCarouselSigRef.current[sectionId] = sig; })
         .catch((err) => console.error("Failed to flush carousel slides", { sectionId, err }));
+    }
+
+    const titleTimerKeys = Object.keys(titleSaveTimers.current);
+    for (const t of Object.values(titleSaveTimers.current)) clearTimeout(t);
+    titleSaveTimers.current = {};
+    for (const sectionId of titleTimerKeys) {
+      const segmentId = resolveSegmentIdForSection(sectionId, segments);
+      const pending = pendingTitleBySectionRef.current[sectionId];
+      if (!segmentId || pending === undefined) continue;
+      const seg = segments.find((s) => s.id === segmentId);
+      const orderIdx = seg?.order_index ?? 0;
+      const payloadTitle = pending.trim() || `Section ${orderIdx + 1}`;
+      void segmentsApi
+        .updateSegment(segmentId, { title: payloadTitle })
+        .catch((err) => console.error("Failed to flush segment title", { sectionId, err }));
     }
   }, []);
 
@@ -459,5 +602,6 @@ export function useSegmentPersistence({ effectiveUnitId, mode, unitSegments }: O
     handleInlineMediaChange,
     handleCarouselSlidesChange,
     flush,
+    persistSegmentTitleDebounced,
   };
 }

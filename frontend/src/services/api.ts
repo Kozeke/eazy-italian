@@ -395,6 +395,21 @@ export const unitsApi = {
     return response.data;
   },
 
+  /**
+   * POST /admin/units/:id/publish — sets unit to published (or scheduled if publish_at set).
+   * When publish_children is true, draft videos/tasks/tests in the unit are published too.
+   */
+  publishUnit: async (
+    id: number,
+    body?: { publish_at?: string | null; publish_children?: boolean },
+  ): Promise<{ message: string }> => {
+    const response: AxiosResponse<{ message: string }> = await api.post(
+      `/units/admin/units/${id}/publish`,
+      body ?? { publish_children: true },
+    );
+    return response.data;
+  },
+
   // Uploads one teacher file and returns an attachment object ready for unit persistence.
   uploadUnitMaterialFile: async (file: File): Promise<UnitMaterialAttachment> => {
     const formData = new FormData();
@@ -477,7 +492,9 @@ export interface InlineMediaBlock {
     | "order_paragraphs"
     | "sort_into_columns"
     | "test_without_timer"
-    | "test_with_timer";
+    | "test_with_timer"
+    | "true_false"
+    | "text";
   url?: string;
   caption?: string;
   slides?: CarouselSlide[];

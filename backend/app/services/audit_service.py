@@ -1,8 +1,9 @@
+"""Service layer for creating and querying audit trail entries."""
+
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from app.models.audit import AuditLog, AuditAction
 from fastapi import Request
-import json
 
 class AuditService:
     def __init__(self, db: Session):
@@ -22,7 +23,7 @@ class AuditService:
         # Extract request information if available
         ip_address = None
         user_agent = None
-        metadata = {}
+        request_metadata = {}
         
         if request:
             # Get client IP
@@ -37,7 +38,7 @@ class AuditService:
             user_agent = request.headers.get("user-agent")
             
             # Add request metadata
-            metadata = {
+            request_metadata = {
                 "method": request.method,
                 "url": str(request.url),
                 "headers": dict(request.headers)
@@ -52,7 +53,7 @@ class AuditService:
             ip_address=ip_address,
             user_agent=user_agent,
             details=details or {},
-            metadata=metadata
+            audit_metadata=request_metadata
         )
         
         self.db.add(audit_log)

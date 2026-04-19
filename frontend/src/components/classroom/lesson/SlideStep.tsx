@@ -1,6 +1,10 @@
 /**
  * SlideStep.tsx  (v3 — fills shared PlayerFrame, internal scroll only)
  *
+ * lesson/flow wiring: reached from SlidesSection (see SlidesSection.tsx header),
+ * which SlideBlock imports for item.type === "slides". Types: lessonFlow.types
+ * re-exports SlideProgress from this file.
+ *
  * Changes from v2:
  * ────────────────
  * • Removed the inline `style={{ height: 'clamp(420px, 62vh, 640px)' }}` that

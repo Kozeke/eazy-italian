@@ -28,6 +28,7 @@ import type { QuestionDraft } from "../../components/classroom/lesson/editors/Qu
 // --- Template shape -----------------------------------------------------------
 
 export type GallerySection =
+  | "Text & Reading"
   | "Images"
   | "Audio & Video"
   | "Words & Gaps"
@@ -48,6 +49,8 @@ export interface TemplateConfig {
   /**
    * When set, ExerciseDraftsPage opens a dedicated custom editor rather than
    * ExerciseEditorWorkspace. Supported values:
+   *   "text_block"  → TextEditorPage
+   *   "image_block" → ImageEditorPage
    *   "drag_to_gap" → DragToGapEditorPage
    *   "drag_to_image" → DragWordToImageEditorPage
    *   "type_word_to_image" → TypeWordToImageEditorPage
@@ -63,6 +66,8 @@ export interface TemplateConfig {
  *   "true_false" → TrueFalseEditorPage
    */
   customEditor?:
+    | "text_block"
+    | "image_block"
     | "drag_to_gap"
     | "drag_to_image"
     | "type_word_to_image"
@@ -336,6 +341,85 @@ function MatchingPreview() {
   );
 }
 
+// ─── TextBlockPreview ─────────────────────────────────────────────────────────
+
+/** Preview card shown in the gallery for the "Text block" template. */
+function TextBlockPreview() {
+  return (
+    <div style={{ ...P.card, width: 190, padding: 0, overflow: "hidden" }}>
+      {/* BookOpen header strip */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "7px 10px",
+        background: "#EEF0FE",
+        borderBottom: "1px solid #E8EAFD",
+      }}>
+        <div style={{
+          width: 18,
+          height: 18,
+          borderRadius: 5,
+          background: "#6C6FEF",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          {/* Book icon approximation using CSS */}
+          <span style={{ fontSize: 9, color: "#fff", lineHeight: 1 }}>📖</span>
+        </div>
+        <span style={{ fontSize: 9, fontWeight: 700, color: "#4F52C2" }}>Grammar note</span>
+      </div>
+      {/* Body lines */}
+      <div style={{ padding: "8px 10px" }}>
+        {[100, 85, 92, 60].map((w, i) => (
+          <div key={i} style={{
+            height: 6,
+            width: `${w}%`,
+            borderRadius: 4,
+            background: i === 0 ? "#1C1F3A" : "#A8ABCA",
+            marginBottom: i < 3 ? 5 : 0,
+            opacity: i === 0 ? 0.9 : 0.5,
+          }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── ImageBlockPreview ────────────────────────────────────────────────────────
+
+/** Preview card shown in the gallery for the "Image block" template. */
+function ImageBlockPreview() {
+  return (
+    <div style={{ ...P.card, width: 190, padding: 0, overflow: "hidden" }}>
+      {/* Simulated image area */}
+      <div style={{
+        height: 68,
+        background: "linear-gradient(135deg, #EEF0FE 0%, #DDE1FC 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderBottom: "1px solid #E8EAFD",
+      }}>
+        <span style={{ fontSize: 26 }}>🖼️</span>
+      </div>
+      {/* Simulated caption strip */}
+      <div style={{ padding: "6px 10px", textAlign: "center" }}>
+        <div style={{
+          height: 5,
+          width: "60%",
+          margin: "0 auto",
+          borderRadius: 4,
+          background: "#A8ABCA",
+          opacity: 0.5,
+        }} />
+      </div>
+    </div>
+  );
+}
+
 // ─── DragToGapPreview (new) ───────────────────────────────────────────────────
 
 function DragToGapPreview() {
@@ -371,11 +455,11 @@ function DragToGapPreview() {
           display: "inline-block",
           padding: "1px 8px",
           borderRadius: 5,
-          border: "1.5px solid #06b6d4",
-          background: "#f0fdff",
+          border: "1.5px solid #6c6fef",
+          background: "#eef0fe",
           fontSize: 10,
           fontWeight: 600,
-          color: "#0e7490",
+          color: "#4f52c2",
           verticalAlign: "middle",
         }}>
           word
@@ -441,7 +525,10 @@ function TypeWordInGapPreview() {
 // --- TEMPLATE REGISTRY -------------------------------------------------------
 
 export const TEMPLATE_REGISTRY: TemplateConfig[] = [
+  // Text & Reading
+  { id: "text-block",   section: "Text & Reading", label: "Text block",          preview: <TextBlockPreview />,   customEditor: "text_block" },
   // Images
+  { id: "img-block",    section: "Images",       label: "Image block",          preview: <ImageBlockPreview />,  customEditor: "image_block" },
   { id: "img-stack",    section: "Images",       label: "Images stacked",       preview: <ImgStackPreview />,    mediaKind: "image" },
   { id: "img-carousel", section: "Images",       label: "Image carousel",       preview: <ImgCarouselPreview />, mediaKind: "image" },
   { id: "img-gif",      section: "Images",       label: "GIF animation",        preview: <GifPreview />,         mediaKind: "image" },
@@ -472,6 +559,7 @@ export const TEMPLATE_REGISTRY: TemplateConfig[] = [
 ];
 
 export const GALLERY_SECTIONS: readonly GallerySection[] = [
+  "Text & Reading",
   "Images",
   "Audio & Video",
   "Words & Gaps",
@@ -488,6 +576,8 @@ export function findTemplate(id: string): TemplateConfig | undefined {
  * opened in ExerciseDraftsPage custom editors from the lesson "edit" menu.
  */
 export const SEGMENT_EDITABLE_EXERCISE_KINDS = new Set<string>([
+  "text",
+  "image",
   "drag_to_gap",
   "drag_to_image",
   "drag_word_to_image",
@@ -510,6 +600,8 @@ export const SEGMENT_EDITABLE_EXERCISE_KINDS = new Set<string>([
 export function templateIdForSegmentExerciseKind(kind: string): string | null {
   // Normalised keys from API / useSegmentPersistence
   const map: Record<string, string> = {
+    text: "text-block",
+    image: "img-block",
     drag_to_gap: "drag-to-gap",
     drag_to_image: "visual-drag",
     drag_word_to_image: "visual-drag",

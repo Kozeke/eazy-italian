@@ -5,14 +5,17 @@
  * Tab 1 — "AI Generate":  POST /units/{unit_id}/generate  (topic + description)
  * Tab 2 — "From File":    POST /units/{unit_id}/generate/from-file  (multipart)
  *
- * Advanced settings (Level, Language, Segments, Exercise Types, Instruction
- * Language) are collapsed behind a toggle in both tabs.
+ * Each generated segment now includes:
+ *   • A text block  (grammar rules, vocabulary, examples — always)
+ *   • Exercise blocks (interactive exercises)
+ *   • An image block (SVG illustration — only when "Include Images" is toggled on)
  */
 
 import { useState, useCallback, useRef } from "react";
 import {
   X, Sparkles, Layers, CheckCircle, AlertCircle,
   ChevronDown, ChevronUp, Upload, FileText, Trash2,
+  Image as ImageIcon, BookOpen,
 } from "lucide-react";
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -32,6 +35,8 @@ const C = {
   errorBg:    "#FEF2F2",
   success:    "#10B981",
   successBg:  "#ECFDF5",
+  amber:      "#F59E0B",
+  amberBg:    "#FFFBEB",
 };
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -71,11 +76,15 @@ const ACCEPTED_EXT = ".pdf,.docx,.txt,.ppt,.pptx";
 interface GenerateResult {
   segments_created:  number;
   exercises_created: number;
+  texts_created:     number;
+  images_created:    number;
   segments: Array<{
     id:                number;
     title:             string;
     exercises_created: number;
     exercise_types:    string[];
+    texts_created:     number;
+    has_image:         boolean;
   }>;
 }
 
@@ -89,13 +98,9 @@ interface Props {
 
 type Tab = "ai" | "file";
 
-// Safely reads JSON payloads and prevents raw parser errors from leaking to users.
 async function parseJsonPayload<T>(response: Response, fallbackMessage: string): Promise<T> {
-  // Captures response body once so empty payloads can be handled explicitly.
   const responseBodyText = await response.text();
-  if (!responseBodyText || !responseBodyText.trim()) {
-    throw new Error(fallbackMessage);
-  }
+  if (!responseBodyText || !responseBodyText.trim()) throw new Error(fallbackMessage);
   try {
     return JSON.parse(responseBodyText) as T;
   } catch {
@@ -103,12 +108,9 @@ async function parseJsonPayload<T>(response: Response, fallbackMessage: string):
   }
 }
 
-// Extracts an API error message while tolerating empty/non-JSON error bodies.
 async function parseErrorMessage(response: Response): Promise<string> {
-  // Uses a resilient default when backend does not send structured JSON details.
   const defaultErrorMessage = `Server error ${response.status}`;
   try {
-    // Reads text first to avoid Response.json throwing on empty body.
     const errorBodyText = await response.text();
     if (!errorBodyText || !errorBodyText.trim()) return defaultErrorMessage;
     const parsedError = JSON.parse(errorBodyText) as { detail?: string; message?: string };
@@ -163,6 +165,77 @@ function Select({ value, options, onChange }: {
         return <option key={v} value={v}>{l}</option>;
       })}
     </select>
+  );
+}
+
+// ── Toggle switch ──────────────────────────────────────────────────────────────
+function Toggle({ checked, onChange, label, sublabel }: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  sublabel?: string;
+}) {
+  return (
+    <div
+      onClick={() => onChange(!checked)}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 14px", borderRadius: 12,
+        border: `1.5px solid ${checked ? C.border : C.borderSoft}`,
+        background: checked ? C.tint : C.white,
+        cursor: "pointer", transition: "all 0.15s",
+        gap: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+          background: checked ? C.primary : C.bg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "background 0.15s",
+        }}>
+          <ImageIcon size={15} color={checked ? C.white : C.muted} strokeWidth={2} />
+        </div>
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{label}</div>
+          {sublabel && (
+            <div style={{ fontSize: 12, color: C.sub, marginTop: 1 }}>{sublabel}</div>
+          )}
+        </div>
+      </div>
+      {/* Pill switch */}
+      <div style={{
+        width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+        background: checked ? C.primary : C.muted,
+        position: "relative", transition: "background 0.2s",
+      }}>
+        <div style={{
+          position: "absolute", top: 3,
+          left: checked ? 21 : 3,
+          width: 16, height: 16, borderRadius: 8,
+          background: C.white,
+          transition: "left 0.2s",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ── What's always included info strip ─────────────────────────────────────────
+function AlwaysIncludedStrip() {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 8,
+      padding: "10px 13px", borderRadius: 10,
+      background: C.bg, border: `1px solid ${C.borderSoft}`,
+    }}>
+      <BookOpen size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
+      <span style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.5 }}>
+        Each segment always includes a <strong style={{ color: C.text }}>text block</strong> — grammar rules,
+        vocabulary, and examples in Markdown.
+      </span>
+    </div>
   );
 }
 
@@ -243,10 +316,10 @@ function AdvancedSettings({
           })}
         </div>
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
-          All selected types will be generated in every segment.
+          All selected types will be distributed across segments.
           {selectedTypes.size > 0 && (
             <span style={{ color: C.sub, fontWeight: 600 }}>
-              {" "}({selectedTypes.size} type{selectedTypes.size > 1 ? "s" : ""} × {numSegments} segment{numSegments > 1 ? "s" : ""} = up to {selectedTypes.size * numSegments} exercises)
+              {" "}({selectedTypes.size} type{selectedTypes.size > 1 ? "s" : ""} × {numSegments} segment{numSegments > 1 ? "s" : ""})
             </span>
           )}
         </div>
@@ -291,6 +364,9 @@ export default function GenerateUnitModal({
   const [instructionLang, setInstructionLang] = useState("english");
   const [showAdvanced,    setShowAdvanced]    = useState(false);
 
+  // Image toggle (opt-in — adds latency)
+  const [includeImages, setIncludeImages] = useState(false);
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
@@ -334,14 +410,12 @@ export default function GenerateUnitModal({
           num_segments:         numSegments,
           exercise_types:       Array.from(selectedTypes),
           instruction_language: instructionLang,
+          include_images:       includeImages,
         }),
       });
-      if (!res.ok) {
-        throw new Error(await parseErrorMessage(res));
-      }
+      if (!res.ok) throw new Error(await parseErrorMessage(res));
       const data = await parseJsonPayload<GenerateResult>(
-        res,
-        "Generation finished but the server returned an empty or invalid response.",
+        res, "Generation finished but the server returned an empty or invalid response.",
       );
       setResult(data);
       onSuccess?.(data);
@@ -368,21 +442,17 @@ export default function GenerateUnitModal({
       formData.append("num_segments", String(numSegments));
       formData.append("exercise_types", Array.from(selectedTypes).join(","));
       formData.append("instruction_language", instructionLang);
+      formData.append("include_images", String(includeImages));
 
       const res = await fetch(`${apiBase}/units/${unitId}/generate/from-file`, {
         method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         credentials: "include",
         body: formData,
       });
-      if (!res.ok) {
-        throw new Error(await parseErrorMessage(res));
-      }
+      if (!res.ok) throw new Error(await parseErrorMessage(res));
       const data = await parseJsonPayload<GenerateResult>(
-        res,
-        "Generation finished but the server returned an empty or invalid response.",
+        res, "Generation finished but the server returned an empty or invalid response.",
       );
       setResult(data);
       onSuccess?.(data);
@@ -407,7 +477,7 @@ export default function GenerateUnitModal({
   };
 
   const formatBytes = (bytes: number) => {
-    if (bytes < 1024)       return `${bytes} B`;
+    if (bytes < 1024)        return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   };
@@ -532,9 +602,7 @@ export default function GenerateUnitModal({
                 {/* ── AI TAB ──────────────────────────────────────────────── */}
                 {activeTab === "ai" && (
                   <>
-                    {/* Topic */}
                     <div>
-                      {/* <Label>Topic *</Label> */}
                       <input
                         type="text"
                         value={topic}
@@ -552,9 +620,7 @@ export default function GenerateUnitModal({
                       />
                     </div>
 
-                    {/* Description */}
                     <div>
-                      {/* <Label>Description</Label> */}
                       <textarea
                         value={description}
                         onChange={e => setDescription(e.target.value)}
@@ -572,9 +638,6 @@ export default function GenerateUnitModal({
                         onFocus={e => { e.target.style.borderColor = C.primary; }}
                         onBlur={e => { e.target.style.borderColor = description ? C.primary : C.border; }}
                       />
-                      <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
-                        {/* The more detail you add, the more targeted the exercises will be. */}
-                      </div>
                     </div>
                   </>
                 )}
@@ -582,9 +645,6 @@ export default function GenerateUnitModal({
                 {/* ── FILE TAB ─────────────────────────────────────────────── */}
                 {activeTab === "file" && (
                   <div>
-                    {/* <Label>Upload File</Label> */}
-
-                    {/* Hidden file input */}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -594,7 +654,6 @@ export default function GenerateUnitModal({
                     />
 
                     {!file ? (
-                      /* Drop zone */
                       <div
                         onClick={() => fileInputRef.current?.click()}
                         onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
@@ -638,7 +697,6 @@ export default function GenerateUnitModal({
                         </div>
                       </div>
                     ) : (
-                      /* File preview card */
                       <div style={{
                         display: "flex", alignItems: "center", gap: 12,
                         padding: "14px 16px", borderRadius: 12,
@@ -679,12 +737,23 @@ export default function GenerateUnitModal({
                     )}
 
                     <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>
-                      {/* The AI will extract content from your file and generate exercises based on it. */}
+                      The AI will extract content from your file and generate segment content based on it.
                     </div>
                   </div>
                 )}
 
-                {/* ── Advanced toggle (shared) ─────────────────────────────── */}
+                {/* ── Always-included strip + Image toggle ────────────────── */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <AlwaysIncludedStrip />
+                  <Toggle
+                    checked={includeImages}
+                    onChange={setIncludeImages}
+                    label="Include AI illustrations"
+                    sublabel="Generate an SVG diagram for each segment (+30 s)"
+                  />
+                </div>
+
+                {/* ── Advanced toggle ──────────────────────────────────────── */}
                 <button type="button" onClick={() => setShowAdvanced(v => !v)} style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
                   gap: 5, width: "100%", padding: "9px",
@@ -712,7 +781,7 @@ export default function GenerateUnitModal({
                   />
                 )}
 
-                {/* ── Cost estimate pill (visible after Generate is clicked) ── */}
+                {/* ── Cost estimate pill ───────────────────────────────────── */}
                 {loading && (
                   <div style={{
                     display: "flex", alignItems: "center", gap: 8,
@@ -720,9 +789,9 @@ export default function GenerateUnitModal({
                   }}>
                     <Layers size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.5 }}>
-                      This will create <strong>{numSegments} segment{numSegments > 1 ? "s" : ""}</strong> with up to{" "}
-                      <strong>{selectedTypes.size * numSegments} exercise{selectedTypes.size * numSegments > 1 ? "s" : ""}</strong>.
-                      Generation may take 20–60 seconds.
+                      Generating <strong>{numSegments} segment{numSegments > 1 ? "s" : ""}</strong>
+                      {" "}with text blocks, exercises{includeImages ? ", and illustrations" : ""}.
+                      {" "}This may take {includeImages ? "60–120" : "20–60"} seconds.
                     </span>
                   </div>
                 )}
@@ -780,6 +849,8 @@ function SuccessView({
   onClose: () => void;
   onGenerateMore: () => void;
 }) {
+  const totalBlocks = result.texts_created + result.exercises_created + result.images_created;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{
@@ -796,10 +867,46 @@ function SuccessView({
         <div>
           <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>Content generated!</div>
           <div style={{ fontSize: 13, color: C.sub, marginTop: 4 }}>
-            {result.segments_created} segment{result.segments_created > 1 ? "s" : ""} •{" "}
-            {result.exercises_created} exercise{result.exercises_created > 1 ? "s" : ""}
+            {result.segments_created} segment{result.segments_created > 1 ? "s" : ""}
           </div>
         </div>
+      </div>
+
+      {/* Summary pills */}
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+        {result.texts_created > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 5,
+            background: C.tint, borderRadius: 20, padding: "5px 12px",
+            fontSize: 12.5, color: C.primaryDk, fontWeight: 600,
+          }}>
+            <BookOpen size={12} strokeWidth={2} />
+            {result.texts_created} text block{result.texts_created > 1 ? "s" : ""}
+          </div>
+        )}
+        {result.exercises_created > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 5,
+            background: C.successBg, borderRadius: 20, padding: "5px 12px",
+            fontSize: 12.5, color: C.success, fontWeight: 600,
+          }}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <path d="M8 1.5l1.5 4h4l-3.2 2.5 1.2 4L8 9.5 4.5 12l1.2-4L2.5 5.5h4L8 1.5z"
+                fill={C.success} stroke={C.success} strokeWidth="0.5" />
+            </svg>
+            {result.exercises_created} exercise{result.exercises_created > 1 ? "s" : ""}
+          </div>
+        )}
+        {result.images_created > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 5,
+            background: C.amberBg, borderRadius: 20, padding: "5px 12px",
+            fontSize: 12.5, color: C.amber, fontWeight: 600,
+          }}>
+            <ImageIcon size={12} strokeWidth={2} />
+            {result.images_created} illustration{result.images_created > 1 ? "s" : ""}
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -808,7 +915,7 @@ function SuccessView({
             background: C.bg, borderRadius: 12, padding: "12px 14px",
             border: `1px solid ${C.borderSoft}`,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <div style={{
                 width: 22, height: 22, borderRadius: 6,
                 background: C.tint, flexShrink: 0,
@@ -819,18 +926,42 @@ function SuccessView({
               </div>
               <span style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{seg.title}</span>
             </div>
-            {seg.exercise_types.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 30 }}>
-                {seg.exercise_types.map(t => (
-                  <span key={t} style={{
-                    fontSize: 11.5, color: C.primaryDk, background: C.tint,
-                    borderRadius: 6, padding: "2px 8px", fontWeight: 500,
-                  }}>
-                    {t.replace(/_/g, " ")}
-                  </span>
-                ))}
-              </div>
-            )}
+
+            {/* Block badges */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 30 }}>
+              {/* Text block badge */}
+              {(seg.texts_created ?? 0) > 0 && (
+                <span style={{
+                  fontSize: 11, color: C.primaryDk, background: C.tint,
+                  borderRadius: 6, padding: "2px 8px", fontWeight: 500,
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  <BookOpen size={10} strokeWidth={2} />
+                  {seg.texts_created} text
+                </span>
+              )}
+              {/* Image badge */}
+              {seg.has_image && (
+                <span style={{
+                  fontSize: 11, color: C.amber, background: C.amberBg,
+                  borderRadius: 6, padding: "2px 8px", fontWeight: 500,
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  <ImageIcon size={10} strokeWidth={2} />
+                  image
+                </span>
+              )}
+              {/* Exercise type badges */}
+              {seg.exercise_types.map(t => (
+                <span key={t} style={{
+                  fontSize: 11, color: C.sub, background: C.white,
+                  border: `1px solid ${C.borderSoft}`,
+                  borderRadius: 6, padding: "2px 8px", fontWeight: 500,
+                }}>
+                  {t.replace(/_/g, " ")}
+                </span>
+              ))}
+            </div>
           </div>
         ))}
       </div>

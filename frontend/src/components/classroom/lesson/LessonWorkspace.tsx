@@ -15,10 +15,22 @@
  *   • teacher delete for segment exercises + unit flow rows (videos/tasks/tests/slides)
  *   • navigation to/from ExerciseDraftsPage
  *   • prop assembly for VerticalLessonPlayer
+ *
+ * The main lesson/homework row uses `px-[var(--classroom-align-gutter)]` so its edges
+ * match ClassroomHeader’s pinned strip and the SectionSidePanel column.
  */
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { LayoutGrid } from "lucide-react";
 
 // Register all exercise types before any SectionBlock / FlowItemRenderer mounts
 import "./flow/exerciseRegistrations";
@@ -37,6 +49,7 @@ import {
   LessonRailState,
 } from "./flow/LessonPlayerShared";
 import SectionSidePanel, { type Segment as SidePanelSegment } from "../unit/SectionSidePanel";
+import "../classroom-mode.css";
 
 import {
   useSegmentPersistence,
@@ -124,7 +137,8 @@ export interface LessonWorkspaceProps {
   onOpenTest: (test: any) => void;
   forcedSlide: number | null;
   forcedSection: LiveSection | null;
-  onRailStateChange: (state: LessonRailState) => void;
+  /** Optional — header `LessonProgressRail` disabled; omit to skip lift to ClassroomPage. */
+  onRailStateChange?: (state: LessonRailState) => void;
   currentUnitId: number | null;
   onContentSaved: () => void;
   onUnitReloaded: () => void;
@@ -146,6 +160,14 @@ export interface LessonWorkspaceProps {
   segmentRefreshKey?: number;
   /** Teacher: copy a segment exercise into unit homework (persisted via homework API). */
   onCopyExerciseToHomework?: (block: InlineMediaBlock) => void | Promise<void>;
+  /** Teacher: toggles StudentAnswersPanel (live observer for student answers). */
+  onToggleAnswersPanel?: () => void;
+  /** Teacher: whether StudentAnswersPanel is open — drives the rail button active state. */
+  answersPanelOpen?: boolean;
+  /** Teacher: set on the answers rail wrapper so StudentAnswersPanel can dock beside the rail button. */
+  answersPanelAnchorRef?: RefObject<HTMLDivElement>;
+  /** Disables the side panel publish/finish button while the parent runs an async publish. */
+  finishUnitActionPending?: boolean;
 }
 
 // ─── Flow-building helpers ────────────────────────────────────────────────────
@@ -251,7 +273,7 @@ function LessonWorkspace({
   onOpenTask,
   onOpenTest,
   forcedSlide,
-  onRailStateChange,
+  onRailStateChange: _onRailStateChangeDisabled,
   onContentSaved,
   onUnitReloaded,
   onFinishUnit,
@@ -266,6 +288,10 @@ function LessonWorkspace({
   onCurrentSegmentIdChange,
   segmentRefreshKey = 0,
   onCopyExerciseToHomework,
+  onToggleAnswersPanel,
+  answersPanelOpen = false,
+  answersPanelAnchorRef,
+  finishUnitActionPending = false,
 }: LessonWorkspaceProps) {
   const pendingInlineMediaStorageKey = "lessonPendingInlineMedia";
   const draftRouteContextStorageKey = "exerciseDraftsRouteContext";
@@ -280,6 +306,13 @@ function LessonWorkspace({
   // console.log('[LessonWorkspace] mode prop =', mode);
 
   const effectiveUnitId = currentUnitId ?? unit?.id ?? null;
+
+  // Drives “Publish unit” vs “Finish unit” in the section panel for draft teacher units.
+  const sidePanelFinishVariant = useMemo<"publish" | "finish">(() => {
+    if (mode !== "teacher") return "finish";
+    const st = (unit as { status?: string } | null | undefined)?.status;
+    return st === "draft" ? "publish" : "finish";
+  }, [mode, unit]);
 
   // Keeps the mobile layout flag in sync with viewport resizes.
   useEffect(() => {
@@ -303,15 +336,25 @@ function LessonWorkspace({
     handleCarouselSlidesChange,
     flush: flushInlineMediaSaves,
     persistSegmentTitleDebounced,
-  } = useSegmentPersistence({ effectiveUnitId, mode, refreshKey: segmentRefreshKey, unitSegments: unit?.segments as UnitSegment[] | undefined });
+  } = useSegmentPersistence({ effectiveUnitId, mode, refreshKey: segmentRefreshKey, unitSegments: unit?.id === effectiveUnitId ? unit?.segments as UnitSegment[] | undefined : undefined });
 
-  // Merge fetched segments with unit.segments (student mode / before fetch resolves)
+  // Build sortedSegments from the hook's fetchedSegments first.
+  // Fall back to unit?.segments ONLY when both belong to the same unit —
+  // if unit?.id !== effectiveUnitId the unit fetch is still in-flight and
+  // unit?.segments holds stale data from the previous unit, which would leak
+  // the old unit's media blocks into the new unit's sections.
   const sortedSegments = useMemo(
-    () =>
-      fetchedSegments.length > 0
-        ? fetchedSegments
-        : getSortedSegments(unit?.segments),
-    [fetchedSegments, unit?.segments],
+    () => {
+      if (fetchedSegments.length > 0) return fetchedSegments;
+      // Only use the embedded segments when they are confirmed to be for the
+      // current unit.  While useStudentUnit is resolving the new unit it
+      // briefly sets unit=null, so unit?.id will be undefined — safe to skip.
+      if (unit?.id != null && unit.id === effectiveUnitId) {
+        return getSortedSegments(unit.segments);
+      }
+      return [];
+    },
+    [fetchedSegments, unit?.id, unit?.segments, effectiveUnitId],
   );
 
   /**
@@ -377,10 +420,28 @@ function LessonWorkspace({
     [flow.items],
   );
 
-  // ── Rail state ────────────────────────────────────────────────────────────────
+  // ── Section index (vertical lesson scroll) ───────────────────────────────────
   const [visibleSectionIndex, setVisibleSectionIndex] = useState(0);
-  const railTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Header LessonProgressRail disabled — was: debounce timer for onRailStateChange lift.
+  // const railTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollToSectionRef = useRef<((index: number) => void) | null>(null);
+
+  // Tracks the previous effectiveUnitId so we can detect unit switches without
+  // triggering the reset on the initial render (undefined sentinel).
+  const prevEffectiveUnitIdRef = useRef<number | null | undefined>(undefined);
+
+  // Reset the visible section to 0 whenever the user navigates to a different
+  // unit so the player always opens at the first section of the new unit.
+  useEffect(() => {
+    if (prevEffectiveUnitIdRef.current === undefined) {
+      prevEffectiveUnitIdRef.current = effectiveUnitId;
+      return;
+    }
+    if (effectiveUnitId !== prevEffectiveUnitIdRef.current) {
+      setVisibleSectionIndex(0);
+      prevEffectiveUnitIdRef.current = effectiveUnitId;
+    }
+  }, [effectiveUnitId]);
 
   /**
    * The real integer segment ID (from the API) for the currently visible
@@ -498,19 +559,20 @@ function LessonWorkspace({
     ],
   );
 
-  useEffect(() => {
-    if (railTimerRef.current) clearTimeout(railTimerRef.current);
-    railTimerRef.current = setTimeout(() => {
-      onRailStateChange({
-        items: flow.items,
-        activeIndex: visibleSectionIndex,
-        onNavigate,
-      });
-    }, 16);
-    return () => {
-      if (railTimerRef.current) clearTimeout(railTimerRef.current);
-    };
-  }, [flow.items, visibleSectionIndex, onNavigate, onRailStateChange]);
+  // Header LessonProgressRail disabled — was: lift flow.items + visibleSectionIndex to ClassroomPage.
+  // useEffect(() => {
+  //   if (railTimerRef.current) clearTimeout(railTimerRef.current);
+  //   railTimerRef.current = setTimeout(() => {
+  //     onRailStateChange?.({
+  //       items: flow.items,
+  //       activeIndex: visibleSectionIndex,
+  //       onNavigate,
+  //     });
+  //   }, 16);
+  //   return () => {
+  //     if (railTimerRef.current) clearTimeout(railTimerRef.current);
+  //   };
+  // }, [flow.items, visibleSectionIndex, onNavigate, onRailStateChange]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleItemCompleted = useCallback(
@@ -848,6 +910,10 @@ function LessonWorkspace({
           customBlock?: InlineMediaBlock;
           targetSectionId?: string | null;
           templateId?: string;
+          /** True when persistCustomLessonBlockToSegment already saved the block
+           *  to the server — upsertInlineMediaBlock must be skipped to avoid the
+           *  autosave race that would overwrite all other media_blocks. */
+          alreadyPersisted?: boolean;
         };
       } catch {
         sessionStorage.removeItem(pendingInlineMediaStorageKey);
@@ -875,7 +941,18 @@ function LessonWorkspace({
     sessionStorage.removeItem(pendingInlineMediaStorageKey);
 
     if (customBlock) {
-      upsertInlineMediaBlock(targetSectionId, customBlock);
+      if (storedImport?.alreadyPersisted) {
+        // The block was already written to the server by persistCustomLessonBlockToSegment
+        // before navigation. Skip upsertInlineMediaBlock: calling it while
+        // inlineMediaBySectionId is not yet hydrated would set state to [newBlock]
+        // only, causing the 500 ms autosave to overwrite all other blocks on the
+        // segment. The normal mount-fetch → hydration cycle will bring in the
+        // full, correct media_blocks list from the server.
+      } else {
+        // Block has not been persisted yet — optimistically add it to local state
+        // so it appears immediately and the autosave writes it.
+        upsertInlineMediaBlock(targetSectionId, customBlock);
+      }
       // Signal VLP to scroll to the right section.
       // Clearing is handled by the data-driven effect below once sortedSegments
       // are available — avoids the 150 ms race where segments haven't loaded yet.
@@ -927,6 +1004,14 @@ function LessonWorkspace({
   // Hides the floating section side panel on mobile to prevent horizontal overflow.
   const showDesktopSidePanel = sidePanelOpen && !isMobileViewport;
 
+  // True when the teacher should see the answers rail (left on desktop, top strip on mobile).
+  const hasTeacherAnswersRail =
+    mode === "teacher" && typeof onToggleAnswersPanel === "function";
+
+  // Uses a horizontal flex row when the sections panel and/or the answers rail needs column siblings.
+  const useWideLessonRow =
+    showDesktopSidePanel || (hasTeacherAnswersRail && !isMobileViewport);
+
   // ── Main render ────────────────────────────────────────────────────────────────
   return (
     <div className="lesson-workspace flex flex-col flex-1 min-h-0">
@@ -943,20 +1028,82 @@ function LessonWorkspace({
 
       <div
         className={[
-          "flex w-full min-h-0 pb-4",
-          showDesktopSidePanel
-            ? "flex-row justify-center pl-12 pr-4"
-            : "flex-col justify-start px-2 sm:px-4",
+          // flex-1 + min-h-0: fill <main> under the header so inner .vlp-root can scroll (main is overflow-hidden).
+          "flex flex-1 w-full min-h-0 pb-4 px-[var(--classroom-align-gutter)]",
+          useWideLessonRow
+            ? "flex-row justify-center gap-3"
+            : "flex-col justify-start",
         ].join(" ")}
         style={{ gap: 3 }}
       >
+        {/* Mobile/tablet: compact strip aligned with lesson column; hidden ≤480px (header fallback). */}
+        {hasTeacherAnswersRail && isMobileViewport && (
+          <div
+            ref={answersPanelAnchorRef}
+            className="lw-answers-rail lw-answers-rail--mobile lw-answers-rail--mobile--responsive mt-1 shrink-0"
+            aria-label="Student answers"
+          >
+            {/* <div className="lw-answers-rail__head lw-answers-rail__head--mobile">
+              <span className="lw-answers-rail__title">Answers</span>
+            </div> */}
+            <div className="lw-answers-rail__body lw-answers-rail__body--mobile">
+              <button
+                type="button"
+                onClick={onToggleAnswersPanel}
+                aria-label="View student answers"
+                aria-pressed={answersPanelOpen}
+                title="Student answers"
+                className={[
+                  "ch-icon-btn",
+                  answersPanelOpen
+                    ? "ch-icon-btn--answers ch-icon-btn--answers-active"
+                    : "ch-icon-btn--answers",
+                ].join(" ")}
+              >
+                <LayoutGrid size={15} strokeWidth={2.2} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {hasTeacherAnswersRail && !isMobileViewport && (
+          <aside
+            ref={answersPanelAnchorRef}
+            className="lw-answers-rail shrink-0"
+            aria-label="Student answers"
+          >
+            {/* <div className="lw-answers-rail__head">
+              <p className="lw-answers-rail__title">Answers</p>
+            </div> */}
+            <div className="lw-answers-rail__body">
+              <button
+                type="button"
+                onClick={onToggleAnswersPanel}
+                aria-label="View student answers"
+                aria-pressed={answersPanelOpen}
+                title="Student answers"
+                className={[
+                  "ch-icon-btn",
+                  answersPanelOpen
+                    ? "ch-icon-btn--answers ch-icon-btn--answers-active"
+                    : "ch-icon-btn--answers",
+                ].join(" ")}
+              >
+                <LayoutGrid size={15} strokeWidth={2.2} />
+              </button>
+            </div>
+          </aside>
+        )}
+
         <div
           className={[
-            "flex min-h-0 flex-col",
+            // flex-1: in column layout, take height below the answers rail; in row layout, fill beside the panel so .vlp-root gets a bounded flex height.
+            "flex  min-h-0 flex-col",
             showDesktopSidePanel ? "min-w-[700px] max-w-[900px]" : "w-full min-w-0 max-w-none",
           ].join(" ")}
         >
           <VerticalLessonPlayer
+            key={`vlp-unit-${effectiveUnitId ?? 'none'}`}
             flow={flow}
             mode={mode}
             sectionDefinitions={
@@ -1041,6 +1188,8 @@ function LessonWorkspace({
             onFinishUnit={onFinishUnit}
             onExtra={() => onExtra("extra")}
             currentUnitSteps={currentUnitSteps}
+            finishButtonVariant={sidePanelFinishVariant}
+            finishButtonDisabled={finishUnitActionPending}
           />
         )}
       </div>

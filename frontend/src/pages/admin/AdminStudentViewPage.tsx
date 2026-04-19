@@ -24,6 +24,8 @@ interface StudentProfile {
   is_active: boolean;
   last_login: string | null;
   notification_prefs?: Record<string, unknown>;
+  // Temporary auto-generated password assigned at creation; null once changed by student.
+  temporary_password: string | null;
 }
 
 interface StudentEnrollment {
@@ -530,11 +532,16 @@ export default function AdminStudentViewPage() {
     if (!student) return null;
     // Stores current app login page so teacher shares the correct entry URL.
     const loginPageUrl = `${window.location.origin}/login`;
+    // Shows the temporary auto-generated password if it still exists, otherwise
+    // indicates the student has already set their own password.
+    const passwordDisplay =
+      student.temporary_password != null && student.temporary_password.trim().length > 0
+        ? student.temporary_password
+        : "Устанавливается учеником";
     return {
       loginUrl: loginPageUrl,
       email: student.email,
-      // Uses guidance text because existing students can already have a custom password.
-      password: "Устанавливается учеником",
+      password: passwordDisplay,
     };
   }, [student]);
 
@@ -591,6 +598,8 @@ export default function AdminStudentViewPage() {
           is_active: selectedStudent.is_active,
           last_login: selectedStudent.last_login ?? null,
           notification_prefs: selectedStudent.notification_prefs ?? {},
+          // Stores backend-assigned temporary password so it can be shown in credentials modal.
+          temporary_password: selectedStudent.temporary_password ?? null,
         });
         setEnrollments(Array.isArray(enrollmentsResponse) ? enrollmentsResponse : []);
       })

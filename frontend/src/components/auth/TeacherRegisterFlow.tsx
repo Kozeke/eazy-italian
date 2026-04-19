@@ -22,8 +22,8 @@
  * Routing integration:
  *   This component is mounted at /register/teacher (or wherever RegisterPage routes for teacher role).
  *   LoginPage sends teachers with onboarding_completed=false to /admin/courses (course catalog).
- *   /admin/onboarding still renders <TeacherOnboardingPage /> when opened directly.
- *   "Generate course" button here → navigate('/admin/onboarding')
+ *   Legacy /admin/onboarding (TeacherOnboarding.legacy.jsx) is not mounted — see AdminRoutes.jsx.
+ *   "Generate course" sends teachers to /admin/courses instead.
  *   "Dashboard" button → navigate('/admin/dashboard')
  */
 

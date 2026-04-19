@@ -464,7 +464,7 @@ export default function SortIntoColumnsEditorPage({
                   gap: 6,
                   border: 'none',
                   background: 'transparent',
-                  color: '#06b6d4',
+                  color: '#4f52c2',
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: 'pointer',

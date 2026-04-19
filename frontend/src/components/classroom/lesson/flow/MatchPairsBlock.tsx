@@ -162,6 +162,48 @@ export default function MatchPairsBlock({
     [correctPairs],
   );
 
+  // Seeded Sattolo derangement for the right column.
+  //
+  // Strategy:
+  //   1. Build `aligned[]` — right items reordered so aligned[i] is the
+  //      CORRECT match for leftItems[i].  This is the "original" array that
+  //      Sattolo will derange.
+  //   2. Apply seeded Sattolo (j ∈ [0,i), not [0,i]) — every element is
+  //      guaranteed to move, so no correct pair can ever sit in the same row.
+  //   3. The seed is derived from the exercise ID, so the layout is stable
+  //      across re-renders but different for every exercise.
+  //
+  // This handles ALL sources: editor-saved, AI flat-format, and legacy
+  // exercises with shuffle_right:true.
+  const displayRightItems = useMemo<MatchItemDraft[]>(() => {
+    const n = leftItems.length;
+    if (n <= 1 || rightItems.length === 0) return rightItems;
+
+    // Step 1 — align right items to left order
+    const aligned: MatchItemDraft[] = [];
+    for (const leftItem of leftItems) {
+      const correctRightId = rightByLeftId.get(leftItem.id);
+      const rightItem = rightItems.find((r) => r.id === correctRightId);
+      if (rightItem) aligned.push(rightItem);
+    }
+    // Safety: if we can't build a full aligned array fall back to stored order
+    if (aligned.length !== n) return rightItems;
+
+    // Step 2 — seeded Sattolo shuffle (guaranteed derangement)
+    // LCG parameters from Numerical Recipes; >>> 0 keeps it uint32.
+    let state = hashString(`${typedItem.id}:sattolo`);
+    const seededRand = (max: number): number => {
+      state = ((state * 1664525) + 1013904223) >>> 0;
+      return state % max;
+    };
+    const result = [...aligned];
+    for (let i = n - 1; i > 0; i--) {
+      const j = seededRand(i); // [0, i) — Sattolo's derangement guarantee
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }, [rightItems, leftItems, rightByLeftId, typedItem.id]);
+
   const [activeSelection, setActiveSelection] =
     useState<ActiveSelection | null>(null);
   const [matchedPairs, setMatchedPairs] = useState<PairDraft[]>([]);
@@ -469,27 +511,27 @@ export default function MatchPairsBlock({
                       ? suppressAnswerFeedback
                         ? "#cbd5e1"
                         : pairCorrect
-                          ? (color ?? "#6366f1")
+                          ? (color ?? "#6c6fef")
                           : "#ef4444"
                       : isWrong
                         ? "#ef4444"
                         : isSelected
-                          ? "#06b6d4"
+                          ? "#6c6fef"
                           : "#e2e8f0",
                     background: isMatched
                       ? suppressAnswerFeedback
                         ? "#f1f5f9"
                         : pairCorrect
-                          ? colorWithAlpha(color ?? "#6366f1", "18")
+                          ? colorWithAlpha(color ?? "#6c6fef", "18")
                           : "#fee2e2"
                       : isWrong
                         ? "#fee2e2"
                         : isSelected
-                          ? "#ecfeff"
+                          ? "#eef0fe"
                           : "#ffffff",
                     color:
                       isMatched && !suppressAnswerFeedback && pairCorrect
-                        ? (color ?? "#6366f1")
+                        ? (color ?? "#6c6fef")
                         : "#1e293b",
                   }}
                 >
@@ -500,7 +542,7 @@ export default function MatchPairsBlock({
           </div>
 
           <div className="mp-player-column mp-player-column--right">
-            {rightItems.map((rightItem) => {
+            {displayRightItems.map((rightItem) => {
               const isSelected =
                 activeSelection?.side === "right" &&
                 activeSelection.id === rightItem.id;
@@ -537,27 +579,27 @@ export default function MatchPairsBlock({
                       ? suppressAnswerFeedback
                         ? "#cbd5e1"
                         : pairCorrect
-                          ? (color ?? "#6366f1")
+                          ? (color ?? "#6c6fef")
                           : "#ef4444"
                       : isWrong
                         ? "#ef4444"
                         : isSelected
-                          ? "#06b6d4"
+                          ? "#6c6fef"
                           : "#e2e8f0",
                     background: isMatched
                       ? suppressAnswerFeedback
                         ? "#f1f5f9"
                         : pairCorrect
-                          ? colorWithAlpha(color ?? "#6366f1", "18")
+                          ? colorWithAlpha(color ?? "#6c6fef", "18")
                           : "#fee2e2"
                       : isWrong
                         ? "#fee2e2"
                         : isSelected
-                          ? "#ecfeff"
+                          ? "#eef0fe"
                           : "#ffffff",
                     color:
                       isMatched && !suppressAnswerFeedback && pairCorrect
-                        ? (color ?? "#6366f1")
+                        ? (color ?? "#6c6fef")
                         : "#1e293b",
                   }}
                 >

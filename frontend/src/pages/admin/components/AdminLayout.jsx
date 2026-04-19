@@ -70,6 +70,7 @@ export default function AdminLayout() {
   const navigate  = useNavigate();
   const location  = useLocation();
   const [darkMode, setDarkMode] = useState(false);
+  // True when the legacy full-screen builder route is active (currently unused — see TeacherOnboarding.legacy.jsx + AdminRoutes).
   const isCourseBuilder = location.pathname === "/admin/courses/builder";
 
   const handleLogout = () => {

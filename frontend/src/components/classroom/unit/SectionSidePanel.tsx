@@ -16,6 +16,8 @@
  *   after confirmation (replaces the former right-side “active” dot).
  * • Optional `onReorderSegments`: teacher-only — drag handle reorders sections;
  *   parent persists POST …/segments/reorder and refetches.
+ * • Teacher draft units: footer primary action shows “Publish unit”; published units show
+ *   “Finish unit” (parent moves to the next unit or publishes via props).
  *
  * Design system unchanged:
  *   Primary #6C6FEF · Dark #4F52C2 · Tint #EEF0FE · Bg #F7F7FA · White #FFFFFF
@@ -40,7 +42,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Flag, BookOpen, CheckCircle2, Circle, X, GripVertical } from 'lucide-react';
+import { Plus, Flag, BookOpen, CheckCircle2, Circle, X, GripVertical, Send } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,6 +90,10 @@ export type SectionSidePanelProps = {
    * Each item: { label: string; done: boolean }
    */
   currentUnitSteps?:  Array<{ label: string; done: boolean }>;
+  /** When "publish", the footer primary button is labeled for publishing a draft unit. */
+  finishButtonVariant?: 'publish' | 'finish';
+  /** Disables the primary footer button (e.g. while a publish request is in flight). */
+  finishButtonDisabled?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -113,6 +119,8 @@ export default function SectionSidePanel({
   onFinishUnit,
   onExtra,
   currentUnitSteps,
+  finishButtonVariant = 'finish',
+  finishButtonDisabled = false,
 }: SectionSidePanelProps) {
 
   // Decide rendering mode: segments take priority when provided + non-empty
@@ -530,7 +538,13 @@ export default function SectionSidePanel({
             gap: 6,
           }}
         >
-          {onFinishUnit && <FinishUnitButton onClick={onFinishUnit} />}
+          {onFinishUnit && (
+            <FinishUnitButton
+              variant={finishButtonVariant}
+              disabled={finishButtonDisabled}
+              onClick={onFinishUnit}
+            />
+          )}
           {showAddSectionButton && <AddUnitButton onClick={handleAddSection} />}
           {onExtra      && <ExtraButton      onClick={onExtra} />}
         </div>
@@ -1124,10 +1138,24 @@ function AddUnitButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function FinishUnitButton({ onClick }: { onClick: () => void }) {
+function FinishUnitButton({
+  onClick,
+  variant = 'finish',
+  disabled = false,
+}: {
+  onClick: () => void;
+  variant?: 'publish' | 'finish';
+  disabled?: boolean;
+}) {
+  // Tracks hover affordance for the gradient primary button
   const [hovered, setHovered] = React.useState(false);
+  // True when this row should read as “publish draft” instead of “advance to next unit”
+  const isPublish = variant === 'publish';
   return (
     <button
+      type="button"
+      disabled={disabled}
+      aria-busy={disabled}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -1138,24 +1166,33 @@ function FinishUnitButton({ onClick }: { onClick: () => void }) {
         gap: 6,
         width: '100%',
         padding: '9px 10px',
-        background: hovered
-          ? 'linear-gradient(135deg, #5A5DE0 0%, #4345B0 100%)'
-          : 'linear-gradient(135deg, #6C6FEF 0%, #4F52C2 100%)',
+        background: disabled
+          ? '#a5a8f0'
+          : hovered
+            ? 'linear-gradient(135deg, #5A5DE0 0%, #4345B0 100%)'
+            : 'linear-gradient(135deg, #6C6FEF 0%, #4F52C2 100%)',
         border: 'none',
         borderRadius: 10,
-        cursor: 'pointer',
-        boxShadow: hovered
-          ? '0 3px 12px 0 rgba(108, 111, 239, 0.40)'
-          : '0 2px 8px 0 rgba(108, 111, 239, 0.30)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        boxShadow: disabled
+          ? 'none'
+          : hovered
+            ? '0 3px 12px 0 rgba(108, 111, 239, 0.40)'
+            : '0 2px 8px 0 rgba(108, 111, 239, 0.30)',
         transition: 'background 0.12s ease, box-shadow 0.12s ease',
         outline: 'none',
         color: '#ffffff',
         fontSize: 12,
         fontWeight: 600,
+        opacity: disabled ? 0.85 : 1,
       }}
     >
-      <Flag style={{ width: 13, height: 13, color: '#ffffff' }} />
-      Finish unit
+      {isPublish ? (
+        <Send style={{ width: 13, height: 13, color: '#ffffff' }} />
+      ) : (
+        <Flag style={{ width: 13, height: 13, color: '#ffffff' }} />
+      )}
+      {isPublish ? 'Publish unit' : 'Finish unit'}
     </button>
   );
 }

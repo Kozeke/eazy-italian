@@ -338,3 +338,80 @@
     scroll-behavior: auto;
   }
 }
+
+/* ─── Teacher answers rail (LessonWorkspace — left of canvas, mirrors SectionSidePanel) ─ */
+
+.lw-answers-rail {
+  align-self: flex-start;
+  width: 56px;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: var(--lp-player-radius, 1rem);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+/* .lw-answers-rail__head {
+  flex-shrink: 0;
+  padding: 10px 8px 8px;
+  border-bottom: 1px solid #f0f1f8;
+  text-align: center;
+}
+
+.lw-answers-rail__title {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1e293b;
+  line-height: 1.2;
+} */
+
+.lw-answers-rail__body {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding: 10px 8px 12px;
+}
+
+.lw-answers-rail--mobile {
+  width: auto;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Narrow viewports: left-aligned with lesson column; strip hidden ≤480px (header toggle). */
+.lw-answers-rail--mobile.lw-answers-rail--mobile--responsive {
+  display: none;
+  width: auto;
+  max-width: 100%;
+  align-self: flex-start;
+}
+
+@media (min-width: 481px) {
+  .lw-answers-rail--mobile.lw-answers-rail--mobile--responsive {
+    display: flex;
+  }
+}
+
+/* .lw-answers-rail__head--mobile {
+  border-bottom: none;
+  border-right: 1px solid #f0f1f8;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  text-align: left;
+} */
+
+.lw-answers-rail__body--mobile {
+  padding: 8px 12px;
+  justify-content: center;
+  align-items: center;
+}
+
+/* .lw-answers-rail__head--mobile .lw-answers-rail__title {
+  font-size: 11px;
+} */

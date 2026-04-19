@@ -1,6 +1,9 @@
 /**
  * TestStep.tsx  (v3 — POST /tests/:id/start for runtime question loading)
  *
+ * lesson/flow wiring: SectionBlock → FlowItemRenderer → blocks/SlideBlock
+ * (item.type "test") → TestStep.
+ *
  * What changed from v2:
  * ─────────────────────
  * • Questions are NO LONGER expected to already exist on `test.questions`.

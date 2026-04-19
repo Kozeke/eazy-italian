@@ -20,6 +20,18 @@
  *    • Loading spinner, EmptyLesson, exit-confirm modal all updated.
  *
  * All v15 behaviour is preserved exactly.
+ *
+ * ─── Classroom shell wiring (header · main) ───────────────────────────────────
+ * • `ClassroomLayout` (components/classroom/ClassroomLayout.tsx) — full-viewport
+ *   flex column; optional fixed `progress` hairline at top if that prop is passed
+ *   (this page does not pass it). Hides app chrome via `classroom-mode` on body.
+ * • `ClassroomHeader` — sticky header: top row (back, tabs, unit, presence).
+ *   Lesson step rail (`LessonProgressRail`) is disabled — see commented blocks
+ *   in this file, LessonWorkspace, ClassroomHeader, LessonPlayerShared.
+ * • Page body: `<main id="main-content">` below the header renders `renderWorkspace()`
+ *   (lesson: `LessonWorkspace`, homework: `HomeworkPlayer`, errors, empty states).
+ * • Routes: `App.tsx` mounts this page at `/student/classroom/...` and
+ *   `/teacher/classroom/...` (see comments there).
  */
 
 import {
@@ -50,14 +62,15 @@ import {
   courseToEditModalSeed,
   courseEditDataToUpdatePayload,
 } from "../../components/classroom/unit/courseEditSync";
-import {
-  LessonProgressRail,
-  type LessonRailState,
-} from "../../components/classroom/lesson/flow/LessonPlayerShared";
+// Lesson header rail disabled — was: LessonProgressRail, LessonRailState from LessonPlayerShared.
+// import {
+//   LessonProgressRail,
+//   type LessonRailState,
+// } from "../../components/classroom/lesson/flow/LessonPlayerShared";
 
 import { useClassroom } from "../../hooks/useClassroom";
 import { useStudentUnit } from "../../hooks/useStudentUnit";
-import { useUnitPresentation } from "../../hooks/useUnitPresentation";
+// import { useUnitPresentation } from "../../hooks/useUnitPresentation";
 import { useAuth } from "../../hooks/useAuth";
 import { useOnlinePresence } from "../../hooks/useOnlinePresence";
 import { useTeacherClassroomTransition } from "../../contexts/TeacherClassroomTransitionContext";
@@ -158,23 +171,24 @@ interface LessonProgressState {
   test: StepState;
 }
 
-function areRailStatesEqual(
-  prev: LessonRailState | null,
-  next: LessonRailState,
-): boolean {
-  if (!prev) return false;
-  if (prev.activeIndex !== next.activeIndex) return false;
-  if (prev.onNavigate !== next.onNavigate) return false;
-
-  const prevItems = prev.items ?? [];
-  const nextItems = next.items ?? [];
-  if (prevItems.length !== nextItems.length) return false;
-  return prevItems.every((p, i) => {
-    const n = nextItems[i];
-    return (p as any).label === (n as any).label &&
-      (p as any).status === (n as any).status;
-  });
-}
+// LessonProgressRail dedupe helper — disabled with header rail.
+// function areRailStatesEqual(
+//   prev: LessonRailState | null,
+//   next: LessonRailState,
+// ): boolean {
+//   if (!prev) return false;
+//   if (prev.activeIndex !== next.activeIndex) return false;
+//   if (prev.onNavigate !== next.onNavigate) return false;
+//
+//   const prevItems = prev.items ?? [];
+//   const nextItems = next.items ?? [];
+//   if (prevItems.length !== nextItems.length) return false;
+//   return prevItems.every((p, i) => {
+//     const n = nextItems[i];
+//     return (p as any).label === (n as any).label &&
+//       (p as any).status === (n as any).status;
+//   });
+// }
 
 function unitHasLessonContent(
   slidesCount: number,
@@ -366,13 +380,13 @@ function ClassroomPageInner({
   });
 
   const [activeTab, setActiveTab] = useState<ClassroomTab>('lesson');
-  const [railState, setRailState] = useState<LessonRailState | null>(null);
-
-  const handleRailStateChange = useCallback((nextState: LessonRailState) => {
-    setRailState((prevState) =>
-      areRailStatesEqual(prevState, nextState) ? prevState : nextState,
-    );
-  }, []);
+  // Header LessonProgressRail disabled — was: railState + handleRailStateChange.
+  // const [railState, setRailState] = useState<LessonRailState | null>(null);
+  // const handleRailStateChange = useCallback((nextState: LessonRailState) => {
+  //   setRailState((prevState) =>
+  //     areRailStatesEqual(prevState, nextState) ? prevState : nextState,
+  //   );
+  // }, []);
 
   // ── Current section's real integer segment ID (from the API) ─────────────
   const [currentSectionIntegerId, setCurrentSectionIntegerId] = useState<number | null>(null);
@@ -391,6 +405,12 @@ function ClassroomPageInner({
   const [sidePanelOpen] = useState(true);
   const [manualBuilderActive, setManualBuilderActive] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  // True while POST …/publish is in flight so the lesson footer cannot double-submit.
+  const [publishBusy, setPublishBusy] = useState(false);
+  // When the teacher picks another unit while the current unit is still a draft, we confirm first.
+  const [draftSwitchModalOpen, setDraftSwitchModalOpen] = useState(false);
+  // Target unit for the draft switch confirmation modal (null when the modal is closed).
+  const [pendingDraftSwitchUnit, setPendingDraftSwitchUnit] = useState<ClassroomUnit | null>(null);
   // Controls visibility of the Additional Materials modal opened from the sidebar.
   const [materialsModalOpen, setMaterialsModalOpen] = useState(false);
   // Stores the materials currently shown in the modal.
@@ -401,6 +421,15 @@ function ClassroomPageInner({
   const [materialsUploading, setMaterialsUploading] = useState(false);
   // Controls visibility of the teacher-only StudentAnswersPanel (observe student exercise answers)
   const [answersPanelOpen, setAnswersPanelOpen] = useState(false);
+  // Lesson rail wrapper — primary anchor for the answers popover on the lesson tab.
+  const answersPanelAnchorRef = useRef<HTMLDivElement>(null);
+  // Header answers icon — anchor when homework tab or lesson with hidden strip (≤480px).
+  const answersHeaderButtonRef = useRef<HTMLButtonElement>(null);
+  // When true, LessonWorkspace hides the mobile answers strip (≤480px); header shows the toggle instead.
+  const [lessonAnswersStripHidden, setLessonAnswersStripHidden] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 480px)").matches;
+  });
 
   // ── Course data ───────────────────────────────────────────────────────────
   const { state, selectUnit, reloadUnits } = useClassroom(courseId, unitId, isTeacher);
@@ -419,6 +448,15 @@ function ClassroomPageInner({
 
   const [homeworkRoster, setHomeworkRoster] = useState<HomeworkSubmissionListItemDto[]>([]);
   const [homeworkRosterLoading, setHomeworkRosterLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(max-width: 480px)");
+    const syncLessonAnswersStrip = () => setLessonAnswersStripHidden(mediaQuery.matches);
+    syncLessonAnswersStrip();
+    mediaQuery.addEventListener("change", syncLessonAnswersStrip);
+    return () => mediaQuery.removeEventListener("change", syncLessonAnswersStrip);
+  }, []);
 
   useEffect(() => {
     if (!isTeacher || !currentUnit?.id) return;
@@ -468,6 +506,18 @@ function ClassroomPageInner({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [exitConfirmOpen]);
+
+  useEffect(() => {
+    if (!draftSwitchModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDraftSwitchModalOpen(false);
+        setPendingDraftSwitchUnit(null);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [draftSwitchModalOpen]);
 
   // ── Unit detail ───────────────────────────────────────────────────────────
   const {
@@ -593,23 +643,26 @@ function ClassroomPageInner({
     [navigate],
   );
 
-  // ── Slides ────────────────────────────────────────────────────────────────
-  const {
-    slides: presentationSlides,
-    loading: slidesLoading,
-    error: slidesError,
-    reload: reloadSlides,
-  } = useUnitPresentation(currentUnit?.id ?? null, isTeacher);
+  // ── Slides — deck fetch disabled (no GET …/units/:id/presentations or …/presentations/:id/slides) ──
+  // const {
+  //   slides: presentationSlides,
+  //   loading: slidesLoading,
+  //   error: slidesError,
+  //   reload: reloadSlides,
+  // } = useUnitPresentation(currentUnit?.id ?? null);
 
   // ── Content presence flags ────────────────────────────────────────────────
-  const hasPresentationContent = presentationSlides.length > 0 || slidesLoading;
+  // const hasPresentationContent = presentationSlides.length > 0 || slidesLoading;
+  const hasPresentationContent = false;
   const hasTaskContent  = (unitDetail?.tasks?.length ?? 0) > 0;
   const hasTestContent  = (unitDetail?.tests?.length ?? 0) > 0;
   const hasAnyContent   = hasPresentationContent || hasTaskContent || hasTestContent;
 
   const useLessonPlayer = currentUnit != null && unitHasLessonContent(
-    presentationSlides.length,
-    slidesLoading,
+    // presentationSlides.length,
+    // slidesLoading,
+    0,
+    false,
     hasTaskContent ? 1 : 0,
     hasTestContent ? 1 : 0,
   );
@@ -651,9 +704,10 @@ function ClassroomPageInner({
   );
 
   const handleContentSaved = useCallback(async () => {
-    await Promise.all([reloadSlides(), reloadUnit()]);
+    // await Promise.all([reloadSlides(), reloadUnit()]);
+    await reloadUnit();
     setManualBuilderActive(false);
-  }, [reloadSlides, reloadUnit]);
+  }, [reloadUnit]);
 
   // ── BLOCK B — auto-open modal on empty course or after AI outline ─────────
   const isFirstRun = isTeacher && !courseLoading && units.length === 0;
@@ -709,7 +763,101 @@ function ClassroomPageInner({
     }
   }, [units.length, courseId]);
 
-  const handleFinishUnit = useCallback(() => {}, []);
+  /** Navigates to a unit URL and resets local lesson progress (shared by selector, finish, and draft confirm). */
+  const navigateToUnit = useCallback(
+    (unit: ClassroomUnit) => {
+      selectUnit(unit);
+      dispatch({ type: "RESET" });
+      setActiveTab("lesson");
+      navigate(`${classroomBasePath}/${courseId}/${unit.id}`, { replace: true });
+    },
+    [selectUnit, navigate, classroomBasePath, courseId],
+  );
+
+  /** Closes the “unpublished draft” switch dialog without changing unit. */
+  const cancelDraftUnitSwitch = useCallback(() => {
+    setDraftSwitchModalOpen(false);
+    setPendingDraftSwitchUnit(null);
+  }, []);
+
+  /** Proceeds to the pending unit after the teacher acknowledges leaving a draft. */
+  const confirmDraftUnitSwitch = useCallback(() => {
+    if (pendingDraftSwitchUnit) {
+      navigateToUnit(pendingDraftSwitchUnit);
+    }
+    setDraftSwitchModalOpen(false);
+    setPendingDraftSwitchUnit(null);
+  }, [pendingDraftSwitchUnit, navigateToUnit]);
+
+  /**
+   * Switches unit from the header/modal list; blocks direct navigation when the current teacher unit is still draft.
+   */
+  const handleSelectUnit = useCallback(
+    (unit: ClassroomUnit) => {
+      if (
+        isTeacher &&
+        String((unitDetail as { status?: string } | null)?.status) === "draft" &&
+        unit.id !== currentUnit?.id
+      ) {
+        setPendingDraftSwitchUnit(unit);
+        setDraftSwitchModalOpen(true);
+        return;
+      }
+      navigateToUnit(unit);
+    },
+    [isTeacher, unitDetail, currentUnit?.id, navigateToUnit],
+  );
+
+  /**
+   * Teacher: publishes a draft unit from the section panel, or jumps to the next ordered unit when already published.
+   * Students: no-op (the panel uses the same callback but the handler exits early).
+   */
+  const handleFinishUnit = useCallback(async () => {
+    if (!isTeacher || !currentUnit?.id) return;
+
+    const unitStatus = (unitDetail as { status?: string } | null)?.status;
+    if (unitStatus === "draft") {
+      setPublishBusy(true);
+      try {
+        await unitsApi.publishUnit(currentUnit.id, { publish_children: true });
+        toast.success("Unit published");
+        await Promise.all([reloadUnit(), reloadUnits()]);
+      } catch (err: unknown) {
+        const ax = err as { response?: { data?: { detail?: unknown } } };
+        const detail = ax.response?.data?.detail;
+        const msg =
+          typeof detail === "string"
+            ? detail
+            : Array.isArray(detail)
+              ? JSON.stringify(detail)
+              : "Could not publish the unit";
+        toast.error(msg);
+      } finally {
+        setPublishBusy(false);
+      }
+      return;
+    }
+
+    const sorted = [...units].sort(
+      (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
+    );
+    const idx = sorted.findIndex((u) => u.id === currentUnit.id);
+    const next = idx >= 0 && idx < sorted.length - 1 ? sorted[idx + 1] : null;
+    if (next) {
+      navigateToUnit(next);
+    } else {
+      toast("This is the last unit in the course.", { icon: "ℹ️" });
+    }
+  }, [
+    isTeacher,
+    currentUnit?.id,
+    unitDetail,
+    units,
+    reloadUnit,
+    reloadUnits,
+    navigateToUnit,
+  ]);
+
   // Opens the Additional Materials modal from the side panel "Additional materials" button.
   const handlePanelExtra = useCallback(() => {
     setMaterialsModalOpen(true);
@@ -797,18 +945,8 @@ function ClassroomPageInner({
     ? Math.round((completedUnitIds.size / units.length) * 100)
     : undefined;
 
-  const lessonRailNode = useMemo(() => {
-    const items = railState?.items ?? [];
-    if (!railState || items.length === 0) return null;
-    return (
-      <LessonProgressRail
-        items={items}
-        activeIndex={railState.activeIndex}
-        onNavigate={railState.onNavigate}
-        compact
-      />
-    );
-  }, [railState]);
+  // Header LessonProgressRail disabled — was: lessonRailNode from railState.
+  // const lessonRailNode = useMemo(() => { ... }, [railState]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const requestExitClassroom = useCallback(() => setExitConfirmOpen(true),  []);
@@ -819,17 +957,6 @@ function ClassroomPageInner({
     completeTeacherClassroomOpen(true);
     navigate(backPath);
   }, [backPath, navigate, completeTeacherClassroomOpen]);
-
-  const handleSelectUnit = useCallback(
-    (unit: ClassroomUnit) => {
-      selectUnit(unit);
-      dispatch({ type: "RESET" });
-      setRailState(null);
-      setActiveTab('lesson');
-      navigate(`${classroomBasePath}/${courseId}/${unit.id}`, { replace: true });
-    },
-    [selectUnit, navigate, classroomBasePath, courseId],
-  );
 
   // ── Navigate to ExerciseDraftsPage in homework mode ───────────────────────
   const handleCreateHomeworkExercise = useCallback(() => {
@@ -922,9 +1049,12 @@ function ClassroomPageInner({
     () => ({
       mode: isTeacher ? ("teacher" as const) : ("student" as const),
       unit: (unitDetail as unknown as LessonWorkspaceProps["unit"]),
-      slides: presentationSlides as unknown as LessonWorkspaceProps["slides"],
-      slidesLoading,
-      slidesError: slidesError ?? undefined,
+      // slides: presentationSlides as unknown as LessonWorkspaceProps["slides"],
+      // slidesLoading,
+      // slidesError: slidesError ?? undefined,
+      slides: [] as unknown as LessonWorkspaceProps["slides"],
+      slidesLoading: false,
+      slidesError: undefined,
       loading: courseLoading || (unitLoading && unitDetail == null),
       error: unitError,
       taskSubmission: null,
@@ -939,7 +1069,7 @@ function ClassroomPageInner({
       onOpenTest: handleOpenTestFallback,
       forcedSlide: liveSlide,
       forcedSection: liveSection,
-      onRailStateChange: handleRailStateChange,
+      // onRailStateChange: handleRailStateChange,
       currentUnitId: currentUnit?.id ?? null,
       onContentSaved: handleContentSaved,
       onUnitReloaded: reloadUnit,
@@ -952,18 +1082,22 @@ function ClassroomPageInner({
       onSelectUnit: handleSelectUnit as unknown as LessonWorkspaceProps["onSelectUnit"],
       onAddUnit: handleAddUnit,
       onFinishUnit: handleFinishUnit,
+      finishUnitActionPending: publishBusy,
       segmentRefreshKey: state.segmentVersion,
       onExtra: handlePanelExtra,
       onCurrentSegmentIdChange: handleCurrentSegmentIdChange,
       onCopyExerciseToHomework: isTeacher ? handleCopyExerciseToHomework : undefined,
+      onToggleAnswersPanel: isTeacher ? () => setAnswersPanelOpen((v) => !v) : undefined,
+      answersPanelOpen: isTeacher ? answersPanelOpen : undefined,
+      answersPanelAnchorRef: isTeacher ? answersPanelAnchorRef : undefined,
     }),
     [
       isTeacher,
       state.segmentVersion,
       unitDetail,
-      presentationSlides,
-      slidesLoading,
-      slidesError,
+      // presentationSlides,
+      // slidesLoading,
+      // slidesError,
       courseLoading,
       unitLoading,
       unitError,
@@ -978,7 +1112,7 @@ function ClassroomPageInner({
       handleOpenTestFallback,
       liveSlide,
       liveSection,
-      handleRailStateChange,
+      // handleRailStateChange,
       currentUnit?.id,
       handleContentSaved,
       reloadUnit,
@@ -990,9 +1124,11 @@ function ClassroomPageInner({
       handleSelectUnit,
       handleAddUnit,
       handleFinishUnit,
+      publishBusy,
       handlePanelExtra,
       handleCurrentSegmentIdChange,
       handleCopyExerciseToHomework,
+      answersPanelOpen,
     ],
   );
 
@@ -1049,7 +1185,9 @@ function ClassroomPageInner({
       onSlideChange={setLiveSlide}
       onSectionChange={setLiveSection}
     >
+      {/* Full-screen column: children = header stack + banners + main (see file header). */}
       <ClassroomLayout ref={layoutRef}>
+        {/* Sticky header; lesson rail row disabled (no lessonRail). */}
         <ClassroomHeader
           classroom={classroom ?? undefined}
           course={course ?? { id: 0, title: "Loading…" }}
@@ -1058,19 +1196,27 @@ function ClassroomPageInner({
           completedUnitIds={completedUnitIds}
           progress={courseProgress}
           onBack={requestExitClassroom}
-          lessonRail={lessonRailNode}
+          // lessonRail={lessonRailNode}
           onOpenUnitSelector={handleOpenUnitSelector}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           homeworkCount={homeworkItems.length}
           isTeacher={isTeacher}
           onlineUsers={onlineUsers}
-          onToggleAnswersPanel={() => setAnswersPanelOpen((v) => !v)}
-          answersPanelOpen={answersPanelOpen}
+          answersPanelHeaderButtonRef={isTeacher ? answersHeaderButtonRef : undefined}
+          {...(isTeacher &&
+          (activeTab === "homework" ||
+            (activeTab === "lesson" && lessonAnswersStripHidden))
+            ? {
+                onToggleAnswersPanel: () => setAnswersPanelOpen((v) => !v),
+                answersPanelOpen,
+              }
+            : {})}
         />
 
         <LiveSessionBanner />
 
+        {/* Teacher overlay; not the lesson rail (that is lessonRail on ClassroomHeader). */}
         <StudentAnswersPanel
           open={answersPanelOpen}
           onClose={() => setAnswersPanelOpen(false)}
@@ -1080,6 +1226,9 @@ function ClassroomPageInner({
           unitId={currentUnit?.id ?? null}
           homeworkRoster={homeworkRoster}
           homeworkRosterLoading={homeworkRosterLoading}
+          railAnchorRef={isTeacher ? answersPanelAnchorRef : undefined}
+          headerAnchorRef={isTeacher ? answersHeaderButtonRef : undefined}
+          anchorRefreshKey={`${activeTab}-${currentUnit?.id ?? ""}-${unitLoading ? 1 : 0}`}
           onHomeworkReviewed={() => {
             if (!currentUnit?.id) return;
             void homeworkSubmissionApi
@@ -1088,6 +1237,7 @@ function ClassroomPageInner({
           }}
         />
 
+        {/* Primary scroll/workspace region: lesson (LessonWorkspace) or homework player. */}
         <main
           id="main-content"
           tabIndex={-1}
@@ -1130,7 +1280,8 @@ function ClassroomPageInner({
           if (newUnitId) {
             navigate(`${classroomBasePath}/${courseId}/${newUnitId}`, { replace: false });
           } else {
-            Promise.all([reloadSlides(), reloadUnit()]);
+            // Promise.all([reloadSlides(), reloadUnit()]);
+            void reloadUnit();
           }
         }}
         courseOutline={courseOutline}
@@ -1201,12 +1352,18 @@ function ClassroomPageInner({
               id="exit-classroom-title"
               className="text-lg font-semibold text-slate-900"
             >
-              Leave classroom?
+              {isTeacher &&
+              String((unitDetail as { status?: string } | null)?.status) === "draft"
+                ? "Unit not published"
+                : "Leave classroom?"}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              {isTeacher
-                ? "You will return to your courses. Unsaved changes in open editors may be lost."
-                : "You will return to My Classes."}
+              {isTeacher &&
+              String((unitDetail as { status?: string } | null)?.status) === "draft"
+                ? "This unit is still a draft. Publish it from the sidebar when you are ready, or you can leave the classroom and come back later."
+                : isTeacher
+                  ? "You will return to your courses. Unsaved changes in open editors may be lost."
+                  : "You will return to My Classes."}
             </p>
 
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1240,6 +1397,71 @@ function ClassroomPageInner({
                 }}
               >
                 Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Draft unit switch — teacher must acknowledge leaving an unpublished unit */}
+      {draftSwitchModalOpen && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+          style={{ background: "rgba(15, 17, 35, 0.40)", backdropFilter: "blur(4px)" }}
+          role="presentation"
+          onClick={cancelDraftUnitSwitch}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="draft-switch-title"
+            className="w-full max-w-md p-7"
+            style={{
+              background: DS.white,
+              borderRadius: "16px",
+              boxShadow:
+                "0 8px 32px rgba(108, 111, 239, 0.12), 0 2px 8px rgba(0,0,0,0.08)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="draft-switch-title"
+              className="text-lg font-semibold text-slate-900"
+            >
+              Unit not published
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">
+              This unit is still a draft. You can publish it from the sidebar first, or switch units
+              anyway—your draft will stay in this course until you publish.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={cancelDraftUnitSwitch}
+                className="rounded-xl px-5 py-2.5 text-sm font-semibold transition-all hover:opacity-80 focus:outline-none focus-visible:ring-2"
+                style={{
+                  background: DS.bg,
+                  color: "#374151",
+                  border: "1.5px solid #E5E7EB",
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  "--tw-ring-color": DS.tint,
+                }}
+              >
+                Stay on this unit
+              </button>
+              <button
+                type="button"
+                onClick={confirmDraftUnitSwitch}
+                className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-95 focus:outline-none focus-visible:ring-2"
+                style={{
+                  background: DS.primary,
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  "--tw-ring-color": DS.tint,
+                }}
+              >
+                Switch unit
               </button>
             </div>
           </div>

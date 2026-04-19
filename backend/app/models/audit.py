@@ -1,3 +1,5 @@
+"""Audit log model storing security and system activity events."""
+
 from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Enum, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -47,7 +49,8 @@ class AuditLog(Base):
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     details = Column(JSON, default=dict)  # Additional details about the action
-    metadata = Column(JSON, default=dict)  # System metadata
+    # Stores request/system metadata while avoiding SQLAlchemy's reserved `metadata` attribute name.
+    audit_metadata = Column("metadata", JSON, default=dict)
 
     # Relationships
     user = relationship("User")
@@ -77,6 +80,6 @@ class AuditLog(Base):
             "ip_address": self.ip_address,
             "user_agent": self.user_agent,
             "details": self.details,
-            "metadata": self.metadata
+            "metadata": self.audit_metadata
         }
 

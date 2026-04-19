@@ -1,6 +1,9 @@
 /**
  * VideoStep.tsx  — Immersive Video Step for the Lesson Flow
  *
+ * lesson/flow wiring: SectionBlock → FlowItemRenderer → blocks/SlideBlock
+ * (item.type "video") → VideoStep.
+ *
  * Design goals (consistent with SlideStep philosophy):
  *   • The video player is the visual hero — full-width, rounded, no extra chrome.
  *   • A sky-blue accent palette distinguishes video from slides (teal),

@@ -10,6 +10,9 @@
  * Adding a new exercise type requires ZERO changes here.
  * Edit exerciseRegistrations.ts and create the block component.
  *
+ * Legacy slides/video/task/test items: FlowItemRenderer still resolves to
+ * blocks/SlideBlock.tsx, which wraps components under ../lesson/ (not under flow/).
+ *
  * Extracted to their own files (same folder):
  *   ImageCarouselEditor / ImageCarouselViewer  →  ./ImageCarousel
  *   FlowItemRenderer                           →  ./FlowItemRenderer
@@ -62,9 +65,9 @@ const MEDIA_META: Record<
 > = {
   image: {
     label: "Image",
-    color: "#0891b2",
-    bg: "#ecfeff",
-    border: "#a5f3fc",
+    color: "#4f52c2",
+    bg: "#eef0fe",
+    border: "#a5a8ef",
     icon: <Image size={15} strokeWidth={1.8} />,
     placeholder: "Paste an image URL…",
   },
@@ -79,7 +82,7 @@ const MEDIA_META: Record<
   audio: {
     label: "Audio",
     color: "#0d9488",
-    bg: "#f0fdfa",
+    bg: "#f0faf9",
     border: "#5eead4",
     icon: <Music size={15} strokeWidth={1.8} />,
     placeholder: "Paste an audio file URL…",
@@ -164,10 +167,16 @@ function InlineMediaPreview({
   meta: (typeof MEDIA_META)[MediaKind];
 }) {
   if (block.kind === "image") {
+    // Prefer url (blob URL or external URL), fall back to data.src (persistent base64)
+    const displaySrc =
+      (block.url ?? "").trim() ||
+      ((block.data as Record<string, unknown> | undefined)?.src as string | undefined) ||
+      "";
+    if (!displaySrc) return null;
     return (
       <div className="vlp-inline-media-preview">
         <img
-          src={block.url ?? ""}
+          src={displaySrc}
           alt={block.caption || "Preview"}
           style={{
             maxWidth: "100%",
@@ -286,7 +295,18 @@ function InlineMediaCard({
                 style={{ display: "none" }}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) onChange({ url: URL.createObjectURL(f) });
+                  if (!f) return;
+                  // Convert to base64 so the image persists across sessions
+                  // (blob URLs are session-only and break after page reload)
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const src = ev.target?.result as string;
+                    onChange({
+                      url: src,
+                      data: { ...(block.data ?? {}), src },
+                    });
+                  };
+                  reader.readAsDataURL(f);
                 }}
               />
               <button
@@ -301,7 +321,13 @@ function InlineMediaCard({
           )}
         </div>
 
-        {(block.url ?? "").trim() && <InlineMediaPreview block={block} meta={meta} />}
+        {(() => {
+          const previewSrc =
+            (block.url ?? "").trim() ||
+            ((block.data as Record<string, unknown> | undefined)?.src as string | undefined) ||
+            "";
+          return previewSrc ? <InlineMediaPreview block={block} meta={meta} /> : null;
+        })()}
 
         <input
           type="text"
@@ -313,6 +339,108 @@ function InlineMediaCard({
       </div>
     </div>
   );
+}
+
+// ─── InlineMediaViewer ────────────────────────────────────────────────────────
+// Read-only display of image / video / audio blocks for students.
+
+function InlineMediaViewer({
+  block,
+}: {
+  block: InlineMediaBlock & { kind: "image" | "video" | "audio" };
+}) {
+  // Resolve the media source: prefer url, fall back to data.src (persistent base64)
+  const src =
+    (block.url ?? "").trim() ||
+    ((block.data as Record<string, unknown> | undefined)?.src as string | undefined) ||
+    "";
+
+  if (block.kind === "image") {
+    if (!src) return null;
+    return (
+      <div
+        style={{
+          borderRadius: 14,
+          overflow: "hidden",
+          background: "#F7F7FA",
+          border: "1.5px solid #E8EAFD",
+          boxShadow: "0 1px 4px rgba(108,111,239,0.07)",
+        }}
+      >
+        <img
+          src={src}
+          alt={block.caption || block.title || "Image"}
+          style={{
+            width: "100%",
+            height: "auto",
+            display: "block",
+            objectFit: "contain",
+          }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+        {block.caption && (
+          <div
+            style={{
+              padding: "8px 16px",
+              fontSize: 12.5,
+              color: "#6B6F8E",
+              fontStyle: "italic",
+              textAlign: "center",
+              background: "#FFFFFF",
+              borderTop: "1px solid #E8EAFD",
+            }}
+          >
+            {block.caption}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (block.kind === "video") {
+    const yt = src.match(
+      /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/,
+    );
+    if (yt) {
+      return (
+        <div
+          style={{
+            borderRadius: 12,
+            overflow: "hidden",
+            aspectRatio: "16/9",
+            background: "#000",
+          }}
+        >
+          <iframe
+            src={`https://www.youtube.com/embed/${yt[1]}`}
+            style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title={block.title || "Video"}
+          />
+        </div>
+      );
+    }
+    if (src) {
+      return (
+        <video
+          src={src}
+          controls
+          style={{ width: "100%", borderRadius: 10, display: "block" }}
+        />
+      );
+    }
+    return null;
+  }
+
+  if (block.kind === "audio") {
+    if (!src) return null;
+    return <audio src={src} controls style={{ width: "100%", borderRadius: 8 }} />;
+  }
+
+  return null;
 }
 
 // ─── SectionBlock ─────────────────────────────────────────────────────────────
@@ -363,8 +491,18 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
 
     const isSimpleMediaBlock = (
       block: InlineMediaBlock,
-    ): block is InlineMediaBlock & { kind: "image" | "video" | "audio" } =>
-      block.kind === "image" || block.kind === "video" || block.kind === "audio";
+    ): block is InlineMediaBlock & { kind: "image" | "video" | "audio" } => {
+      if (block.kind === "video" || block.kind === "audio") return true;
+      if (block.kind === "image") {
+        // AI-generated images are SVG data URIs → route to FlowItemRenderer (ImageBlock).
+        // Teacher-uploaded JPEG/PNG images (blob URL, data URI, or external URL) stay in
+        // InlineMediaCard (teacher edit) / InlineMediaViewer (student view).
+        const src = block.data?.src as string | undefined;
+        if (src?.startsWith("data:image/svg")) return false;
+        return true;
+      }
+      return false;
+    };
 
     // ── Inline media state ─────────────────────────────────────────────────────
     const [localMediaBlocks, setLocalMediaBlocks] = useState<InlineMediaBlock[]>(
@@ -378,6 +516,27 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
 
     const mediaBlocksRef = useRef(mediaBlocks);
     useEffect(() => { mediaBlocksRef.current = mediaBlocks; }, [mediaBlocks]);
+
+    // ── Sync localMediaBlocks with controlledMediaBlocks ──────────────────────
+    // SectionBlock components are reused across unit switches (keyed by
+    // "section-0", "section-1" etc., which are stable across units).  When the
+    // parent resets inlineMediaBySectionId on a unit change, controlledMediaBlocks
+    // temporarily becomes undefined.  Without this sync, the stale localMediaBlocks
+    // from the previous unit would be shown via the `?? localMediaBlocks` fallback
+    // until the new unit's fetch completes.
+    //
+    // Rule:
+    //   • parent provides blocks  → adopt them as the local cache
+    //   • parent signals reset (undefined) → clear the local cache immediately
+    //   • teacher-owned mode  → skip (parent is always the source of truth via the controlled path)
+    const prevControlledRef = useRef(controlledMediaBlocks);
+    useEffect(() => {
+      if (isMediaOwnedByParent) return; // teacher path never reads localMediaBlocks
+      const prev = prevControlledRef.current;
+      prevControlledRef.current = controlledMediaBlocks;
+      if (controlledMediaBlocks === prev) return; // nothing changed
+      setLocalMediaBlocks(controlledMediaBlocks ?? []);
+    }, [controlledMediaBlocks, isMediaOwnedByParent]);
 
     const scrollToBlockIdRef = useRef<string | null>(null);
     const consumedMediaIdsRef = useRef(new Set<string>());
@@ -604,11 +763,15 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                   data-lesson-focus-anchor={block.id}
                 >
                   {isSimpleMediaBlock(block) ? (
-                    <InlineMediaCard
-                      block={block}
-                      onChange={(patch) => updateMedia(block.id, patch)}
-                      onRemove={() => removeMedia(block.id)}
-                    />
+                    isTeacher ? (
+                      <InlineMediaCard
+                        block={block}
+                        onChange={(patch) => updateMedia(block.id, patch)}
+                        onRemove={() => removeMedia(block.id)}
+                      />
+                    ) : (
+                      <InlineMediaViewer block={block} />
+                    )
                   ) : isTeacher ? (
                     <ExerciseBlockMenu
                       onCopyToHomework={

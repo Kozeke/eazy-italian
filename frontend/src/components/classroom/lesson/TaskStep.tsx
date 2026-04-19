@@ -1,6 +1,10 @@
 /**
  * TaskStep.tsx  (v4 — practice / writing / reading inline support)
  *
+ * lesson/flow wiring: SectionBlock → FlowItemRenderer → blocks/SlideBlock
+ * (item.type "task") → TaskStep. lessonFlow.types.LessonFlowTaskItem.task uses
+ * StudentTask from this module.
+ *
  * Changes from v3:
  * ─────────────────
  * • `practice` task type is now a first-class inline type:

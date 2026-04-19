@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './hooks/useAuth';
 import LayoutWrapper from './components/LayoutWrapper';
@@ -7,18 +7,20 @@ import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
 import TeacherRegisterFlow from './components/auth/TeacherRegisterFlow';
 import JoinClassroomPage from './components/auth/JoinClassroomPage';
-import DashboardPage from './pages/DashboardPage';
-import CoursesPage from './pages/CoursesPage';
-import CourseDetailPage from './pages/CourseDetailPage';
-import MyLearningPage from './pages/MyLearningPage';
-import CourseUnitsPage from './pages/CourseUnitsPage';
-import UnitDetailPage from './pages/UnitDetailPage';
-import TasksPage from './pages/TasksPage';
-import TaskDetailPage from './pages/TaskDetailPage';
-import TestsPage from './pages/TestsPage';
-import TestDetailPage from './pages/TestDetailPage';
-import TestTakingPage from './pages/TestTakingPage';
-import TestResultsPage from './pages/TestResultsPage';
+/* Legacy student catalog / LMS pages (*.legacy.tsx) — re-enable imports + routes below if needed:
+import DashboardPage from './pages/DashboardPage.legacy';
+import CoursesPage from './pages/CoursesPage.legacy';
+import CourseDetailPage from './pages/CourseDetailPage.legacy';
+import MyLearningPage from './pages/MyLearningPage.legacy';
+import CourseUnitsPage from './pages/CourseUnitsPage.legacy';
+import UnitDetailPage from './pages/UnitDetailPage.legacy';
+import TasksPage from './pages/TasksPage.legacy';
+import TaskDetailPage from './pages/TaskDetailPage.legacy';
+import TestsPage from './pages/TestsPage.legacy';
+import TestDetailPage from './pages/TestDetailPage.legacy';
+import TestTakingPage from './pages/TestTakingPage.legacy';
+import TestResultsPage from './pages/TestResultsPage.legacy';
+*/
 import ProfilePage from './pages/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -27,13 +29,19 @@ import AdminRoutes from './pages/admin/components/AdminRoutes';
 // Student app shell
 import StudentAppLayout from './components/student/layout/StudentAppLayout';
 import MyClassesPage from './components/student/dashboard/MyClassesPage';
-import GradesPage from './pages/student/GradesPage';
+// import GradesPage from './pages/student/GradesPage.legacy';
 import SettingsPage from './pages/student/SettingsPage';
 // Classroom mode
 import ClassroomPage from './pages/student/ClassroomPage.tsx';
-import AiBuilderPage from './pages/admin/courses/AiBuilderPage';
+// import AiBuilderPage from './pages/admin/courses/AiBuilderPage.legacy';
 import LoadingScreen from './components/global/LoadingScreen';
 import { useTeacherClassroomTransition } from './contexts/TeacherClassroomTransitionContext';
+
+// Sends /teacher/.../ai-builder to the unit classroom (AiBuilderPage.legacy.tsx route disabled).
+function AiBuilderLegacyRedirect() {
+  const { courseId, unitId } = useParams<{ courseId: string; unitId: string }>();
+  return <Navigate to={`/teacher/classroom/${courseId}/${unitId}`} replace />;
+}
 
 function App() {
   const { t } = useTranslation();
@@ -75,14 +83,15 @@ function App() {
         <Route index element={<Navigate to="/student/classes" replace />} />
         {/* My Classes dashboard */}
         <Route path="classes" element={<MyClassesPage />} />
-        {/* Grades page */}
-        <Route path="grades" element={<GradesPage />} />
+        {/* Grades — GradesPage.legacy.tsx (re-import to restore) */}
+        <Route path="grades" element={<Navigate to="/student/classes" replace />} />
         {/* Settings page */}
         <Route path="settings" element={<SettingsPage />} />
       </Route>
 
       {/* Classroom mode (full screen, no sidebar) */}
       {/* ClassroomPage uses ClassroomLayout internally which adds 'classroom-mode' to <body> */}
+      {/* Shell inside page: ClassroomHeader + main#main-content workspace — see ClassroomPage file header. */}
       {/* These are TOP-LEVEL routes - never nested inside StudentAppLayout */}
       <Route
         path="/student/classroom/:courseId"
@@ -101,8 +110,15 @@ function App() {
         }
       />
 
-      {/* Legacy protected routes (with old LayoutWrapper) */}
+      {/* Legacy LayoutWrapper routes — pages renamed to *.legacy.tsx; redirect to student shell */}
       <Route element={<ProtectedRoute><LayoutWrapper /></ProtectedRoute>}>
+        <Route path="/dashboard" element={<Navigate to="/student/classes" replace />} />
+        <Route path="/courses/*" element={<Navigate to="/student/classes" replace />} />
+        <Route path="/my-courses" element={<Navigate to="/student/classes" replace />} />
+        <Route path="/units/:id" element={<Navigate to="/student/classes" replace />} />
+        <Route path="/tasks/*" element={<Navigate to="/student/classes" replace />} />
+        <Route path="/tests/*" element={<Navigate to="/student/classes" replace />} />
+        {/*
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/courses" element={<CoursesPage />} />
         <Route path="/courses/:id" element={<CourseDetailPage />} />
@@ -115,6 +131,7 @@ function App() {
         <Route path="/tests/:id" element={<TestDetailPage />} />
         <Route path="/tests/:id/take" element={<TestTakingPage />} />
         <Route path="/tests/:id/results/:attemptId" element={<TestResultsPage />} />
+        */}
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
@@ -131,9 +148,10 @@ function App() {
         path="/teacher/classroom/:courseId/:unitId/editor"
         element={<AdminRoute><ClassroomPage /></AdminRoute>}
       />
+      {/* AiBuilderPage.legacy.tsx — re-enable import + <AiBuilderPage /> to restore */}
       <Route
         path="/teacher/classroom/:courseId/:unitId/ai-builder"
-        element={<AdminRoute><AiBuilderPage /></AdminRoute>}
+        element={<AdminRoute><AiBuilderLegacyRedirect /></AdminRoute>}
       />
 
       {/* Admin routes */}

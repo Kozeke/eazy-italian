@@ -3,13 +3,8 @@
  *
  * Two modes in one compact modal:
  *   • Quick    — single title input → create course immediately
- *   • Generate — describe your course → AI builds title + units
- *                Step 2 opens CourseFileUploadModal; files are
- *                forwarded to the appropriate outline API:
- *                  - no files  → POST /generate-outline           (JSON)
- *                  - files     → POST /generate-outline-from-files (multipart)
- *                The response source_token is forwarded to the SSE
- *                stream so each unit is grounded in the material.
+ *   • Generate — describe your course → AI builds title + units (JSON POST /generate-outline).
+ *                Optional file enrichment via CourseFileUploadModal.legacy.jsx is disabled; re-import that modal to restore multipart /generate-outline-from-files.
  *
  * Props:
  *   open       — controls visibility
@@ -23,7 +18,8 @@ import React, {
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useTeacherClassroomTransition } from '../../../contexts/TeacherClassroomTransitionContext';
-import CourseFileUploadModal from './CourseFileUploadModal';
+// Legacy file-enrichment step (optional second modal) — see CourseFileUploadModal.legacy.jsx
+// import CourseFileUploadModal from './CourseFileUploadModal.legacy';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -452,20 +448,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
     }
   }, [quickTitle, onCreated, goToClassroom, thumbFile]);
 
-  // ── AI GENERATE — Step 1: validate + open file modal ─────────────────────────
-
-  const handleGenerate = useCallback(() => {
-    const desc = description.trim();
-    if (!desc) {
-      setError('Please describe your course.');
-      descRef.current?.focus();
-      return;
-    }
-    setError(null);
-    setFileModalOpen(true);
-  }, [description]);
-
-  // ── AI GENERATE — Step 2: called by CourseFileUploadModal ────────────────────
+  // ── AI GENERATE — Step 2: outline + course creation (was also Step 2 for CourseFileUploadModal.legacy) ──
   //
   //  files.length === 0  →  POST /generate-outline            (JSON, fast path)
   //  files.length  >  0  →  POST /generate-outline-from-files (multipart, returns source_token)
@@ -554,6 +537,18 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       setGenStep(0);
     }
   }, [description, level, thumbFile, onCreated, goToClassroom]);
+
+  // ── AI GENERATE — Step 1: validate, then run outline without file modal (CourseFileUploadModal.legacy disabled)
+  const handleGenerate = useCallback(() => {
+    const desc = description.trim();
+    if (!desc) {
+      setError('Please describe your course.');
+      descRef.current?.focus();
+      return;
+    }
+    setError(null);
+    void handleGenerateWithFiles([]);
+  }, [description, handleGenerateWithFiles]);
 
   const handleBackdrop = useCallback((e) => {
     if (e.target === e.currentTarget && !loading) onClose();
@@ -830,13 +825,13 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
         </div>
       </div>
 
-      {/* ── File enrichment modal (Generate mode, step 2) ── */}
-      <CourseFileUploadModal
+      {/* ── File enrichment modal (Generate mode, step 2) — legacy: CourseFileUploadModal.legacy.jsx ── */}
+      {/* <CourseFileUploadModal
         open={fileModalOpen}
         onClose={() => setFileModalOpen(false)}
         onSkip={() => handleGenerateWithFiles([])}
         onGenerate={handleGenerateWithFiles}
-      />
+      /> */}
     </>,
     document.body,
   );

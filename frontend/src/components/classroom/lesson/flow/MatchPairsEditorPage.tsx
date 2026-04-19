@@ -113,6 +113,25 @@ function normaliseRows(initialDraft?: MatchingPairsDraft): PairRowDraft[] {
   return rows.length > 0 ? rows : [makeEmptyRow()];
 }
 
+/**
+ * Sattolo shuffle — identical to Fisher-Yates except j is drawn from [0, i)
+ * instead of [0, i].  That single change guarantees EVERY element moves
+ * (a proper random derangement), with uniform distribution over all
+ * derangements.
+ *
+ * When applied to an array where index i holds the correct match for
+ * left_items[i], the result satisfies:  result[i] ≠ correct match for
+ * left_items[i]  for every i  →  no correct pair ever sits in the same row.
+ */
+function sattoloShuffle<T>(arr: T[]): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * i); // [0, i) ← the only diff from Fisher-Yates
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 function buildDraftFromRows(
   previousDraft: MatchingPairsDraft,
   rows: PairRowDraft[],
@@ -128,10 +147,20 @@ function buildDraftFromRows(
     id: row.leftId,
     text: row.left,
   }));
-  const right_items = safeRows.map((row) => ({
+
+  // right_items_ordered[i] is the correct match for left_items[i].
+  // Sattolo guarantees result[i] ≠ right_items_ordered[i] for ALL i,
+  // so no correct pair occupies the same row in the player — and the
+  // layout is truly random (not a predictable rotation or X-cross).
+  const right_items_ordered = safeRows.map((row) => ({
     id: row.rightId,
     text: row.right,
   }));
+  const right_items =
+    right_items_ordered.length > 1
+      ? sattoloShuffle(right_items_ordered)
+      : right_items_ordered;
+
   const pairs: PairDraft[] = safeRows.map((row) => ({
     left_id: row.leftId,
     right_id: row.rightId,
@@ -144,7 +173,8 @@ function buildDraftFromRows(
     left_items,
     right_items,
     pairs,
-    shuffle_right: previousDraft.shuffle_right ?? true,
+    // Right items are already deranged above; no further shuffle at render time.
+    shuffle_right: false,
     score: previousDraft.score ?? 1,
   };
 }
