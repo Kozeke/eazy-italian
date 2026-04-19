@@ -65,9 +65,9 @@ const MEDIA_META: Record<
 > = {
   image: {
     label: "Image",
-    color: "#0891b2",
-    bg: "#ecfeff",
-    border: "#a5f3fc",
+    color: "#4f52c2",
+    bg: "#eef0fe",
+    border: "#a5a8ef",
     icon: <Image size={15} strokeWidth={1.8} />,
     placeholder: "Paste an image URL…",
   },
@@ -82,7 +82,7 @@ const MEDIA_META: Record<
   audio: {
     label: "Audio",
     color: "#0d9488",
-    bg: "#f0fdfa",
+    bg: "#f0faf9",
     border: "#5eead4",
     icon: <Music size={15} strokeWidth={1.8} />,
     placeholder: "Paste an audio file URL…",

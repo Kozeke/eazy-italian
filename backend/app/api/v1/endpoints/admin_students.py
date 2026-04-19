@@ -13,6 +13,12 @@ from app.core.security import get_password_hash
 from app.models.user import User, UserRole
 from app.models.course import Course
 from app.models.enrollment import CourseEnrollment
+from app.models.progress import Progress
+from app.models.notification import Notification
+from app.models.task import Task, TaskSubmission
+from app.models.test import TestAttempt
+from app.models.audit import AuditLog
+from app.models.email import EmailLog
 from app.models.subscription import (
     Subscription,
     SubscriptionName,
@@ -103,6 +109,66 @@ def _build_admin_student_create_response(
     )
 
 
+def _delete_student_related_rows(db: Session, student_id: int) -> None:
+    """Delete or detach records that still reference a student before hard delete."""
+    # Clears direct enrollment links that keep the student attached to classrooms.
+    db.query(CourseEnrollment).filter(
+        CourseEnrollment.user_id == student_id
+    ).delete(synchronize_session=False)
+    # Clears subscription rows so plan history does not block the user delete.
+    db.query(UserSubscription).filter(
+        UserSubscription.user_id == student_id
+    ).delete(synchronize_session=False)
+    # Clears unit progress rows that still point at the student account.
+    db.query(Progress).filter(
+        Progress.student_id == student_id
+    ).delete(synchronize_session=False)
+    # Clears in-app notifications owned by the student.
+    db.query(Notification).filter(
+        Notification.student_id == student_id
+    ).delete(synchronize_session=False)
+    # Clears task submissions authored by the student.
+    db.query(TaskSubmission).filter(
+        TaskSubmission.student_id == student_id
+    ).delete(synchronize_session=False)
+    # Clears test attempts authored by the student.
+    db.query(TestAttempt).filter(
+        TestAttempt.student_id == student_id
+    ).delete(synchronize_session=False)
+    # Clears email delivery logs for the student recipient.
+    db.query(EmailLog).filter(
+        EmailLog.recipient_id == student_id
+    ).delete(synchronize_session=False)
+    # Preserves audit history while detaching the deleted account reference.
+    db.query(AuditLog).filter(
+        AuditLog.user_id == student_id
+    ).update({AuditLog.user_id: None}, synchronize_session=False)
+    # Clears any accidental grader references if a student id was stored there.
+    db.query(TaskSubmission).filter(
+        TaskSubmission.grader_id == student_id
+    ).update({TaskSubmission.grader_id: None}, synchronize_session=False)
+
+    # Stores tasks that list the student inside JSON assignment arrays.
+    tasks_with_student_assignment = db.query(Task).filter(
+        Task.assigned_students.isnot(None)
+    ).all()
+    for task in tasks_with_student_assignment:
+        # Stores normalized assignment ids so mixed string/int payloads are handled consistently.
+        normalized_assigned_student_ids = [
+            str(assigned_student_id)
+            for assigned_student_id in (task.assigned_students or [])
+        ]
+        if str(student_id) not in normalized_assigned_student_ids:
+            continue
+        # Stores filtered assignments without the deleted student id.
+        remaining_assigned_student_ids = [
+            assigned_student_id
+            for assigned_student_id in (task.assigned_students or [])
+            if str(assigned_student_id) != str(student_id)
+        ]
+        task.assigned_students = remaining_assigned_student_ids
+
+
 @router.post("", response_model=AdminStudentCreateResponse, status_code=status.HTTP_201_CREATED)
 def create_student(
     payload: AdminStudentCreateRequest,
@@ -151,6 +217,8 @@ def create_student(
         profile_meta["native_language"] = (payload.native_language or "").strip() or None
         profile_meta["timezone"] = (payload.timezone or "").strip() or None
         profile_meta["created_by_teacher_id"] = requested_teacher_id
+        # Stores plain-text temporary password so teacher can retrieve it from the list view.
+        profile_meta["temporary_password"] = temporary_password
 
         existing_user.first_name = parsed_first_name
         existing_user.last_name = parsed_last_name
@@ -202,6 +270,8 @@ def create_student(
         "native_language": (payload.native_language or "").strip() or None,
         "timezone": (payload.timezone or "").strip() or None,
         "created_by_teacher_id": requested_teacher_id,
+        # Stores plain-text temporary password so teacher can retrieve it from the list view.
+        "temporary_password": temporary_password,
     }
     student = User(
         email=payload.email,
@@ -314,6 +384,8 @@ def delete_student(
 
     # Prevent endpoint crash when foreign-key-linked student data blocks deletion.
     try:
+        # Removes dependent student rows first because many legacy foreign keys do not cascade.
+        _delete_student_related_rows(db=db, student_id=student.id)
         db.delete(student)
         db.commit()
     except IntegrityError:
@@ -387,6 +459,11 @@ def get_students(
             # Fallback to subscription_type column
             subscription_name = student.subscription_type.value if student.subscription_type else "free"
         
+        # Stores notification_prefs map used for profile metadata and temporary credential.
+        student_notification_prefs = student.notification_prefs or {}
+        # Extracts plain-text temporary password stored at creation time; None if cleared.
+        stored_temporary_password = student_notification_prefs.get("temporary_password") or None
+
         student_dict = {
             "id": student.id,
             "email": student.email,
@@ -397,11 +474,12 @@ def get_students(
             "created_at": student.created_at,
             "last_login": student.last_login,
             "email_verified_at": student.email_verified_at,
-            "notification_prefs": student.notification_prefs or {},
+            "notification_prefs": student_notification_prefs,
             "updated_at": student.updated_at,
             "subscription": subscription_name,
             "subscription_ends_at": subscription_ends_at,
-            "enrolled_courses_count": enrolled_count
+            "enrolled_courses_count": enrolled_count,
+            "temporary_password": stored_temporary_password,
         }
         students_with_count.append(UserResponse(**student_dict))
     

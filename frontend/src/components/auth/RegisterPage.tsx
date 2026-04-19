@@ -55,7 +55,7 @@ const c = {
   errorBg:          '#FEF2F2',
 } as const;
 
-type Step = 'email' | 'account-type' | 'activation' | 'greeting' | 'details' | 'trial';
+type Step = 'email' | 'account-type' | 'student-info' | 'activation' | 'greeting' | 'details' | 'trial';
 
 // ─── RegisterPage ─────────────────────────────────────────────────────────────
 
@@ -127,10 +127,14 @@ export default function RegisterPage() {
     }
   };
 
-  // Step 2 — store selected role, then send OTP to the new email
+  // Step 2 — for teacher: send OTP and proceed to activation; for student: show teacher-required info screen
   const handleRoleSelect = (selected: 'teacher' | 'student') => {
     setRole(selected);
-    sendRegistrationCode();
+    if (selected === 'student') {
+      setStep('student-info');
+    } else {
+      sendRegistrationCode();
+    }
   };
 
   // Step 3 — verify the pre-registration OTP (user doesn't exist yet)
@@ -262,6 +266,28 @@ export default function RegisterPage() {
                 onSelect={() => handleRoleSelect('student')}
               />
             </div>
+          </div>
+        )}
+
+        {/* ── 2b. Student info — no self-registration, must be added by teacher ── */}
+        {step === 'student-info' && (
+          <div>
+            <BackRow onClick={() => { setStep('account-type'); setError(''); }} />
+            <Title>Активация аккаунта ученика</Title>
+            <p style={{ fontSize:'13px', color:c.bodyText, lineHeight:1.65, marginTop:'8px' }}>
+              Обучение на платформе возможно только при наличии преподавателя. Сообщите вашему
+              преподавателю email, который вы использовали для регистрации, и попросите добавить
+              вас в список учеников на платформе. После этого вам станут доступны виртуальные
+              классы для обучения.
+            </p>
+            <p style={{
+              marginTop:'14px', padding:'10px 12px',
+              background:'#F0F9FF', border:'1px solid #BAE6FD',
+              borderRadius:'8px', fontSize:'13px', color:'#0369A1',
+              wordBreak:'break-all',
+            }}>
+              {email}
+            </p>
           </div>
         )}
 

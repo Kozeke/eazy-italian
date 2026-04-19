@@ -162,6 +162,7 @@ class UnitGenerateRequest:
     instruction_language: str = "english"
     source_content: str | None = None
     include_images: bool = False   # generate SVG images only when requested
+    description: str | None = None  # optional teacher directive injected into the prompt
 
 
 # ── Result type ───────────────────────────────────────────────────────────────
@@ -262,6 +263,13 @@ class UnitGeneratorService:
                 f"---\n{excerpt}\n---\n"
             )
 
+        teacher_directive = ""
+        if request.description and request.description.strip():
+            teacher_directive = (
+                f"\nTeacher directive (MUST be followed — highest priority instruction):\n"
+                f"  {request.description.strip()}\n"
+            )
+
         return f"""You are a professional language-teaching curriculum designer.
 
 Generate a lesson unit structure for the following specification:
@@ -270,7 +278,7 @@ Generate a lesson unit structure for the following specification:
   Level    : {request.level}
   Language : {request.language}
   Segments : {request.num_segments}
-{content_section}
+{teacher_directive}{content_section}
 {exercise_hint}
 
 Return ONLY a single valid JSON object — no markdown, no code fences, no

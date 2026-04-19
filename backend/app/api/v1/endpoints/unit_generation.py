@@ -65,6 +65,15 @@ class UnitGenerateRequest(BaseModel):
         max_length=512,
         description="The grammar / vocabulary topic, e.g. 'Present Simple tense'.",
     )
+    description: str | None = Field(
+        default=None,
+        max_length=2000,
+        description=(
+            "Optional teacher directive forwarded verbatim to the AI prompt. "
+            "Use it to steer style, vocabulary source, examples, or any special "
+            "instructions, e.g. 'Focus on vocabulary; use Harry Potter examples'."
+        ),
+    )
     level: str = Field(default="A2", description="CEFR level: A1, A2, B1, B2, C1, C2.")
     language: str = Field(
         default="English",
@@ -236,6 +245,7 @@ async def generate_unit_content(
     svc_request = _SvcUnitGenerateRequest(
         unit_id=unit_id,
         topic=body.topic,
+        description=body.description,
         level=body.level,
         language=body.language,
         num_segments=body.num_segments,

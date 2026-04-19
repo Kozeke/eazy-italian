@@ -58,7 +58,7 @@ import {
   normaliseInlineMediaBlocks,
   type UnitSegment,
   type InlineMediaBlock,
-} from "../../../hooks/useSegmentPersistence.ts";
+} from "./useSegmentPersistence";
 import {
   presentationsApi,
   segmentsApi,
@@ -166,6 +166,8 @@ export interface LessonWorkspaceProps {
   answersPanelOpen?: boolean;
   /** Teacher: set on the answers rail wrapper so StudentAnswersPanel can dock beside the rail button. */
   answersPanelAnchorRef?: RefObject<HTMLDivElement>;
+  /** Disables the side panel publish/finish button while the parent runs an async publish. */
+  finishUnitActionPending?: boolean;
 }
 
 // ─── Flow-building helpers ────────────────────────────────────────────────────
@@ -289,6 +291,7 @@ function LessonWorkspace({
   onToggleAnswersPanel,
   answersPanelOpen = false,
   answersPanelAnchorRef,
+  finishUnitActionPending = false,
 }: LessonWorkspaceProps) {
   const pendingInlineMediaStorageKey = "lessonPendingInlineMedia";
   const draftRouteContextStorageKey = "exerciseDraftsRouteContext";
@@ -303,6 +306,13 @@ function LessonWorkspace({
   // console.log('[LessonWorkspace] mode prop =', mode);
 
   const effectiveUnitId = currentUnitId ?? unit?.id ?? null;
+
+  // Drives “Publish unit” vs “Finish unit” in the section panel for draft teacher units.
+  const sidePanelFinishVariant = useMemo<"publish" | "finish">(() => {
+    if (mode !== "teacher") return "finish";
+    const st = (unit as { status?: string } | null | undefined)?.status;
+    return st === "draft" ? "publish" : "finish";
+  }, [mode, unit]);
 
   // Keeps the mobile layout flag in sync with viewport resizes.
   useEffect(() => {
@@ -1088,7 +1098,7 @@ function LessonWorkspace({
         <div
           className={[
             // flex-1: in column layout, take height below the answers rail; in row layout, fill beside the panel so .vlp-root gets a bounded flex height.
-            "flex flex-1 min-h-0 flex-col",
+            "flex  min-h-0 flex-col",
             showDesktopSidePanel ? "min-w-[700px] max-w-[900px]" : "w-full min-w-0 max-w-none",
           ].join(" ")}
         >
@@ -1178,6 +1188,8 @@ function LessonWorkspace({
             onFinishUnit={onFinishUnit}
             onExtra={() => onExtra("extra")}
             currentUnitSteps={currentUnitSteps}
+            finishButtonVariant={sidePanelFinishVariant}
+            finishButtonDisabled={finishUnitActionPending}
           />
         )}
       </div>

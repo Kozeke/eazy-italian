@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+"""Pydantic schemas used by audit log endpoints."""
+
+from pydantic import BaseModel, Field, AliasChoices, ConfigDict
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from app.models.audit import AuditAction
@@ -10,8 +12,12 @@ class AuditLogBase(BaseModel):
     user_id: Optional[int] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
-    details: Dict[str, Any] = {}
-    metadata: Dict[str, Any] = {}
+    details: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices("metadata", "audit_metadata"),
+        serialization_alias="metadata",
+    )
 
 class AuditLogCreate(AuditLogBase):
     pass
@@ -20,8 +26,7 @@ class AuditLogResponse(AuditLogBase):
     id: int
     timestamp: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class AuditLogFilter(BaseModel):
     entity_type: Optional[str] = None

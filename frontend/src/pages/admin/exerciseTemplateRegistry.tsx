@@ -455,11 +455,11 @@ function DragToGapPreview() {
           display: "inline-block",
           padding: "1px 8px",
           borderRadius: 5,
-          border: "1.5px solid #06b6d4",
-          background: "#f0fdff",
+          border: "1.5px solid #6c6fef",
+          background: "#eef0fe",
           fontSize: 10,
           fontWeight: 600,
-          color: "#0e7490",
+          color: "#4f52c2",
           verticalAlign: "middle",
         }}>
           word

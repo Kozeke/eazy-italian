@@ -11,14 +11,15 @@
 /* ─── Shared tokens ─────────────────────────────────────────────────────────── */
 
 :root {
-  --dtg-accent: #06b6d4;
-  --dtg-accent-dark: #0891b2;
-  --dtg-accent-light: #ecfeff;
+  /* Design system primary — #6C6FEF / #4F52C2 / #EEF0FE */
+  --dtg-accent: #6c6fef;
+  --dtg-accent-dark: #4f52c2;
+  --dtg-accent-light: #eef0fe;
   --dtg-green: #22c55e;
   --dtg-green-light: #dcfce7;
   --dtg-red: #ef4444;
   --dtg-red-light: #fee2e2;
-  --dtg-bar-bg: #f1f5f9;
+  --dtg-bar-bg: #f7f7fa;
   --dtg-border: #e2e8f0;
   --dtg-text: #1e293b;
   --dtg-sub: #64748b;
@@ -221,7 +222,7 @@
 
 .dtg-chip--bar:hover {
   border-color: var(--dtg-accent);
-  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.15);
+  box-shadow: 0 2px 8px rgba(108, 111, 239, 0.15);
   cursor: grab;
 }
 
@@ -240,7 +241,7 @@
 }
 
 .dtg-chip--draggable:hover {
-  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2);
+  box-shadow: 0 2px 8px rgba(108, 111, 239, 0.2);
   border-color: var(--dtg-accent);
 }
 
@@ -327,7 +328,7 @@
 }
 
 .dtg-gap-inner--active {
-  background: rgba(6, 182, 212, 0.06);
+  background: rgba(108, 111, 239, 0.06);
 }
 
 /* Gap input (shows answer when filled) */
@@ -359,7 +360,7 @@
 
 .dtg-gap-chip--active {
   border-color: var(--dtg-accent);
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18);
+  box-shadow: 0 0 0 3px rgba(108, 111, 239, 0.18);
 }
 
 /* Filled gap chip — grey/disabled look */
@@ -456,7 +457,7 @@
   border: 1.5px solid var(--dtg-accent);
   border-radius: var(--dtg-radius);
   background: var(--dtg-white);
-  box-shadow: 0 4px 20px rgba(6, 182, 212, 0.1);
+  box-shadow: 0 4px 20px rgba(108, 111, 239, 0.1);
   overflow: hidden;
   animation: dtg-panel-in 0.15s ease;
 }
@@ -540,7 +541,7 @@
 
 .dtg-answer-textarea:focus {
   border-color: var(--dtg-accent);
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+  box-shadow: 0 0 0 3px rgba(108, 111, 239, 0.12);
 }
 
 .dtg-answer-textarea::placeholder {
@@ -597,7 +598,7 @@
 
 .dtg-variant-input:focus {
   border-color: var(--dtg-accent);
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+  box-shadow: 0 0 0 3px rgba(108, 111, 239, 0.12);
 }
 
 .dtg-variant-input::placeholder {
@@ -1031,7 +1032,7 @@
 
 .dti-answer-input:focus {
   border-color: var(--dtg-accent);
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+  box-shadow: 0 0 0 3px rgba(108, 111, 239, 0.12);
 }
 
 .dti-answer-input::placeholder {
@@ -1526,9 +1527,9 @@
   flex-direction: column;
   gap: 14px;
   padding: 18px;
-  border-radius: 18px;
-  border: 1.5px solid var(--dtg-border);
-  background: #f8fafc;
+  border-radius: 16px;
+  border: 1.5px solid #eef0fe;
+  background: #f7f7fa;
 }
 
 .mp-editor-head {
@@ -1576,8 +1577,8 @@
 }
 
 .mp-editor-input:focus {
-  border-color: var(--dtg-accent);
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+  border-color: #6c6fef;
+  box-shadow: 0 0 0 3px rgba(108, 111, 239, 0.14);
 }
 
 .mp-editor-input::placeholder {
@@ -1621,7 +1622,7 @@
   gap: 6px;
   border: none;
   background: transparent;
-  color: var(--dtg-accent-dark);
+  color: #4f52c2;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -1673,16 +1674,18 @@
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  box-shadow: 0 1px 2px rgba(30, 41, 59, 0.05);
+  box-shadow: 0 1px 3px rgba(108, 111, 239, 0.06);
   transition:
     border-color 0.15s,
     background 0.15s,
     color 0.15s,
+    box-shadow 0.15s,
     transform 0.15s;
 }
 
 .mp-player-item:hover {
   transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(108, 111, 239, 0.14);
 }
 
 .mp-player-item--right {
@@ -1691,9 +1694,9 @@
 }
 
 .mp-player-item--teacher-hint {
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
-  border-color: #c4b5fd !important;
-  background: #faf5ff !important;
+  box-shadow: 0 0 0 3px rgba(108, 111, 239, 0.25);
+  border-color: #6c6fef !important;
+  background: #eef0fe !important;
 }
 
 .mp-player-lines {

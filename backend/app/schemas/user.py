@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 from app.models.user import UserRole
 
+
 class UserBase(BaseModel):
     email: EmailStr
     first_name: str
@@ -73,6 +74,9 @@ class UserResponse(UserBase):
     subscription_ends_at: Optional[datetime] = None
     enrolled_courses_count: int = 0
     onboarding_completed: bool = False
+    # Stores the plain-text temporary password created at student registration;
+    # None once the student has set their own password.
+    temporary_password: Optional[str] = None
 
     class Config:
         from_attributes = True

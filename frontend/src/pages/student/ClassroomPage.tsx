@@ -405,6 +405,12 @@ function ClassroomPageInner({
   const [sidePanelOpen] = useState(true);
   const [manualBuilderActive, setManualBuilderActive] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  // True while POST …/publish is in flight so the lesson footer cannot double-submit.
+  const [publishBusy, setPublishBusy] = useState(false);
+  // When the teacher picks another unit while the current unit is still a draft, we confirm first.
+  const [draftSwitchModalOpen, setDraftSwitchModalOpen] = useState(false);
+  // Target unit for the draft switch confirmation modal (null when the modal is closed).
+  const [pendingDraftSwitchUnit, setPendingDraftSwitchUnit] = useState<ClassroomUnit | null>(null);
   // Controls visibility of the Additional Materials modal opened from the sidebar.
   const [materialsModalOpen, setMaterialsModalOpen] = useState(false);
   // Stores the materials currently shown in the modal.
@@ -500,6 +506,18 @@ function ClassroomPageInner({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [exitConfirmOpen]);
+
+  useEffect(() => {
+    if (!draftSwitchModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDraftSwitchModalOpen(false);
+        setPendingDraftSwitchUnit(null);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [draftSwitchModalOpen]);
 
   // ── Unit detail ───────────────────────────────────────────────────────────
   const {
@@ -745,7 +763,101 @@ function ClassroomPageInner({
     }
   }, [units.length, courseId]);
 
-  const handleFinishUnit = useCallback(() => {}, []);
+  /** Navigates to a unit URL and resets local lesson progress (shared by selector, finish, and draft confirm). */
+  const navigateToUnit = useCallback(
+    (unit: ClassroomUnit) => {
+      selectUnit(unit);
+      dispatch({ type: "RESET" });
+      setActiveTab("lesson");
+      navigate(`${classroomBasePath}/${courseId}/${unit.id}`, { replace: true });
+    },
+    [selectUnit, navigate, classroomBasePath, courseId],
+  );
+
+  /** Closes the “unpublished draft” switch dialog without changing unit. */
+  const cancelDraftUnitSwitch = useCallback(() => {
+    setDraftSwitchModalOpen(false);
+    setPendingDraftSwitchUnit(null);
+  }, []);
+
+  /** Proceeds to the pending unit after the teacher acknowledges leaving a draft. */
+  const confirmDraftUnitSwitch = useCallback(() => {
+    if (pendingDraftSwitchUnit) {
+      navigateToUnit(pendingDraftSwitchUnit);
+    }
+    setDraftSwitchModalOpen(false);
+    setPendingDraftSwitchUnit(null);
+  }, [pendingDraftSwitchUnit, navigateToUnit]);
+
+  /**
+   * Switches unit from the header/modal list; blocks direct navigation when the current teacher unit is still draft.
+   */
+  const handleSelectUnit = useCallback(
+    (unit: ClassroomUnit) => {
+      if (
+        isTeacher &&
+        String((unitDetail as { status?: string } | null)?.status) === "draft" &&
+        unit.id !== currentUnit?.id
+      ) {
+        setPendingDraftSwitchUnit(unit);
+        setDraftSwitchModalOpen(true);
+        return;
+      }
+      navigateToUnit(unit);
+    },
+    [isTeacher, unitDetail, currentUnit?.id, navigateToUnit],
+  );
+
+  /**
+   * Teacher: publishes a draft unit from the section panel, or jumps to the next ordered unit when already published.
+   * Students: no-op (the panel uses the same callback but the handler exits early).
+   */
+  const handleFinishUnit = useCallback(async () => {
+    if (!isTeacher || !currentUnit?.id) return;
+
+    const unitStatus = (unitDetail as { status?: string } | null)?.status;
+    if (unitStatus === "draft") {
+      setPublishBusy(true);
+      try {
+        await unitsApi.publishUnit(currentUnit.id, { publish_children: true });
+        toast.success("Unit published");
+        await Promise.all([reloadUnit(), reloadUnits()]);
+      } catch (err: unknown) {
+        const ax = err as { response?: { data?: { detail?: unknown } } };
+        const detail = ax.response?.data?.detail;
+        const msg =
+          typeof detail === "string"
+            ? detail
+            : Array.isArray(detail)
+              ? JSON.stringify(detail)
+              : "Could not publish the unit";
+        toast.error(msg);
+      } finally {
+        setPublishBusy(false);
+      }
+      return;
+    }
+
+    const sorted = [...units].sort(
+      (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
+    );
+    const idx = sorted.findIndex((u) => u.id === currentUnit.id);
+    const next = idx >= 0 && idx < sorted.length - 1 ? sorted[idx + 1] : null;
+    if (next) {
+      navigateToUnit(next);
+    } else {
+      toast("This is the last unit in the course.", { icon: "ℹ️" });
+    }
+  }, [
+    isTeacher,
+    currentUnit?.id,
+    unitDetail,
+    units,
+    reloadUnit,
+    reloadUnits,
+    navigateToUnit,
+  ]);
+
   // Opens the Additional Materials modal from the side panel "Additional materials" button.
   const handlePanelExtra = useCallback(() => {
     setMaterialsModalOpen(true);
@@ -845,17 +957,6 @@ function ClassroomPageInner({
     completeTeacherClassroomOpen(true);
     navigate(backPath);
   }, [backPath, navigate, completeTeacherClassroomOpen]);
-
-  const handleSelectUnit = useCallback(
-    (unit: ClassroomUnit) => {
-      selectUnit(unit);
-      dispatch({ type: "RESET" });
-      // setRailState(null);
-      setActiveTab('lesson');
-      navigate(`${classroomBasePath}/${courseId}/${unit.id}`, { replace: true });
-    },
-    [selectUnit, navigate, classroomBasePath, courseId],
-  );
 
   // ── Navigate to ExerciseDraftsPage in homework mode ───────────────────────
   const handleCreateHomeworkExercise = useCallback(() => {
@@ -981,6 +1082,7 @@ function ClassroomPageInner({
       onSelectUnit: handleSelectUnit as unknown as LessonWorkspaceProps["onSelectUnit"],
       onAddUnit: handleAddUnit,
       onFinishUnit: handleFinishUnit,
+      finishUnitActionPending: publishBusy,
       segmentRefreshKey: state.segmentVersion,
       onExtra: handlePanelExtra,
       onCurrentSegmentIdChange: handleCurrentSegmentIdChange,
@@ -1022,6 +1124,7 @@ function ClassroomPageInner({
       handleSelectUnit,
       handleAddUnit,
       handleFinishUnit,
+      publishBusy,
       handlePanelExtra,
       handleCurrentSegmentIdChange,
       handleCopyExerciseToHomework,
@@ -1249,12 +1352,18 @@ function ClassroomPageInner({
               id="exit-classroom-title"
               className="text-lg font-semibold text-slate-900"
             >
-              Leave classroom?
+              {isTeacher &&
+              String((unitDetail as { status?: string } | null)?.status) === "draft"
+                ? "Unit not published"
+                : "Leave classroom?"}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              {isTeacher
-                ? "You will return to your courses. Unsaved changes in open editors may be lost."
-                : "You will return to My Classes."}
+              {isTeacher &&
+              String((unitDetail as { status?: string } | null)?.status) === "draft"
+                ? "This unit is still a draft. Publish it from the sidebar when you are ready, or you can leave the classroom and come back later."
+                : isTeacher
+                  ? "You will return to your courses. Unsaved changes in open editors may be lost."
+                  : "You will return to My Classes."}
             </p>
 
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1288,6 +1397,71 @@ function ClassroomPageInner({
                 }}
               >
                 Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Draft unit switch — teacher must acknowledge leaving an unpublished unit */}
+      {draftSwitchModalOpen && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+          style={{ background: "rgba(15, 17, 35, 0.40)", backdropFilter: "blur(4px)" }}
+          role="presentation"
+          onClick={cancelDraftUnitSwitch}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="draft-switch-title"
+            className="w-full max-w-md p-7"
+            style={{
+              background: DS.white,
+              borderRadius: "16px",
+              boxShadow:
+                "0 8px 32px rgba(108, 111, 239, 0.12), 0 2px 8px rgba(0,0,0,0.08)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="draft-switch-title"
+              className="text-lg font-semibold text-slate-900"
+            >
+              Unit not published
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">
+              This unit is still a draft. You can publish it from the sidebar first, or switch units
+              anyway—your draft will stay in this course until you publish.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={cancelDraftUnitSwitch}
+                className="rounded-xl px-5 py-2.5 text-sm font-semibold transition-all hover:opacity-80 focus:outline-none focus-visible:ring-2"
+                style={{
+                  background: DS.bg,
+                  color: "#374151",
+                  border: "1.5px solid #E5E7EB",
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  "--tw-ring-color": DS.tint,
+                }}
+              >
+                Stay on this unit
+              </button>
+              <button
+                type="button"
+                onClick={confirmDraftUnitSwitch}
+                className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-95 focus:outline-none focus-visible:ring-2"
+                style={{
+                  background: DS.primary,
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  "--tw-ring-color": DS.tint,
+                }}
+              >
+                Switch unit
               </button>
             </div>
           </div>
