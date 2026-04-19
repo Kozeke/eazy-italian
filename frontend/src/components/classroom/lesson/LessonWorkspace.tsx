@@ -998,10 +998,9 @@ function LessonWorkspace({
   const hasTeacherAnswersRail =
     mode === "teacher" && typeof onToggleAnswersPanel === "function";
 
-  // Uses a horizontal flex row only when the sections side panel needs a column sibling.
-  // The answers rail is now inside the lesson column (above VerticalLessonPlayer) rather than
-  // a separate flex sibling, so it no longer drives the wide-row layout.
-  const useWideLessonRow = showDesktopSidePanel;
+  // Uses a horizontal flex row when the sections panel and/or the answers rail needs column siblings.
+  const useWideLessonRow =
+    showDesktopSidePanel || (hasTeacherAnswersRail && !isMobileViewport);
 
   // ── Main render ────────────────────────────────────────────────────────────────
   return (
@@ -1057,6 +1056,35 @@ function LessonWorkspace({
           </div>
         )}
 
+        {hasTeacherAnswersRail && !isMobileViewport && (
+          <aside
+            ref={answersPanelAnchorRef}
+            className="lw-answers-rail shrink-0"
+            aria-label="Student answers"
+          >
+            {/* <div className="lw-answers-rail__head">
+              <p className="lw-answers-rail__title">Answers</p>
+            </div> */}
+            <div className="lw-answers-rail__body">
+              <button
+                type="button"
+                onClick={onToggleAnswersPanel}
+                aria-label="View student answers"
+                aria-pressed={answersPanelOpen}
+                title="Student answers"
+                className={[
+                  "ch-icon-btn",
+                  answersPanelOpen
+                    ? "ch-icon-btn--answers ch-icon-btn--answers-active"
+                    : "ch-icon-btn--answers",
+                ].join(" ")}
+              >
+                <LayoutGrid size={15} strokeWidth={2.2} />
+              </button>
+            </div>
+          </aside>
+        )}
+
         <div
           className={[
             // flex-1: in column layout, take height below the answers rail; in row layout, fill beside the panel so .vlp-root gets a bounded flex height.
@@ -1064,33 +1092,6 @@ function LessonWorkspace({
             showDesktopSidePanel ? "min-w-[700px] max-w-[900px]" : "w-full min-w-0 max-w-none",
           ].join(" ")}
         >
-          {/* Desktop answers rail — placed here (above VerticalLessonPlayer / SectionBlock) so
-              lw-answers-rail__body is structurally adjacent to the section content. */}
-          {hasTeacherAnswersRail && !isMobileViewport && (
-            <aside
-              ref={answersPanelAnchorRef}
-              className="lw-answers-rail lw-answers-rail--inline shrink-0"
-              aria-label="Student answers"
-            >
-              <div className="lw-answers-rail__body">
-                <button
-                  type="button"
-                  onClick={onToggleAnswersPanel}
-                  aria-label="View student answers"
-                  aria-pressed={answersPanelOpen}
-                  title="Student answers"
-                  className={[
-                    "ch-icon-btn",
-                    answersPanelOpen
-                      ? "ch-icon-btn--answers ch-icon-btn--answers-active"
-                      : "ch-icon-btn--answers",
-                  ].join(" ")}
-                >
-                  <LayoutGrid size={15} strokeWidth={2.2} />
-                </button>
-              </div>
-            </aside>
-          )}
           <VerticalLessonPlayer
             key={`vlp-unit-${effectiveUnitId ?? 'none'}`}
             flow={flow}
