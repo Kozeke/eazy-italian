@@ -543,9 +543,10 @@
    The header uses a two-layer strategy:
    • .ch-main-bar-inner   — centred max-w-7xl flex row (left + tabs + meta)
                             gets extra right-padding to reserve room for the panel.
-   • .ch-far-right-panel  — position:absolute — change-unit + answers/add/presence
-                            + exit; `right` uses --classroom-align-gutter so the
-                            strip lines up with SectionSidePanel in LessonWorkspace.
+   • .ch-far-right-panel      — full-width absolute row; flex-end — __exit flush right
+   • .ch-far-right-panel__change — <1024px: gutter + exit slot; ≥1024px: clamps ~81px
+                                  @ 1024px → ~270px @ 1419px (linear vw), then 270px max
+   • .ch-far-right-panel__exit   — exit control pinned to the viewport-right corner
 */
 
 /* ── Centred bar: reserve space on the right for the absolute panel ──────── */
@@ -574,15 +575,54 @@
 
 /* ── Far-right panel ─────────────────────────────────────────────────────── */
 
+/* Overlay spans the header row; children are absolutely positioned */
 .ch-far-right-panel {
+  /* Width reserved for __exit when `right` on __change is gutter + slot (<1024px layouts) */
+  --ch-exit-slot-width: 2.75rem;
+
   position: absolute;
-  right: var(--classroom-align-gutter);
+  left: 0;
+  right: 0;
   top: 0;
   height: 100%;
+  flex-shrink: 0;
+  pointer-events: none;
+}
 
+/* Change-unit + teacher tools: tight offset until lg, then viewport-scaled inset */
+.ch-far-right-panel__change {
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  height: 100%;
+  right: calc(var(--classroom-align-gutter) + var(--ch-exit-slot-width));
   display: flex;
   align-items: center;
-  gap: 0.5rem;           /* gap-2 */
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* 1024px → 81px; 1419px → 270px (slope 189/395); flat outside that band */
+@media (min-width: 1024px) {
+  .ch-far-right-panel__change {
+    right: clamp(
+      81px,
+      calc(81px + (100vw - 1024px) * 189 / 395),
+      270px
+    );
+  }
+}
+
+/* Exit: pinned to the viewport-right corner of the row */
+.ch-far-right-panel__exit {
+  pointer-events: auto;
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 
@@ -649,6 +689,14 @@
   }
 
   .ch-far-right-panel {
+    --ch-exit-slot-width: 2.5rem;
+  }
+
+  .ch-far-right-panel__change {
+    gap: 0.25rem;
+  }
+
+  .ch-far-right-panel__exit {
     gap: 0.25rem;
   }
 

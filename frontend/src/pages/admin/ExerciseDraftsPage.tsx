@@ -75,6 +75,12 @@ import SortIntoColumnsEditorPage from "../../components/classroom/lesson/flow/So
 import TestWithoutTimerEditorPage from "../../components/classroom/lesson/flow/TestWithoutTimerEditorPage";
 import TestWithTimerEditorPage from "../../components/classroom/lesson/flow/TestWithTimerEditorPage";
 import TrueFalseEditorPage from "../../components/classroom/lesson/flow/TrueFalseEditorPage";
+import TextEditorPage, {
+  type TextBlockData,
+} from "../../components/classroom/lesson/flow/TextEditorPage";
+import ImageEditorPage, {
+  type ImageBlockData,
+} from "../../components/classroom/lesson/flow/ImageEditorPage";
 import "../../components/classroom/lesson/flow/DragToGap.css";
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
@@ -86,6 +92,8 @@ import AIExerciseGeneratorModal, {
 type PageMode =
   | "gallery"
   | "editor"
+  | "text_block_editor"
+  | "image_block_editor"
   | "drag_to_gap_editor"
   | "drag_to_image_editor"
   | "type_word_to_image_editor"
@@ -105,6 +113,10 @@ function pageModeForTemplateCustomEditor(
   customEditor: NonNullable<TemplateConfig["customEditor"]>,
 ): PageMode {
   switch (customEditor) {
+    case "text_block":
+      return "text_block_editor";
+    case "image_block":
+      return "image_block_editor";
     case "drag_to_gap":
       return "drag_to_gap_editor";
     case "drag_to_image":
@@ -650,6 +662,8 @@ export default function ExerciseDraftsPage({
 
       // ── Custom editor override (e.g. gap-based custom blocks) ─────────────
       if (
+        tmpl?.customEditor === "text_block" ||
+        tmpl?.customEditor === "image_block" ||
         tmpl?.customEditor === "drag_to_gap" ||
         tmpl?.customEditor === "drag_to_image" ||
         tmpl?.customEditor === "type_word_to_image" ||
@@ -666,7 +680,11 @@ export default function ExerciseDraftsPage({
       ) {
         setSelected({ typeId: templateId, label, initialQuestions: [], initialMediaBlocks: [] });
         setPageMode(
-          tmpl.customEditor === "drag_to_gap"
+          tmpl.customEditor === "text_block"
+            ? "text_block_editor"
+            : tmpl.customEditor === "image_block"
+            ? "image_block_editor"
+            : tmpl.customEditor === "drag_to_gap"
             ? "drag_to_gap_editor"
             : tmpl.customEditor === "drag_to_image"
               ? "drag_to_image_editor"
@@ -789,6 +807,71 @@ export default function ExerciseDraftsPage({
   );
 
   /**
+   * Callback from ImageEditorPage.
+   * Wraps ImageBlockData into the standard onSave(title, payloads, drafts)
+   * contract so the lesson workspace can persist it like any other block.
+   *
+   * When a lessonReturnTo is present we write the customBlock directly to
+   * lessonPendingInlineMedia sessionStorage (alreadyPersisted: false) and
+   * navigate back ourselves.  This ensures LessonWorkspace calls
+   * upsertInlineMediaBlock with data.src intact — the optimistic local state
+   * keeps the image visible immediately while the autosave writes to the server.
+   * Without this path the block arrived with an empty src because AdminRoutes
+   * handleExerciseSave set alreadyPersisted:true and LessonWorkspace skipped the
+   * local upsert, relying on a server GET that may not yet carry data.src.
+   */
+  const handleImageBlockSave = useCallback(
+    async (data: ImageBlockData) => {
+      // Resolved title used for the block label.
+      const title = data.title || selected?.label || "Image block";
+
+      // Homework-mode path: store in a separate key and navigate back.
+      if (routerState?.homeworkMode) {
+        storeHomeworkExercise("image", title, data);
+        return;
+      }
+
+      // Lesson-context path: write optimistically to lessonPendingInlineMedia so
+      // LessonWorkspace can call upsertInlineMediaBlock with the full data.src.
+      if (lessonReturnTo) {
+        // Unique id for the new block (or re-use the existing one when editing).
+        const blockId =
+          inlineEditSeed?.blockId && inlineEditSeed.blockId.length > 0
+            ? inlineEditSeed.blockId
+            : Math.random().toString(36).slice(2, 10);
+
+        // Inline media block shape consumed by LessonWorkspace / SectionBlock.
+        const customBlock = {
+          id: blockId,
+          kind: "image" as const,
+          title,
+          data,
+        };
+
+        sessionStorage.setItem(
+          "lessonPendingInlineMedia",
+          JSON.stringify({
+            customBlock,
+            // targetSectionId tells LessonWorkspace which section to scroll to.
+            targetSectionId: routerState?.targetSectionId ?? null,
+            // alreadyPersisted is intentionally omitted (false) so LessonWorkspace
+            // calls upsertInlineMediaBlock and its autosave handles the server write.
+          }),
+        );
+
+        navigate(lessonReturnTo, { replace: true });
+        return;
+      }
+
+      // Fallback: let the parent onSave handle everything (e.g. non-lesson contexts).
+      if (onSave) {
+        await onSave(title, [{ type: "image", data }], []);
+      }
+    },
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+  );
+
+  /**
    * Callback from DragToGapEditorPage.
    * Wraps the DragToGapData into the standard onSave(title, payloads, drafts)
    * contract so the lesson workspace doesn't need to know about this type.
@@ -877,6 +960,25 @@ export default function ExerciseDraftsPage({
     [onSave, selected, routerState, storeHomeworkExercise],
   );
 
+  /**
+   * Callback from TextEditorPage.
+   * Wraps TextBlockData into the standard onSave(title, payloads, drafts)
+   * contract so the lesson workspace can persist it like any other block.
+   */
+  const handleTextBlockSave = useCallback(
+    async (data: TextBlockData) => {
+      const title = data.title || selected?.label || "Text block";
+      if (routerState?.homeworkMode) {
+        storeHomeworkExercise("text", title, data);
+        return;
+      }
+      if (onSave) {
+        await onSave(title, [{ type: "text", data }], []);
+      }
+    },
+    [onSave, selected, routerState, storeHomeworkExercise],
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: "#F7F7FA", fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif", display: "flex", flexDirection: "column" }}>
 
@@ -896,6 +998,40 @@ export default function ExerciseDraftsPage({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── TextBlock custom editor ──────────────────────────────────────── */}
+      {pageMode === "text_block_editor" && (
+        <TextEditorPage
+          initialTitle={
+            inlineEditSeed?.kind === "text" ? inlineEditSeed.title : (selected?.label ?? "")
+          }
+          initialData={
+            inlineEditSeed?.kind === "text"
+              ? (inlineEditSeed.data as unknown as TextBlockData)
+              : undefined
+          }
+          label={selected?.label}
+          onCancel={handleCancelEditor}
+          onSave={handleTextBlockSave}
+        />
+      )}
+
+      {/* ── ImageBlock custom editor ─────────────────────────────────────── */}
+      {pageMode === "image_block_editor" && (
+        <ImageEditorPage
+          initialTitle={
+            inlineEditSeed?.kind === "image" ? inlineEditSeed.title : (selected?.label ?? "")
+          }
+          initialData={
+            inlineEditSeed?.kind === "image"
+              ? (inlineEditSeed.data as unknown as ImageBlockData)
+              : undefined
+          }
+          label={selected?.label}
+          onCancel={handleCancelEditor}
+          onSave={handleImageBlockSave}
+        />
       )}
 
       {/* ── DragToGap custom editor ───────────────────────────────────────── */}

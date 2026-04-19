@@ -3,8 +3,8 @@ app/services/unit_generator.py
 ===============================
 AI-powered unit segment & exercise generator.
 
-Generates a full set of Segments (with exercise blocks) for a given Unit
-from a high-level topic description.
+Generates a full set of Segments (with text blocks, exercise blocks, and
+optionally AI images) for a given Unit from a high-level topic description.
 
 Flow
 ----
@@ -12,10 +12,13 @@ Flow
 2.  Parse + validate the returned JSON blueprint.
 3.  For each segment in the blueprint:
       a. Create a ``Segment`` DB record.
-      b. For each exercise block declared in the segment:
-           call ``generate_exercise_for_segment()`` — the exact same function
-           used by the exercise editor endpoint.
-4.  Return a summary dict: ``{ segments_created: N, exercises_created: M }``.
+      b. For each text block: insert a ``kind="text"`` media block with
+         grammar rules / vocabulary / examples in Markdown.
+      c. For each exercise block: call ``generate_exercise_for_segment()``.
+      d. If ``include_images=True``: generate an SVG diagram via
+         ``SVGImageProvider`` and append a ``kind="image"`` media block.
+4.  Return a summary: ``{ segments_created, texts_created,
+    exercises_created, images_created }``.
 
 Blueprint schema the LLM must return
 --------------------------------------
@@ -24,6 +27,12 @@ Blueprint schema the LLM must return
     {
       "title": "Greetings and introductions",
       "description": "Learn how to introduce yourself",
+      "texts": [
+        {
+          "title": "Grammar Rules",
+          "content": "## Greetings\\n\\nUse *Hello* for formal..."
+        }
+      ],
       "exercises": [
         { "type": "drag_to_gap",  "topic_hint": "Greetings vocabulary" },
         { "type": "match_pairs",  "topic_hint": "Common phrases" }
@@ -43,6 +52,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -56,7 +66,7 @@ from app.services.exercise_generation_flow import generate_exercise_for_segment
 logger = logging.getLogger(__name__)
 
 
-# ── Supported exercise types (mirrors exercise_generation.py) ─────────────────
+# ── Supported exercise types ──────────────────────────────────────────────────
 
 SUPPORTED_EXERCISE_TYPES: frozenset[str] = frozenset(
     {
@@ -76,6 +86,26 @@ SUPPORTED_EXERCISE_TYPES: frozenset[str] = frozenset(
 
 # ── Pydantic schemas for blueprint validation ─────────────────────────────────
 
+class TextBlueprint(BaseModel):
+    """One text / explanation block inside a segment blueprint."""
+
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Short heading, e.g. 'Grammar Rules', 'Key Vocabulary', 'Examples'.",
+    )
+    content: str = Field(
+        ...,
+        min_length=1,
+        max_length=4000,
+        description=(
+            "Markdown-formatted educational content: grammar explanations, "
+            "vocabulary lists, usage examples, tips."
+        ),
+    )
+
+
 class ExerciseBlueprint(BaseModel):
     """One exercise block declared inside a segment blueprint."""
 
@@ -88,7 +118,6 @@ class ExerciseBlueprint(BaseModel):
 
     @model_validator(mode="after")
     def _normalise_type(self) -> "ExerciseBlueprint":
-        # Accept hyphenated slugs as well (e.g. "drag-to-gap" → "drag_to_gap")
         self.type = self.type.replace("-", "_").lower()
         if self.type not in SUPPORTED_EXERCISE_TYPES:
             supported = ", ".join(sorted(SUPPORTED_EXERCISE_TYPES))
@@ -103,6 +132,10 @@ class SegmentBlueprint(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = Field(default=None)
+    texts: list[TextBlueprint] = Field(
+        default_factory=list,
+        description="Text / explanation blocks (grammar rules, vocabulary, examples).",
+    )
     exercises: list[ExerciseBlueprint] = Field(default_factory=list)
 
 
@@ -116,33 +149,7 @@ class UnitBlueprint(BaseModel):
 
 @dataclass
 class UnitGenerateRequest:
-    """
-    Parameters for a full unit-generation run.
-
-    Attributes
-    ----------
-    unit_id : int
-        ID of the Unit to attach segments to.
-    topic : str
-        High-level topic for the unit (e.g. "Daily routines in Italian").
-    level : str
-        CEFR level string, e.g. "A1", "B2".
-    language : str
-        Target language for generated content (e.g. "Italian").
-    num_segments : int
-        Number of segments (sections) to generate.  1–10.
-    exercise_types : list[str]
-        Ordered list of exercise type keys the AI should distribute across
-        segments.  If empty the AI chooses freely.
-    teacher_id : int
-        ID of the creating teacher — stamped on every Segment record.
-    content_language : str
-        Language the source content is written in (forwarded to exercise
-        generator).  Defaults to "auto".
-    instruction_language : str
-        Language for exercise UI labels shown to students (forwarded to
-        exercise generator).  Defaults to "english".
-    """
+    """Parameters for a full unit-generation run."""
 
     unit_id: int
     topic: str
@@ -153,7 +160,8 @@ class UnitGenerateRequest:
     teacher_id: int = 0
     content_language: str = "auto"
     instruction_language: str = "english"
-    source_content: str | None = None  # raw text extracted from an uploaded file
+    source_content: str | None = None
+    include_images: bool = False   # generate SVG images only when requested
 
 
 # ── Result type ───────────────────────────────────────────────────────────────
@@ -162,6 +170,8 @@ class UnitGenerateRequest:
 class UnitGenerateResult:
     segments_created: int
     exercises_created: int
+    texts_created: int = 0
+    images_created: int = 0
     segment_ids: list[int] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -169,6 +179,8 @@ class UnitGenerateResult:
         return {
             "segments_created": self.segments_created,
             "exercises_created": self.exercises_created,
+            "texts_created": self.texts_created,
+            "images_created": self.images_created,
             "segment_ids": self.segment_ids,
             "errors": self.errors,
         }
@@ -178,13 +190,7 @@ class UnitGenerateResult:
 
 class UnitGeneratorService:
     """
-    Orchestrates AI-powered segment + exercise generation for a Unit.
-
-    Parameters
-    ----------
-    ai_provider : AIProvider
-        Any provider that implements ``AIProvider.agenerate(prompt) -> str``.
-        Inject via dependency injection or instantiate directly.
+    Orchestrates AI-powered segment + text + exercise + image generation.
     """
 
     def __init__(self, ai_provider: AIProvider) -> None:
@@ -197,29 +203,7 @@ class UnitGeneratorService:
         request: UnitGenerateRequest,
         db: Session,
     ) -> UnitGenerateResult:
-        """
-        Full pipeline: prompt → parse → persist → return summary.
-
-        Steps
-        -----
-        1. Build and send the structured prompt to the LLM.
-        2. Parse + validate the JSON blueprint.
-        3. Create Segment DB records.
-        4. Generate exercise blocks via ``generate_exercise_for_segment()``.
-        5. Return a ``UnitGenerateResult`` summary.
-
-        Parameters
-        ----------
-        request : UnitGenerateRequest
-            Generation parameters.
-        db : Session
-            Active SQLAlchemy session.
-
-        Returns
-        -------
-        UnitGenerateResult
-        """
-        # ── Step 1: Generate blueprint ────────────────────────────────────────
+        """Full pipeline: prompt → parse → persist → return summary."""
         prompt = self._build_prompt(request)
         logger.info(
             "UnitGenerator: calling AI provider for unit_id=%d topic=%r",
@@ -231,27 +215,23 @@ class UnitGeneratorService:
         except AIProviderError as exc:
             raise RuntimeError(f"AI provider error during unit generation: {exc}") from exc
 
-        # ── Step 2: Parse + validate ──────────────────────────────────────────
         blueprint = self._parse_blueprint(raw_output)
-
-        # ── Step 3 & 4: Persist ───────────────────────────────────────────────
         result = await self._persist(blueprint, request, db)
 
         logger.info(
-            "UnitGenerator: completed unit_id=%d — %d segments, %d exercises (%d errors)",
+            "UnitGenerator: completed unit_id=%d — %d segments, %d texts, "
+            "%d exercises, %d images (%d errors)",
             request.unit_id,
             result.segments_created,
+            result.texts_created,
             result.exercises_created,
+            result.images_created,
             len(result.errors),
         )
         return result
 
     async def preview(self, request: UnitGenerateRequest) -> UnitBlueprint:
-        """
-        Generate and validate the blueprint without touching the database.
-
-        Useful for showing a preview before committing.
-        """
+        """Generate and validate the blueprint without touching the database."""
         prompt = self._build_prompt(request)
         raw_output = await self.provider.agenerate(prompt)
         return self._parse_blueprint(raw_output)
@@ -259,16 +239,8 @@ class UnitGeneratorService:
     # ── Prompt builder ────────────────────────────────────────────────────────
 
     def _build_prompt(self, request: UnitGenerateRequest) -> str:
-        """
-        Construct the structured prompt sent to the LLM.
-
-        The prompt is deliberately explicit about the JSON schema the model
-        must return so that ``_parse_blueprint`` has predictable input.
-        """
-        # Build the exercise-type hint section
         if request.exercise_types:
             normalised = [t.replace("-", "_").lower() for t in request.exercise_types]
-            # Filter to supported types to avoid confusing the LLM
             valid = [t for t in normalised if t in SUPPORTED_EXERCISE_TYPES]
             exercise_hint = (
                 f"Distribute these exercise types across the segments "
@@ -282,9 +254,6 @@ class UnitGeneratorService:
                 + ".\nEach segment should have 1–3 exercises."
             )
 
-        # Build optional source-material section.
-        # Cap to 1 500 chars — large excerpts cause Ollama to produce
-        # longer responses that get truncated mid-JSON.
         content_section = ""
         if request.source_content:
             excerpt = request.source_content[:1500].strip()
@@ -312,6 +281,12 @@ preamble, no trailing text.  The JSON must match this exact schema:
     {{
       "title": "<concise segment title>",
       "description": "<one or two sentences describing what students will learn>",
+      "texts": [
+        {{
+          "title": "<block heading, e.g. 'Grammar Rules', 'Key Vocabulary', 'Examples'>",
+          "content": "<educational markdown content: rules, vocab lists, usage examples>"
+        }}
+      ],
       "exercises": [
         {{
           "type": "<exercise_type_key>",
@@ -324,60 +299,39 @@ preamble, no trailing text.  The JSON must match this exact schema:
 
 Rules:
 - Generate exactly {request.num_segments} segment(s).
-- Exercise "type" values must be one of: {', '.join(sorted(SUPPORTED_EXERCISE_TYPES))}.
-- "topic_hint" should be a short, specific instruction relevant to the segment
-  topic so the exercise generator knows what vocabulary/grammar to focus on.
-  Example: "Greetings vocabulary — formal and informal", "Past tense verbs".
-- Titles and descriptions must be in {request.language}.
-- topic_hint values should be in English (they are internal AI directives).
+- Each segment must include exactly 1 text block in "texts":
+  * Contain grammar rules, vocabulary, or examples relevant to the segment.
+  * Written in clear, student-friendly Markdown.
+  * Use headings (##), bold (**word**), and bullet lists (- item) freely.
+  * Text title and content MUST be in {request.language}. Aim for 80–200 words.
+- Exercise "type" must be one of: {', '.join(sorted(SUPPORTED_EXERCISE_TYPES))}.
+- "topic_hint" must be a short, specific instruction in English (internal AI directive).
+  Example: "Greetings vocabulary — formal and informal", "Past tense regular verbs".
+- Segment titles and descriptions must be in {request.language}.
 - Keep JSON strictly valid: no trailing commas, no comments.
 
 Return ONLY the JSON object."""
 
     # ── Blueprint parser ──────────────────────────────────────────────────────
 
-    # Maximum chars to log when debugging a bad LLM response
     _LOG_RAW_CHARS = 600
 
     def _parse_blueprint(self, raw_output: str) -> UnitBlueprint:
         """
         Extract and validate the JSON blueprint from the raw LLM output.
-
-        Resilient to the two most common failure modes seen with local
-        Ollama models when the prompt is long (e.g. file-based generation):
-
-        1. **Markdown fences** — some models wrap JSON in ```json ... ```.
-        2. **Truncated output** — the model hits its token/context limit and
-           stops mid-JSON, leaving unclosed strings / arrays / objects.
-
-        Recovery strategy
-        -----------------
-        a. Strip fences and isolate the first ``{...}`` block (existing logic).
-        b. Try ``json.loads`` — succeeds for well-formed output.
-        c. On ``JSONDecodeError``, call ``_repair_json`` which closes any
-           dangling strings and unclosed brackets, then retry ``json.loads``.
-        d. If repair also fails, call ``_extract_partial_segments`` which
-           uses a brace-matching scanner to collect every *complete* segment
-           object already present in the truncated output, and assembles a
-           valid blueprint from them.  Raises only if zero complete segments
-           are found.
-
-        Raises
-        ------
-        ValueError
-            If no valid segment can be recovered from the LLM output.
+        Resilient to markdown fences and truncated output.
         """
         text = raw_output.strip()
 
-        # ── a. Strip markdown fences (```json ... ``` or ``` ... ```) ─────────
+        # Strip markdown fences
         if text.startswith("```"):
             lines = text.splitlines()
-            lines = lines[1:]  # drop opening fence
+            lines = lines[1:]
             if lines and lines[-1].strip().startswith("```"):
-                lines = lines[:-1]  # drop closing fence
+                lines = lines[:-1]
             text = "\n".join(lines).strip()
 
-        # ── Isolate first JSON object ─────────────────────────────────────────
+        # Isolate first JSON object
         brace_start = text.find("{")
         if brace_start == -1:
             raise ValueError(
@@ -385,7 +339,6 @@ Return ONLY the JSON object."""
                 f"Raw output (first 300 chars): {raw_output[:300]!r}"
             )
 
-        # Find matching closing brace (may be absent in truncated output)
         depth = 0
         brace_end = -1
         for i, ch in enumerate(text[brace_start:], start=brace_start):
@@ -399,15 +352,15 @@ Return ONLY the JSON object."""
 
         json_text = text[brace_start:brace_end] if brace_end != -1 else text[brace_start:]
 
-        # ── b. Fast path: standard parse ──────────────────────────────────────
+        # Fast path
         try:
             return self._validate_blueprint(json.loads(json_text))
         except json.JSONDecodeError:
-            pass  # fall through to repair
+            pass
         except ValueError:
-            raise  # schema validation error — not a JSON problem
+            raise
 
-        # ── c. Repair truncated JSON and retry ────────────────────────────────
+        # Repair truncated JSON
         logger.warning(
             "UnitGenerator: LLM output appears truncated — attempting repair. "
             "Raw (first %d chars):\n%s",
@@ -418,9 +371,9 @@ Return ONLY the JSON object."""
         try:
             return self._validate_blueprint(json.loads(repaired))
         except (json.JSONDecodeError, ValueError):
-            pass  # fall through to partial-segment extraction
+            pass
 
-        # ── d. Extract whatever complete segments are already present ─────────
+        # Extract partial segments
         partial = self._extract_partial_segments(json_text or text)
         if partial:
             logger.warning(
@@ -447,17 +400,6 @@ Return ONLY the JSON object."""
 
     @staticmethod
     def _repair_json(text: str) -> str:
-        """
-        Close unclosed strings and bracket structures in truncated JSON.
-
-        Iterates the text character-by-character, tracking string/escape
-        state and a bracket stack, then appends the missing closing tokens.
-        Also handles the case where a JSON key was declared but its value
-        was never started (e.g. the model wrote ``"description":`` and then
-        the output was cut — a bare colon at the end is filled with ``null``).
-
-        Pure Python, no dependencies.
-        """
         stack: list[str] = []
         in_string = False
         escape_next = False
@@ -482,39 +424,23 @@ Return ONLY the JSON object."""
                 stack.pop()
 
         suffix = ""
-
-        # Close an unterminated string value
         if in_string:
             suffix += '"'
-
-        # If a key was written but its value was never started
-        # (bare colon at end, outside any string), insert null.
         if (text + suffix).rstrip().endswith(":"):
             suffix += "null"
-
-        # Close open structures in reverse order
         for opener in reversed(stack):
             suffix += "}" if opener == "{" else "]"
 
         return text + suffix
 
-
     @staticmethod
     def _extract_partial_segments(text: str) -> list[SegmentBlueprint]:
-        """
-        Scan *text* for complete JSON objects that look like segment blueprints
-        and return a list of validated ``SegmentBlueprint`` instances.
-
-        Used as a last-resort recovery when even the repaired JSON cannot be
-        parsed (e.g. the model omitted the outer wrapper entirely).
-        """
         segments: list[SegmentBlueprint] = []
         i = 0
         while i < len(text):
             if text[i] != "{":
                 i += 1
                 continue
-            # Try to extract a balanced object starting at i
             depth = 0
             j = i
             in_str = False
@@ -533,7 +459,6 @@ Return ONLY the JSON object."""
                     elif ch == "}":
                         depth -= 1
                         if depth == 0:
-                            # Candidate object found
                             candidate = text[i : j + 1]
                             try:
                                 data = json.loads(candidate)
@@ -550,13 +475,10 @@ Return ONLY the JSON object."""
 
     @staticmethod
     def _validate_blueprint(data: Any) -> UnitBlueprint:
-        """Wrap ``UnitBlueprint.model_validate`` with a clean ``ValueError``."""
         try:
             return UnitBlueprint.model_validate(data)
         except ValidationError as exc:
             raise ValueError(f"Blueprint schema validation failed: {exc}") from exc
-
-
 
     # ── Persistence ───────────────────────────────────────────────────────────
 
@@ -567,13 +489,53 @@ Return ONLY the JSON object."""
         db: Session,
     ) -> UnitGenerateResult:
         """
-        Write all Segment records and generate exercise blocks.
-
-        Each segment is committed individually so a single failing exercise
-        does not roll back successfully created segments.  Errors are
-        collected and returned in ``UnitGenerateResult.errors``.
+        Write all Segment records:
+          1. Text blocks  (grammar/vocabulary/examples — always)
+          2. Exercise blocks (AI-generated interactive exercises)
+          3. Image block  (SVG diagram — only if include_images=True)
         """
+        from sqlalchemy.orm.attributes import flag_modified
+
         result = UnitGenerateResult(segments_created=0, exercises_created=0)
+
+        # Initialise image provider once and reuse across segments.
+        # Priority: HuggingFaceImageProvider (real AI images) → SVGImageProvider (fallback)
+        img_provider = None
+        if request.include_images:
+            import os
+            hf_api_key = os.environ.get("HF_API_KEY", "")
+            if hf_api_key:
+                try:
+                    from app.services.ai.image_providers.huggingface_provider import (
+                        HuggingFaceImageProvider,
+                    )
+                    img_provider = HuggingFaceImageProvider(
+                        api_key=hf_api_key,
+                        width=512,
+                        height=384,
+                    )
+                    logger.info(
+                        "UnitGenerator: image generation enabled (HuggingFaceImageProvider)"
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "UnitGenerator: could not init HuggingFaceImageProvider — "
+                        "falling back to SVGImageProvider: %s",
+                        exc,
+                    )
+            if img_provider is None:
+                # Fallback: SVG diagrams generated by the LLM (no external API needed)
+                try:
+                    from app.services.ai.image_providers.svg_provider import SVGImageProvider
+                    img_provider = SVGImageProvider(ai_provider=self.provider)
+                    logger.info(
+                        "UnitGenerator: image generation enabled (SVGImageProvider fallback)"
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "UnitGenerator: could not init SVGImageProvider — images disabled: %s",
+                        exc,
+                    )
 
         for order_idx, seg_bp in enumerate(blueprint.segments):
             # ── Create Segment record ─────────────────────────────────────────
@@ -585,10 +547,11 @@ Return ONLY the JSON object."""
                 status=SegmentStatus.DRAFT,
                 is_visible_to_students=False,
                 created_by=request.teacher_id,
+                media_blocks=[],
             )
             db.add(segment)
             try:
-                db.flush()  # obtain segment.id without committing the transaction
+                db.flush()
             except Exception as exc:
                 db.rollback()
                 error_msg = f"Segment[{order_idx}] '{seg_bp.title}': DB flush failed — {exc}"
@@ -598,33 +561,87 @@ Return ONLY the JSON object."""
 
             result.segments_created += 1
             result.segment_ids.append(segment.id)
-            logger.debug(
-                "UnitGenerator: created segment id=%d '%s' for unit_id=%d",
-                segment.id,
-                segment.title,
-                request.unit_id,
-            )
 
-            # ── Generate exercise blocks ──────────────────────────────────────
+            # Collect text/image blocks to prepend before exercise blocks
+            prepend_blocks: list[dict[str, Any]] = []
+
+            # ── 1. Text blocks ────────────────────────────────────────────────
+            for txt_bp in seg_bp.texts:
+                text_block: dict[str, Any] = {
+                    "id": str(uuid.uuid4()),
+                    "kind": "text",
+                    "title": txt_bp.title,
+                    "data": {
+                        "content": txt_bp.content,
+                        "format": "markdown",
+                    },
+                }
+                prepend_blocks.append(text_block)
+                result.texts_created += 1
+                logger.debug(
+                    "UnitGenerator: text block '%s' added to segment id=%d",
+                    txt_bp.title, segment.id,
+                )
+
+            # ── 2. Image block (optional, placed after text, before exercises) ─
+            if img_provider is not None:
+                try:
+                    from app.services.image_prompt_builder import ImagePromptBuilder
+                    img_prompt = ImagePromptBuilder.build(
+                        slide_title=seg_bp.title,
+                        bullet_points=(
+                            [seg_bp.description] if seg_bp.description else [request.topic]
+                        ),
+                        topic=request.topic,
+                        audience=f"{request.level} level {request.language} learner",
+                        style="educational, flat illustration, clean background",
+                    )
+                    img_result = await img_provider.agenerate_image(
+                        prompt=img_prompt,
+                        alt_text=f"Educational illustration for: {seg_bp.title}",
+                        style="educational, flat illustration, clean background",
+                    )
+                    image_block: dict[str, Any] = {
+                        "id": str(uuid.uuid4()),
+                        "kind": "image",
+                        "title": seg_bp.title,
+                        "data": {
+                            "src": img_result.as_data_uri(),
+                            "alt_text": f"Educational illustration for: {seg_bp.title}",
+                        },
+                    }
+                    prepend_blocks.append(image_block)
+                    result.images_created += 1
+                    logger.debug(
+                        "UnitGenerator: image generated for segment id=%d", segment.id
+                    )
+                except Exception as exc:
+                    error_msg = (
+                        f"Segment[{order_idx}] '{seg_bp.title}': "
+                        f"image generation failed — {exc}"
+                    )
+                    logger.warning("UnitGenerator: %s", error_msg, exc_info=True)
+                    result.errors.append(error_msg)
+
+            # ── 3. Exercise blocks ────────────────────────────────────────────
             for ex_bp in seg_bp.exercises:
                 try:
-                    _block, _meta = await generate_exercise_for_segment(
+                    await generate_exercise_for_segment(
                         exercise_type=ex_bp.type,
                         db=db,
                         segment_id=segment.id,
                         unit_id=request.unit_id,
                         created_by=request.teacher_id,
-                        block_title=None,           # let the generator choose
+                        block_title=None,
                         topic_hint=ex_bp.topic_hint,
                         content_language=request.content_language,
                         instruction_language=request.instruction_language,
-                        generator_params={},        # use generator defaults
+                        generator_params={},
                     )
                     result.exercises_created += 1
                     logger.debug(
                         "UnitGenerator: exercise '%s' generated for segment id=%d",
-                        ex_bp.type,
-                        segment.id,
+                        ex_bp.type, segment.id,
                     )
                 except Exception as exc:
                     error_msg = (
@@ -633,9 +650,22 @@ Return ONLY the JSON object."""
                     )
                     logger.warning("UnitGenerator: %s", error_msg, exc_info=True)
                     result.errors.append(error_msg)
-                    # Continue with next exercise — do not abort the entire run
 
-        # Commit all successfully created segments at once
+            # ── Merge prepend_blocks before any exercise blocks already written ─
+            if prepend_blocks:
+                db.refresh(segment)
+                existing_exercise_blocks = list(segment.media_blocks or [])
+                segment.media_blocks = prepend_blocks + existing_exercise_blocks
+                flag_modified(segment, "media_blocks")
+                try:
+                    db.flush()
+                except Exception as exc:
+                    logger.warning(
+                        "UnitGenerator: flush of text/image blocks for segment id=%d failed: %s",
+                        segment.id, exc,
+                    )
+
+        # Final commit
         try:
             db.commit()
         except Exception as exc:

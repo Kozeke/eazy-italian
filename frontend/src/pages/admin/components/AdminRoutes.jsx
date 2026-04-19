@@ -158,7 +158,11 @@ function useExerciseDrafts() {
 async function persistCustomLessonBlockToSegment(segmentId, customBlock) {
   const segmentNumericId = Number(segmentId);
   if (!Number.isFinite(segmentNumericId) || !customBlock) return;
-  const prior = await segmentsApi.getSegment(segmentNumericId);
+  const priorRaw = await segmentsApi.getSegment(segmentNumericId);
+  // segmentsApi.getSegment may return the raw data object or an Axios response
+  // wrapper ({ data: {...} }). Unwrap defensively so prior.media_blocks is always
+  // the actual array and we never start from an empty list.
+  const prior = priorRaw?.data ?? priorRaw;
   const mediaBlocks = Array.isArray(prior?.media_blocks) ? [...prior.media_blocks] : [];
   const matchIndex = mediaBlocks.findIndex(
     (b) => b && String(b.id) === String(customBlock.id),
@@ -263,6 +267,8 @@ function ExerciseDraftsPageRoute() {
       const firstPayload =
         Array.isArray(payloads) && payloads.length > 0 ? payloads[0] : null;
       const customType =
+        firstPayload?.type === "text" ||
+        firstPayload?.type === "image" ||
         firstPayload?.type === "drag_to_gap" ||
         firstPayload?.type === "drag_to_image" ||
         firstPayload?.type === "type_word_to_image" ||
@@ -291,7 +297,11 @@ function ExerciseDraftsPageRoute() {
               kind: customType,
               title:
                 title ||
-                (customType === "drag_to_gap"
+                (customType === "text"
+                  ? "Text block"
+                  : customType === "image"
+                  ? "Image block"
+                  : customType === "drag_to_gap"
                   ? "Drag word to gap"
                   : customType === "drag_to_image"
                     ? "Drag word to image"
@@ -324,9 +334,14 @@ function ExerciseDraftsPageRoute() {
                   : {},
             }
           : null;
+      // Tracks whether the block was already written to the server so the
+      // lesson workspace can skip its own upsert (prevents the autosave race
+      // that overwrites existing media_blocks with only the new block).
+      let alreadyPersisted = false;
       if (customBlock && targetSegmentId != null && targetSegmentId !== "") {
         try {
           await persistCustomLessonBlockToSegment(targetSegmentId, customBlock);
+          alreadyPersisted = true;
         } catch (err) {
           console.error("[ExerciseDraftsPage] persistCustomLessonBlockToSegment failed", err);
         }
@@ -338,6 +353,7 @@ function ExerciseDraftsPageRoute() {
             JSON.stringify({
               customBlock,
               targetSectionId,
+              alreadyPersisted,
             }),
           );
         }
@@ -361,6 +377,7 @@ function ExerciseDraftsPageRoute() {
           JSON.stringify({
             customBlock,
             targetSectionId,
+            alreadyPersisted,
           }),
         );
         clearDraftRouteContext();

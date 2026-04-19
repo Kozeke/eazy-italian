@@ -377,6 +377,23 @@
   padding: 10px 8px 12px;
 }
 
+/* Inline variant: rail sits above VerticalLessonPlayer inside the lesson column.
+   Renders as a compact horizontal strip instead of a tall left-column. */
+.lw-answers-rail--inline {
+  width: auto;
+  align-self: stretch;
+  flex-direction: row;
+  align-items: center;
+  border-radius: var(--lp-player-radius, 1rem) var(--lp-player-radius, 1rem) 0 0;
+  border-bottom: none;
+}
+
+.lw-answers-rail--inline .lw-answers-rail__body {
+  padding: 8px 12px;
+  justify-content: flex-start;
+  align-items: center;
+}
+
 .lw-answers-rail--mobile {
   width: auto;
   flex-direction: column;

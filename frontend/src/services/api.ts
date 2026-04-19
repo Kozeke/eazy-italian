@@ -477,7 +477,9 @@ export interface InlineMediaBlock {
     | "order_paragraphs"
     | "sort_into_columns"
     | "test_without_timer"
-    | "test_with_timer";
+    | "test_with_timer"
+    | "true_false"
+    | "text";
   url?: string;
   caption?: string;
   slides?: CarouselSlide[];

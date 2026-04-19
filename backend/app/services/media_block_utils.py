@@ -15,6 +15,8 @@ import uuid
 
 SIMPLE_MEDIA_KINDS: set = {"image", "video", "audio"}
 RICH_MEDIA_KINDS: set = {"carousel_slides"}
+# Rich-text content blocks authored in the lesson editor
+TEXT_KINDS: set = {"text"}
 CUSTOM_EXERCISE_KINDS: set = {
     "drag_to_gap",
     "drag_to_image",
@@ -31,7 +33,7 @@ CUSTOM_EXERCISE_KINDS: set = {
     "test_with_timer",
     "true_false",
 }
-ALLOWED_KINDS: set = SIMPLE_MEDIA_KINDS | RICH_MEDIA_KINDS | CUSTOM_EXERCISE_KINDS
+ALLOWED_KINDS: set = SIMPLE_MEDIA_KINDS | RICH_MEDIA_KINDS | TEXT_KINDS | CUSTOM_EXERCISE_KINDS
 
 
 # ─── Carousel slides ──────────────────────────────────────────────────────────
@@ -64,7 +66,8 @@ def normalise_carousel_slides(raw_slides: Any) -> List[Dict[str, Any]]:
 def normalise_media_blocks(raw_media_blocks: Any) -> List[Dict[str, Any]]:
     """
     Validate and normalise a raw list of media block dicts.
-    Unknown kinds are silently dropped.
+    Recognised kinds: simple media (image/video/audio), carousel_slides,
+    text, and all CUSTOM_EXERCISE_KINDS.  Unknown kinds are silently dropped.
     Missing ids are generated via uuid4().
     """
     if not isinstance(raw_media_blocks, list):
@@ -84,18 +87,38 @@ def normalise_media_blocks(raw_media_blocks: Any) -> List[Dict[str, Any]]:
             block_id = uuid.uuid4().hex[:10]
 
         if kind in SIMPLE_MEDIA_KINDS:
-            normalised.append({
+            block_dict: Dict[str, Any] = {
                 "id": block_id,
                 "kind": kind,
                 "url": str(item.get("url") or ""),
                 "caption": str(item.get("caption") or ""),
-            })
+            }
+            # Preserve optional title (present on image blocks authored in the editor)
+            if item.get("title"):
+                block_dict["title"] = str(item["title"])
+            # Preserve optional data payload (e.g. base64 src on image blocks).
+            # Without this, data.src is silently stripped on every PUT and the
+            # image disappears from the lesson until the page is hard-refreshed
+            # from a separate upload endpoint.
+            data = item.get("data")
+            if isinstance(data, dict) and data:
+                block_dict["data"] = data
+            normalised.append(block_dict)
         elif kind == "carousel_slides":
             slides = normalise_carousel_slides(item.get("slides"))
             normalised.append({
                 "id": block_id,
                 "kind": kind,
                 "slides": slides,
+            })
+        elif kind in TEXT_KINDS:
+            # Preserve rich-text content authored in the lesson editor
+            data = item.get("data")
+            normalised.append({
+                "id": block_id,
+                "kind": kind,
+                "title": str(item.get("title") or ""),
+                "data": data if isinstance(data, dict) else {},
             })
         elif kind in CUSTOM_EXERCISE_KINDS:
             data = item.get("data")

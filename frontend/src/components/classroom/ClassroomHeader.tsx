@@ -5,8 +5,9 @@
  * LessonWorkspace. On the homework tab (no lesson workspace) the same toggle
  * is rendered here in the far-right cluster.
  *
- * The Change Unit control lives in `ch-far-right-panel` so its right inset matches
- * `SectionSidePanel` (shared `--classroom-align-gutter` on `.classroom-layout`).
+ * Far-right strip: `ch-far-right-panel__change` (Change Unit + teacher tools) is
+ * spaced from `ch-far-right-panel__exit` by `--classroom-align-gutter`; exit sits
+ * flush to the header’s right edge (see classroom-mode.css).
  *
  * Layout: `<header>` = (1) main bar row `ch-main-row`, (2) optional `lessonRail`
  * slot (disabled — see commented block in this file), (3) mobile unit strip. The
@@ -458,63 +459,64 @@ export default function ClassroomHeader({
             </div>
           </div>
 
-          {/* ── Far-right panel: always pinned to the viewport right edge ─── */}
+          {/* ── Far-right strip: change/tools vs exit in separate slots (CSS) ─── */}
           <div className="ch-far-right-panel">
-            {/* Same horizontal inset as LessonWorkspace / SectionSidePanel (CSS variable on layout root). */}
-            <button
-              type="button"
-              onClick={handleOpenChanger}
-              className="ch-change-unit-btn flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-            >
-              <span className="ch-change-unit-label hidden sm:inline">{currentUnit ? 'Change Unit' : 'Choose Unit'}</span>
-              <span className="ch-change-unit-label ch-change-unit-label--mobile sm:hidden">{currentUnit ? 'Unit' : 'Choose'}</span>
-              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-            </button>
+            {/* Change Unit + teacher rail icons; spaced from exit by --classroom-align-gutter */}
+            <div className="ch-far-right-panel__change">
+              <button
+                type="button"
+                onClick={handleOpenChanger}
+                className="ch-change-unit-btn flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                <span className="ch-change-unit-label hidden sm:inline">{currentUnit ? 'Change Unit' : 'Choose Unit'}</span>
+                <span className="ch-change-unit-label ch-change-unit-label--mobile sm:hidden">{currentUnit ? 'Unit' : 'Choose'}</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+              </button>
 
-            {/* TEACHER: answers icon + add-student + presence cluster + divider + exit */}
-            {isTeacher && (
-              <>
-                {hasOnlineStudent && (
-                  <>
-                    <div className="flex items-center gap-2">
-                      {/* Answers: homework always; lesson uses workspace rail except ≤480px (ClassroomPage). */}
-                      {onToggleAnswersPanel && (
-                        <button
-                          ref={answersPanelHeaderButtonRef ?? undefined}
-                          type="button"
-                          onClick={onToggleAnswersPanel}
-                          aria-label="View student answers"
-                          aria-pressed={answersPanelOpen}
-                          title="Student answers"
-                          className={[
-                            'ch-icon-btn',
-                            answersPanelOpen
-                              ? 'ch-icon-btn--answers ch-icon-btn--answers-active'
-                              : 'ch-icon-btn--answers',
-                          ].join(' ')}
-                        >
-                          <LayoutGrid size={15} strokeWidth={2.2} />
-                        </button>
-                      )}
-
-                      {/* Add-student icon */}
+              {/* TEACHER: answers + add-student + presence + divider (exit is in sibling slot) */}
+              {isTeacher && hasOnlineStudent && (
+                <>
+                  <div className="flex items-center gap-2">
+                    {onToggleAnswersPanel && (
                       <button
+                        ref={answersPanelHeaderButtonRef ?? undefined}
                         type="button"
-                        onClick={onAddStudent}
-                        aria-label="Add student to classroom"
-                        className="ch-icon-btn ch-icon-btn--add"
-                        disabled={!onAddStudent}
+                        onClick={onToggleAnswersPanel}
+                        aria-label="View student answers"
+                        aria-pressed={answersPanelOpen}
+                        title="Student answers"
+                        className={[
+                          'ch-icon-btn',
+                          answersPanelOpen
+                            ? 'ch-icon-btn--answers ch-icon-btn--answers-active'
+                            : 'ch-icon-btn--answers',
+                        ].join(' ')}
                       >
-                        <UserPlus size={15} strokeWidth={2.2} />
+                        <LayoutGrid size={15} strokeWidth={2.2} />
                       </button>
+                    )}
 
-                      <OnlinePresenceCluster users={onlineUsers} />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={onAddStudent}
+                      aria-label="Add student to classroom"
+                      className="ch-icon-btn ch-icon-btn--add"
+                      disabled={!onAddStudent}
+                    >
+                      <UserPlus size={15} strokeWidth={2.2} />
+                    </button>
 
-                    <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
-                  </>
-                )}
+                    <OnlinePresenceCluster users={onlineUsers} />
+                  </div>
 
+                  <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+                </>
+              )}
+            </div>
+
+            {/* Exit (and student divider): flush to header right edge */}
+            <div className="ch-far-right-panel__exit">
+              {isTeacher && (
                 <button
                   type="button"
                   onClick={onBack}
@@ -523,23 +525,22 @@ export default function ClassroomHeader({
                 >
                   <LogOut size={15} strokeWidth={2.2} />
                 </button>
-              </>
-            )}
+              )}
 
-            {/* STUDENT: divider + exit */}
-            {!isTeacher && (
-              <>
-                <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
-                <button
-                  type="button"
-                  onClick={onBack}
-                  aria-label="Exit classroom"
-                  className="ch-icon-btn ch-icon-btn--exit"
-                >
-                  <LogOut size={15} strokeWidth={2.2} />
-                </button>
-              </>
-            )}
+              {!isTeacher && (
+                <>
+                  <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    aria-label="Exit classroom"
+                    className="ch-icon-btn ch-icon-btn--exit"
+                  >
+                    <LogOut size={15} strokeWidth={2.2} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
         </div>
