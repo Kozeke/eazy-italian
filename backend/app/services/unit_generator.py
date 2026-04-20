@@ -98,10 +98,12 @@ class TextBlueprint(BaseModel):
     content: str = Field(
         ...,
         min_length=1,
-        max_length=4000,
+        # ~1 500 chars ≈ 300–400 words; enough for grammar rules + examples
+        # without risking token-limit truncation on Groq.
+        max_length=1500,
         description=(
             "Markdown-formatted educational content: grammar explanations, "
-            "vocabulary lists, usage examples, tips."
+            "vocabulary lists, usage examples, tips. Keep it under 150 words."
         ),
     )
 
@@ -324,7 +326,7 @@ Rules:
   * Contain grammar rules, vocabulary, or examples relevant to the segment.
   * Written in clear, student-friendly Markdown.
   * Use headings (##), bold (**word**), and bullet lists (- item) freely.
-  * Text title and content MUST be in {request.language}. Aim for 80–200 words.
+  * Text title and content MUST be in {request.language}. Aim for 60–120 words — concise and clear.
 - Exercise "type" must be one of: {', '.join(sorted(SUPPORTED_EXERCISE_TYPES))}.
 - "topic_hint" must be a short, specific instruction in English (internal AI directive).
   Example: "Greetings vocabulary — formal and informal", "Past tense regular verbs".

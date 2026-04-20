@@ -47,7 +47,10 @@ logger = logging.getLogger(__name__)
 _GROQ_API_BASE   = "https://api.groq.com/openai/v1"
 _DEFAULT_MODEL   = "llama-3.3-70b-versatile"
 _DEFAULT_TIMEOUT = float(os.environ.get("GROQ_TIMEOUT", "60"))
-_MAX_TOKENS      = 4096
+# llama-3.3-70b-versatile supports up to 32 768 output tokens on Groq.
+# 4 096 was too small — rich markdown text blocks in unit blueprints would
+# hit the ceiling, causing the JSON to be cut mid-string.
+_MAX_TOKENS      = int(os.environ.get("GROQ_MAX_TOKENS", "8192"))
 
 
 class GroqProvider(AIProvider):
@@ -88,13 +91,17 @@ class GroqProvider(AIProvider):
         max_tokens: int = _MAX_TOKENS,
         timeout: float = _DEFAULT_TIMEOUT,
         system_prompt: str | None = None,
+        # Set to "json_object" to enable Groq's JSON mode (structured output).
+        # Only takes effect on non-streaming calls.
+        response_format: str | None = None,
     ) -> None:
-        self.api_key      = api_key or os.environ.get("GROQ_API_KEY", "")
-        self.model        = model or os.environ.get("GROQ_MODEL", _DEFAULT_MODEL)
-        self.temperature  = temperature
-        self.max_tokens   = max_tokens
-        self.timeout      = timeout
-        self.system_prompt = system_prompt
+        self.api_key        = api_key or os.environ.get("GROQ_API_KEY", "")
+        self.model          = model or os.environ.get("GROQ_MODEL", _DEFAULT_MODEL)
+        self.temperature    = temperature
+        self.max_tokens     = max_tokens
+        self.timeout        = timeout
+        self.system_prompt  = system_prompt
+        self.response_format = response_format
 
         if not self.api_key:
             raise AIProviderError(
@@ -124,13 +131,19 @@ class GroqProvider(AIProvider):
         return messages
 
     def _build_payload(self, prompt: str, *, stream: bool = False) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "model":       self.model,
             "messages":    self._build_messages(prompt),
             "temperature": self.temperature,
             "max_tokens":  self.max_tokens,
             "stream":      stream,
         }
+        # JSON mode: forces the model to emit only valid JSON, eliminating
+        # markdown fences and preamble.  Only enabled for non-streaming calls
+        # because Groq does not support response_format with streaming yet.
+        if not stream and self.response_format == "json_object":
+            payload["response_format"] = {"type": "json_object"}
+        return payload
 
     @staticmethod
     def _handle_http_error(exc: httpx.HTTPStatusError) -> None:
@@ -183,12 +196,24 @@ class GroqProvider(AIProvider):
             ) from exc
 
         data = resp.json()
+        choice = data["choices"][0]
+        # Detect token-limit truncation before handing the partial text to the
+        # caller — this prevents silent JSON-parse failures downstream.
+        finish_reason = choice.get("finish_reason", "")
+        tokens_used   = data.get("usage", {}).get("total_tokens", "?")
         logger.debug(
-            "Groq response — model=%s tokens_used=%s",
+            "Groq response — model=%s tokens_used=%s finish_reason=%s",
             data.get("model"),
-            data.get("usage", {}).get("total_tokens", "?"),
+            tokens_used,
+            finish_reason,
         )
-        return data["choices"][0]["message"]["content"]
+        if finish_reason == "length":
+            raise AIProviderError(
+                f"Groq response was truncated (finish_reason=length, "
+                f"tokens_used={tokens_used}, max_tokens={self.max_tokens}). "
+                "Increase GROQ_MAX_TOKENS or request fewer/shorter segments."
+            )
+        return choice["message"]["content"]
 
     # ── AIProvider: async ─────────────────────────────────────────────────────
 
