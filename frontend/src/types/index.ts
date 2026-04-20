@@ -325,6 +325,8 @@ export interface Student {
   last_login?: string | null;
   // Stores optional notification preferences such as phone, native_language, timezone.
   notification_prefs?: Record<string, any>;
+  // Stores one-time temporary password returned by admin student endpoints when available.
+  temporary_password?: string | null;
 }
 
 export interface AdminStudentCreateResponse extends Student {

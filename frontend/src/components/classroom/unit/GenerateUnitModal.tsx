@@ -975,13 +975,13 @@ function SuccessView({
                 </span>
               )}
               {/* Exercise type badges */}
-              {seg.exercise_types.map(t => (
-                <span key={t} style={{
+              {seg.exercise_types.map((exerciseType) => (
+                <span key={exerciseType} style={{
                   fontSize: 11, color: C.sub, background: C.white,
                   border: `1px solid ${C.borderSoft}`,
                   borderRadius: 6, padding: "2px 8px", fontWeight: 500,
                 }}>
-                  {t.replace(/_/g, " ")}
+                  {exerciseType.replace(/_/g, " ")}
                 </span>
               ))}
             </div>

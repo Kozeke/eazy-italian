@@ -61,50 +61,6 @@ export interface UseUnitPresentationResult {
   reload: () => void;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-// Converts unknown fetch/parsing failures into a safe user-facing message.
-function getPresentationLoadErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    // Hides low-level JSON parser details (for example HTML fallback pages).
-    if (error instanceof SyntaxError || /Unexpected token </i.test(error.message)) {
-      return 'Slides are temporarily unavailable.';
-    }
-    return error.message || 'Slides are temporarily unavailable.';
-  }
-  return 'Slides are temporarily unavailable.';
-}
-
-// Safely parses JSON responses and fails with a controlled message.
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  // Reads header once to verify this endpoint really returned JSON.
-  const contentType = response.headers.get('content-type') ?? '';
-  if (!contentType.toLowerCase().includes('application/json')) {
-    throw new Error('Slides are temporarily unavailable.');
-  }
-  return (await response.json()) as T;
-}
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-/** Normalise a PresentationSlide → ReviewSlide (shared.ts canonical shape). */
-function toReviewSlide(s: PresentationSlide): ReviewSlide {
-  return {
-    id:            String(s.id),
-    title:         s.title ?? '',
-    bullets:       s.bullet_points ?? [],
-    examples:      s.examples ?? [],
-    exercise:      s.exercise ?? null,
-    teacher_notes: s.teacher_notes ?? null,
-    image_url:     s.image_url ?? null,
-    image_prompt:  null,
-    imageType:     'auto',
-  };
-}
-
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useUnitPresentation(
