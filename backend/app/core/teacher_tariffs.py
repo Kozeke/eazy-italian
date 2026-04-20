@@ -35,7 +35,7 @@ _AI_QUOTA_KEYS: tuple[str, ...] = (
 _TARIFF_LIMITS: dict[TeacherTariffName, dict[str, int | None]] = {
     "free": {
         "course_generation": 1,
-        "unit_generation": 2,
+        "unit_generation": 10,
         "exercise_generation": 5,
         "task_generation": 5,
         "test_generation": 5,
