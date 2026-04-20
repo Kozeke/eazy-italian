@@ -791,7 +791,10 @@ function ClassroomPageInner({
         const fallbackUnit = remainingUnits[0] ?? null;
         if (currentUnit?.id === unitToDelete.id) {
           if (fallbackUnit) {
-            navigateToUnit(fallbackUnit);
+            selectUnit(fallbackUnit);
+            dispatch({ type: "RESET" });
+            setActiveTab("lesson");
+            navigate(`${classroomBasePath}/${courseId}/${fallbackUnit.id}`, { replace: true });
           } else {
             navigate(`${classroomBasePath}/${courseId}`, { replace: true });
           }
@@ -809,7 +812,7 @@ function ClassroomPageInner({
       isTeacher,
       units,
       currentUnit?.id,
-      navigateToUnit,
+      selectUnit,
       navigate,
       classroomBasePath,
       courseId,
