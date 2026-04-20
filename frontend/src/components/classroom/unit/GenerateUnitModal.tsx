@@ -849,8 +849,6 @@ function SuccessView({
   onClose: () => void;
   onGenerateMore: () => void;
 }) {
-  const totalBlocks = result.texts_created + result.exercises_created + result.images_created;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{
