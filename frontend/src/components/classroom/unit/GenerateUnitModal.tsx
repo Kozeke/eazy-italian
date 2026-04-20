@@ -849,6 +849,9 @@ function SuccessView({
   onClose: () => void;
   onGenerateMore: () => void;
 }) {
+  // Provides localized labels for generation success summary and actions.
+  const { t } = useTranslation();
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{
@@ -863,9 +866,11 @@ function SuccessView({
           <CheckCircle size={26} color={C.success} strokeWidth={2} />
         </div>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>Content generated!</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>
+            {t("classroom.generateUnitModal.success.contentGenerated")}
+          </div>
           <div style={{ fontSize: 13, color: C.sub, marginTop: 4 }}>
-            {result.segments_created} segment{result.segments_created > 1 ? "s" : ""}
+            {t("classroom.generateUnitModal.success.segmentsCreated", { count: result.segments_created })}
           </div>
         </div>
       </div>
@@ -879,7 +884,7 @@ function SuccessView({
             fontSize: 12.5, color: C.primaryDk, fontWeight: 600,
           }}>
             <BookOpen size={12} strokeWidth={2} />
-            {result.texts_created} text block{result.texts_created > 1 ? "s" : ""}
+            {t("classroom.generateUnitModal.success.textBlocksCreated", { count: result.texts_created })}
           </div>
         )}
         {result.exercises_created > 0 && (
@@ -892,7 +897,7 @@ function SuccessView({
               <path d="M8 1.5l1.5 4h4l-3.2 2.5 1.2 4L8 9.5 4.5 12l1.2-4L2.5 5.5h4L8 1.5z"
                 fill={C.success} stroke={C.success} strokeWidth="0.5" />
             </svg>
-            {result.exercises_created} exercise{result.exercises_created > 1 ? "s" : ""}
+            {t("classroom.generateUnitModal.success.exercisesCreated", { count: result.exercises_created })}
           </div>
         )}
         {result.images_created > 0 && (
@@ -902,7 +907,7 @@ function SuccessView({
             fontSize: 12.5, color: C.amber, fontWeight: 600,
           }}>
             <ImageIcon size={12} strokeWidth={2} />
-            {result.images_created} illustration{result.images_created > 1 ? "s" : ""}
+            {t("classroom.generateUnitModal.success.illustrationsCreated", { count: result.images_created })}
           </div>
         )}
       </div>
@@ -935,7 +940,7 @@ function SuccessView({
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
                   <BookOpen size={10} strokeWidth={2} />
-                  {seg.texts_created} text
+                  {t("classroom.generateUnitModal.success.segmentTextCount", { count: seg.texts_created })}
                 </span>
               )}
               {/* Image badge */}
@@ -946,17 +951,17 @@ function SuccessView({
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
                   <ImageIcon size={10} strokeWidth={2} />
-                  image
+                  {t("classroom.generateUnitModal.success.imageTag")}
                 </span>
               )}
               {/* Exercise type badges */}
-              {seg.exercise_types.map(t => (
-                <span key={t} style={{
+              {seg.exercise_types.map((exerciseType) => (
+                <span key={exerciseType} style={{
                   fontSize: 11, color: C.sub, background: C.white,
                   border: `1px solid ${C.borderSoft}`,
                   borderRadius: 6, padding: "2px 8px", fontWeight: 500,
                 }}>
-                  {t.replace(/_/g, " ")}
+                  {exerciseType.replace(/_/g, " ")}
                 </span>
               ))}
             </div>
@@ -975,7 +980,7 @@ function SuccessView({
           onMouseEnter={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.primary; }}
           onMouseLeave={e => { e.currentTarget.style.background = C.white; e.currentTarget.style.borderColor = C.border; }}
         >
-          Generate more
+          {t("classroom.generateUnitModal.success.generateMore")}
         </button>
         <button onClick={onClose} style={{
           flex: 1, padding: "11px", borderRadius: 11,
@@ -987,7 +992,7 @@ function SuccessView({
           onMouseEnter={e => { e.currentTarget.style.background = C.primaryDk; }}
           onMouseLeave={e => { e.currentTarget.style.background = C.primary; }}
         >
-          Done
+          {t("classroom.generateUnitModal.success.done")}
         </button>
       </div>
     </div>
