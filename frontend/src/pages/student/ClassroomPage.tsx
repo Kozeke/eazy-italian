@@ -710,6 +710,28 @@ function ClassroomPageInner({
     [courseId, course?.settings, reloadUnits, t],
   );
 
+  /**
+   * Deletes the current teacher course and returns the user to the courses list.
+   */
+  const handleDeleteCourse = useCallback(async () => {
+    if (!isTeacher || !courseId) return;
+    // Stores the irreversible-action confirmation text shown before deleting a full course.
+    const deleteCourseConfirmationMessage = `Delete "${course?.title ?? "this course"}"? This action cannot be undone.`;
+    // Prevents accidental course deletion from the course actions menu.
+    const isDeleteCourseConfirmed = window.confirm(deleteCourseConfirmationMessage);
+    if (!isDeleteCourseConfirmed) return;
+    try {
+      await coursesApi.deleteCourse(Number(courseId));
+      // Shows success feedback before redirecting away from the deleted classroom route.
+      toast.success(`"${course?.title ?? "Course"}" deleted`);
+      navigate("/admin/courses", { replace: true });
+    } catch (error) {
+      console.error("[ClassroomPage] Failed to delete course", error);
+      // Explains that course deletion failed so the teacher can retry safely.
+      toast.error("Failed to delete course");
+    }
+  }, [isTeacher, courseId, course?.title, navigate]);
+
   const handleContentSaved = useCallback(async () => {
     // await Promise.all([reloadSlides(), reloadUnit()]);
     await reloadUnit();
@@ -1343,6 +1365,7 @@ function ClassroomPageInner({
         onCreateAndGenerate={handleCreateAndGenerate}
         onDeleteUnit={isTeacher ? handleDeleteUnit : undefined}
         onEditCourse={isTeacher ? handleEditCourse : undefined}
+        onDeleteCourse={isTeacher ? handleDeleteCourse : undefined}
         editCourseDescription={editCourseSeed.initialDescription}
         editCourseLanguage={editCourseSeed.initialLanguage}
         editCourseSectionsEnabled={editCourseSeed.initialSectionsEnabled}
