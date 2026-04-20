@@ -210,12 +210,15 @@ export default function AdminTariffsPage() {
       setCoursesLoading(true);
       try {
         // Requests course catalog from the same endpoint used by admin courses pages.
-        const response = await coursesApi.getAdminCourses();
+        const response: unknown = await coursesApi.getAdminCourses();
         // Supports both plain array and wrapped { items: [...] } shapes.
+        // Stores normalized list of courses regardless of API envelope shape.
         const list = Array.isArray(response)
           ? response
-          : Array.isArray(response?.items)
-            ? response.items
+          : response &&
+              typeof response === "object" &&
+              Array.isArray((response as { items?: unknown[] }).items)
+            ? (response as { items: unknown[] }).items
             : [];
         if (mounted) setCoursesCount(list.length);
       } catch {
