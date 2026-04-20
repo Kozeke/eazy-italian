@@ -73,7 +73,7 @@ function SelectField({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
         >
           <option value="">{placeholder}</option>
           {options.map((o) => (
@@ -129,11 +129,11 @@ function TagInputField({
             onChange={(e) => setInputVal(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Введите название"
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
           />
           <button
             onClick={handleAdd}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-400 text-white hover:bg-teal-500 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 shrink-0"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#6C6FEF] text-white hover:bg-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40 shrink-0"
             aria-label={`Add ${label}`}
           >
             <Plus className="h-4 w-4" />
@@ -144,12 +144,12 @@ function TagInputField({
             {values.map((v, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700 border border-teal-200"
+                className="inline-flex items-center gap-1 rounded-full border border-[#DDE1FC] bg-[#EEF0FE] px-3 py-1 text-xs font-medium text-[#4F52C2]"
               >
                 {v}
                 <button
                   onClick={() => onChange(values.filter((_, j) => j !== i))}
-                  className="ml-0.5 text-teal-400 hover:text-teal-600 transition-colors"
+                  className="ml-0.5 text-[#6C6FEF] hover:text-[#4F52C2] transition-colors"
                   aria-label={`Remove ${v}`}
                 >
                   ×
@@ -272,7 +272,7 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
     <>
       {/* Backdrop — sits above the UnitSelectorModal (z-60) but below us (z-[70]) */}
       <div
-        className="fixed inset-0 z-[65] bg-slate-900/30 backdrop-blur-sm"
+        className="fixed inset-0 z-[65] bg-[#0F1128]/45 backdrop-blur-md"
         aria-hidden
         onClick={onClose}
       />
@@ -291,7 +291,7 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
           <h2 className="text-lg font-bold text-slate-900">Создать урок</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-[#EEF0FE] hover:text-[#6C6FEF] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -309,7 +309,7 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
                 className={[
                   'mr-6 pb-2.5 pt-1 text-[13px] font-semibold transition-colors focus:outline-none',
                   active
-                    ? 'text-teal-600 border-b-2 border-teal-500 -mb-px'
+                    ? 'text-[#6C6FEF] border-b-2 border-[#6C6FEF] -mb-px'
                     : 'text-slate-400 hover:text-slate-600 border-b-2 border-transparent',
                 ].join(' ')}
               >
@@ -329,10 +329,10 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
               <div className="flex items-center gap-4">
                 <span className="w-24 shrink-0 text-sm font-semibold text-slate-700">Обложка</span>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-400 text-white font-bold text-lg select-none">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#6C6FEF] text-white font-bold text-lg select-none">
                     {(title[0] ?? 'Л').toUpperCase()}
                   </div>
-                  <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
+                  <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:border-[#A5A8F5] hover:bg-[#EEF0FE] hover:text-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40">
                     <Upload className="h-3.5 w-3.5" />
                     Загрузить
                   </button>
@@ -347,7 +347,7 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
                   placeholder="Введите название"
                 />
               </div>
@@ -359,7 +359,7 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all resize-none"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all resize-none"
                   placeholder="Введите описание"
                 />
               </div>
@@ -380,15 +380,15 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={[
-                  'flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',
+                  'flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40',
                   isDragging
-                    ? 'border-teal-400 bg-teal-50'
-                    : 'border-slate-200 bg-slate-50 hover:border-teal-300 hover:bg-teal-50/50',
+                    ? 'border-[#6C6FEF] bg-[#EEF0FE]'
+                    : 'border-slate-200 bg-slate-50 hover:border-[#A5A8F5] hover:bg-[#EEF0FE]',
                 ].join(' ')}
               >
                 <div className={[
                   'flex h-12 w-12 items-center justify-center rounded-full transition-colors',
-                  isDragging ? 'bg-teal-100 text-teal-500' : 'bg-slate-100 text-slate-400',
+                  isDragging ? 'bg-[#DDE1FC] text-[#6C6FEF]' : 'bg-slate-100 text-slate-400',
                 ].join(' ')}>
                   <UploadCloud className="h-6 w-6" />
                 </div>
@@ -421,7 +421,7 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
                       className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
                     >
                       {/* File type badge */}
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#EEF0FE] text-[#6C6FEF]">
                         <span className="text-[10px] font-bold uppercase leading-none">
                           {file.name.split('.').pop()?.slice(0, 3) ?? 'file'}
                         </span>
@@ -468,13 +468,13 @@ export default function CreateUnitModal({ open, onClose, onCreate }: CreateUnitM
         <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">
           <button
             onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+            className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 hover:border-[#A5A8F5] hover:bg-[#EEF0FE] hover:text-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40"
           >
             Отмена
           </button>
           <button
             onClick={handleCreate}
-            className="rounded-xl bg-teal-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-teal-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+            className="rounded-xl bg-[#6C6FEF] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40"
           >
             Создать
           </button>

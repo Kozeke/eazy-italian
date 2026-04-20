@@ -10,6 +10,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertCircle, ArrowLeft, BookOpen } from 'lucide-react';
 
 import type { LessonFlowItem, LessonFlowItemStatus } from './lessonFlow.types';
@@ -165,6 +166,8 @@ export function LessonFlowEmpty({ title, description }: { title: string; descrip
 // ─── LessonFlowError ──────────────────────────────────────────────────────────
 
 export function LessonFlowError({ message, onBack }: { message: string; onBack?: () => void }) {
+  // Provides localized labels for lesson flow error banners.
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-red-100 bg-red-50 overflow-hidden lp-step-enter">
       <div className="h-[3px] w-full bg-gradient-to-r from-red-400 to-red-300" />
@@ -172,7 +175,7 @@ export function LessonFlowError({ message, onBack }: { message: string; onBack?:
         <div className="flex items-start gap-3">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
           <div className="flex-1 space-y-0.5">
-            <p className="text-[14px] font-semibold text-red-800">Something went wrong</p>
+            <p className="text-[14px] font-semibold text-red-800">{t('classroom.lessonShared.somethingWentWrong')}</p>
             <p className="text-[13px] text-red-600">{message}</p>
           </div>
         </div>
@@ -182,7 +185,7 @@ export function LessonFlowError({ message, onBack }: { message: string; onBack?:
             className="mt-4 flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 transition-colors focus:outline-none focus-visible:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Go back
+            {t('classroom.page.goBack')}
           </button>
         )}
       </div>

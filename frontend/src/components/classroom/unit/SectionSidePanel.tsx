@@ -24,6 +24,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import {
   DndContext,
@@ -122,6 +123,8 @@ export default function SectionSidePanel({
   finishButtonVariant = 'finish',
   finishButtonDisabled = false,
 }: SectionSidePanelProps) {
+  // Provides localized labels for the section side panel UI.
+  const { t } = useTranslation();
 
   // Decide rendering mode: segments take priority when provided + non-empty
   const useSegmentMode = (segmentsProp?.length ?? 0) > 0 || onAddSegment !== undefined;
@@ -221,10 +224,10 @@ export default function SectionSidePanel({
         useSegmentMode
           ? courseTitle
             ? `${courseTitle} sections`
-            : 'Section navigator'
+            : t('classroom.sectionPanel.sectionNavigator')
           : courseTitle
           ? `${courseTitle} units`
-          : 'Unit navigator'
+          : t('classroom.sectionPanel.unitNavigator')
       }
     >
 
@@ -250,7 +253,7 @@ export default function SectionSidePanel({
               textTransform: 'uppercase',
             }}
           >
-            Sections
+            {t('classroom.sectionPanel.sections')}
           </p>
         </div>
       </div>
@@ -275,7 +278,7 @@ export default function SectionSidePanel({
               color: '#A8ABCA',
             }}
           >
-            Sections
+            {t('classroom.sectionPanel.sections')}
           </p>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
             {currentUnitSteps.map((step, i) => (
@@ -334,7 +337,7 @@ export default function SectionSidePanel({
                   />
                 </div>
                 <p style={{ margin: '4px 0 0', fontSize: 9, color: '#A8ABCA', fontWeight: 600 }}>
-                  {done} / {total} completed
+                  {t('classroom.sectionPanel.completedProgress', { done, total })}
                 </p>
               </div>
             );
@@ -381,7 +384,7 @@ export default function SectionSidePanel({
                 <BookOpen style={{ width: 18, height: 18, color: '#6C6FEF' }} />
               </div>
               <p style={{ margin: 0, fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>
-                No sections yet
+                {t('classroom.sectionPanel.noSectionsYet')}
               </p>
             </div>
           ) : onReorderSegments ? (
@@ -396,7 +399,7 @@ export default function SectionSidePanel({
               >
                 <ul
                   role="listbox"
-                  aria-label="Available sections"
+                  aria-label={t('classroom.sectionPanel.availableSectionsAria')}
                   style={{ margin: 0, padding: '4px 0', listStyle: 'none' }}
                 >
                   {sortedSegments.map((seg) => {
@@ -434,7 +437,7 @@ export default function SectionSidePanel({
           ) : (
             <ul
               role="listbox"
-              aria-label="Available sections"
+                  aria-label={t('classroom.sectionPanel.availableSectionsAria')}
               style={{ margin: 0, padding: '4px 0', listStyle: 'none' }}
             >
               {sortedSegments.map((seg) => {
@@ -496,13 +499,13 @@ export default function SectionSidePanel({
                 <BookOpen style={{ width: 18, height: 18, color: '#6C6FEF' }} />
               </div>
               <p style={{ margin: 0, fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>
-                No units yet
+                {t('classroom.sectionPanel.noUnitsYet')}
               </p>
             </div>
           ) : (
             <ul
               role="listbox"
-              aria-label="Available units"
+              aria-label={t('classroom.sectionPanel.availableUnitsAria')}
               style={{ margin: 0, padding: '4px 0', listStyle: 'none' }}
             >
               {sortedUnits.map((unit) => {
@@ -596,10 +599,10 @@ export default function SectionSidePanel({
                   lineHeight: 1.35,
                 }}
               >
-                Remove this section?
+                {t('classroom.sectionPanel.removeDialog.title')}
               </p>
               <p style={{ margin: '0 0 16px', fontSize: 13, color: '#64748b', lineHeight: 1.45 }}>
-                {`Are you sure you want to remove "${removeConfirmSegment.title}"? This cannot be undone.`}
+                {t('classroom.sectionPanel.removeDialog.body', { title: removeConfirmSegment.title })}
               </p>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <button
@@ -616,7 +619,7 @@ export default function SectionSidePanel({
                     cursor: 'pointer',
                   }}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="button"
@@ -636,7 +639,7 @@ export default function SectionSidePanel({
                     cursor: 'pointer',
                   }}
                 >
-                  Remove
+                  {t('classroom.sectionPanel.removeDialog.remove')}
                 </button>
               </div>
             </div>
@@ -663,6 +666,8 @@ type SegmentRowProps = {
  * Same as SidePanelSegmentRow but registered with @dnd-kit — drag handle only, row click still navigates.
  */
 function SortableSidePanelSegmentRow(props: SegmentRowProps) {
+  // Provides localized labels for sortable section rows.
+  const { t } = useTranslation();
   const {
     segment,
     isCurrent,
@@ -708,7 +713,7 @@ function SortableSidePanelSegmentRow(props: SegmentRowProps) {
         <button
           type="button"
           className="touch-none"
-          aria-label={`Drag to reorder ${segment.title}`}
+          aria-label={t('classroom.sectionPanel.aria.dragToReorder', { title: segment.title })}
           disabled={isLocked}
           {...attributes}
           {...listeners}
@@ -789,7 +794,7 @@ function SortableSidePanelSegmentRow(props: SegmentRowProps) {
                     marginTop: 1,
                   }}
                 >
-                  {contentCount} item{contentCount !== 1 ? 's' : ''}
+                  {t('classroom.sectionPanel.itemCount', { count: contentCount })}
                 </span>
               )}
             </div>
@@ -797,7 +802,7 @@ function SortableSidePanelSegmentRow(props: SegmentRowProps) {
             {onRequestRemove && (
               <button
                 type="button"
-                aria-label={`Remove section ${segment.title}`}
+                aria-label={t('classroom.sectionPanel.aria.removeSection', { title: segment.title })}
                 onClick={(e) => {
                   e.stopPropagation();
                   onRequestRemove();
@@ -863,6 +868,8 @@ function SidePanelSegmentRow({
   onClick,
   onRequestRemove,
 }: SegmentRowProps) {
+  // Provides localized labels for section row actions.
+  const { t } = useTranslation();
   const [hovered, setHovered] = React.useState(false);
 
   // Row background: highlight current row or hover affordance when navigable
@@ -933,7 +940,7 @@ function SidePanelSegmentRow({
                   marginTop: 1,
                 }}
               >
-                {contentCount} item{contentCount !== 1 ? 's' : ''}
+                  {t('classroom.sectionPanel.itemCount', { count: contentCount })}
               </span>
             )}
           </div>
@@ -942,7 +949,7 @@ function SidePanelSegmentRow({
           {onRequestRemove && (
             <button
               type="button"
-              aria-label={`Remove section ${segment.title}`}
+              aria-label={t('classroom.sectionPanel.aria.removeSection', { title: segment.title })}
               onClick={(e) => {
                 e.stopPropagation();
                 onRequestRemove();
@@ -1097,6 +1104,8 @@ function SidePanelUnitRow({ unit, isCurrent, isCompleted, isLocked, onClick }: R
 // ─── Footer action buttons  (ORIGINAL — unchanged) ────────────────────────────
 
 function AddUnitButton({ onClick }: { onClick: () => void }) {
+  // Provides localized labels for the add-section action.
+  const { t } = useTranslation();
   const [hovered, setHovered] = React.useState(false);
   return (
     <button
@@ -1132,7 +1141,7 @@ function AddUnitButton({ onClick }: { onClick: () => void }) {
         <Plus style={{ width: 11, height: 11, color: '#6C6FEF' }} />
       </div>
       <span style={{ fontSize: 12, fontWeight: 600, color: '#6C6FEF' }}>
-        Add section
+        {t('classroom.sectionPanel.addSection')}
       </span>
     </button>
   );
@@ -1147,6 +1156,8 @@ function FinishUnitButton({
   variant?: 'publish' | 'finish';
   disabled?: boolean;
 }) {
+  // Provides localized labels for publish/finish footer actions.
+  const { t } = useTranslation();
   // Tracks hover affordance for the gradient primary button
   const [hovered, setHovered] = React.useState(false);
   // True when this row should read as “publish draft” instead of “advance to next unit”
@@ -1192,12 +1203,14 @@ function FinishUnitButton({
       ) : (
         <Flag style={{ width: 13, height: 13, color: '#ffffff' }} />
       )}
-      {isPublish ? 'Publish unit' : 'Finish unit'}
+      {isPublish ? t('classroom.sectionPanel.publishUnit') : t('classroom.sectionPanel.finishUnit')}
     </button>
   );
 }
 
 function ExtraButton({ onClick }: { onClick: () => void }) {
+  // Provides localized labels for additional materials action.
+  const { t } = useTranslation();
   const [hovered, setHovered] = React.useState(false);
   return (
     <button
@@ -1222,7 +1235,7 @@ function ExtraButton({ onClick }: { onClick: () => void }) {
       }}
     >
       <BookOpen style={{ width: 13, height: 13, flexShrink: 0 }} />
-      Additional materials
+      {t('classroom.sectionPanel.additionalMaterials')}
     </button>
   );
 }

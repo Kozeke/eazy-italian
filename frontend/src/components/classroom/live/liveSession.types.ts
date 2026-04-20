@@ -1,21 +1,15 @@
 /**
- * liveSession_types.ts  (v2 — multi-student observer support)
+ * liveSession_types.ts  (v3 — evictBlockFromCache)
  *
- * Changes from v1:
+ * Changes from v2:
  * ─────────────────
  * • LiveSyncContextValue gains:
- *     userId            — current user's ID (exposed from provider)
- *     observedStudentId — which student the teacher is currently watching
- *     setObservedStudentId — setter to switch observed student
- *
- * ─── Key convention (updated) ─────────────────────────────────────────────────
- *   Teacher patches  →  "ex/{exerciseId}/{fieldId}"        (no prefix)
- *   Student patches  →  "s/{userId}/ex/{exerciseId}/{fieldId}"  (auto-prefixed)
- *
- *   The LiveSessionProvider handles the prefixing transparently:
- *   • Students call patch("ex/…", v) — provider sends "s/{userId}/ex/…"
- *   • Teachers call subscribe("ex/…", h) — when observedStudentId is set,
- *     provider internally subscribes to "s/{observedStudentId}/ex/…"
+ *     evictBlockFromCache(blockId)
+ *       Synchronously removes ALL cached WS-patch entries for a specific
+ *       exercise block from the provider's patchCacheRef before the React
+ *       key bump that remounts the block. Without this, subscribe() replays
+ *       the stale answer via setTimeout(0) and the reset appears to work
+ *       then immediately repopulate.
  */
 
 export type LiveRole = "teacher" | "student";
@@ -65,6 +59,52 @@ export interface LiveSyncContextValue {
    * Automatically triggers re-subscription in all active exercise blocks.
    */
   setObservedStudentId: (id: number | null) => void;
+
+  /**
+   * Notify the provider of the current lesson context (unit + segment).
+   * The values are forwarded as `unit_id` / `segment_id` in every subsequent
+   * WS patch message so the backend can store them for later answer restoration.
+   *
+   * Call whenever the active unit or segment changes in the classroom:
+   *   setLessonContext(unit.id, segment?.id ?? null)
+   */
+  setLessonContext: (unitId: number | null, segmentId: number | null) => void;
+
+  /**
+   * Immediately evict all cached WS-patch entries for a specific exercise block
+   * from the provider's in-memory patchCacheRef.
+   *
+   * ── Why this is needed ────────────────────────────────────────────────────
+   * When a block is reset (via "Сбросить ответы"), the React key bumps and the
+   * component remounts.  The new component's useLiveSyncField calls subscribe(),
+   * which synchronously checks patchCacheRef and schedules a setTimeout(0) to
+   * replay the cached value into the fresh component.
+   *
+   * If the cache still holds the old answer, the 1-second markBlockReset guard
+   * in useLiveSyncField discards this replay — but only within that 1-second
+   * window.  Any subscriber that fires after the window (slow React batches,
+   * WS reconnect, REST re-hydration) sees the stale value and repopulates the
+   * exercise.
+   *
+   * Calling evictBlockFromCache(blockId) BEFORE the key bump ensures the cache
+   * is empty, so subscribe() finds nothing and no replay is scheduled at all.
+   * The guard becomes belt-and-suspenders rather than the only line of defence.
+   *
+   * ── What is evicted ───────────────────────────────────────────────────────
+   * All keys matching  "ex/{blockId}/"   — plain exercise keys (teacher fill &
+   *                                         student's own view)
+   * All keys matching  "s/{studentId}/ex/{blockId}/" — student-scoped keys in the teacher
+   *                                          observation view
+   *
+   * The lesson/reset_block control key itself is NOT evicted (it's not an
+   * exercise-field key and its presence in cache is harmless).
+   *
+   * ── When to call ──────────────────────────────────────────────────────────
+   * • Teacher side  → call from bumpAnswerReset(), before setAnswerResetSeqByBlockId
+   * • Student side  → the LiveSessionProvider calls this automatically from
+   *                   ws.onmessage when it receives a lesson/reset_block patch
+   */
+  evictBlockFromCache: (blockId: string) => void;
 
   /**
    * Snapshot of logical homework keys (`hwu/…`) the current student has patched

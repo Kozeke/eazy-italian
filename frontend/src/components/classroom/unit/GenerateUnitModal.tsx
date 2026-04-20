@@ -12,6 +12,7 @@
  */
 
 import { useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   X, Sparkles, Layers, CheckCircle, AlertCircle,
   ChevronDown, ChevronUp, Upload, FileText, Trash2,
@@ -40,19 +41,19 @@ const C = {
 };
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-interface ExerciseOption { value: string; label: string; icon: string; description: string; }
+interface ExerciseOption { value: string; icon: string; labelKey: string; descriptionKey: string; }
 
 const EXERCISE_OPTIONS: ExerciseOption[] = [
-  { value: "drag_to_gap",        label: "Drag to Gap",       icon: "✦",  description: "Drag word chips into gaps" },
-  { value: "type_word_in_gap",   label: "Type in Gap",        icon: "⌨",  description: "Type the missing word" },
-  { value: "select_word_form",   label: "Select Form",        icon: "▾",  description: "Pick the correct word form" },
-  { value: "match_pairs",        label: "Match Pairs",        icon: "⇌",  description: "Match terms to definitions" },
-  { value: "build_sentence",     label: "Build Sentence",     icon: "⬛", description: "Rearrange shuffled words" },
-  { value: "order_paragraphs",   label: "Order Paragraphs",   icon: "↕",  description: "Sequence paragraphs correctly" },
-  { value: "sort_into_columns",  label: "Sort into Columns",  icon: "⊞",  description: "Sort words into categories" },
-  { value: "test_without_timer", label: "Test (no timer)",    icon: "📋", description: "Multiple-choice quiz" },
-  { value: "test_with_timer",    label: "Test (timer)",       icon: "⏱",  description: "Timed multiple-choice quiz" },
-  { value: "true_false",         label: "True / False",       icon: "✓✗", description: "True or false statements" },
+  { value: "drag_to_gap",        icon: "✦",  labelKey: "classroom.generateUnitModal.exerciseTypes.drag_to_gap.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.drag_to_gap.description" },
+  { value: "type_word_in_gap",   icon: "⌨",  labelKey: "classroom.generateUnitModal.exerciseTypes.type_word_in_gap.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.type_word_in_gap.description" },
+  { value: "select_word_form",   icon: "▾",  labelKey: "classroom.generateUnitModal.exerciseTypes.select_word_form.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.select_word_form.description" },
+  { value: "match_pairs",        icon: "⇌",  labelKey: "classroom.generateUnitModal.exerciseTypes.match_pairs.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.match_pairs.description" },
+  { value: "build_sentence",     icon: "⬛", labelKey: "classroom.generateUnitModal.exerciseTypes.build_sentence.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.build_sentence.description" },
+  { value: "order_paragraphs",   icon: "↕",  labelKey: "classroom.generateUnitModal.exerciseTypes.order_paragraphs.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.order_paragraphs.description" },
+  { value: "sort_into_columns",  icon: "⊞",  labelKey: "classroom.generateUnitModal.exerciseTypes.sort_into_columns.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.sort_into_columns.description" },
+  { value: "test_without_timer", icon: "📋", labelKey: "classroom.generateUnitModal.exerciseTypes.test_without_timer.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.test_without_timer.description" },
+  { value: "test_with_timer",    icon: "⏱",  labelKey: "classroom.generateUnitModal.exerciseTypes.test_with_timer.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.test_with_timer.description" },
+  { value: "true_false",         icon: "✓✗", labelKey: "classroom.generateUnitModal.exerciseTypes.true_false.label", descriptionKey: "classroom.generateUnitModal.exerciseTypes.true_false.description" },
 ];
 
 const CEFR_LEVELS    = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -224,6 +225,8 @@ function Toggle({ checked, onChange, label, sublabel }: {
 
 // ── What's always included info strip ─────────────────────────────────────────
 function AlwaysIncludedStrip() {
+  // Provides localized description for always-included text blocks.
+  const { t } = useTranslation();
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 8,
@@ -232,8 +235,7 @@ function AlwaysIncludedStrip() {
     }}>
       <BookOpen size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
       <span style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.5 }}>
-        Each segment always includes a <strong style={{ color: C.text }}>text block</strong> — grammar rules,
-        vocabulary, and examples in Markdown.
+        {t("classroom.generateUnitModal.alwaysIncludedPrefix")} <strong style={{ color: C.text }}>{t("classroom.generateUnitModal.textBlock")}</strong> {t("classroom.generateUnitModal.alwaysIncludedSuffix")}
       </span>
     </div>
   );
@@ -253,6 +255,8 @@ function AdvancedSettings({
   selectedTypes: Set<string>; toggleType: (v: string) => void;
   instructionLang: string; setInstructionLang: (v: string) => void;
 }) {
+  // Provides localized labels for advanced generation settings.
+  const { t } = useTranslation();
   return (
     <div style={{
       borderTop: `1px solid ${C.borderSoft}`,
@@ -262,20 +266,23 @@ function AdvancedSettings({
       {/* Level + Language */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
-          <Label>CEFR Level</Label>
+          <Label>{t("classroom.generateUnitModal.cefrLevel")}</Label>
           <Select value={level} onChange={setLevel}
             options={CEFR_LEVELS.map(l => ({ value: l, label: l }))} />
         </div>
         <div>
-          <Label>Language</Label>
+          <Label>{t("classroom.generateUnitModal.language")}</Label>
           <Select value={language} onChange={setLanguage}
-            options={LANGUAGE_OPTIONS.map(l => ({ value: l, label: l }))} />
+            options={LANGUAGE_OPTIONS.map(l => ({
+              value: l,
+              label: t(`classroom.generateUnitModal.languageOptions.${l.toLowerCase()}`),
+            }))} />
         </div>
       </div>
 
       {/* Segments */}
       <div>
-        <Label>Number of Segments</Label>
+        <Label>{t("classroom.generateUnitModal.numberOfSegments")}</Label>
         <div style={{ display: "flex", gap: 7 }}>
           {[1, 2, 3, 4, 5, 6].map(n => (
             <button key={n} onClick={() => setNumSegments(n)} style={{
@@ -294,13 +301,13 @@ function AdvancedSettings({
 
       {/* Exercise types */}
       <div>
-        <Label>Exercise Types</Label>
+        <Label>{t("classroom.generateUnitModal.exerciseTypesLabel")}</Label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
           {EXERCISE_OPTIONS.map(opt => {
             const active = selectedTypes.has(opt.value);
             return (
               <button key={opt.value} onClick={() => toggleType(opt.value)}
-                title={opt.description} style={{
+                title={t(opt.descriptionKey)} style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "6px 12px", borderRadius: 20, border: "1.5px solid",
                   borderColor: active ? C.primary : C.border,
@@ -310,16 +317,20 @@ function AdvancedSettings({
                   cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
                 }}>
                 <span style={{ fontSize: 13 }}>{opt.icon}</span>
-                {opt.label}
+                {t(opt.labelKey)}
               </button>
             );
           })}
         </div>
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
-          All selected types will be distributed across segments.
+          {t("classroom.generateUnitModal.exerciseDistributionHint")}
           {selectedTypes.size > 0 && (
             <span style={{ color: C.sub, fontWeight: 600 }}>
-              {" "}({selectedTypes.size} type{selectedTypes.size > 1 ? "s" : ""} × {numSegments} segment{numSegments > 1 ? "s" : ""})
+              {" "}
+              {t("classroom.generateUnitModal.typesBySegments", {
+                typeCount: selectedTypes.size,
+                segmentCount: numSegments,
+              })}
             </span>
           )}
         </div>
@@ -327,11 +338,14 @@ function AdvancedSettings({
 
       {/* Instruction language */}
       <div>
-        <Label>Instruction Language</Label>
+        <Label>{t("classroom.generateUnitModal.instructionLanguage")}</Label>
         <Select value={instructionLang} onChange={setInstructionLang}
-          options={INSTRUCTION_LANGS} />
+          options={INSTRUCTION_LANGS.map((l) => ({
+            value: l.value,
+            label: t(`classroom.generateUnitModal.instructionLanguages.${l.value}`),
+          }))} />
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
-          Language used for exercise titles and UI labels shown to students.
+          {t("classroom.generateUnitModal.instructionLanguageHint")}
         </div>
       </div>
     </div>
@@ -342,6 +356,8 @@ function AdvancedSettings({
 export default function GenerateUnitModal({
   unitId, unitTitle, apiBase = "/api/v1", onClose, onSuccess,
 }: Props) {
+  // Provides localized labels for generation modal tabs, forms, and actions.
+  const { t } = useTranslation();
   // Tab
   const [activeTab, setActiveTab] = useState<Tab>("ai");
 
@@ -388,7 +404,7 @@ export default function GenerateUnitModal({
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
     if (!topic.trim()) {
-      setError("Please enter a topic before generating.");
+      setError(t("classroom.generateUnitModal.errors.enterTopic"));
       return;
     }
     setError(null);
@@ -415,12 +431,12 @@ export default function GenerateUnitModal({
       });
       if (!res.ok) throw new Error(await parseErrorMessage(res));
       const data = await parseJsonPayload<GenerateResult>(
-        res, "Generation finished but the server returned an empty or invalid response.",
+        res, t("classroom.generateUnitModal.errors.invalidResponse"),
       );
       setResult(data);
       onSuccess?.(data);
     } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
+      setError(err.message || t("classroom.generateUnitModal.errors.generic"));
     } finally {
       setLoading(false);
     }
@@ -428,7 +444,7 @@ export default function GenerateUnitModal({
 
   const handleGenerateFromFile = async () => {
     if (!file) {
-      setError("Please upload a file before generating.");
+      setError(t("classroom.generateUnitModal.errors.uploadFile"));
       return;
     }
     setError(null);
@@ -452,12 +468,12 @@ export default function GenerateUnitModal({
       });
       if (!res.ok) throw new Error(await parseErrorMessage(res));
       const data = await parseJsonPayload<GenerateResult>(
-        res, "Generation finished but the server returned an empty or invalid response.",
+        res, t("classroom.generateUnitModal.errors.invalidResponse"),
       );
       setResult(data);
       onSuccess?.(data);
     } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
+      setError(err.message || t("classroom.generateUnitModal.errors.generic"));
     } finally {
       setLoading(false);
     }
@@ -496,7 +512,7 @@ export default function GenerateUnitModal({
       }} />
 
       {/* Modal */}
-      <div role="dialog" aria-modal="true" aria-label="Generate Unit Content"
+      <div role="dialog" aria-modal="true" aria-label={t("classroom.generateUnitModal.aria.generateUnitContent")}
         style={{
           position: "fixed", inset: 0, zIndex: 9999,
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -528,7 +544,7 @@ export default function GenerateUnitModal({
               </div>
               <div>
                 <div style={{ fontSize: 15.5, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>
-                  Generate Unit Content
+                  {t("classroom.generateUnitModal.generateUnitContent")}
                 </div>
                 {unitTitle && (
                   <div style={{ fontSize: 12, color: C.sub, marginTop: 1 }}>{unitTitle}</div>
@@ -570,8 +586,8 @@ export default function GenerateUnitModal({
                     }}
                   >
                     {tab === "ai"
-                      ? <><Sparkles size={13} strokeWidth={2} />Generate with AI</>
-                      : <><Upload size={13} strokeWidth={2} />From File</>
+                      ? <><Sparkles size={13} strokeWidth={2} />{t("classroom.generateUnitModal.generateWithAi")}</>
+                      : <><Upload size={13} strokeWidth={2} />{t("classroom.generateUnitModal.fromFile")}</>
                     }
                   </button>
                 );
@@ -607,7 +623,7 @@ export default function GenerateUnitModal({
                         type="text"
                         value={topic}
                         onChange={e => setTopic(e.target.value)}
-                        placeholder="e.g. Present Simple tense, Vocabulary: Food & Drink…"
+                        placeholder={t("classroom.generateUnitModal.topicPlaceholder")}
                         style={{
                           width: "100%", padding: "10px 13px", borderRadius: 10,
                           border: `1.5px solid ${topic ? C.primary : C.border}`,
@@ -625,7 +641,7 @@ export default function GenerateUnitModal({
                         value={description}
                         onChange={e => setDescription(e.target.value)}
                         rows={4}
-                        placeholder="Describe what you'd like the AI to focus on — learning goals, context, specific vocabulary, grammar points, or any other details to guide the generation…"
+                        placeholder={t("classroom.generateUnitModal.descriptionPlaceholder")}
                         style={{
                           width: "100%", padding: "10px 13px", borderRadius: 10,
                           border: `1.5px solid ${description ? C.primary : C.border}`,
@@ -682,10 +698,10 @@ export default function GenerateUnitModal({
                         </div>
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>
-                            {isDragging ? "Drop it here!" : "Drop a file or click to browse"}
+                            {isDragging ? t("classroom.generateUnitModal.dropItHere") : t("classroom.generateUnitModal.dropOrBrowse")}
                           </div>
                           <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>
-                            PDF, DOCX, TXT, PPT, PPTX · up to 20 MB
+                            {t("classroom.generateUnitModal.fileTypesHint")}
                           </div>
                         </div>
                         <div style={{
@@ -693,7 +709,7 @@ export default function GenerateUnitModal({
                           background: C.white, border: `1.5px solid ${C.border}`,
                           fontSize: 12.5, fontWeight: 600, color: C.sub,
                         }}>
-                          Browse files
+                          {t("classroom.generateUnitModal.browseFiles")}
                         </div>
                       </div>
                     ) : (
@@ -737,7 +753,7 @@ export default function GenerateUnitModal({
                     )}
 
                     <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>
-                      The AI will extract content from your file and generate segment content based on it.
+                      {t("classroom.generateUnitModal.fileExtractionHint")}
                     </div>
                   </div>
                 )}
@@ -748,8 +764,8 @@ export default function GenerateUnitModal({
                   <Toggle
                     checked={includeImages}
                     onChange={setIncludeImages}
-                    label="Include AI illustrations"
-                    sublabel="Generate an SVG diagram for each segment (+30 s)"
+                    label={t("classroom.generateUnitModal.includeAiIllustrations")}
+                    // sublabel="Generate an SVG diagram for each segment (+30 s)"
                   />
                 </div>
 
@@ -768,7 +784,7 @@ export default function GenerateUnitModal({
                   {showAdvanced
                     ? <ChevronUp size={12} strokeWidth={2} />
                     : <ChevronDown size={12} strokeWidth={2} />}
-                  Advanced settings
+                  {t("classroom.generateUnitModal.advancedSettings")}
                 </button>
 
                 {showAdvanced && (
@@ -789,9 +805,15 @@ export default function GenerateUnitModal({
                   }}>
                     <Layers size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.5 }}>
-                      Generating <strong>{numSegments} segment{numSegments > 1 ? "s" : ""}</strong>
-                      {" "}with text blocks, exercises{includeImages ? ", and illustrations" : ""}.
-                      {" "}This may take {includeImages ? "60–120" : "20–60"} seconds.
+                      {t("classroom.generateUnitModal.generatingSummary", {
+                        count: numSegments,
+                        details: includeImages
+                          ? t("classroom.generateUnitModal.withIllustrations")
+                          : t("classroom.generateUnitModal.withoutIllustrations"),
+                      })}{" "}
+                      {t("classroom.generateUnitModal.mayTakeSeconds", {
+                        range: includeImages ? "60–120" : "20–60",
+                      })}
                     </span>
                   </div>
                 )}
@@ -817,7 +839,7 @@ export default function GenerateUnitModal({
                   {loading ? (
                     <>
                       <Spinner size={16} color={C.white} />
-                      Generating content…
+                      {t("classroom.generateUnitModal.generatingContent")}
                     </>
                   ) : (
                     <>
@@ -826,8 +848,8 @@ export default function GenerateUnitModal({
                           fill="white" stroke="white" strokeWidth="0.5" />
                       </svg>
                       {activeTab === "ai"
-                        ? `Generate ${numSegments} Segment${numSegments > 1 ? "s" : ""}`
-                        : `Generate from File`
+                        ? t("classroom.generateUnitModal.generateSegments", { count: numSegments })
+                        : t("classroom.generateUnitModal.generateFromFile")
                       }
                     </>
                   )}
@@ -849,7 +871,8 @@ function SuccessView({
   onClose: () => void;
   onGenerateMore: () => void;
 }) {
-  const totalBlocks = result.texts_created + result.exercises_created + result.images_created;
+  // Provides localized labels for generation success summary and actions.
+  const { t } = useTranslation();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -865,9 +888,9 @@ function SuccessView({
           <CheckCircle size={26} color={C.success} strokeWidth={2} />
         </div>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>Content generated!</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>{t("classroom.generateUnitModal.success.contentGenerated")}</div>
           <div style={{ fontSize: 13, color: C.sub, marginTop: 4 }}>
-            {result.segments_created} segment{result.segments_created > 1 ? "s" : ""}
+            {t("classroom.generateUnitModal.success.segmentsCreated", { count: result.segments_created })}
           </div>
         </div>
       </div>
@@ -881,7 +904,7 @@ function SuccessView({
             fontSize: 12.5, color: C.primaryDk, fontWeight: 600,
           }}>
             <BookOpen size={12} strokeWidth={2} />
-            {result.texts_created} text block{result.texts_created > 1 ? "s" : ""}
+            {t("classroom.generateUnitModal.success.textBlocksCreated", { count: result.texts_created })}
           </div>
         )}
         {result.exercises_created > 0 && (
@@ -894,7 +917,7 @@ function SuccessView({
               <path d="M8 1.5l1.5 4h4l-3.2 2.5 1.2 4L8 9.5 4.5 12l1.2-4L2.5 5.5h4L8 1.5z"
                 fill={C.success} stroke={C.success} strokeWidth="0.5" />
             </svg>
-            {result.exercises_created} exercise{result.exercises_created > 1 ? "s" : ""}
+            {t("classroom.generateUnitModal.success.exercisesCreated", { count: result.exercises_created })}
           </div>
         )}
         {result.images_created > 0 && (
@@ -904,7 +927,7 @@ function SuccessView({
             fontSize: 12.5, color: C.amber, fontWeight: 600,
           }}>
             <ImageIcon size={12} strokeWidth={2} />
-            {result.images_created} illustration{result.images_created > 1 ? "s" : ""}
+            {t("classroom.generateUnitModal.success.illustrationsCreated", { count: result.images_created })}
           </div>
         )}
       </div>
@@ -937,7 +960,7 @@ function SuccessView({
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
                   <BookOpen size={10} strokeWidth={2} />
-                  {seg.texts_created} text
+                  {t("classroom.generateUnitModal.success.segmentTextCount", { count: seg.texts_created })}
                 </span>
               )}
               {/* Image badge */}
@@ -948,7 +971,7 @@ function SuccessView({
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
                   <ImageIcon size={10} strokeWidth={2} />
-                  image
+                  {t("classroom.generateUnitModal.success.imageTag")}
                 </span>
               )}
               {/* Exercise type badges */}
@@ -977,7 +1000,7 @@ function SuccessView({
           onMouseEnter={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.primary; }}
           onMouseLeave={e => { e.currentTarget.style.background = C.white; e.currentTarget.style.borderColor = C.border; }}
         >
-          Generate more
+          {t("classroom.generateUnitModal.success.generateMore")}
         </button>
         <button onClick={onClose} style={{
           flex: 1, padding: "11px", borderRadius: 11,
@@ -989,7 +1012,7 @@ function SuccessView({
           onMouseEnter={e => { e.currentTarget.style.background = C.primaryDk; }}
           onMouseLeave={e => { e.currentTarget.style.background = C.primary; }}
         >
-          Done
+          {t("classroom.generateUnitModal.success.done")}
         </button>
       </div>
     </div>

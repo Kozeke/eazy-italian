@@ -16,6 +16,7 @@ import {
   PaginatedResponse,
   Student,
   AdminStudentCreateResponse,
+  TeacherPaymentRecord,
 } from "../types";
 import { promptSessionExpired } from "./sessionExpiredPrompt";
 
@@ -189,6 +190,18 @@ export const authApi = {
     console.log("Making getCurrentUser request to:", "/users/me");
     const response: AxiosResponse<User> = await api.get("/users/me");
     console.log("getCurrentUser response received:", response.data);
+    return response.data;
+  },
+
+  // Persists profile fields for the signed-in account (PUT /users/me).
+  updateCurrentUser: async (payload: {
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    locale?: string;
+    notification_prefs?: Record<string, unknown>;
+  }): Promise<User> => {
+    const response: AxiosResponse<User> = await api.put("/users/me", payload);
     return response.data;
   },
 
@@ -1612,6 +1625,153 @@ export const homeworkSubmissionApi = {
   ): Promise<HomeworkSubmissionDto> => {
     const response: AxiosResponse<HomeworkSubmissionDto> = await api.patch(
       `/admin/units/${unitId}/homework/submissions/${studentId}`,
+      body,
+    );
+    return response.data;
+  },
+};
+
+// Teacher tariff catalog, status, and payment ledger (requires teacher JWT).
+export const teacherTariffsApi = {
+  // Loads newest payment rows for the tariffs "Payments" tab.
+  listPayments: async (params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<TeacherPaymentRecord[]> => {
+    const response: AxiosResponse<TeacherPaymentRecord[]> = await api.get(
+      "/admin/tariffs/payments",
+      { params },
+    );
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  // Records a checkout outcome (simulated Pay in UI or future PSP webhook).
+  recordPayment: async (body: {
+    amount: number;
+    currency?: string;
+    status?: string;
+    plan_code?: string;
+    billing_period?: string;
+    description?: string;
+    provider_ref?: string;
+  }): Promise<TeacherPaymentRecord> => {
+    const response: AxiosResponse<TeacherPaymentRecord> = await api.post(
+      "/admin/tariffs/payments",
+      body,
+    );
+    return response.data;
+  },
+};
+
+// ─── Classroom Exercise Answers API ──────────────────────────────────────────
+//
+// Restores the latest saved answer per (block_id, field_key) so the classroom
+// can hydrate exercise blocks on load / after a server restart.
+//
+// GET /classrooms/{classroomId}/exercise-answers
+//   Student  → own answers only (server ignores studentId param).
+//   Teacher  → all students when studentId omitted; one student otherwise.
+//
+// Single-student shape:
+//   { patches: { "ex/{block}/{field}": value, … }, student_id: N, classroom_id: N }
+//
+// All-students shape (teacher, no studentId):
+//   { students: { "N": { "ex/…": value, … }, … }, classroom_id: N }
+
+export interface ExerciseAnswerPatches {
+  patches: Record<string, unknown>;
+  student_id: number;
+  classroom_id: number;
+}
+
+export interface AllStudentAnswers {
+  students: Record<string, Record<string, unknown>>;
+  classroom_id: number;
+}
+
+export interface ExerciseAnswerClearRequest {
+  block_id: string;
+  student_id?: number;
+  unit_id?: number;
+  segment_id?: number;
+}
+
+export interface ExerciseAnswerClearResponse {
+  cleared: boolean;
+  rows_written: number;
+  block_id: string;
+  students_cleared?: number;
+}
+
+export const classroomAnswersApi = {
+  /**
+   * Fetch saved answers for the calling user (student) or a specific student
+   * when called by a teacher.  Optionally scoped to a unit or segment.
+   */
+  getForStudent: async (
+    classroomId: number,
+    opts?: { studentId?: number; unitId?: number; segmentId?: number },
+  ): Promise<ExerciseAnswerPatches> => {
+    const response: AxiosResponse<ExerciseAnswerPatches> = await api.get(
+      `/classrooms/${classroomId}/exercise-answers`,
+      {
+        params: {
+          ...(opts?.studentId != null ? { student_id:  opts.studentId  } : {}),
+          ...(opts?.unitId    != null ? { unit_id:     opts.unitId     } : {}),
+          ...(opts?.segmentId != null ? { segment_id:  opts.segmentId  } : {}),
+        },
+      },
+    );
+    return response.data;
+  },
+
+  /**
+   * Teacher only: fetch the latest answers for every student in the classroom.
+   * Optionally filtered to a specific unit or segment.
+   */
+  getAllStudents: async (
+    classroomId: number,
+    opts?: { unitId?: number; segmentId?: number },
+  ): Promise<AllStudentAnswers> => {
+    const response: AxiosResponse<AllStudentAnswers> = await api.get(
+      `/classrooms/${classroomId}/exercise-answers`,
+      {
+        params: {
+          ...(opts?.unitId    != null ? { unit_id:    opts.unitId    } : {}),
+          ...(opts?.segmentId != null ? { segment_id: opts.segmentId } : {}),
+        },
+      },
+    );
+    return response.data;
+  },
+
+  /**
+   * Clear a student's (or all students') answers for a specific exercise block.
+   *
+   * Writes null-value sentinel rows so the backend's DISTINCT ON query returns
+   * null for every field — history is fully preserved, only the "latest" wins.
+   *
+   * Teacher + student_id  → clears one student's answers for the block.
+   * Teacher + no student  → clears ALL students' answers for the block.
+   * Student               → always clears only their own answers.
+   */
+  clearBlockAnswers: async (
+    classroomId: number,
+    blockId: string,
+    opts?: {
+      studentId?: number;
+      unitId?: number;
+      segmentId?: number;
+    },
+  ): Promise<ExerciseAnswerClearResponse> => {
+    const body: ExerciseAnswerClearRequest = {
+      block_id: blockId,
+      ...(opts?.studentId != null ? { student_id: opts.studentId } : {}),
+      ...(opts?.unitId != null ? { unit_id: opts.unitId } : {}),
+      ...(opts?.segmentId != null ? { segment_id: opts.segmentId } : {}),
+    };
+    const response: AxiosResponse<ExerciseAnswerClearResponse> = await api.post(
+      `/classrooms/${classroomId}/exercise-answers/clear`,
       body,
     );
     return response.data;

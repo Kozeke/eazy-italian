@@ -7,6 +7,7 @@
  */
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { PlayerMode } from './VerticalLessonPlayer';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -34,6 +35,8 @@ export default function BottomNavigation({
   completedSteps,
   totalSteps,
 }: BottomNavigationProps) {
+  // Provides localized labels for section navigation controls.
+  const { t } = useTranslation();
   const isTeacher = mode === 'teacher';
 
   const hasPrev = currentIndex > 0;
@@ -43,7 +46,7 @@ export default function BottomNavigation({
     totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
   return (
-    <nav className="vlp-bottom-nav" aria-label="Lesson navigation">
+    <nav className="vlp-bottom-nav" aria-label={t('classroom.bottomNav.lessonNavigationAria')}>
       {/* Progress bar — student mode only */}
       {!isTeacher && (
         <div
@@ -52,7 +55,7 @@ export default function BottomNavigation({
           aria-valuenow={progressPct}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`${progressPct}% complete`}
+          aria-label={t('classroom.bottomNav.progressAria', { percent: progressPct })}
         >
           <div className="vlp-progress-fill" style={{ width: `${progressPct}%` }} />
         </div>
@@ -64,10 +67,10 @@ export default function BottomNavigation({
           className="vlp-nav-btn vlp-nav-btn--ghost"
           onClick={onPrev}
           disabled={!hasPrev}
-          aria-label="Previous section"
+          aria-label={t('classroom.bottomNav.previousSectionAria')}
         >
           <ChevronLeft size={16} aria-hidden />
-          <span>Previous</span>
+          <span>{t('classroom.bottomNav.previous')}</span>
         </button>
 
         {total > 1 && (
@@ -81,9 +84,9 @@ export default function BottomNavigation({
           className="vlp-nav-btn vlp-nav-btn--primary"
           onClick={onNext}
           disabled={!hasNext}
-          aria-label="Next section"
+          aria-label={t('classroom.bottomNav.nextSectionAria')}
         >
-          <span>Next</span>
+          <span>{t('classroom.bottomNav.next')}</span>
           <ChevronRight size={16} aria-hidden />
         </button>
       </div>

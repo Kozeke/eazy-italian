@@ -17,6 +17,7 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import {
   EyeOff,
   Focus,
@@ -160,16 +161,18 @@ function ResetConfirmPanel({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  // Provides localized text for the reset confirmation panel.
+  const { t } = useTranslation();
   return (
     <div className="ebm-confirm">
       <div className="ebm-confirm__header">
         <span className="ebm-confirm__icon">
           <AlertTriangle size={14} strokeWidth={2} />
         </span>
-        <span className="ebm-confirm__title">Сбросить у всех учеников?</span>
+        <span className="ebm-confirm__title">{t('classroom.exerciseMenu.resetConfirm.title')}</span>
       </div>
       <p className="ebm-confirm__body">
-        Ответы всех подключённых учеников будут очищены.
+        {t('classroom.exerciseMenu.resetConfirm.body')}
       </p>
       <div className="ebm-confirm__actions">
         <button
@@ -178,7 +181,7 @@ function ResetConfirmPanel({
           onClick={(e) => { e.stopPropagation(); onCancel(); }}
         >
           <X size={13} strokeWidth={2.2} />
-          Отмена
+          {t('common.cancel')}
         </button>
         <button
           type="button"
@@ -186,7 +189,7 @@ function ResetConfirmPanel({
           onClick={(e) => { e.stopPropagation(); onConfirm(); }}
         >
           <Check size={13} strokeWidth={2.5} />
-          Сбросить
+          {t('classroom.exerciseMenu.resetConfirm.confirm')}
         </button>
       </div>
     </div>
@@ -210,6 +213,8 @@ export function ExerciseBlockMenu({
   onDelete,
   onDuplicate,
 }: ExerciseBlockMenuProps) {
+  // Provides localized labels for exercise block menu actions.
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
@@ -267,27 +272,27 @@ export function ExerciseBlockMenu({
     {
       key: "copy-to-homework",
       icon: <BookMarked size={15} strokeWidth={1.8} />,
-      label: "Скопировать в дом. работу",
+      label: t('classroom.exerciseMenu.copyToHomework'),
       highlight: true,
       action: onCopyToHomework,
     },
     {
       key: "hide",
       icon: <EyeOff size={15} strokeWidth={1.8} />,
-      label: "Скрыть от ученика",
+      label: t('classroom.exerciseMenu.hideFromStudent'),
       dividerBefore: !!onCopyToHomework,
       action: onHideFromStudent,
     },
     {
       key: "focus",
       icon: <Focus size={15} strokeWidth={1.8} />,
-      label: "Внимание на упражнение",
+      label: t('classroom.exerciseMenu.focusExercise'),
       action: onFocusExercise,
     },
     {
       key: "reset",
       icon: <RotateCcw size={15} strokeWidth={1.8} />,
-      label: "Сбросить ответы",
+      label: t('classroom.exerciseMenu.resetAnswers'),
       // Teacher broadcast → show confirm panel first; student → fire directly
       action: onResetAnswers
         ? (resetIsTeacherBroadcast
@@ -298,39 +303,39 @@ export function ExerciseBlockMenu({
     {
       key: "homework",
       icon: <Home size={15} strokeWidth={1.8} />,
-      label: "В домашнюю работу",
+      label: t('classroom.exerciseMenu.toHomework'),
       action: onSendToHomework,
     },
     {
       key: "move-up",
       icon: <ArrowUp size={15} strokeWidth={1.8} />,
-      label: "Переместить вверх",
+      label: t('classroom.exerciseMenu.moveUp'),
       action: onMoveUp,
     },
     {
       key: "move-down",
       icon: <ArrowDown size={15} strokeWidth={1.8} />,
-      label: "Переместить вниз",
+      label: t('classroom.exerciseMenu.moveDown'),
       action: onMoveDown,
     },
     {
       key: "edit-exercise",
       icon: <Pencil size={15} strokeWidth={1.8} />,
-      label: "Редактировать упражнение",
+      label: t('classroom.exerciseMenu.editExercise'),
       dividerBefore: true,
       action: onEdit,
     },
     {
       key: "edit-new",
       icon: <Sparkles size={15} strokeWidth={1.8} />,
-      label: "Редактировать",
-      badge: "Новая версия",
+      label: t('classroom.exerciseMenu.edit'),
+      badge: t('classroom.exerciseMenu.newVersion'),
       action: onEditNew,
     },
     {
       key: "delete",
       icon: <Trash2 size={15} strokeWidth={1.8} />,
-      label: "Удалить упражнение",
+      label: t('classroom.exerciseMenu.deleteExercise'),
       danger: true,
       dividerBefore: true,
       action: onDelete,
@@ -338,7 +343,7 @@ export function ExerciseBlockMenu({
     {
       key: "duplicate",
       icon: <Copy size={15} strokeWidth={1.8} />,
-      label: "Копировать упражнение в…",
+      label: t('classroom.exerciseMenu.copyExerciseTo'),
       action: onDuplicate,
     },
   ].filter((item) => item.action !== undefined);
@@ -352,7 +357,7 @@ export function ExerciseBlockMenu({
         ref={btnRef}
         type="button"
         className={`ebm-trigger${open ? " ebm-trigger--active" : ""}`}
-        aria-label="Block options"
+        aria-label={t('classroom.exerciseMenu.blockOptionsAria')}
         aria-haspopup="true"
         aria-expanded={open}
         onClick={(e) => {

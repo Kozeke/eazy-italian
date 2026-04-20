@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, units, videos, tasks, tests, progress, email_campaigns, grades, admin_students, courses, test_constructor, notifications, ingest, rag
+from app.api.v1.endpoints import auth, users, units, videos, tasks, tests, progress, email_campaigns, grades, admin_students, courses, test_constructor, notifications, ingest, rag, teacher_tariffs
 from app.api.v1.endpoints import admin_videos, admin_tasks, admin_tests, segments
 from app.api.v1.endpoints.student import tests as student_tests
 from app.api.v1.endpoints.student import classroom as student_classroom
@@ -33,6 +33,7 @@ api_router.include_router(progress.router, prefix="/progress", tags=["progress"]
 api_router.include_router(grades.router, prefix="/grades", tags=["grades"])
 api_router.include_router(email_campaigns.router, prefix="/email-campaigns", tags=["email-campaigns"])
 api_router.include_router(admin_students.router, prefix="/admin/students", tags=["students"])
+api_router.include_router(teacher_tariffs.router, prefix="", tags=["teacher-tariffs"])
 api_router.include_router(admin_videos.router, prefix="/admin", tags=["admin-videos"])
 api_router.include_router(admin_tasks.router, prefix="/admin", tags=["admin-tasks"])
 api_router.include_router(admin_tests.router, prefix="/admin", tags=["admin-tests"])
@@ -58,3 +59,5 @@ api_router.include_router(unit_generation.router, prefix="/units", tags=["AI Uni
 api_router.include_router(presence_rest.router, prefix="", tags=["Presence"])
 api_router.include_router(presence.router, tags=["Presence"])           # ← ADD
 api_router.include_router(live.router, tags=["live"])  # ← ADD THIS
+from app.api.v1.endpoints import support_chat      # ← Support chat
+api_router.include_router(support_chat.router, tags=["Support Chat"])  # ← Support chat

@@ -235,6 +235,7 @@
     },
     "actions": {
       "new": "New",
+      "newCourse": "New Course",
       "save": "Save",
       "publish": "Publish",
       "preview": "Preview",
@@ -267,6 +268,38 @@
       "archived": "Archived"
     },
     "role": "Instructor",
+    "profileSettings": {
+      "pageTitle": "Personal profile",
+      "tabSettings": "Settings",
+      "tabDescription": "Description",
+      "back": "Back to catalog",
+      "editAvatar": "Edit",
+      "name": "Name",
+      "email": "Email",
+      "password": "Password",
+      "changePassword": "Change",
+      "passwordHint": "Password changes are not available in the app yet. Sign out and use “Forgot password” on the login page if you need to reset access.",
+      "phone": "Phone",
+      "phonePlaceholder": "Your phone number",
+      "uiLanguage": "Interface language",
+      "nativeLanguage": "Native language",
+      "country": "Country",
+      "timezone": "Time zone",
+      "bioLabel": "About you",
+      "bioPlaceholder": "Tell students about your teaching style, credentials, or availability.",
+      "saved": "Changes saved",
+      "saveError": "Could not save changes. Check the form and try again.",
+      "langRussian": "Russian",
+      "langEnglish": "English",
+      "langItalian": "Italian",
+      "countryIT": "Italy",
+      "countryRU": "Russia",
+      "countryKZ": "Kazakhstan",
+      "countryUS": "United States",
+      "countryGB": "United Kingdom",
+      "countryDE": "Germany",
+      "countryFR": "France"
+    },
     "footer": {
       "hint": "Manage your content, students and analytics from this instructor panel."
     },
@@ -293,6 +326,438 @@
       "questionNumber": "Question #{{id}}",
       "error": "Error",
       "emptyAnswer": "—"
+    },
+    "course": {
+      "status": {
+        "draft": "Draft",
+        "published": "Published",
+        "scheduled": "Scheduled",
+        "archived": "Archived"
+      }
+    },
+    "courses": {
+      "searchPlaceholder": "Search courses...",
+      "create": "Create course",
+      "units": "units",
+      "loadError": "Failed to load courses",
+      "deleted": "Course deleted",
+      "deleteError": "Failed to delete course",
+      "view": {
+        "grid": "Grid",
+        "list": "List"
+      },
+      "count": {
+        "filtered": "{{filtered}} of {{total}} courses",
+        "total": "{{count}} course(s)"
+      },
+      "noResults": {
+        "title": "No courses match",
+        "subtitle": "Try adjusting your search or clearing the filters.",
+        "clear": "Clear filters"
+      },
+      "delete": {
+        "title": "Delete course?",
+        "subtitle": "will be permanently removed. This cannot be undone.",
+        "action": "Delete",
+        "deleting": "Deleting..."
+      },
+      "empty": {
+        "welcome": "Welcome to your studio",
+        "titlePrefix": "Build your first",
+        "titleHighlight": "AI-powered course",
+        "subtitle": "Create engaging language courses with AI-generated slides, tasks and tests.",
+        "aiBuilder": "AI course builder",
+        "lessonByLesson": "Lesson by lesson",
+        "liveAnalytics": "Live analytics",
+        "autoTestGen": "Auto test gen",
+        "createFirst": "Create First Course",
+        "note": "Takes ~2 minutes - AI does the heavy lifting"
+      }
+    },
+    "help": {
+      "button": "Help",
+      "menuLabel": "Help menu",
+      "gettingStarted": "Getting started",
+      "tutorialArticles": "Tutorial articles",
+      "updates": "Updates",
+      "newUpdates": "New updates available",
+      "blog": "Blog",
+      "youtube": "YouTube channel",
+      "support": "Support service"
+    },
+    "subscription": {
+      "info": "Subscription info",
+      "planTab": "Plan",
+      "limitsTab": "Limits",
+      "standardPlan": "Standard",
+      "freePlan": "Free",
+      "active": "Active",
+      "paidUntil": "Paid until",
+      "daysLeft": "days left",
+      "upgradeHint": "Upgrade to unlock all features",
+      "goToPlans": "Go to plans",
+      "limitsPlaceholder": "Usage limits will appear here.",
+      "daysLeftAria": "Subscription: {{days}} days left",
+      "planAria": "Subscription plan",
+      "daysLeftTitle": "{{days}} days left",
+      "freePlanTitle": "Free plan - click to upgrade"
+    },
+    "userMenu": {
+      "label": "User menu",
+      "openForUser": "Open user menu for {{userName}}"
+    },
+    "theme": {
+      "dark": "Dark theme"
+    },
+    "tariffs": {
+      "title": "Tariffs"
+    },
+    "supportChat": {
+      "title": "Support Chat",
+      "subtitle": "We usually reply within a few hours",
+      "closeChatAria": "Close chat",
+      "loadingMessages": "Loading messages...",
+      "emptyTitle": "Hi! How can we help?",
+      "emptyDescription": "Send us a message and our team will get back to you as soon as possible.",
+      "supportLabel": "Support",
+      "readStatus": "Read",
+      "inputPlaceholder": "Type a message... (Enter to send)",
+      "sendMessageAria": "Send message",
+      "openWidgetAria": "Open support chat",
+      "closeWidgetAria": "Close support chat",
+      "errors": {
+        "load": "Could not load messages.",
+        "send": "Failed to send. Please try again."
+      }
+    }
+  },
+  "classroom": {
+    "page": {
+      "goBack": "Go back",
+      "emptyLessonDescription": "Your teacher hasn't added any content to this unit yet.",
+      "emptyLessonCheckBackSoon": "Check back soon!",
+      "courseSaved": "Course saved",
+      "courseSaveFailed": "Could not save course",
+      "unitPublished": "Unit published",
+      "unitPublishFailed": "Could not publish the unit",
+      "lastUnitInfo": "This is the last unit in the course.",
+      "materialsLoadFailed": "Could not load materials.",
+      "openUnitBeforeUpload": "Open a unit before uploading materials.",
+      "materialUploadedSingle": "Material uploaded.",
+      "materialUploadedMany": "{{count}} materials uploaded.",
+      "materialUploadFailed": "Could not upload materials.",
+      "loading": "Loading...",
+      "unitNotPublished": "Unit not published",
+      "leaveClassroomTitle": "Leave classroom?",
+      "leaveDialogDraftDescription": "This unit is still a draft. Publish it from the sidebar when you are ready, or you can leave the classroom and come back later.",
+      "leaveDialogTeacherDescription": "You will return to your courses. Unsaved changes in open editors may be lost.",
+      "leaveDialogStudentDescription": "You will return to My Classes.",
+      "stay": "Stay",
+      "leave": "Leave",
+      "switchDraftUnitDescription": "This unit is still a draft. You can publish it from the sidebar first, or switch units anyway-your draft will stay in this course until you publish.",
+      "stayOnThisUnit": "Stay on this unit",
+      "switchUnit": "Switch unit",
+      "noCourseInUrl": "No course specified in the URL.",
+      "mediaKind": {
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio",
+        "media": "Media"
+      }
+    },
+    "lessonWorkspace": {
+      "sectionLabel": "Section {{index}}",
+      "slidesUnavailable": "Slides unavailable:",
+      "tryAgainLater": "Please try again later.",
+      "studentAnswers": "Student answers",
+      "viewStudentAnswers": "View student answers"
+    },
+    "lessonShared": {
+      "somethingWentWrong": "Something went wrong"
+    },
+    "verticalPlayer": {
+      "lesson": "Lesson",
+      "section": "Section"
+    },
+    "homework": {
+      "status": {
+        "pendingReview": "Pending teacher review",
+        "awaitingStudent": "Needs revision",
+        "completed": "Completed",
+        "assigned": "In progress"
+      },
+      "fromLesson": "From lesson",
+      "submitForReview": "Submit for review",
+      "pickExercise": "Pick exercise",
+      "createExercise": "Create exercise",
+      "emptyTitle": "Homework is not assigned",
+      "emptySubtitle": "The teacher has not added tasks yet"
+    },
+    "sectionBlock": {
+      "media": {
+        "imageLabel": "Image",
+        "videoLabel": "Video",
+        "audioLabel": "Audio",
+        "carouselLabel": "Image Carousel",
+        "imagePlaceholder": "Paste an image URL...",
+        "videoPlaceholder": "Paste a YouTube / Vimeo URL...",
+        "audioPlaceholder": "Paste an audio file URL..."
+      },
+      "previewAlt": "Preview",
+      "videoPreviewTitle": "Video preview",
+      "previewAfterSave": "Preview available after saving.",
+      "removeMediaAria": "Remove {{label}} block",
+      "uploadImageTitle": "Upload image",
+      "captionOptional": "Caption (optional)",
+      "imageAlt": "Image",
+      "videoTitle": "Video",
+      "sectionTitleAria": "Section title",
+      "renameSection": "Rename section",
+      "sectionCounter": "Section {{current}} of {{total}}",
+      "addContent": "Add content",
+      "noContentYet": "No content in this section yet."
+    },
+    "exerciseMenu": {
+      "copyToHomework": "Copy to homework",
+      "hideFromStudent": "Hide from student",
+      "focusExercise": "Focus on exercise",
+      "resetAnswers": "Reset answers",
+      "toHomework": "To homework",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "editExercise": "Edit exercise",
+      "edit": "Edit",
+      "newVersion": "New version",
+      "deleteExercise": "Delete exercise",
+      "copyExerciseTo": "Copy exercise to...",
+      "blockOptionsAria": "Block options",
+      "resetConfirm": {
+        "title": "Reset for all students?",
+        "body": "Answers of all connected students will be cleared.",
+        "confirm": "Reset"
+      }
+    },
+    "bottomNav": {
+      "lessonNavigationAria": "Lesson navigation",
+      "progressAria": "{{percent}}% complete",
+      "previousSectionAria": "Previous section",
+      "previous": "Previous",
+      "nextSectionAria": "Next section",
+      "next": "Next"
+    },
+    "sectionPanel": {
+      "sectionNavigator": "Section navigator",
+      "unitNavigator": "Unit navigator",
+      "sections": "Sections",
+      "completedProgress": "{{done}} / {{total}} completed",
+      "noSectionsYet": "No sections yet",
+      "availableSectionsAria": "Available sections",
+      "noUnitsYet": "No units yet",
+      "availableUnitsAria": "Available units",
+      "itemCount": "{{count}} item",
+      "addSection": "Add section",
+      "publishUnit": "Publish unit",
+      "finishUnit": "Finish unit",
+      "additionalMaterials": "Additional materials",
+      "aria": {
+        "dragToReorder": "Drag to reorder {{title}}",
+        "removeSection": "Remove section {{title}}"
+      },
+      "removeDialog": {
+        "title": "Remove this section?",
+        "body": "Are you sure you want to remove \"{{title}}\"? This cannot be undone.",
+        "remove": "Remove"
+      }
+    },
+    "unitList": {
+      "nowStudying": "Now studying",
+      "slidesCount": "{{count}} slides",
+      "tasksCount": "{{count}} task",
+      "testsCount": "{{count}} test",
+      "openUnit": "Open unit",
+      "aria": {
+        "reorder": "Reorder",
+        "shareUnit": "Share unit",
+        "moreOptions": "More options"
+      },
+      "actions": {
+        "generateAi": "Generate with AI",
+        "hideUnit": "Hide unit",
+        "copy": "Copy",
+        "edit": "Edit",
+        "delete": "Delete"
+      }
+    },
+    "unitSelector": {
+      "defaultCourseInitial": "C",
+      "courseThumbnailAlt": "Course thumbnail",
+      "share": "Share",
+      "moreCourseOptions": "More course options",
+      "courseSettings": "Course settings",
+      "copyCourse": "Copy course",
+      "deleteCourse": "Delete course",
+      "tabs": {
+        "contents": "Contents",
+        "description": "Description"
+      },
+      "descriptionComingSoon": "Description coming soon",
+      "searchPlaceholder": "Search units",
+      "searchAria": "Search units",
+      "filter": "Filter",
+      "availableUnitsAria": "Available units",
+      "generatedBadge": "Generated",
+      "generatingBadge": "Generating...",
+      "createUnit": "Create unit",
+      "creating": "Creating...",
+      "generate": "Generate",
+      "empty": {
+        "noMatches": "No matches found",
+        "noUnits": "No units available",
+        "resetSearch": "Reset search"
+      },
+      "unitLabel": "Unit {{index}} - {{title}}",
+      "progressBanner": {
+        "allGenerated": "All {{total}} units generated - click any unit to start teaching",
+        "generatingWithErrors": "Generating... {{done}}/{{total}} done (some errors)",
+        "generatingBackground": "Generating in background... {{done}}/{{total}} units done"
+      },
+      "courseGeneration": {
+        "generatedReady": "Course generated - {{count}} unit ready",
+        "generatingProgress": "Generating... {{done}} / {{total}} units done",
+        "outlineReady": "AI outline ready - {{count}} units",
+        "reviewBeforeGeneratePrefix": "Review the structure below, then click",
+        "generateCourseButton": "Generate Course",
+        "editOutline": "Edit Outline",
+        "generatingShort": "Generating...",
+        "fillAllUnits": "This will fill all {{count}} units with AI content.",
+        "allUnitsGenerated": "All units generated! Select a unit below to start teaching."
+      }
+    },
+    "header": {
+      "classroomSectionsAria": "Classroom sections",
+      "lessonTab": "Lesson",
+      "homeworkTab": "Homework",
+      "homeworkItemsAria": "{{count}} homework items",
+      "backToClassesAria": "Back to My Classes",
+      "classes": "Classes",
+      "changeUnit": "Change Unit",
+      "chooseUnit": "Choose Unit",
+      "unitShort": "Unit",
+      "chooseShort": "Choose"
+    },
+    "studentAnswersPanel": {
+      "title": "Answers",
+      "allStudents": "All students",
+      "loadingRoster": "Loading roster...",
+      "noEnrolledStudents": "No enrolled students",
+      "noStudentsOnline": "No students online",
+      "fallbackStudentName": "Student {{id}}",
+      "feedbackPlaceholder": "Feedback for the student (optional)",
+      "markComplete": "Mark complete",
+      "needsStudentReview": "Needs student review",
+      "viewingSavedHomework": "Viewing saved homework",
+      "viewingLiveAnswers": "Viewing live answers",
+      "homeworkStatus": {
+        "pendingReview": "In review",
+        "awaitingStudent": "Student",
+        "completed": "Done",
+        "assigned": "Draft"
+      },
+      "help": {
+        "homework": "Select a student to view their saved homework like in the lesson player",
+        "lesson": "Select a student to view their live answers in the lesson player"
+      },
+      "aria": {
+        "panel": "Student answers",
+        "help": "Help",
+        "close": "Close answers panel",
+        "studentsList": "Students"
+      }
+    },
+    "generateUnitModal": {
+      "aria": {
+        "generateUnitContent": "Generate Unit Content"
+      },
+      "generateUnitContent": "Generate Unit Content",
+      "generateWithAi": "Generate with AI",
+      "fromFile": "From File",
+      "topicPlaceholder": "e.g. Present Simple tense, Vocabulary: Food & Drink...",
+      "descriptionPlaceholder": "Describe what you'd like the AI to focus on - learning goals, context, specific vocabulary, grammar points, or any other details to guide generation...",
+      "alwaysIncludedPrefix": "Each segment always includes a",
+      "textBlock": "text block",
+      "alwaysIncludedSuffix": "- grammar rules, vocabulary, and examples in Markdown.",
+      "cefrLevel": "CEFR Level",
+      "language": "Language",
+      "numberOfSegments": "Number of Segments",
+      "exerciseTypesLabel": "Exercise Types",
+      "exerciseDistributionHint": "All selected types will be distributed across segments.",
+      "typesBySegments": "({{typeCount}} type(s) x {{segmentCount}} segment(s))",
+      "instructionLanguage": "Instruction Language",
+      "instructionLanguageHint": "Language used for exercise titles and UI labels shown to students.",
+      "dropItHere": "Drop it here!",
+      "dropOrBrowse": "Drop a file or click to browse",
+      "fileTypesHint": "PDF, DOCX, TXT, PPT, PPTX - up to 20 MB",
+      "browseFiles": "Browse files",
+      "fileExtractionHint": "The AI will extract content from your file and generate segment content based on it.",
+      "includeAiIllustrations": "Include AI illustrations",
+      "advancedSettings": "Advanced settings",
+      "generatingSummary": "Generating {{count}} segment(s) {{details}}.",
+      "withIllustrations": "with text blocks, exercises, and illustrations",
+      "withoutIllustrations": "with text blocks and exercises",
+      "mayTakeSeconds": "This may take {{range}} seconds.",
+      "generatingContent": "Generating content...",
+      "generateSegments": "Generate {{count}} Segment(s)",
+      "generateFromFile": "Generate from File",
+      "languageOptions": {
+        "english": "English",
+        "spanish": "Spanish",
+        "french": "French",
+        "german": "German",
+        "italian": "Italian",
+        "portuguese": "Portuguese",
+        "russian": "Russian",
+        "chinese": "Chinese",
+        "japanese": "Japanese",
+        "arabic": "Arabic"
+      },
+      "instructionLanguages": {
+        "english": "English",
+        "russian": "Russian",
+        "spanish": "Spanish",
+        "french": "French",
+        "german": "German",
+        "italian": "Italian",
+        "portuguese": "Portuguese"
+      },
+      "exerciseTypes": {
+        "drag_to_gap": { "label": "Drag to Gap", "description": "Drag word chips into gaps" },
+        "type_word_in_gap": { "label": "Type in Gap", "description": "Type the missing word" },
+        "select_word_form": { "label": "Select Form", "description": "Pick the correct word form" },
+        "match_pairs": { "label": "Match Pairs", "description": "Match terms to definitions" },
+        "build_sentence": { "label": "Build Sentence", "description": "Rearrange shuffled words" },
+        "order_paragraphs": { "label": "Order Paragraphs", "description": "Sequence paragraphs correctly" },
+        "sort_into_columns": { "label": "Sort into Columns", "description": "Sort words into categories" },
+        "test_without_timer": { "label": "Test (no timer)", "description": "Multiple-choice quiz" },
+        "test_with_timer": { "label": "Test (timer)", "description": "Timed multiple-choice quiz" },
+        "true_false": { "label": "True / False", "description": "True or false statements" }
+      },
+      "errors": {
+        "enterTopic": "Please enter a topic before generating.",
+        "uploadFile": "Please upload a file before generating.",
+        "invalidResponse": "Generation finished but the server returned an empty or invalid response.",
+        "generic": "Something went wrong. Please try again."
+      },
+      "success": {
+        "contentGenerated": "Content generated!",
+        "segmentsCreated": "{{count}} segment(s)",
+        "textBlocksCreated": "{{count}} text block(s)",
+        "exercisesCreated": "{{count}} exercise(s)",
+        "illustrationsCreated": "{{count}} illustration(s)",
+        "segmentTextCount": "{{count}} text",
+        "imageTag": "image",
+        "generateMore": "Generate more",
+        "done": "Done"
+      }
     }
   },
   "landing": {

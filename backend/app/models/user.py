@@ -10,6 +10,8 @@ class UserRole(str, enum.Enum):
 
 class SubscriptionType(str, enum.Enum):
     FREE = "free"
+    STANDARD = "standard"
+    # Keeps backward compatibility for legacy accounts using premium name.
     PREMIUM = "premium"
 
 class User(Base):
@@ -46,6 +48,12 @@ class User(Base):
     email_campaigns = relationship("EmailCampaign", back_populates="created_by_user")
     course_enrollments = relationship("CourseEnrollment", back_populates="user")
     user_subscriptions = relationship("UserSubscription", back_populates="user")
+    # Ledger of teacher subscription charges and related adjustments.
+    teacher_payments = relationship(
+        "TeacherPayment",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def full_name(self) -> str:
@@ -62,8 +70,8 @@ class User(Base):
     @property
     def is_premium(self) -> bool:
         """Check if user has premium or pro subscription"""
-        # Check subscription_type column (FREE or PREMIUM)
-        if self.subscription_type == SubscriptionType.PREMIUM:
+        # Check subscription_type column (FREE, STANDARD, or legacy PREMIUM)
+        if self.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]:
             return True
         
         # Also check UserSubscription for PRO accounts
@@ -73,7 +81,42 @@ class User(Base):
             (sub.subscription.name for sub in self.user_subscriptions if sub.is_active),
             None
         )
-        if active_sub and active_sub in [SubscriptionName.PREMIUM, SubscriptionName.PRO]:
+        if active_sub and active_sub in [
+            SubscriptionName.STANDARD,
+            SubscriptionName.PREMIUM,
+            SubscriptionName.PRO,
+        ]:
             return True
         
         return False
+
+    @property
+    def subscription(self):
+        """Returns the name of the active subscription plan, or None for free users."""
+        active = next(
+            (sub for sub in self.user_subscriptions if sub.is_active),
+            None
+        )
+        if active and active.subscription:
+            return active.subscription.name.value
+        return None
+
+    @property
+    def subscription_ends_at(self):
+        """Returns the end datetime of the active subscription so the header badge can show days left."""
+        active = next(
+            (sub for sub in self.user_subscriptions if sub.is_active),
+            None
+        )
+        if active:
+            return active.ends_at
+        return None
+
+    @property
+    def avatar_url(self) -> str | None:
+        """Returns persisted profile avatar URL from notification prefs JSON."""
+        # Stores profile metadata JSON where avatar URL is persisted by /users/me/avatar.
+        prefs = self.notification_prefs if isinstance(self.notification_prefs, dict) else {}
+        # Stores normalized avatar URL value expected by frontend and presence payloads.
+        avatar_url_value = prefs.get("avatar_url")
+        return avatar_url_value if isinstance(avatar_url_value, str) and avatar_url_value.strip() else None

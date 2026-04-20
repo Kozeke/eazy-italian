@@ -4,13 +4,17 @@
  * Props:
  *   userName     {string}   – first initial in avatar              (default "Teacher")
  *   userEmail    {string}   – shown in user dropdown identity block
+ *   avatarUrl    {string}   – optional profile icon URL for circular avatar
  *   trialUntil   {string}   – ISO date string; null hides the trial icon entirely
  *   darkMode     {boolean}  – controlled dark-mode state
- *   onToggleDark {func}     – called when dark-theme toggle is clicked
- *   onLogout     {func}     – called when Logout is clicked
+ *   onToggleDark      {func}  – called when dark-theme toggle is clicked
+ *   onLogout          {func}  – called when Logout is clicked
+ *   onProfileSettings {func}  – opens the personal profile screen (route chosen by parent)
+ *   onTariffs         {func}  – opens plans / pricing context (route chosen by parent)
  */
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { SHELL_HEADER_HEIGHT } from "../../../components/layout/shellDimensions";
 
 /* ── Design tokens ────────────────────────────────────────────────────────── */
@@ -106,6 +110,11 @@ const CSS = `
   }
   .ah-trial-btn:hover { background: ${T.limeL}; }
   .ah-trial-btn[aria-expanded="true"] { background: ${T.limeL}; }
+  .ah-trial-btn:hover .ah-trial-days,
+  .ah-trial-btn[aria-expanded="true"] .ah-trial-days {
+    background: ${T.violet};
+    color: ${T.white};
+  }
 
   /* Animated ring on the trial icon */
   .ah-trial-ring {
@@ -114,6 +123,26 @@ const CSS = `
     border: 1.5px solid currentColor;
     opacity: .35;
     animation: ah-ring-pulse 2.6s ease-in-out infinite;
+  }
+  .ah-trial-days {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background: ${T.white};
+    border: 1px solid ${T.border};
+    padding: 0 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: ${T.violet};
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(17, 24, 39, .1);
+    transition: background .14s, color .14s;
   }
   @keyframes ah-ring-pulse {
     0%,100% { transform: scale(1);   opacity: .35; }
@@ -145,6 +174,12 @@ const CSS = `
     box-shadow: 0 4px 14px ${T.violet}44;
   }
   .ah-avatar:active { transform: scale(.95); }
+  .ah-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
 
   /* ── Shared dropdown shell ──────────────────────────────────────────────── */
   .ah-dropdown {
@@ -422,10 +457,23 @@ const IcoChat = () => (
 );
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
-function formatTrialDate(isoStr) {
+function formatTrialDate(isoStr, locale = "en-US") {
   if (!isoStr) return null;
   try {
-    return new Date(isoStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return new Date(isoStr).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" });
+  } catch { return null; }
+}
+// Calculates whole calendar days left until the subscription end date.
+function getTrialDaysLeft(isoStr) {
+  if (!isoStr) return null;
+  try {
+    const end = new Date(isoStr);
+    if (Number.isNaN(end.getTime())) return null;
+    const now = new Date();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfEndDate = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+    return Math.max(0, Math.ceil((endOfEndDate.getTime() - startOfToday.getTime()) / msPerDay));
   } catch { return null; }
 }
 function getInitial(name) {
@@ -447,42 +495,52 @@ function usePopover(ref, onClose) {
 }
 
 /* ── TrialPopover ────────────────────────────────────────────────────────── */
-function TrialPopover({ trialUntil, onClose }) {
+function TrialPopover({ trialUntil, onClose, onTariffs }) {
+  // Provides translation function for subscription popover labels.
+  const { t, i18n } = useTranslation();
   const ref = useRef(null);
   usePopover(ref, onClose);
   const [tab, setTab] = useState("plan"); // "plan" | "limits"
-  const trialDate = formatTrialDate(trialUntil);
+  const trialDate    = formatTrialDate(trialUntil, i18n.language || "en-US");
+  const daysLeft     = getTrialDaysLeft(trialUntil);
+  // Paid plan when an expiry date exists; free otherwise.
+  const isPaid = trialUntil != null;
 
   return (
-    <div className="ah-dropdown ah-trial-pop" ref={ref} role="dialog" aria-label="Subscription info">
+    <div className="ah-dropdown ah-trial-pop" ref={ref} role="dialog" aria-label={t("admin.subscription.info", { defaultValue: "Subscription info" })}>
       {/* Tabs */}
       <div className="ah-tp-tabs">
         <button className={`ah-tp-tab ${tab === "plan" ? "active" : ""}`} onClick={() => setTab("plan")}>
-          Plan
+          {t("admin.subscription.planTab", { defaultValue: "Plan" })}
         </button>
         <button className={`ah-tp-tab ${tab === "limits" ? "active" : ""}`} onClick={() => setTab("limits")}>
-          Limits
+          {t("admin.subscription.limitsTab", { defaultValue: "Limits" })}
         </button>
       </div>
 
       {tab === "plan" ? (
         <div className="ah-tp-body">
           <div className="ah-tp-plan-row">
-            <span className="ah-tp-plan-name">Standard</span>
-            <span className="ah-tp-badge">Trial</span>
+            <span className="ah-tp-plan-name">{isPaid ? t("admin.subscription.standardPlan", { defaultValue: "Standard" }) : t("admin.subscription.freePlan", { defaultValue: "Free" })}</span>
+            <span className="ah-tp-badge">{isPaid ? t("admin.subscription.active", { defaultValue: "Active" }) : t("admin.subscription.freePlan", { defaultValue: "Free" })}</span>
           </div>
-          {trialDate && (
+          {isPaid && trialDate ? (
             <p className="ah-tp-note">
-              Plan paid until {trialDate} inclusive
+              {t("admin.subscription.paidUntil", { defaultValue: "Paid until" })} {trialDate}
+              {daysLeft != null ? ` · ${daysLeft} ${t("admin.subscription.daysLeft", { defaultValue: `day${daysLeft !== 1 ? "s" : ""} left` })}` : ""}
+            </p>
+          ) : (
+            <p className="ah-tp-note">
+              {t("admin.subscription.upgradeHint", { defaultValue: "Upgrade to unlock all features" })}
             </p>
           )}
-          <button className="ah-tp-cta" onClick={onClose}>
-            Go to plans
+          <button className="ah-tp-cta" onClick={() => { onClose(); onTariffs?.(); }}>
+            {t("admin.subscription.goToPlans", { defaultValue: "Go to plans" })}
           </button>
         </div>
       ) : (
         <div className="ah-tp-limits">
-          Usage limits will appear here.
+          {t("admin.subscription.limitsPlaceholder", { defaultValue: "Usage limits will appear here." })}
         </div>
       )}
     </div>
@@ -490,28 +548,37 @@ function TrialPopover({ trialUntil, onClose }) {
 }
 
 /* ── UserDropdown ────────────────────────────────────────────────────────── */
-function UserDropdown({ userName, userEmail, darkMode, onToggleDark, onLogout, onClose }) {
+function UserDropdown({ userName, userEmail, darkMode, onToggleDark, onLogout, onClose, onProfileSettings, onTariffs }) {
+  // Provides translation function for user menu actions.
+  const { t } = useTranslation();
   const ref = useRef(null);
   usePopover(ref, onClose);
 
   const handle = (fn) => (e) => { e.stopPropagation(); fn?.(); };
 
+  // Closes the popover then runs the parent route handler so navigation is not blocked by overlay logic.
+  const runThenClose = (fn) => (e) => {
+    e.stopPropagation();
+    onClose();
+    fn?.();
+  };
+
   return (
-    <div className="ah-dropdown ah-user-drop" ref={ref} role="menu" aria-label="User menu">
+    <div className="ah-dropdown ah-user-drop" ref={ref} role="menu" aria-label={t("admin.userMenu.label", { defaultValue: "User menu" })}>
       {/* Identity */}
       <div className="ah-dd-identity">
-        <div className="ah-dd-name">{userName || "Teacher"}</div>
+        <div className="ah-dd-name">{userName || t("admin.role", { defaultValue: "Teacher" })}</div>
         {userEmail && <div className="ah-dd-email">{userEmail}</div>}
       </div>
 
-      <button className="ah-dd-item" role="menuitem" onClick={handle(onClose)}>
+      <button className="ah-dd-item" role="menuitem" onClick={runThenClose(onProfileSettings)}>
         <span className="ah-dd-ico"><IcoSettings /></span>
-        Profile settings
+        {t("admin.profileSettings.pageTitle", { defaultValue: "Profile settings" })}
       </button>
 
-      <button className="ah-dd-item" role="menuitem" onClick={handle(onClose)}>
+      <button className="ah-dd-item" role="menuitem" onClick={runThenClose(onTariffs)}>
         <span className="ah-dd-ico"><IcoStar /></span>
-        Tariffs
+        {t("admin.tariffs.title", { defaultValue: "Tariffs" })}
       </button>
 
       <button
@@ -519,7 +586,7 @@ function UserDropdown({ userName, userEmail, darkMode, onToggleDark, onLogout, o
         onClick={handle(onToggleDark)}
       >
         <span className="ah-dd-ico"><IcoMoon /></span>
-        Dark theme
+        {t("admin.theme.dark", { defaultValue: "Dark theme" })}
         <div className={`ah-toggle ${darkMode ? "ah-toggle--on" : ""}`} aria-hidden="true">
           <div className="ah-toggle-thumb" />
         </div>
@@ -529,7 +596,7 @@ function UserDropdown({ userName, userEmail, darkMode, onToggleDark, onLogout, o
 
       <button className="ah-dd-item ah-dd-item--danger" role="menuitem" onClick={handle(onLogout)}>
         <span className="ah-dd-ico"><IcoLogout /></span>
-        Logout
+        {t("nav.logout", { defaultValue: "Logout" })}
       </button>
     </div>
   );
@@ -537,32 +604,34 @@ function UserDropdown({ userName, userEmail, darkMode, onToggleDark, onLogout, o
 
 /* ── HelpDropdown ────────────────────────────────────────────────────────── */
 function HelpDropdown({ onClose }) {
+  // Provides translation function for help menu copy.
+  const { t } = useTranslation();
   const ref = useRef(null);
   usePopover(ref, onClose);
 
   return (
-    <div className="ah-dropdown ah-help-drop" ref={ref} role="menu" aria-label="Help menu">
+    <div className="ah-dropdown ah-help-drop" ref={ref} role="menu" aria-label={t("admin.help.menuLabel", { defaultValue: "Help menu" })}>
       {/* Getting started section */}
       <div className="ah-help-section">
         <div className="ah-help-section-ico" aria-hidden="true"><IcoSchool /></div>
-        <span className="ah-help-section-title">Getting started</span>
+        <span className="ah-help-section-title">{t("admin.help.gettingStarted", { defaultValue: "Getting started" })}</span>
       </div>
 
       <button className="ah-help-item" role="menuitem" onClick={onClose}>
-        Tutorial articles
+        {t("admin.help.tutorialArticles", { defaultValue: "Tutorial articles" })}
       </button>
       <button className="ah-help-item" role="menuitem" onClick={onClose}>
-        Updates
-        <span className="ah-help-dot" aria-label="New updates available" />
+        {t("admin.help.updates", { defaultValue: "Updates" })}
+        <span className="ah-help-dot" aria-label={t("admin.help.newUpdates", { defaultValue: "New updates available" })} />
       </button>
 
       <div className="ah-help-sep" role="separator" />
 
       <button className="ah-help-item" role="menuitem" onClick={onClose}>
-        Blog
+        {t("admin.help.blog", { defaultValue: "Blog" })}
       </button>
       <button className="ah-help-item" role="menuitem" onClick={onClose}>
-        YouTube channel
+        {t("admin.help.youtube", { defaultValue: "YouTube channel" })}
       </button>
 
       <div className="ah-help-sep" role="separator" />
@@ -570,7 +639,7 @@ function HelpDropdown({ onClose }) {
       {/* Support section */}
       <div className="ah-help-section">
         <div className="ah-help-support-ico" aria-hidden="true"><IcoChat /></div>
-        <span className="ah-help-section-title">Support service</span>
+        <span className="ah-help-section-title">{t("admin.help.support", { defaultValue: "Support service" })}</span>
       </div>
     </div>
   );
@@ -578,19 +647,29 @@ function HelpDropdown({ onClose }) {
 
 /* ── AdminHeader ─────────────────────────────────────────────────────────── */
 export default function AdminHeader({
-  userName     = "Teacher",
-  userEmail    = "",
-  trialUntil   = null,
-  darkMode     = false,
-  onToggleDark = () => {},
-  onLogout     = () => {},
+  userName            = "Teacher",
+  userEmail           = "",
+  avatarUrl           = "",
+  trialUntil          = null,
+  darkMode            = false,
+  onToggleDark        = () => {},
+  onLogout            = () => {},
+  onProfileSettings   = () => {},
+  onTariffs           = () => {},
 }) {
+  // Provides translation function for top-header controls and aria labels.
+  const { t } = useTranslation();
   const [userOpen,  setUserOpen]  = useState(false);
   const [trialOpen, setTrialOpen] = useState(false);
   const [helpOpen,  setHelpOpen]  = useState(false);
 
   const initial   = useMemo(() => getInitial(userName), [userName]);
-  const showTrial = trialUntil != null;
+  // Stores whether a non-empty profile icon URL is available for avatar image rendering.
+  const hasAvatarImage = useMemo(() => typeof avatarUrl === "string" && avatarUrl.trim().length > 0, [avatarUrl]);
+  // Icon is always visible so users can always see their plan status.
+  const showTrial = true;
+  // Stores the remaining paid days shown as a mini badge — null means unlimited/free plan.
+  const trialDaysLeft = useMemo(() => getTrialDaysLeft(trialUntil), [trialUntil]);
 
   const openUser   = useCallback(() => { setTrialOpen(false); setHelpOpen(false); setUserOpen(o => !o); }, []);
   const openTrial  = useCallback(() => { setUserOpen(false);  setHelpOpen(false); setTrialOpen(o => !o); }, []);
@@ -670,10 +749,10 @@ export default function AdminHeader({
               onClick={openHelp}
               aria-haspopup="menu"
               aria-expanded={helpOpen}
-              aria-label="Help menu"
+              aria-label={t("admin.help.menuLabel", { defaultValue: "Help menu" })}
             >
               <IcoHelp />
-              Help
+              {t("admin.help.button", { defaultValue: "Help" })}
             </button>
             {helpOpen && <HelpDropdown onClose={closeHelp} />}
           </div>
@@ -686,15 +765,28 @@ export default function AdminHeader({
                 onClick={openTrial}
                 aria-haspopup="dialog"
                 aria-expanded={trialOpen}
-                aria-label="Subscription info"
-                title="Trial plan"
+                aria-label={
+                  trialDaysLeft != null
+                    ? t("admin.subscription.daysLeftAria", { defaultValue: `Subscription: ${trialDaysLeft} days left`, days: trialDaysLeft })
+                    : t("admin.subscription.planAria", { defaultValue: "Subscription plan" })
+                }
+                title={
+                  trialDaysLeft != null
+                    ? t("admin.subscription.daysLeftTitle", { defaultValue: `${trialDaysLeft} days left`, days: trialDaysLeft })
+                    : t("admin.subscription.freePlanTitle", { defaultValue: "Free plan - click to upgrade" })
+                }
               >
                 <span className="ah-trial-ring" aria-hidden="true" />
                 <IcoTrial />
+                {trialDaysLeft != null && (
+                  <span className="ah-trial-days" aria-hidden="true">
+                    {trialDaysLeft}d
+                  </span>
+                )}
               </button>
 
               {trialOpen && (
-                <TrialPopover trialUntil={trialUntil} onClose={closeTrial} />
+                <TrialPopover trialUntil={trialUntil} onClose={closeTrial} onTariffs={onTariffs} />
               )}
             </div>
           )}
@@ -709,10 +801,14 @@ export default function AdminHeader({
               onClick={openUser}
               aria-haspopup="menu"
               aria-expanded={userOpen}
-              aria-label={`Open user menu for ${userName}`}
+              aria-label={t("admin.userMenu.openForUser", { defaultValue: `Open user menu for ${userName}`, userName })}
               title={userName}
             >
-              {initial}
+              {hasAvatarImage ? (
+                <img src={avatarUrl} alt={`${userName} avatar`} className="ah-avatar-img" />
+              ) : (
+                initial
+              )}
             </button>
 
             {userOpen && (
@@ -723,6 +819,8 @@ export default function AdminHeader({
                 onToggleDark={onToggleDark}
                 onLogout={() => { closeUser(); onLogout(); }}
                 onClose={closeUser}
+                onProfileSettings={onProfileSettings}
+                onTariffs={onTariffs}
               />
             )}
           </div>

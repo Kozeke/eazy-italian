@@ -1,284 +1,205 @@
 """
 app/core/presence_manager.py
-─────────────────────────────
-In-memory store for the "who is online in this classroom" feature.
-
-Design notes
-────────────
-• One PresenceManager singleton shared across the process.
-• Each classroom keeps a dict  user_id → PresenceEntry  (not a list,
-  so duplicate joins from the same user are handled cleanly).
-• WebSocket connections are stored alongside the entry so we can
-  broadcast targeted messages.
-• Heartbeat staleness is tracked via `last_seen`; a background task
-  (optional, see evict_stale) can prune ghosts if connections drop
-  without sending a proper `close`.
+============================
+In-memory classroom presence tracker shared by WebSocket and REST presence endpoints.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-import logging
+import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+from typing import Any
 
 from fastapi import WebSocket
 
-logger = logging.getLogger(__name__)
 
-
-@dataclass
-class PresenceEntry:
+# Stores a single user entry in a classroom presence map.
+@dataclass(slots=True)
+class PresenceUser:
+    # Stores the user id shown in the teacher presence list.
     user_id: int
+    # Stores the display name shown in the teacher presence list.
     user_name: str
-    avatar_url: Optional[str]
-    last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    # One user may have multiple browser tabs open – store all their sockets
-    connections: Set[WebSocket] = field(default_factory=set)
-
-    def to_dict(self) -> dict:
-        return {
-            "user_id": self.user_id,
-            "user_name": self.user_name,
-            "avatar_url": self.avatar_url,
-            "last_seen": self.last_seen.isoformat(),
-        }
+    # Stores the optional avatar URL shown in the teacher presence list.
+    avatar_url: str | None
+    # Tracks active websocket connections for this user in this classroom.
+    sockets: set[WebSocket] = field(default_factory=set)
+    # Tracks whether at least one of this user's sockets belongs to a teacher.
+    is_teacher: bool = False
+    # Stores the latest heartbeat timestamp for stale connection eviction.
+    last_seen_ts: float = field(default_factory=time.time)
 
 
+# Coordinates per-classroom online users and teacher broadcasts.
 class PresenceManager:
-    """
-    Thread-safe (asyncio-safe) registry of online users per classroom.
-
-    Public interface
-    ────────────────
-    join(classroom_id, user_id, user_name, avatar_url, ws)
-        → Registers the socket; returns True if this is a *new* user (first tab).
-
-    leave(classroom_id, user_id, ws)
-        → Removes the socket; returns True if this was the user's *last* tab.
-
-    heartbeat(classroom_id, user_id)
-        → Updates last_seen timestamp.
-
-    get_users(classroom_id)
-        → List[dict] snapshot of all online users.
-
-    broadcast(classroom_id, message, exclude_ws=None)
-        → Sends a JSON payload to every connected socket in the room,
-          optionally skipping one socket (e.g. the sender).
-
-    broadcast_to_teachers(classroom_id, message)
-        → Convenience: sends only to sockets whose user_id is in
-          self._teachers[classroom_id].  (Teachers register themselves.)
-
-    evict_stale(max_age_seconds=90)
-        → Removes entries whose last_seen is older than max_age_seconds.
-          Call from a background task if desired.
-    """
-
+    # Initializes internal state and synchronization primitives.
     def __init__(self) -> None:
-        # classroom_id → { user_id → PresenceEntry }
-        self._rooms: Dict[int, Dict[int, PresenceEntry]] = {}
-        # classroom_id → set of user_ids who are teachers
-        self._teachers: Dict[int, Set[int]] = {}
+        # Protects all mutable presence state from concurrent websocket handlers.
         self._lock = asyncio.Lock()
+        # Maps classroom id -> user id -> presence record.
+        self._rooms: dict[int, dict[int, PresenceUser]] = {}
 
-    # ─── Mutation helpers ────────────────────────────────────────────────────
-
+    # Adds/updates a user presence record and returns whether the user was newly online.
     async def join(
         self,
         classroom_id: int,
         user_id: int,
         user_name: str,
-        avatar_url: Optional[str],
+        avatar_url: str | None,
         ws: WebSocket,
-        is_teacher: bool = False,
+        is_teacher: bool,
     ) -> bool:
-        """
-        Register `ws` for `user_id` in `classroom_id`.
-        Returns True if this is the user's first connection (i.e. they are
-        newly online – useful to trigger `user_joined` broadcast).
-        """
         async with self._lock:
+            # Creates the room dictionary on first join for this classroom.
             room = self._rooms.setdefault(classroom_id, {})
-            is_new = user_id not in room
+            # Looks up an existing user record to support multiple open tabs.
+            user_presence = room.get(user_id)
+            # Tracks whether user becomes online for the first time in this room.
+            is_new_user = user_presence is None
 
-            if is_new:
-                room[user_id] = PresenceEntry(
+            if user_presence is None:
+                # Creates a fresh presence record for a newly online user.
+                user_presence = PresenceUser(
                     user_id=user_id,
                     user_name=user_name,
                     avatar_url=avatar_url,
+                    is_teacher=is_teacher,
                 )
+                room[user_id] = user_presence
             else:
-                # Update meta in case name/avatar changed
-                entry = room[user_id]
-                entry.user_name = user_name
-                entry.avatar_url = avatar_url
-                entry.last_seen = datetime.now(timezone.utc)
+                # Refreshes metadata if the client sends newer profile fields.
+                user_presence.user_name = user_name or user_presence.user_name
+                user_presence.avatar_url = avatar_url
+                # Preserves teacher visibility if any tab is teacher-authenticated.
+                user_presence.is_teacher = user_presence.is_teacher or is_teacher
 
-            room[user_id].connections.add(ws)
+            # Registers this websocket as one active tab/connection.
+            user_presence.sockets.add(ws)
+            # Updates freshness for stale-connection eviction logic.
+            user_presence.last_seen_ts = time.time()
+            return is_new_user
 
-            if is_teacher:
-                self._teachers.setdefault(classroom_id, set()).add(user_id)
-
-            return is_new
-
-    async def leave(
-        self,
-        classroom_id: int,
-        user_id: int,
-        ws: WebSocket,
-    ) -> bool:
-        """
-        Remove `ws` from `user_id`'s connection set.
-        Returns True if this was the user's last connection (fully offline).
-        """
+    # Removes a websocket from presence and returns True when the user fully goes offline.
+    async def leave(self, classroom_id: int, user_id: int, ws: WebSocket) -> bool:
         async with self._lock:
+            # Loads room state if it still exists.
             room = self._rooms.get(classroom_id)
             if not room:
                 return False
 
-            entry = room.get(user_id)
-            if not entry:
+            # Loads user state if it still exists.
+            user_presence = room.get(user_id)
+            if not user_presence:
                 return False
 
-            entry.connections.discard(ws)
+            # Removes the disconnected websocket from this user record.
+            user_presence.sockets.discard(ws)
+            # Updates freshness to avoid immediate stale evictions.
+            user_presence.last_seen_ts = time.time()
 
-            if entry.connections:
-                # Still has other tabs open – not fully offline
+            # If user still has active tabs, they are not offline yet.
+            if user_presence.sockets:
                 return False
 
-            # Fully offline – clean up
-            del room[user_id]
+            # Deletes user when no websocket tabs remain.
+            room.pop(user_id, None)
+            # Deletes room when no users remain.
             if not room:
-                del self._rooms[classroom_id]
-
-            teachers = self._teachers.get(classroom_id)
-            if teachers:
-                teachers.discard(user_id)
-                if not teachers:
-                    del self._teachers[classroom_id]
-
+                self._rooms.pop(classroom_id, None)
             return True
 
+    # Refreshes liveness timestamp for a user heartbeat.
     async def heartbeat(self, classroom_id: int, user_id: int) -> None:
         async with self._lock:
-            entry = self._rooms.get(classroom_id, {}).get(user_id)
-            if entry:
-                entry.last_seen = datetime.now(timezone.utc)
+            # Reads room state for this heartbeat.
+            room = self._rooms.get(classroom_id)
+            if not room:
+                return
+            # Reads user state for this heartbeat.
+            user_presence = room.get(user_id)
+            if not user_presence:
+                return
+            # Updates liveness timestamp to keep user online.
+            user_presence.last_seen_ts = time.time()
 
-    # ─── Queries ─────────────────────────────────────────────────────────────
-
-    async def get_users(self, classroom_id: int) -> List[dict]:
+    # Returns the current online users snapshot for a classroom.
+    async def get_users(self, classroom_id: int) -> list[dict[str, Any]]:
         async with self._lock:
+            # Reads room state and defaults to empty snapshot.
             room = self._rooms.get(classroom_id, {})
-            return [e.to_dict() for e in room.values()]
+            # Builds a deterministic list sorted by user id for frontend stability.
+            users_snapshot = [
+                {
+                    "user_id": user_presence.user_id,
+                    "user_name": user_presence.user_name,
+                    "avatar_url": user_presence.avatar_url,
+                }
+                for user_presence in sorted(room.values(), key=lambda item: item.user_id)
+            ]
+            return users_snapshot
 
-    def get_user_count(self, classroom_id: int) -> int:
-        return len(self._rooms.get(classroom_id, {}))
+    # Sends a JSON payload only to teacher sockets in a classroom.
+    async def broadcast_to_teachers(self, classroom_id: int, payload: dict[str, Any]) -> None:
+        # Serializes once for all recipients to reduce repeated work.
+        serialized_payload = json.dumps(payload)
 
-    # ─── Broadcasting ────────────────────────────────────────────────────────
-
-    async def broadcast(
-        self,
-        classroom_id: int,
-        message: dict,
-        exclude_ws: Optional[WebSocket] = None,
-    ) -> None:
-        """Send `message` (as JSON) to every socket in the room."""
         async with self._lock:
+            # Copies teacher sockets while locked, then sends outside lock.
             room = self._rooms.get(classroom_id, {})
-            all_sockets: List[WebSocket] = []
-            for entry in room.values():
-                all_sockets.extend(entry.connections)
+            # Collects unique teacher sockets across all teacher users.
+            teacher_sockets = {
+                socket
+                for user_presence in room.values()
+                if user_presence.is_teacher
+                for socket in user_presence.sockets
+            }
 
-        payload = json.dumps(message)
-        dead: List[WebSocket] = []
-
-        for ws in all_sockets:
-            if ws is exclude_ws:
+        # Sends payload to each teacher socket.
+        for teacher_socket in teacher_sockets:
+            try:
+                await teacher_socket.send_text(serialized_payload)
+            except Exception:
+                # Ignore transient socket failures; leave/eviction cleanup handles state.
                 continue
-            try:
-                await ws.send_text(payload)
-            except Exception:
-                dead.append(ws)
 
-        # Clean up dead sockets (best-effort, no lock needed here)
-        for ws in dead:
-            logger.debug("Removing dead socket during broadcast")
-
-    async def broadcast_to_teachers(
-        self,
-        classroom_id: int,
-        message: dict,
-    ) -> None:
-        """Send only to teacher sockets in the room."""
-        async with self._lock:
-            teacher_ids = self._teachers.get(classroom_id, set())
-            room = self._rooms.get(classroom_id, {})
-            sockets: List[WebSocket] = []
-            for uid in teacher_ids:
-                entry = room.get(uid)
-                if entry:
-                    sockets.extend(entry.connections)
-
-        payload = json.dumps(message)
-        for ws in sockets:
-            try:
-                await ws.send_text(payload)
-            except Exception:
-                pass
-
-    async def send_to_user(
-        self,
-        classroom_id: int,
-        user_id: int,
-        message: dict,
-    ) -> None:
-        """Send a message to all sockets belonging to a specific user."""
-        async with self._lock:
-            entry = self._rooms.get(classroom_id, {}).get(user_id)
-            sockets = list(entry.connections) if entry else []
-
-        payload = json.dumps(message)
-        for ws in sockets:
-            try:
-                await ws.send_text(payload)
-            except Exception:
-                pass
-
-    # ─── Maintenance ─────────────────────────────────────────────────────────
-
+    # Removes stale connections that stopped heartbeating and returns removed-user count.
     async def evict_stale(self, max_age_seconds: int = 90) -> int:
-        """
-        Remove entries whose last heartbeat is older than `max_age_seconds`.
-        Returns the number of users evicted.
-        Call from a background task, e.g. every 60 s.
-        """
-        now = datetime.now(timezone.utc)
-        evicted = 0
+        # Stores current timestamp used for age checks.
+        now_ts = time.time()
+        # Counts users removed during this eviction pass.
+        evicted_users = 0
 
         async with self._lock:
-            for classroom_id, room in list(self._rooms.items()):
-                stale = [
-                    uid
-                    for uid, entry in room.items()
-                    if (now - entry.last_seen).total_seconds() > max_age_seconds
-                ]
-                for uid in stale:
-                    del room[uid]
-                    evicted += 1
-                    logger.debug(
-                        "Evicted stale user %s from classroom %s", uid, classroom_id
-                    )
+            # Tracks empty rooms to delete after iterating.
+            empty_room_ids: list[int] = []
+
+            for classroom_id, room in self._rooms.items():
+                # Tracks users to remove from this room.
+                stale_user_ids: list[int] = []
+
+                for user_id, user_presence in room.items():
+                    # Computes seconds since this user was last seen.
+                    user_age_seconds = now_ts - user_presence.last_seen_ts
+                    if user_age_seconds > max_age_seconds:
+                        stale_user_ids.append(user_id)
+
+                # Removes stale users after iteration to avoid mutation during loop.
+                for stale_user_id in stale_user_ids:
+                    room.pop(stale_user_id, None)
+                    evicted_users += 1
+
+                # Queues empty rooms for cleanup.
                 if not room:
-                    del self._rooms[classroom_id]
+                    empty_room_ids.append(classroom_id)
 
-        return evicted
+            # Removes empty rooms from global map.
+            for empty_room_id in empty_room_ids:
+                self._rooms.pop(empty_room_id, None)
+
+        return evicted_users
 
 
-# ─── Singleton ────────────────────────────────────────────────────────────────
-
+# Exposes a singleton shared across presence endpoint modules.
 presence_manager = PresenceManager()

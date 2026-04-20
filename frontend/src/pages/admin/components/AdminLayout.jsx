@@ -12,10 +12,13 @@
  *   on top when expanded, which is standard SaaS behaviour (e.g. ProgressMe).
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useAuth } from "../../../hooks/useAuth";
 import AdminHeader from "./AdminHeader.jsx";
 import AdminSidebar from "./AdminSidebar.jsx";
+import SupportChatWidget from "./SupportChatWidget";
 import { SHELL_HEADER_HEIGHT, SHELL_SIDEBAR_COLLAPSED_WIDTH } from "../../../components/layout/shellDimensions";
 
 // Stores collapsed sidebar width in pixels and keeps teacher/student shells aligned.
@@ -67,27 +70,49 @@ const CSS = `
 `;
 
 export default function AdminLayout() {
+  // Provides translation function for shell-level fallback labels.
+  const { t } = useTranslation();
   const navigate  = useNavigate();
   const location  = useLocation();
+  const { user, logout } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
   // True when the legacy full-screen builder route is active (currently unused — see TeacherOnboarding.legacy.jsx + AdminRoutes).
   const isCourseBuilder = location.pathname === "/admin/courses/builder";
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
+  // Prefer API full_name, then first+last, then email local-part for the shell menu label.
+  const headerDisplayName = useMemo(() => {
+    const full = user?.full_name?.trim();
+    if (full) return full;
+    const combined = `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim();
+    if (combined) return combined;
+    const email = user?.email?.trim();
+    if (email && email.includes("@")) return email.split("@")[0];
+    return t("admin.role.teacher", { defaultValue: "Teacher" });
+  }, [t, user]);
+  // Stores subscription end date and controls the tariff icon visibility in the header.
+  const trialUntilIso = user?.subscription_ends_at ?? null;
+
+  const handleLogout = async () => {
+    const loggedOut = await logout();
+    if (loggedOut) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("refresh_token");
+      navigate("/login");
+    }
   };
 
   return (
     <>
       <style>{CSS}</style>
       <AdminHeader
-        userName="Katarina"
-        userEmail="katarina@school.edu"
-        trialUntil="2025-03-22"
+        userName={headerDisplayName}
+        userEmail={user?.email ?? ""}
+        trialUntil={trialUntilIso}
         darkMode={darkMode}
         onToggleDark={() => setDarkMode(d => !d)}
         onLogout={handleLogout}
+        onProfileSettings={() => navigate("/admin/profile")}
+        onTariffs={() => navigate("/admin/tariffs")}
       />
       <div className="al-root">
         {/* Fixed sidebar — overlays content when expanded */}
@@ -103,6 +128,9 @@ export default function AdminLayout() {
           </div>
         </main>
       </div>
+
+      {/* ── Floating support chat — visible on all admin pages ── */}
+      <SupportChatWidget />
     </>
   );
 }

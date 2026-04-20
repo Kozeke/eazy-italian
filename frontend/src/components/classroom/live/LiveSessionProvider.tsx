@@ -1,29 +1,32 @@
 /**
- * LiveSessionProvider.tsx  (v2 — multi-student observer support)
+ * LiveSessionProvider.tsx  (v4 — evictBlockFromCache)
  *
- * Changes from v1:
+ * Changes from v3:
  * ─────────────────
- * • Students auto-prefix their patch keys: "ex/…" → "s/{userId}/ex/…"
- *   This scopes each student's exercise state into its own namespace,
- *   preventing collisions when multiple students are in the same room.
+ * • New helper  evictBlockKeysFromCache(cache, blockId)
+ *   Removes every key whose path contains "/ex/{blockId}/" from the provided
+ *   Map.  Covers both plain keys ("ex/{blockId}/field") and student-scoped
+ *   keys ("s/{N}/ex/{blockId}/field") so the teacher observation view is also
+ *   cleaned on reset.
  *
- * • Teachers keep sending unmodified keys for guided-fill (broadcast to all
- *   students).
+ * • New context method  evictBlockFromCache(blockId)
+ *   Public version, exposed on LiveSyncContextValue.  Call sites:
+ *     – SectionBlock.bumpAnswerReset   (teacher + student local UI reset)
+ *     – ws.onmessage                   (student receives lesson/reset_block)
+ *     – patch()                        (teacher sends lesson/reset_block — own cache)
  *
- * • observedStudentId state: when the teacher sets this to a student's ID,
- *   the subscribe() function transparently maps "ex/…" → "s/{N}/ex/…" so
- *   all exercise blocks automatically show that student's answers — zero
- *   call-site changes required.
+ * • patch() intercepts LIVE_LESSON_RESET_BLOCK_KEY
+ *   When the teacher broadcasts a block reset, the teacher's own patchCacheRef
+ *   is evicted immediately — before the WS echo returns — so the new component
+ *   that subscribes after the key bump finds an empty cache.
  *
- * • patchCacheRef: every received patch (snapshot + live) is stored so that
- *   when the teacher switches observed student, subscribe() fires immediately
- *   with the cached value — no round-trip needed.
+ * • ws.onmessage intercepts lesson/reset_block
+ *   When any client (including the teacher's own echo) receives this message,
+ *   the block's exercise keys are evicted from patchCacheRef before
+ *   notifyAndCache stores the new reset-block payload.
  *
- * • userId is now exposed on the context value for use by StudentAnswersPanel
- *   and any other consumer that needs it.
- *
- * Backwards-compatible: all existing exercise blocks continue to work with
- * the same useLiveSyncField(key, …) call signature.
+ * All prior changes from v3 (targeted teacher patches, is_correct forwarding)
+ * are preserved unchanged.
  */
 
 import React, {
@@ -40,79 +43,106 @@ import type {
   WsPatch,
   WsSnapshot,
 } from "./liveSession.types";
+import { classroomAnswersApi } from "../../../services/api";
+import { LIVE_LESSON_RESET_BLOCK_KEY } from "./liveSession.types";
 
-// ─── Context ──────────────────────────────────────────────────────────────────
-
-export const LiveSessionContext = createContext<LiveSyncContextValue | null>(
-  null,
-);
-
-// ─── Provider ─────────────────────────────────────────────────────────────────
+export const LiveSessionContext = createContext<LiveSyncContextValue | null>(null);
 
 interface LiveSessionProviderProps {
   classroomId: number;
   role: LiveRole;
   userId: number | string | null | undefined;
   children: React.ReactNode;
-
-  // ── Legacy callbacks kept for ClassroomPage compatibility ─────────────────
   onUnitChange?: (unitId: number) => void;
   onSlideChange?: (slideIndex: number) => void;
   onSectionChange?: (section: { id: string; label: string }) => void;
+  /** Current unit — forwarded in every WS patch so answers can be scoped. */
+  unitId?: number | null;
+  /** Current segment — forwarded in every WS patch so answers can be scoped. */
+  segmentId?: number | null;
 }
 
 const HEARTBEAT_MS = 30_000;
 const RECONNECT_MS = 5_000;
-
-/** Close codes that indicate a permanent server-side rejection — never retry. */
 const PERMANENT_CLOSE_CODES = new Set([4001, 4003, 4004]);
 
-/** Build the student-scoped patch key prefix for a given user ID. */
 function studentPrefix(userId: number | string): string {
   return `s/${userId}/`;
 }
+
+// ─── Cache eviction helper ────────────────────────────────────────────────────
+
+/**
+ * Remove every patchCache entry whose key path contains "/ex/{blockId}/".
+ *
+ * This covers:
+ *   "ex/{blockId}/gap-0"            — student own key (student role)
+ *   "ex/{blockId}/d2g"              — teacher fill key
+ *   "s/42/ex/{blockId}/gap-0"       — student-scoped key in teacher observation view
+ *
+ * Called synchronously before the React key bump that remounts an exercise block,
+ * so the new component's subscribe() call finds nothing in cache and does NOT
+ * schedule a stale-value replay via setTimeout(0).
+ */
+function evictBlockKeysFromCache(
+  cache: Map<string, unknown>,
+  blockId: string,
+): void {
+  const needle = `/ex/${blockId}/`;
+  for (const key of Array.from(cache.keys())) {
+    // Match both "ex/{blockId}/..." (no prefix) and "s/{N}/ex/{blockId}/..."
+    if (key.startsWith(`ex/${blockId}/`) || key.includes(needle)) {
+      cache.delete(key);
+    }
+  }
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function LiveSessionProvider({
   classroomId,
   role,
   userId,
   children,
+  unitId,
+  segmentId,
 }: LiveSessionProviderProps) {
   const [connected, setConnected] = useState(false);
+  const [observedStudentId, setObservedStudentId] = useState<number | null>(null);
 
-  /**
-   * Which student's answers the teacher is currently observing.
-   * null  → teacher sees their own guided-fill patches (standard mode).
-   * N     → teacher's subscribe() is redirected to "s/{N}/…" keys.
-   */
-  const [observedStudentId, setObservedStudentId] = useState<number | null>(
-    null,
+  const observedStudentIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    observedStudentIdRef.current = observedStudentId;
+  }, [observedStudentId]);
+
+  const lessonContextRef = useRef<{ unitId: number | null; segmentId: number | null }>({
+    unitId:    unitId    ?? null,
+    segmentId: segmentId ?? null,
+  });
+
+  useEffect(() => {
+    lessonContextRef.current.unitId    = unitId    ?? null;
+    lessonContextRef.current.segmentId = segmentId ?? null;
+  }, [unitId, segmentId]);
+
+  const setLessonContext = useCallback(
+    (nextUnitId: number | null, nextSegmentId: number | null) => {
+      lessonContextRef.current = { unitId: nextUnitId, segmentId: nextSegmentId };
+    },
+    [],
   );
 
-  // All patches ever received are cached here so that switching observed
-  // student can immediately replay the stored value without a server round-trip.
   const patchCacheRef = useRef<Map<string, unknown>>(new Map());
-
-  // Logical `hwu/…` keys (no student prefix) accumulated for homework REST autosave
   const homeworkLogicalAnswersRef = useRef<Record<string, unknown>>({});
-
-  // listeners: actualKey → Set<handler>
-  // actualKey is the namespaced key ("s/42/ex/…" or plain "ex/…")
-  const listenersRef = useRef<Map<string, Set<(v: unknown) => void>>>(
-    new Map(),
-  );
+  const listenersRef = useRef<Map<string, Set<(v: unknown) => void>>>(new Map());
 
   const wsRef = useRef<WebSocket | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(false);
 
-  // Keep userId in a ref so the connect effect's closure always reads the
-  // latest value without needing it as a reactive dependency.
   const userIdRef = useRef(userId);
-  useEffect(() => {
-    userIdRef.current = userId;
-  }, [userId]);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -129,9 +159,6 @@ export function LiveSessionProvider({
     }
   }, []);
 
-  /**
-   * Notify all handlers subscribed to `actualKey` and update the cache.
-   */
   const notifyAndCache = useCallback((actualKey: string, value: unknown) => {
     patchCacheRef.current.set(actualKey, value);
     const handlers = listenersRef.current.get(actualKey);
@@ -140,65 +167,74 @@ export function LiveSessionProvider({
     }
   }, []);
 
+  // ── Public cache eviction ────────────────────────────────────────────────────
+
+  /**
+   * Evict all cached WS-patch entries for a specific exercise block.
+   * Must be called BEFORE bumping the React key that remounts the block.
+   * See evictBlockKeysFromCache() above for the full rationale.
+   */
+  const evictBlockFromCache = useCallback((blockId: string) => {
+    evictBlockKeysFromCache(patchCacheRef.current, blockId);
+  }, []);
+
   // ── Connect ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!classroomId || !userId) return;
-
     mountedRef.current = true;
 
     const connect = () => {
       if (!mountedRef.current) return;
-
       const existing = wsRef.current;
-      if (
-        existing &&
-        (existing.readyState === WebSocket.OPEN ||
-          existing.readyState === WebSocket.CONNECTING)
-      ) {
-        return;
-      }
-
+      if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) return;
       if (existing) {
-        existing.onopen = null;
-        existing.onmessage = null;
-        existing.onerror = null;
-        existing.onclose = null;
+        existing.onopen = null; existing.onmessage = null;
+        existing.onerror = null; existing.onclose = null;
         wsRef.current = null;
       }
-
-      if (reconnectRef.current) {
-        clearTimeout(reconnectRef.current);
-        reconnectRef.current = null;
-      }
+      if (reconnectRef.current) { clearTimeout(reconnectRef.current); reconnectRef.current = null; }
 
       let ws: WebSocket;
-      try {
-        ws = new WebSocket(getWsUrl());
-      } catch {
-        return;
-      }
+      try { ws = new WebSocket(getWsUrl()); } catch { return; }
       wsRef.current = ws;
 
       ws.onopen = () => {
-        if (!mountedRef.current) {
-          ws.onclose = null;
-          ws.close();
-          return;
-        }
-        if (wsRef.current !== ws) {
-          ws.onclose = null;
-          ws.close();
-          return;
-        }
-
+        if (!mountedRef.current || wsRef.current !== ws) { ws.onclose = null; ws.close(); return; }
         setConnected(true);
         sendJson({ type: "join", role, user_id: userIdRef.current });
-
         if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-        heartbeatRef.current = setInterval(() => {
-          sendJson({ type: "heartbeat" });
-        }, HEARTBEAT_MS);
+        heartbeatRef.current = setInterval(() => sendJson({ type: "heartbeat" }), HEARTBEAT_MS);
+
+        // Pre-seed patch cache from DB
+        if (role === "student" && userIdRef.current != null) {
+          classroomAnswersApi
+            .getForStudent(classroomId)
+            .then(({ patches }) => {
+              if (!mountedRef.current) return;
+              Object.entries(patches).forEach(([k, v]) => {
+                if (!patchCacheRef.current.has(k)) {
+                  notifyAndCache(k, v);
+                }
+              });
+            })
+            .catch(() => {/* non-critical */});
+        } else if (role === "teacher") {
+          classroomAnswersApi
+            .getAllStudents(classroomId)
+            .then(({ students }) => {
+              if (!mountedRef.current) return;
+              Object.entries(students).forEach(([studentId, answers]) => {
+                Object.entries(answers).forEach(([exerciseKey, v]) => {
+                  const scopedKey = `s/${studentId}/${exerciseKey}`;
+                  if (!patchCacheRef.current.has(scopedKey)) {
+                    notifyAndCache(scopedKey, v);
+                  }
+                });
+              });
+            })
+            .catch(() => {/* non-critical */});
+        }
       };
 
       ws.onmessage = (ev) => {
@@ -207,38 +243,43 @@ export function LiveSessionProvider({
           const msg = JSON.parse(ev.data as string) as WsPatch | WsSnapshot;
 
           if (msg.type === "patch") {
+            // ── Block-reset interception ─────────────────────────────────────
+            // When the server broadcasts (or echoes back) a lesson/reset_block
+            // patch, evict all stale exercise-field keys for the affected block
+            // from patchCacheRef BEFORE calling notifyAndCache.
+            //
+            // This ensures that any subscriber which fires AFTER this point
+            // (e.g. the newly-remounted component's useLiveSyncField) finds an
+            // empty cache and never replays the old answer.
+            //
+            // The teacher's own echo arrives here too (server broadcasts to the
+            // whole room including the sender), so both roles are covered by
+            // this single interception point.
+            if (msg.key === LIVE_LESSON_RESET_BLOCK_KEY) {
+              const payload = msg.value as Partial<{ blockId: string }> | null;
+              if (payload?.blockId) {
+                evictBlockKeysFromCache(patchCacheRef.current, payload.blockId);
+              }
+            }
+
             notifyAndCache(msg.key, msg.value);
+
           } else if (msg.type === "snapshot") {
-            Object.entries(msg.patches).forEach(([key, value]) => {
-              notifyAndCache(key, value);
-            });
+            Object.entries(msg.patches).forEach(([key, value]) => notifyAndCache(key, value));
           }
-        } catch {
-          // Ignore malformed frames
-        }
+        } catch { /* ignore malformed frames */ }
       };
 
-      ws.onerror = () => {
-        /* surfaces via onclose */
-      };
+      ws.onerror = () => { /* surfaces via onclose */ };
 
       ws.onclose = (ev) => {
         if (wsRef.current !== ws) return;
         wsRef.current = null;
         if (!mountedRef.current) return;
-
         setConnected(false);
-        if (heartbeatRef.current) {
-          clearInterval(heartbeatRef.current);
-          heartbeatRef.current = null;
-        }
-
+        if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
         if (PERMANENT_CLOSE_CODES.has(ev.code)) return;
-
-        reconnectRef.current = setTimeout(() => {
-          reconnectRef.current = null;
-          connect();
-        }, RECONNECT_MS);
+        reconnectRef.current = setTimeout(() => { reconnectRef.current = null; connect(); }, RECONNECT_MS);
       };
     };
 
@@ -246,92 +287,99 @@ export function LiveSessionProvider({
 
     return () => {
       mountedRef.current = false;
-
-      if (heartbeatRef.current) {
-        clearInterval(heartbeatRef.current);
-        heartbeatRef.current = null;
-      }
-      if (reconnectRef.current) {
-        clearTimeout(reconnectRef.current);
-        reconnectRef.current = null;
-      }
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-
+      if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
+      if (reconnectRef.current) { clearTimeout(reconnectRef.current); reconnectRef.current = null; }
+      if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); wsRef.current = null; }
       setConnected(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classroomId, userId, role]);
 
-  // ── Public API ───────────────────────────────────────────────────────────────
+  // ── patch() ──────────────────────────────────────────────────────────────────
 
   /**
-   * Send a patch over the live WebSocket.
+   * ┌──────────────────────────────────────────────────────────────────────┐
+   * │ Student                                                              │
+   * │   key auto-prefixed → "s/{userId}/{key}"                           │
+   * ├──────────────────────────────────────────────────────────────────────┤
+   * │ Teacher — specific student observed (observedStudentId != null)      │
+   * │   Sends { key, value, target_student_id }                           │
+   * │   Server routes ONLY to that student (plain key) and echoes back    │
+   * │   as "s/{N}/key". No local notifyAndCache — doing so would set      │
+   * │   isRemoteUpdateRef=true in the exercise block before the broadcast  │
+   * │   effect runs, silently dropping the next teacher drag.             │
+   * ├──────────────────────────────────────────────────────────────────────┤
+   * │ Teacher — all students (observedStudentId == null)                  │
+   * │   Sends plain key — server broadcasts to whole room.               │
+   * └──────────────────────────────────────────────────────────────────────┘
    *
-   * Students automatically have their keys prefixed with "s/{userId}/" so
-   * each student's exercise state lives in its own namespace. Teachers send
-   * keys as-is (broadcast to all students for guided-fill).
+   * Special case — LIVE_LESSON_RESET_BLOCK_KEY:
+   *   When the teacher patches a block reset, the teacher's own patchCacheRef
+   *   is evicted immediately (before the WS echo returns) so that the
+   *   component remounting after the key bump finds an empty cache.
    */
   const patch = useCallback(
-    (key: string, value: unknown) => {
-      if (
-        role === "student" &&
-        typeof key === "string" &&
-        key.startsWith("hwu/")
-      ) {
+    (key: string, value: unknown, isCorrect?: boolean | null) => {
+      // Homework bookkeeping (student only)
+      if (role === "student" && typeof key === "string" && key.startsWith("hwu/")) {
         homeworkLogicalAnswersRef.current[key] = value;
       }
-      let actualKey = key;
-      if (role === "student" && userId != null) {
-        actualKey = `${studentPrefix(userId)}${key}`;
+
+      // ── Block-reset: evict own cache immediately (teacher side) ──────────
+      // The ws.onmessage handler will also evict when the echo returns, but
+      // that round-trip takes 50–200 ms.  For the teacher who just clicked
+      // "Reset", we need the eviction to happen before the React key bump
+      // (which fires synchronously in bumpAnswerReset, which is called right
+      // before this patch() call in teacherResetBlock).
+      if (key === LIVE_LESSON_RESET_BLOCK_KEY) {
+        const payload = value as Partial<{ blockId: string }> | null;
+        if (payload?.blockId) {
+          evictBlockKeysFromCache(patchCacheRef.current, payload.blockId);
+        }
       }
-      sendJson({ type: "patch", key: actualKey, value });
+
+      // ── Student ─────────────────────────────────────────────────────────
+      if (role === "student" && userId != null) {
+        const actualKey = `${studentPrefix(userId)}${key}`;
+        const msg: Record<string, unknown> = { type: "patch", key: actualKey, value };
+        if (isCorrect != null) msg.is_correct = isCorrect;
+        const { unitId: u, segmentId: s } = lessonContextRef.current;
+        if (u != null) msg.unit_id    = u;
+        if (s != null) msg.segment_id = s;
+        sendJson(msg);
+        return;
+      }
+
+      // ── Teacher — targeted (specific student selected) ───────────────────
+      const targetStudentId = observedStudentIdRef.current;
+      if (role === "teacher" && targetStudentId != null) {
+        const msg: Record<string, unknown> = {
+          type: "patch",
+          key,
+          value,
+          target_student_id: targetStudentId,
+        };
+        if (isCorrect != null) msg.is_correct = isCorrect;
+        const { unitId: u, segmentId: s } = lessonContextRef.current;
+        if (u != null) msg.unit_id    = u;
+        if (s != null) msg.segment_id = s;
+        sendJson(msg);
+        return;
+      }
+
+      // ── Teacher — broadcast (all students) ──────────────────────────────
+      const msg: Record<string, unknown> = { type: "patch", key, value };
+      if (isCorrect != null) msg.is_correct = isCorrect;
+      const { unitId: u, segmentId: s } = lessonContextRef.current;
+      if (u != null) msg.unit_id    = u;
+      if (s != null) msg.segment_id = s;
+      sendJson(msg);
     },
     [role, userId, sendJson],
   );
 
-  const getHomeworkLogicalAnswersSnapshot = useCallback(
-    () => ({ ...homeworkLogicalAnswersRef.current }),
-    [],
-  );
+  // ── subscribe() ──────────────────────────────────────────────────────────────
 
-  const applyHomeworkHydrationForStudent = useCallback(
-    (patches: Record<string, unknown>) => {
-      homeworkLogicalAnswersRef.current = { ...patches };
-      Object.entries(patches).forEach(([k, v]) => {
-        notifyAndCache(k, v);
-      });
-    },
-    [notifyAndCache],
-  );
-
-  const applyTeacherHomeworkObserveHydration = useCallback(
-    (studentId: number, patches: Record<string, unknown>) => {
-      Object.entries(patches).forEach(([k, v]) => {
-        notifyAndCache(`${studentPrefix(studentId)}${k}`, v);
-      });
-    },
-    [notifyAndCache],
-  );
-
-  /**
-   * Subscribe to remote patches for a given key.
-   * Returns an unsubscribe function (call it from useEffect cleanup).
-   *
-   * Key mapping rules:
-   * • Students always subscribe to the plain key ("ex/…") — they see the
-   *   teacher's guided-fill patches, never other students' patches.
-   * • Teachers with observedStudentId set subscribe to the scoped key
-   *   ("s/{observedStudentId}/ex/…") — they see only that student's answers.
-   * • Teachers without observedStudentId subscribe to the plain key (they
-   *   see their own patches echoed back, which is the standard guided mode).
-   *
-   * If a cached value exists for the resolved key it is fired asynchronously
-   * on the next tick so call-sites don't receive a value during render.
-   */
   const subscribe = useCallback(
     (key: string, handler: (value: unknown) => void) => {
       let actualKey = key;
@@ -339,15 +387,9 @@ export function LiveSessionProvider({
         actualKey = `${studentPrefix(observedStudentId)}${key}`;
       }
 
-      // Fire immediately with cached value so switching students instantly
-      // populates exercise blocks with the new student's stored answers.
       const cached = patchCacheRef.current.get(actualKey);
       if (cached !== undefined) {
-        // Defer to avoid setState-during-render issues in exercise blocks
         const tid = setTimeout(() => handler(cached), 0);
-        // We intentionally don't cancel this timeout on unsubscribe —
-        // it fires once within a tick and the handler checks its own
-        // component's mounted state internally.
         void tid;
       }
 
@@ -363,11 +405,34 @@ export function LiveSessionProvider({
         }
       };
     },
-    // observedStudentId in the dep array ensures all exercise block effects
-    // re-run when the teacher switches observed student, re-creating their
-    // subscriptions against the new student-scoped key.
     [role, observedStudentId],
   );
+
+  // ── Homework helpers ─────────────────────────────────────────────────────────
+
+  const getHomeworkLogicalAnswersSnapshot = useCallback(
+    () => ({ ...homeworkLogicalAnswersRef.current }),
+    [],
+  );
+
+  const applyHomeworkHydrationForStudent = useCallback(
+    (patches: Record<string, unknown>) => {
+      homeworkLogicalAnswersRef.current = { ...patches };
+      Object.entries(patches).forEach(([k, v]) => notifyAndCache(k, v));
+    },
+    [notifyAndCache],
+  );
+
+  const applyTeacherHomeworkObserveHydration = useCallback(
+    (studentId: number, patches: Record<string, unknown>) => {
+      Object.entries(patches).forEach(([k, v]) =>
+        notifyAndCache(`${studentPrefix(studentId)}${k}`, v),
+      );
+    },
+    [notifyAndCache],
+  );
+
+  // ── Context value ────────────────────────────────────────────────────────────
 
   const value = useMemo<LiveSyncContextValue>(
     () => ({
@@ -378,19 +443,17 @@ export function LiveSessionProvider({
       userId,
       observedStudentId,
       setObservedStudentId,
+      setLessonContext,
+      evictBlockFromCache,          // ← NEW
       getHomeworkLogicalAnswersSnapshot,
       applyHomeworkHydrationForStudent,
       applyTeacherHomeworkObserveHydration,
     }),
     [
-      patch,
-      subscribe,
-      connected,
-      role,
-      userId,
-      observedStudentId,
-      getHomeworkLogicalAnswersSnapshot,
-      applyHomeworkHydrationForStudent,
+      patch, subscribe, connected, role, userId, observedStudentId,
+      setLessonContext,
+      evictBlockFromCache,           // ← NEW
+      getHomeworkLogicalAnswersSnapshot, applyHomeworkHydrationForStudent,
       applyTeacherHomeworkObserveHydration,
     ],
   );

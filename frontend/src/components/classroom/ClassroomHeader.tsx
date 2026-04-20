@@ -16,6 +16,7 @@
  */
 
 import React, { useState, useRef, useEffect, type RefObject } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   ChevronDown,
@@ -129,17 +130,23 @@ interface InlineTabSwitcherProps {
   homeworkCount?: number;
 }
 
-const TAB_DEFS: { id: ClassroomTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'lesson',   label: 'Lesson',   icon: <BookOpen     size={13} strokeWidth={2.2} /> },
-  { id: 'homework', label: 'Homework', icon: <ClipboardList size={13} strokeWidth={2.2} /> },
+const TAB_DEFS: { id: ClassroomTab; icon: React.ReactNode }[] = [
+  { id: 'lesson',   icon: <BookOpen     size={13} strokeWidth={2.2} /> },
+  { id: 'homework', icon: <ClipboardList size={13} strokeWidth={2.2} /> },
 ];
 
 function InlineTabSwitcher({ activeTab, onTabChange, homeworkCount }: InlineTabSwitcherProps) {
+  // Provides localized tab labels and accessibility text.
+  const { t } = useTranslation();
   return (
-    <div className="ch-inline-tabs" role="tablist" aria-label="Classroom sections">
+    <div className="ch-inline-tabs" role="tablist" aria-label={t('classroom.header.classroomSectionsAria')}>
       {TAB_DEFS.map((tab) => {
         const isActive   = activeTab === tab.id;
         const showBadge  = tab.id === 'homework' && !!homeworkCount && homeworkCount > 0;
+        // Resolves per-tab localized labels from shared classroom header translations.
+        const tabLabel = tab.id === 'lesson'
+          ? t('classroom.header.lessonTab')
+          : t('classroom.header.homeworkTab');
         return (
           <button
             key={tab.id}
@@ -152,9 +159,9 @@ function InlineTabSwitcher({ activeTab, onTabChange, homeworkCount }: InlineTabS
             onClick={() => onTabChange(tab.id)}
           >
             <span className="ch-inline-tab__icon">{tab.icon}</span>
-            <span className="ch-inline-tab__label">{tab.label}</span>
+            <span className="ch-inline-tab__label">{tabLabel}</span>
             {showBadge && (
-              <span className="ch-inline-tab__badge" aria-label={`${homeworkCount} homework items`}>
+              <span className="ch-inline-tab__badge" aria-label={t('classroom.header.homeworkItemsAria', { count: homeworkCount })}>
                 {homeworkCount > 99 ? '99+' : homeworkCount}
               </span>
             )}
@@ -316,6 +323,8 @@ export default function ClassroomHeader({
   answersPanelOpen = false,
   answersPanelHeaderButtonRef,
 }: ClassroomHeaderProps) {
+  // Provides localized labels for tabs, unit button, and header controls.
+  const { t } = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
 
   const canUseModal = units.length > 0 && typeof onSelectUnit === 'function';
@@ -362,10 +371,10 @@ export default function ClassroomHeader({
               <button
                 onClick={onBack}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                aria-label="Back to My Classes"
+                aria-label={t('classroom.header.backToClassesAria')}
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span className="hidden min-[480px]:inline sm:inline">Classes</span>
+                <span className="hidden min-[480px]:inline sm:inline">{t('classroom.header.classes')}</span>
               </button>
 
               <div className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
@@ -468,8 +477,8 @@ export default function ClassroomHeader({
                 onClick={handleOpenChanger}
                 className="ch-change-unit-btn flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
               >
-                <span className="ch-change-unit-label hidden sm:inline">{currentUnit ? 'Change Unit' : 'Choose Unit'}</span>
-                <span className="ch-change-unit-label ch-change-unit-label--mobile sm:hidden">{currentUnit ? 'Unit' : 'Choose'}</span>
+                <span className="ch-change-unit-label hidden sm:inline">{currentUnit ? t('classroom.header.changeUnit') : t('classroom.header.chooseUnit')}</span>
+                <span className="ch-change-unit-label ch-change-unit-label--mobile sm:hidden">{currentUnit ? t('classroom.header.unitShort') : t('classroom.header.chooseShort')}</span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-60" />
               </button>
 

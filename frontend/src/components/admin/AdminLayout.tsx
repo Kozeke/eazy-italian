@@ -128,7 +128,7 @@ export default function AdminLayout({}: AdminLayoutProps) {
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-bold text-slate-900">EZ Italian</span>
               <span className="text-[11px] font-medium uppercase tracking-wide text-primary-500">
-                Instructor
+                {t('admin.role', { defaultValue: 'Instructor' })}
               </span>
             </div>
           </div>
@@ -142,7 +142,7 @@ export default function AdminLayout({}: AdminLayoutProps) {
 
         <nav className="mt-4 flex-1 overflow-y-auto px-2 pb-4">
           <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            {t('admin.nav.sectionMain') || 'Teaching tools'}
+            {t('admin.nav.sectionMain', { defaultValue: 'Teaching tools' })}
           </p>
           <div className="space-y-1">
             {navigation.map((item) => (
@@ -171,8 +171,9 @@ export default function AdminLayout({}: AdminLayoutProps) {
 
         {/* Sidebar bottom – small hint */}
         <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-400">
-          {t('admin.footer.hint') ||
-            'Manage your content, students and analytics from this instructor panel.'}
+          {t('admin.footer.hint', {
+            defaultValue: 'Manage your content, students and analytics from this instructor panel.',
+          })}
         </div>
       </aside>
 
@@ -224,17 +225,21 @@ export default function AdminLayout({}: AdminLayoutProps) {
               <button
                 onClick={() => {
                   const currentLang = i18n.language;
-                  const newLang = currentLang === 'ru' ? 'en' : 'ru';
+                  const newLang = currentLang === 'ru' ? 'en' : currentLang === 'en' ? 'it' : 'ru';
                   i18n.changeLanguage(newLang);
                 }}
                 className="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                 title={
                   i18n.language === 'ru'
-                    ? 'Switch to English'
-                    : 'Переключиться на русский'
+                    ? t('admin.language.switchToEnglish', { defaultValue: 'Switch to English' })
+                    : i18n.language === 'en'
+                      ? t('admin.language.switchToItalian', { defaultValue: 'Switch to Italian' })
+                      : t('admin.language.switchToRussian', { defaultValue: 'Switch to Russian' })
                 }
               >
-                <span>{i18n.language === 'ru' ? '🇷🇺 RU' : '🇺🇸 EN'}</span>
+                <span>
+                  {i18n.language === 'ru' ? '🇷🇺 RU' : i18n.language === 'it' ? '🇮🇹 IT' : '🇺🇸 EN'}
+                </span>
               </button>
 
               {/* Profile bubble */}
@@ -248,7 +253,7 @@ export default function AdminLayout({}: AdminLayoutProps) {
                     {user?.first_name} {user?.last_name}
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    {t('admin.role') || 'Instructor'}
+                    {t('admin.role', { defaultValue: 'Instructor' })}
                   </span>
                 </div>
               </div>

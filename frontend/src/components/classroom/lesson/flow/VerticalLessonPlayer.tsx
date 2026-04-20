@@ -1,14 +1,12 @@
 /**
- * VerticalLessonPlayer.tsx  (v3 — exercise block menu)
+ * VerticalLessonPlayer.tsx  (v4 — persist block answer clear)
  *
- * Pure renderer: groups flow items into sections, manages scroll, renders
- * SectionBlocks. No exercise-type knowledge here.
- * (Header `LessonProgressRail` is not rendered here — it was lifted from LessonWorkspace
- *  to ClassroomPage / ClassroomHeader; currently disabled project-wide.)
- *
- * Changes from v2:
- *   • Added onDeleteBlock, onReorderBlock, onEditBlock props and passes
- *     them down to SectionBlock so the ⋯ block menu works.
+ * Changes from v3:
+ *   • Added `onResetBlockAnswers` prop.
+ *     When the teacher clicks "Сбросить ответы" in the block menu,
+ *     SectionBlock calls this callback AFTER doing the local UI reset,
+ *     so the server stores null-value sentinel rows for all affected fields.
+ *     The callback is optional — absence is safe (no API call).
  */
 
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -102,6 +100,15 @@ export interface VerticalLessonPlayerProps {
   onCopyExerciseToHomework?: (block: InlineMediaBlock) => void | Promise<void>;
   /** Teacher: live section title edits — parent debounces and persists to the API. */
   onSectionTitleChange?: (sectionId: string, newTitle: string) => void;
+  /**
+   * Teacher: persist a block answer clear to the server.
+   * Called by SectionBlock after the local UI reset so null-value sentinel rows
+   * are written to exercise_field_answer_events.
+   * Signature matches classroomAnswersApi.clearBlockAnswers.
+   *   blockId    — the exercise block that was reset
+   *   studentId  — undefined → clear all students; number → clear one student
+   */
+  onResetBlockAnswers?: (blockId: string, studentId?: number) => Promise<void>;
 
   // ── Inline media ────────────────────────────────────────────────────────────
   inlineMediaBySectionId?: Record<string, InlineMediaBlock[]>;
@@ -144,6 +151,7 @@ export default function VerticalLessonPlayer({
   onEditBlock,
   onCopyExerciseToHomework,
   onSectionTitleChange,
+  onResetBlockAnswers,          // ← NEW
   inlineMediaBySectionId,
   onInlineMediaChange,
   pendingInlineMedia,
@@ -156,8 +164,6 @@ export default function VerticalLessonPlayer({
     () => groupIntoSections(flow.items, sectionDefinitions),
     [flow.items, sectionDefinitions],
   );
-  // VerticalLessonPlayer.tsx, inside the component before return
-  // console.log('[VLP] flow.items =', flow.items?.length, flow.items?.map(i => i.type));
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
 
@@ -336,6 +342,7 @@ export default function VerticalLessonPlayer({
                   ? (newTitle: string) => onSectionTitleChange(section.id, newTitle)
                   : undefined
               }
+              onResetBlockAnswers={onResetBlockAnswers}  
               mediaBlocks={inlineMediaBySectionId?.[section.id]}
               onMediaBlocksChange={callbacks?.onMediaBlocksChange}
               pendingInlineMedia={

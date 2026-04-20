@@ -12,6 +12,7 @@
  */
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   X,
   Search,
@@ -201,6 +202,8 @@ function CourseGenerationPanel({
   onStart,
   onEditOutline,
 }: CourseGenerationPanelProps) {
+  // Provides localized labels for the course generation panel.
+  const { t } = useTranslation();
   const outlineUnits: any[] = outline?.units ?? [];
   const totalUnits     = outlineUnits.length;
   const doneCount      = Object.values(unitStatuses).filter((s) => s === 'done').length;
@@ -237,15 +240,14 @@ function CourseGenerationPanel({
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#4F52C2', lineHeight: 1.3 }}>
             {allDone
-              ? `Course generated — ${doneCount} unit${doneCount !== 1 ? 's' : ''} ready`
+              ? t('classroom.unitSelector.courseGeneration.generatedReady', { count: doneCount })
               : isGenerating
-                ? `Generating… ${doneCount} / ${units.length} unit${units.length !== 1 ? 's' : ''} done`
-                : `AI outline ready — ${totalUnits} unit${totalUnits !== 1 ? 's' : ''}`
-            }
+                ? t('classroom.unitSelector.courseGeneration.generatingProgress', { done: doneCount, total: units.length })
+                : t('classroom.unitSelector.courseGeneration.outlineReady', { count: totalUnits })}
           </p>
           {!isGenerating && !allDone && (
             <p style={{ margin: 0, fontSize: 11, color: '#6C6FEF', marginTop: 2 }}>
-              Review the structure below, then click <strong>Generate Course</strong>.
+              {t('classroom.unitSelector.courseGeneration.reviewBeforeGeneratePrefix')} <strong>{t('classroom.unitSelector.courseGeneration.generateCourseButton')}</strong>.
             </p>
           )}
         </div>
@@ -280,7 +282,7 @@ function CourseGenerationPanel({
             }}
           >
             <Pencil size={11} />
-            Edit Outline
+            {t('classroom.unitSelector.courseGeneration.editOutline')}
           </button>
         )}
 
@@ -330,7 +332,7 @@ function CourseGenerationPanel({
                     color: status === 'done' ? '#4F52C2' : '#1E293B',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
-                    Unit {idx + 1} · {outlineUnit.title}
+                    {t('classroom.unitSelector.unitLabel', { index: idx + 1, title: outlineUnit.title })}
                   </p>
                   {outlineUnit.description && (
                     <p style={{
@@ -410,7 +412,7 @@ function CourseGenerationPanel({
                   display: 'inline-block',
                   animation: 'usm-spin 0.75s linear infinite',
                 }} />
-                Generating…
+                {t('classroom.unitSelector.courseGeneration.generatingShort')}
               </>
             ) : (
               <>
@@ -418,13 +420,13 @@ function CourseGenerationPanel({
                   <path d="M8 1.5l1.91 3.87L14 6.35l-3 2.93.71 4.15L8 11.5l-3.71 1.93.71-4.15L2 6.35l4.09-.98L8 1.5z"
                     fill="#fff" stroke="#fff" strokeWidth="0.8" strokeLinejoin="round"/>
                 </svg>
-                Generate Course
+                {t('classroom.unitSelector.courseGeneration.generateCourseButton')}
               </>
             )}
           </button>
           {!isGenerating && (
             <p style={{ margin: 0, fontSize: 11, color: '#9CA3AF' }}>
-              This will fill all {totalUnits} units with AI content.
+              {t('classroom.unitSelector.courseGeneration.fillAllUnits', { count: totalUnits })}
             </p>
           )}
         </div>
@@ -445,7 +447,7 @@ function CourseGenerationPanel({
             <path d="M6 10l2.5 2.5 5.5-5" stroke="#6C6FEF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <p style={{ margin: 0, fontSize: 12, color: '#4F52C2', fontWeight: 600 }}>
-            All units generated! Select a unit below to start teaching.
+            {t('classroom.unitSelector.courseGeneration.allUnitsGenerated')}
           </p>
         </div>
       )}
@@ -464,6 +466,8 @@ interface GenerationProgressBannerProps {
 }
 
 function GenerationProgressBanner({ unitStatuses, units, isGenerating }: GenerationProgressBannerProps) {
+  // Provides localized labels for the generation progress banner.
+  const { t } = useTranslation();
   const total    = units.length;
   const doneCount  = Object.values(unitStatuses).filter((s) => s === 'done').length;
   const hasError   = Object.values(unitStatuses).some((s) => s === 'error');
@@ -514,10 +518,10 @@ function GenerationProgressBanner({ unitStatuses, units, isGenerating }: Generat
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#4F52C2', lineHeight: 1.3 }}>
           {allDone
-            ? `All ${total} units generated — click any unit to start teaching`
+            ? t('classroom.unitSelector.progressBanner.allGenerated', { total })
             : hasError
-              ? `Generating… ${doneCount}/${total} done (some errors)`
-              : `Generating in background… ${doneCount}/${total} units done`
+              ? t('classroom.unitSelector.progressBanner.generatingWithErrors', { done: doneCount, total })
+              : t('classroom.unitSelector.progressBanner.generatingBackground', { done: doneCount, total })
           }
         </p>
       </div>
@@ -544,18 +548,27 @@ function GenerationProgressBanner({ unitStatuses, units, isGenerating }: Generat
 // ─── Course thumbnail ─────────────────────────────────────────────────────────
 
 function CourseThumbnail({ url, initial }: { url?: string; initial: string }) {
+  // Provides localized image alt text for the course thumbnail.
+  const { t } = useTranslation();
   if (url) {
     return (
       <img
         src={url}
-        alt="Course thumbnail"
-        className="h-16 w-16 shrink-0 rounded-xl object-cover"
+        alt={t('classroom.unitSelector.courseThumbnailAlt')}
+        style={{ height: 64, width: 64, flexShrink: 0, borderRadius: 14, objectFit: 'cover', boxShadow: '0 2px 8px rgba(108,111,239,0.15)' }}
       />
     );
   }
   return (
-    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-teal-500 text-white">
-      <span className="text-2xl font-bold select-none">{initial.toUpperCase()}</span>
+    <div style={{
+      display: 'flex', height: 64, width: 64, flexShrink: 0,
+      alignItems: 'center', justifyContent: 'center',
+      borderRadius: 14,
+      background: 'linear-gradient(135deg, #6C6FEF 0%, #4F52C2 100%)',
+      color: '#FFFFFF',
+      boxShadow: '0 4px 12px rgba(108,111,239,0.30)',
+    }}>
+      <span style={{ fontSize: 22, fontWeight: 700, userSelect: 'none' }}>{initial.toUpperCase()}</span>
     </div>
   );
 }
@@ -601,6 +614,8 @@ export default function UnitSelectorModal({
   courseId,
   onEditOutline,
 }: UnitSelectorModalProps) {
+  // Provides localized labels for unit selector modal controls and states.
+  const { t } = useTranslation();
   const [query, setQuery]               = useState('');
   const [activeTab, setActiveTab]       = useState<ActiveTab>('contents');
   const [courseMenuOpen, setCourseMenuOpen] = useState(false);
@@ -689,7 +704,7 @@ export default function UnitSelectorModal({
     onClose();
   };
 
-  const initial = courseTitle?.[0] ?? 'C';
+  const initial = courseTitle?.[0] ?? t('classroom.unitSelector.defaultCourseInitial');
 
   // Teacher action callbacks passed to UnitListItem
   const teacherCallbacks = isTeacher
@@ -715,7 +730,12 @@ export default function UnitSelectorModal({
 
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm"
+        style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(15,17,40,0.45)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+        }}
         aria-hidden
         onClick={onClose}
       />
@@ -726,66 +746,128 @@ export default function UnitSelectorModal({
         aria-modal="true"
         aria-label={courseTitle}
         ref={panelRef}
-        className="fixed z-50 inset-x-4 top-[4vh] mx-auto max-w-2xl flex flex-col bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200 overflow-hidden"
-        style={{ height: '92vh' }}
+        style={{
+          position: 'fixed', zIndex: 50,
+          left: '50%', top: '4vh',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)',
+          maxWidth: 640,
+          display: 'flex', flexDirection: 'column',
+          background: '#FFFFFF',
+          borderRadius: 20,
+          boxShadow: '0 8px 40px rgba(108,111,239,0.14), 0 2px 8px rgba(0,0,0,0.08)',
+          overflow: 'hidden',
+          height: '92vh',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Close button ─────────────────────────────────────────────────── */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
-          aria-label="Close"
+          style={{
+            position: 'absolute', right: 16, top: 16, zIndex: 10,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 10, padding: 6,
+            background: '#F7F7FA',
+            border: 'none',
+            color: '#9CA3AF',
+            cursor: 'pointer',
+            transition: 'background 0.15s, color 0.15s',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#EEF0FE'; (e.currentTarget as HTMLButtonElement).style.color = '#6C6FEF'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F7F7FA'; (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
+          aria-label={t('common.close')}
         >
-          <X className="h-5 w-5" />
+          <X style={{ width: 18, height: 18 }} />
         </button>
 
         {/* ── Course header ─────────────────────────────────────────────────── */}
-        <div className="flex items-start gap-4 px-5 pt-5 pb-4">
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '20px 20px 16px' }}>
           <CourseThumbnail url={courseThumbnailUrl} initial={initial} />
 
-          <div className="flex-1 min-w-0 pr-8">
-            <h2 className="text-[16px] font-bold text-slate-900 leading-snug truncate">
+          <div style={{ flex: 1, minWidth: 0, paddingRight: 36 }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {courseTitle}
             </h2>
             {courseSubtitle && (
-              <p className="mt-0.5 text-[12px] text-slate-500 leading-snug line-clamp-2">
+              <p style={{ margin: '3px 0 0', fontSize: 12, color: '#6B7280', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {courseSubtitle}
               </p>
             )}
 
-            <div className="mt-3 flex items-center gap-2">
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               <button
                 onClick={onShareCourse}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  borderRadius: 10,
+                  border: '1.5px solid #E5E7EB',
+                  background: '#FFFFFF',
+                  padding: '5px 12px',
+                  fontSize: 12, fontWeight: 600, color: '#374151',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s, background 0.15s, color 0.15s',
+                }}
+                onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#A5A8F5'; b.style.background = '#EEF0FE'; b.style.color = '#4F52C2'; }}
+                onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#E5E7EB'; b.style.background = '#FFFFFF'; b.style.color = '#374151'; }}
               >
-                <Share2 className="h-3.5 w-3.5" />
-                Поделиться
+                <Share2 style={{ width: 13, height: 13 }} />
+                {t('classroom.unitSelector.share')}
               </button>
 
               {isTeacher && (
-                <div className="relative" ref={courseMenuRef}>
+                <div style={{ position: 'relative' }} ref={courseMenuRef}>
                   <button
                     onClick={() => setCourseMenuOpen((v) => !v)}
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
-                    aria-label="More course options"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: 10,
+                      border: '1.5px solid #E5E7EB',
+                      background: courseMenuOpen ? '#EEF0FE' : '#FFFFFF',
+                      padding: 6,
+                      color: courseMenuOpen ? '#6C6FEF' : '#6B7280',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#A5A8F5'; b.style.background = '#EEF0FE'; b.style.color = '#6C6FEF'; }}
+                    onMouseLeave={(e) => { if (!courseMenuOpen) { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#E5E7EB'; b.style.background = '#FFFFFF'; b.style.color = '#6B7280'; } }}
+                    aria-label={t('classroom.unitSelector.moreCourseOptions')}
                   >
-                    <MoreHorizontal className="h-4 w-4" />
+                    <MoreHorizontal style={{ width: 15, height: 15 }} />
                   </button>
                   {courseMenuOpen && (
-                    <div className="absolute left-0 top-full z-50 mt-1 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                    <div style={{
+                      position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 50,
+                      width: 176,
+                      borderRadius: 14,
+                      border: '1px solid #E5E7EB',
+                      background: '#FFFFFF',
+                      padding: 5,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)',
+                    }}>
                       <button
                         type="button"
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50 rounded-lg transition-colors"
+                        style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#374151', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F7F7FA'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                         onClick={() => { setCourseMenuOpen(false); setEditCourseOpen(true); }}
                       >
-                        Настройки курса
+                        {t('classroom.unitSelector.courseSettings')}
                       </button>
-                      <button className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50 rounded-lg transition-colors">
-                        Скопировать курс
+                      <button
+                        style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#374151', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F7F7FA'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                      >
+                        {t('classroom.unitSelector.copyCourse')}
                       </button>
-                      <div className="my-1 border-t border-slate-100" />
-                      <button className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                        Удалить курс
+                      <div style={{ margin: '4px 0', borderTop: '1px solid #F3F4F6' }} />
+                      <button
+                        style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#DC2626', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                      >
+                        {t('classroom.unitSelector.deleteCourse')}
                       </button>
                     </div>
                   )}
@@ -796,20 +878,28 @@ export default function UnitSelectorModal({
         </div>
 
         {/* ── Tab bar ──────────────────────────────────────────────────────── */}
-        <div className="flex border-b border-slate-200 px-5">
+        <div style={{ display: 'flex', borderBottom: '1.5px solid #F3F4F6', padding: '0 20px' }}>
           {(['contents', 'description'] as const).map((tab) => {
-            const label = tab === 'contents' ? 'Содержание' : 'Описание';
+            const label = tab === 'contents'
+              ? t('classroom.unitSelector.tabs.contents')
+              : t('classroom.unitSelector.tabs.description');
             const active = activeTab === tab;
             return (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={[
-                  'mr-6 pb-2.5 pt-1 text-[13px] font-semibold transition-colors focus:outline-none',
-                  active
-                    ? 'text-teal-600 border-b-2 border-teal-500 -mb-px'
-                    : 'text-slate-500 hover:text-slate-700 border-b-2 border-transparent',
-                ].join(' ')}
+                style={{
+                  marginRight: 24,
+                  paddingBottom: 10, paddingTop: 4,
+                  fontSize: 13, fontWeight: 600,
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: active ? '#6C6FEF' : '#9CA3AF',
+                  borderBottom: active ? '2px solid #6C6FEF' : '2px solid transparent',
+                  marginBottom: -1.5,
+                  transition: 'color 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
+                onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
               >
                 {label}
               </button>
@@ -829,8 +919,8 @@ export default function UnitSelectorModal({
             onEditOutline={onEditOutline ? () => setEditOutlineOpen(true) : undefined}
           />
         ) : activeTab === 'description' ? (
-          <div className="flex flex-1 items-center justify-center py-16 text-[13px] text-slate-400">
-            Description coming soon
+          <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '64px 0', fontSize: 13, color: '#9CA3AF' }}>
+            {t('classroom.unitSelector.descriptionComingSoon')}
           </div>
         ) : (
           <>
@@ -844,47 +934,77 @@ export default function UnitSelectorModal({
             )}
 
             {/* Search bar */}
-            <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px 10px', borderBottom: '1.5px solid #F3F4F6' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#9CA3AF', pointerEvents: 'none' }} />
                 <input
                   ref={searchRef}
                   type="text"
-                  placeholder="Поиск уроков"
+                  placeholder={t('classroom.unitSelector.searchPlaceholder')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
-                  aria-label="Search units"
+                  style={{
+                    width: '100%',
+                    borderRadius: 12,
+                    border: '1.5px solid #E5E7EB',
+                    background: '#F7F7FA',
+                    padding: '8px 12px 8px 32px',
+                    fontSize: 13,
+                    color: '#111827',
+                    outline: 'none',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                    boxSizing: 'border-box',
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = '#6C6FEF'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(108,111,239,0.10)'; e.currentTarget.style.background = '#FFFFFF'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = '#F7F7FA'; }}
+                  aria-label={t('classroom.unitSelector.searchAria')}
                 />
               </div>
-              <button className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
-                <Filter className="h-3.5 w-3.5" />
-                Фильтр
+              <button
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  borderRadius: 12,
+                  border: '1.5px solid #E5E7EB',
+                  background: '#FFFFFF',
+                  padding: '7px 12px',
+                  fontSize: 12, fontWeight: 600, color: '#6B7280',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#A5A8F5'; b.style.color = '#4F52C2'; b.style.background = '#EEF0FE'; }}
+                onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#E5E7EB'; b.style.color = '#6B7280'; b.style.background = '#FFFFFF'; }}
+              >
+                <Filter style={{ width: 13, height: 13 }} />
+                {t('classroom.unitSelector.filter')}
               </button>
             </div>
 
             {/* Unit list */}
-            <div className="flex-1 overflow-y-auto overscroll-contain">
+            <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
               {filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
-                  <BookOpen className="mb-3 h-10 w-10 opacity-20" />
-                  <p className="text-sm font-medium">
-                    {query ? 'Нет совпадений' : 'Нет доступных уроков'}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', textAlign: 'center', color: '#9CA3AF' }}>
+                  <BookOpen style={{ marginBottom: 12, width: 40, height: 40, opacity: 0.2 }} />
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>
+                    {query
+                      ? t('classroom.unitSelector.empty.noMatches')
+                      : t('classroom.unitSelector.empty.noUnits')}
                   </p>
                   {query && (
                     <button
                       onClick={() => setQuery('')}
-                      className="mt-2 text-xs text-teal-600 hover:underline"
+                      style={{ marginTop: 8, fontSize: 12, color: '#6C6FEF', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
                     >
-                      Сбросить поиск
+                      {t('classroom.unitSelector.empty.resetSearch')}
                     </button>
                   )}
                 </div>
               ) : (
                 <ul
-                  className="divide-y divide-slate-100 py-1"
+                  style={{ listStyle: 'none', margin: 0, padding: '4px 0', borderTop: 'none' }}
                   role="listbox"
-                  aria-label="Available units"
+                  aria-label={t('classroom.unitSelector.availableUnitsAria')}
                 >
                   {filtered.map((unit) => {
                     const isCurrent   = String(unit.id) === String(currentUnitId);
@@ -935,7 +1055,7 @@ export default function UnitSelectorModal({
                                 fill="#6C6FEF"
                               />
                             </svg>
-                            Generated
+                            {t('classroom.unitSelector.generatedBadge')}
                           </span>
                         )}
 
@@ -967,7 +1087,7 @@ export default function UnitSelectorModal({
                                 animation: 'usm-pulse 1.2s ease-in-out infinite',
                               }}
                             />
-                            Generating…
+                            {t('classroom.unitSelector.generatingBadge')}
                           </span>
                         )}
                       </li>
@@ -979,19 +1099,28 @@ export default function UnitSelectorModal({
 
             {/* Footer (teacher only) */}
             {isTeacher && (
-              <div className="flex items-center gap-4 border-t border-slate-100 px-5 py-3">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: '1.5px solid #F3F4F6', padding: '10px 16px' }}>
                 <button
                   onClick={() => { setCreateUnitOpen(true); onAddUnit?.(); onCreateUnit?.('manual'); }}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-teal-600 hover:text-teal-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 rounded"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    fontSize: 13, fontWeight: 600,
+                    color: '#6C6FEF',
+                    background: 'none', border: 'none',
+                    borderRadius: 10, padding: '6px 10px',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s, color 0.15s',
+                  }}
+                  onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#EEF0FE'; b.style.color = '#4F52C2'; }}
+                  onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'none'; b.style.color = '#6C6FEF'; }}
                 >
-                  <Plus className="h-4 w-4" />
-                  Создать урок
+                  <Plus style={{ width: 15, height: 15 }} />
+                  {t('classroom.unitSelector.createUnit')}
                 </button>
                 <button
                   disabled={creatingForGenerate}
                   onClick={async () => {
                     if (onCreateAndGenerate) {
-                      // Create a brand-new unit, then open GenerateUnitModal for it
                       setCreatingForGenerate(true);
                       try {
                         const target = await onCreateAndGenerate();
@@ -1000,7 +1129,6 @@ export default function UnitSelectorModal({
                         setCreatingForGenerate(false);
                       }
                     } else if (generateUnitId) {
-                      // Legacy fallback: generate into an already-selected unit
                       setGenerateTarget({ id: generateUnitId, title: generateUnitTitle ?? '' });
                     } else {
                       setCreateUnitOpen(true);
@@ -1008,10 +1136,23 @@ export default function UnitSelectorModal({
                       onCreateUnit?.('ai');
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-teal-600 hover:text-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 rounded"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    fontSize: 13, fontWeight: 600,
+                    color: creatingForGenerate ? '#A5A8F5' : '#6C6FEF',
+                    background: 'none', border: 'none',
+                    borderRadius: 10, padding: '6px 10px',
+                    cursor: creatingForGenerate ? 'not-allowed' : 'pointer',
+                    opacity: creatingForGenerate ? 0.6 : 1,
+                    transition: 'background 0.15s, color 0.15s',
+                  }}
+                  onMouseEnter={(e) => { if (!creatingForGenerate) { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#EEF0FE'; b.style.color = '#4F52C2'; } }}
+                  onMouseLeave={(e) => { if (!creatingForGenerate) { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'none'; b.style.color = '#6C6FEF'; } }}
                 >
-                  <Sparkles className="h-4 w-4" />
-                  {creatingForGenerate ? 'Создание…' : 'Сгенерировать'}
+                  <Sparkles style={{ width: 15, height: 15 }} />
+                  {creatingForGenerate
+                    ? t('classroom.unitSelector.creating')
+                    : t('classroom.unitSelector.generate')}
                 </button>
               </div>
             )}

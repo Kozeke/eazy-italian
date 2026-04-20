@@ -56,6 +56,8 @@ import AdminStudentsPage       from "../AdminStudentsPage";
 import AdminStudentViewPage    from "../AdminStudentViewPage";
 import ExerciseEditorPage      from "../ExerciseEditorPage";
 import ExerciseDraftsPage      from "../ExerciseDraftsPage";
+import AdminProfileSettingsPage from "../AdminProfileSettingsPage";
+import AdminTariffsPage from "../AdminTariffsPage";
 
 /*
  * Legacy-only admin pages (routes below are commented out). Sources live next to this file:
@@ -509,6 +511,11 @@ export default function AdminRoutes() {
           <Route index element={<AdminStudentsPage />} />
           <Route path=":id" element={<AdminStudentViewPage />} />
         </Route>
+
+        {/* ── PROFILE (header user menu) ── */}
+        <Route path="profile" element={<AdminProfileSettingsPage />} />
+        {/* ── TARIFFS (header user menu + trial icon) ── */}
+        <Route path="tariffs" element={<AdminTariffsPage />} />
 
         {/* ── GRADES ── */}
         {/* <Route path="grades">

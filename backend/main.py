@@ -9,7 +9,18 @@ from app.core.database import engine
 from app.core.database import Base
 
 # Import all models so SQLAlchemy can create tables
-from app.models import Course, Unit, User, Video, Task, Test, Progress, EmailCampaign, VideoProgress
+from app.models import (
+    Course,
+    Unit,
+    User,
+    Video,
+    Task,
+    Test,
+    Progress,
+    EmailCampaign,
+    VideoProgress,
+    TeacherPayment,
+)
 from app.models.presentation import Presentation, PresentationSlide
 from app.models.live_session import LiveSession
 import logging
@@ -408,6 +419,7 @@ async def startup_event():
                     enum_exists = conn.execute(check_subscription_enum).scalar()
                     
                     enum_free_value = 'free'
+                    enum_standard_value = 'standard'
                     enum_premium_value = 'premium'
                     
                     if enum_exists:
@@ -427,25 +439,36 @@ async def startup_event():
                         if has_uppercase and not has_lowercase:
                             # Use uppercase values
                             enum_free_value = 'FREE'
+                            enum_standard_value = 'STANDARD'
                             enum_premium_value = 'PREMIUM'
-                            print("Using uppercase enum values: FREE, PREMIUM")
+                            print("Using uppercase enum values: FREE, STANDARD, PREMIUM")
                         elif has_lowercase:
                             # Use lowercase values
                             enum_free_value = 'free'
+                            enum_standard_value = 'standard'
                             enum_premium_value = 'premium'
-                            print("Using lowercase enum values: free, premium")
+                            print("Using lowercase enum values: free, standard, premium")
                         else:
                             # No values found, recreate enum with lowercase
                             print("Recreating enum with lowercase values...")
                             conn.execute(text("DROP TYPE IF EXISTS subscriptiontype CASCADE"))
-                            conn.execute(text("CREATE TYPE subscriptiontype AS ENUM ('free', 'premium')"))
+                            conn.execute(text("CREATE TYPE subscriptiontype AS ENUM ('free', 'standard', 'premium')"))
                             conn.commit()
+
+                        # Ensure STANDARD exists for newer teacher tariff mapping.
+                        if enum_standard_value not in enum_labels:
+                            try:
+                                conn.execute(text(f"ALTER TYPE subscriptiontype ADD VALUE IF NOT EXISTS '{enum_standard_value}'"))
+                                conn.commit()
+                                print(f"✅ Added '{enum_standard_value}' to SubscriptionType enum")
+                            except Exception as e:
+                                print(f"⚠️  Could not add '{enum_standard_value}' to SubscriptionType enum: {e}")
                     else:
                         # Create enum type with lowercase values
                         print("Creating SubscriptionType enum...")
                         create_enum = text("""
                             DO $$ BEGIN
-                                CREATE TYPE subscriptiontype AS ENUM ('free', 'premium');
+                                CREATE TYPE subscriptiontype AS ENUM ('free', 'standard', 'premium');
                             EXCEPTION
                                 WHEN duplicate_object THEN null;
                             END $$;
@@ -1002,6 +1025,16 @@ async def startup_event():
                                 ORDER BY enumsortorder
                             """))
                             sub_name_labels = [row[0] for row in sub_name_result.fetchall()]
+
+                            # Ensures the new STANDARD plan label exists for teacher tariffs.
+                            if 'standard' not in sub_name_labels and 'STANDARD' not in sub_name_labels:
+                                try:
+                                    conn.execute(text("ALTER TYPE subscriptionname ADD VALUE IF NOT EXISTS 'standard'"))
+                                    conn.commit()
+                                    print("✅ Added 'standard' to SubscriptionName enum")
+                                    sub_name_labels.append('standard')
+                                except Exception as enum_error:
+                                    print(f"⚠️  Could not add 'standard' to SubscriptionName enum: {enum_error}")
                             
                             # Build conditions for premium subscriptions
                             premium_conditions = []

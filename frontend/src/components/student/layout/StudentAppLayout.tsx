@@ -64,8 +64,12 @@ export default function StudentAppLayout() {
     }
   };
 
-  // Stores full name to display in the shared teacher-style header.
-  const headerUserName = `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim() || "Student";
+  // Stores display name for the shared header: full_name from API, then first+last, then email stub.
+  const headerUserName =
+    user?.full_name?.trim() ||
+    `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim() ||
+    (user?.email?.includes("@") ? user.email.split("@")[0] : "") ||
+    "Student";
 
   return (
     <>
@@ -77,6 +81,8 @@ export default function StudentAppLayout() {
         darkMode={darkMode}
         onToggleDark={() => setDarkMode((previousMode) => !previousMode)}
         onLogout={handleLogout}
+        onProfileSettings={() => navigate("/student/settings")}
+        onTariffs={() => navigate("/student/classes")}
       />
 
       <div className="sal-root">

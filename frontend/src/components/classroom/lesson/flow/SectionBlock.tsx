@@ -20,6 +20,7 @@
  */
 
 import React, { forwardRef, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Pencil,
   X,
@@ -97,6 +98,39 @@ const MEDIA_META: Record<
   },
 };
 
+// Builds localized media labels and placeholders for section media cards.
+function getLocalizedMediaMeta(t: (key: string) => string): Record<MediaKind, {
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+  icon: React.ReactNode;
+  placeholder: string;
+}> {
+  return {
+    image: {
+      ...MEDIA_META.image,
+      label: t("classroom.sectionBlock.media.imageLabel"),
+      placeholder: t("classroom.sectionBlock.media.imagePlaceholder"),
+    },
+    video: {
+      ...MEDIA_META.video,
+      label: t("classroom.sectionBlock.media.videoLabel"),
+      placeholder: t("classroom.sectionBlock.media.videoPlaceholder"),
+    },
+    audio: {
+      ...MEDIA_META.audio,
+      label: t("classroom.sectionBlock.media.audioLabel"),
+      placeholder: t("classroom.sectionBlock.media.audioPlaceholder"),
+    },
+    carousel_slides: {
+      ...MEDIA_META.carousel_slides,
+      label: t("classroom.sectionBlock.media.carouselLabel"),
+      placeholder: "",
+    },
+  };
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface SectionBlockProps {
@@ -127,6 +161,14 @@ interface SectionBlockProps {
   onAddContent?: () => void;
   /** Teacher: called on every keystroke while renaming — parent debounces persistence. */
   onSectionTitleChange?: (newLabel: string) => void;
+  /**
+   * Teacher: persist the answer clear to the server.
+   * Called AFTER the local UI reset + WS broadcast so null-value sentinel rows
+   * are written to exercise_field_answer_events for durable clearing.
+   *   blockId    — the exercise block that was reset
+   *   studentId  — undefined → clear all students; number → clear one student
+   */
+  onResetBlockAnswers?: (blockId: string, studentId?: number) => Promise<void>;
   onDeleteBlock?: (blockId: string) => void;
   onReorderBlock?: (blockId: string, direction: "up" | "down") => void;
   /** Called when teacher clicks "Edit exercise" or "Edit (new version)" in the block menu */
@@ -166,6 +208,8 @@ function InlineMediaPreview({
   block: InlineMediaBlock & { kind: "image" | "video" | "audio" };
   meta: (typeof MEDIA_META)[MediaKind];
 }) {
+  // Provides localized preview labels for inline media cards.
+  const { t } = useTranslation();
   if (block.kind === "image") {
     // Prefer url (blob URL or external URL), fall back to data.src (persistent base64)
     const displaySrc =
@@ -177,7 +221,7 @@ function InlineMediaPreview({
       <div className="vlp-inline-media-preview">
         <img
           src={displaySrc}
-          alt={block.caption || "Preview"}
+          alt={block.caption || t("classroom.sectionBlock.previewAlt")}
           style={{
             maxWidth: "100%",
             maxHeight: 260,
@@ -211,14 +255,14 @@ function InlineMediaPreview({
             style={{ width: "100%", height: "100%", border: "none", display: "block" }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            title="Video preview"
+            title={t("classroom.sectionBlock.videoPreviewTitle")}
           />
         </div>
       );
     }
     return (
       <p style={{ fontSize: 12, color: meta.color, margin: 0, padding: "8px 0" }}>
-        Preview available after saving.
+        {t("classroom.sectionBlock.previewAfterSave")}
       </p>
     );
   }
@@ -241,7 +285,10 @@ function InlineMediaCard({
   onChange: (patch: Partial<InlineMediaBlock>) => void;
   onRemove: () => void;
 }) {
-  const meta = MEDIA_META[block.kind];
+  // Provides localized media card labels and placeholders.
+  const { t } = useTranslation();
+  const mediaMeta = getLocalizedMediaMeta(t);
+  const meta = mediaMeta[block.kind];
   const [focused, setFocused] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -264,7 +311,7 @@ function InlineMediaCard({
           type="button"
           className="vlp-inline-media-remove"
           onClick={onRemove}
-          aria-label={`Remove ${meta.label} block`}
+          aria-label={t("classroom.sectionBlock.removeMediaAria", { label: meta.label })}
           style={{ color: meta.color }}
         >
           <X size={13} strokeWidth={2.2} />
@@ -313,7 +360,7 @@ function InlineMediaCard({
                 type="button"
                 className="vlp-inline-media-upload"
                 onClick={() => fileRef.current?.click()}
-                title="Upload image"
+                title={t("classroom.sectionBlock.uploadImageTitle")}
               >
                 <Upload size={14} strokeWidth={2} />
               </button>
@@ -333,7 +380,7 @@ function InlineMediaCard({
           type="text"
           value={block.caption ?? ""}
           onChange={(e) => onChange({ caption: e.target.value })}
-          placeholder="Caption (optional)"
+          placeholder={t("classroom.sectionBlock.captionOptional")}
           className="vlp-inline-media-caption"
         />
       </div>
@@ -349,6 +396,8 @@ function InlineMediaViewer({
 }: {
   block: InlineMediaBlock & { kind: "image" | "video" | "audio" };
 }) {
+  // Provides localized fallback labels for inline media viewers.
+  const { t } = useTranslation();
   // Resolve the media source: prefer url, fall back to data.src (persistent base64)
   const src =
     (block.url ?? "").trim() ||
@@ -369,7 +418,7 @@ function InlineMediaViewer({
       >
         <img
           src={src}
-          alt={block.caption || block.title || "Image"}
+          alt={block.caption || block.title || t("classroom.sectionBlock.imageAlt")}
           style={{
             width: "100%",
             height: "auto",
@@ -418,7 +467,7 @@ function InlineMediaViewer({
             style={{ width: "100%", height: "100%", border: "none", display: "block" }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            title={block.title || "Video"}
+            title={block.title || t("classroom.sectionBlock.videoTitle")}
           />
         </div>
       );
@@ -465,6 +514,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
       onEditSlides,
       onAddContent,
       onSectionTitleChange,
+      onResetBlockAnswers,
       onDeleteBlock,
       onReorderBlock,
       onEditBlock,
@@ -483,6 +533,8 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     },
     ref,
   ) => {
+    // Provides localized labels and ARIA text for section interactions.
+    const { t } = useTranslation();
     const isTeacher = mode === "teacher";
     const isEmpty = items.length === 0;
 
@@ -648,12 +700,18 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     // component mounts and its useLiveSyncField subscribe fires — otherwise the stale WS-cached
     // value replays into the freshly mounted component and undoes the reset.
     const bumpAnswerReset = useCallback((blockId: string) => {
+      // 1. Evict stale cached WS values so subscribe() finds nothing.
+      liveSession?.evictBlockFromCache(blockId);
+
+      // 2. Mark the block as reset so useLiveSyncField discards late arrivals.
       markBlockReset(blockId);
+
+      // 3. Bump the key — the exercise block remounts with blank local state.
       setAnswerResetSeqByBlockId((prev) => ({
         ...prev,
         [blockId]: (prev[blockId] ?? 0) + 1,
       }));
-    }, []);
+    }, [liveSession]);
 
     /**
      * Teacher-side reset: bumps local seq AND broadcasts over the live session
@@ -662,15 +720,31 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
      */
     const teacherResetBlock = useCallback(
       (blockId: string) => {
+        // 1. Remount the exercise block locally so the UI is immediately blank.
         bumpAnswerReset(blockId);
+
+        // 2. Broadcast over the live WebSocket so connected students also see
+        //    the reset in real time (existing behaviour, unchanged).
         if (liveSession?.role === "teacher") {
           liveSession.patch(LIVE_LESSON_RESET_BLOCK_KEY, {
             blockId,
             t: Date.now(),
           });
         }
+
+        // 3. Persist the clear to the server so the student gets a blank exercise
+        //    even after a page reload.  When the teacher is observing a specific
+        //    student (observedStudentId != null), only that student's answers are
+        //    cleared.  null / undefined → clear for all students.
+        if (onResetBlockAnswers) {
+          const targetStudentId: number | undefined =
+            liveSession?.observedStudentId ?? undefined;
+          void onResetBlockAnswers(blockId, targetStudentId).catch((err) => {
+            console.warn("[SectionBlock] Failed to persist answer clear:", err);
+          });
+        }
       },
-      [bumpAnswerReset, liveSession],
+      [bumpAnswerReset, liveSession, onResetBlockAnswers],
     );
 
     // Students: listen for teacher-initiated resets and clear the matching block locally
@@ -708,7 +782,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                 onBlur={finishRename}
                 onKeyDown={handleTitleInputKeyDown}
                 maxLength={120}
-                aria-label="Section title"
+                aria-label={t("classroom.sectionBlock.sectionTitleAria")}
               />
             ) : (
               <>
@@ -736,8 +810,8 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                     type="button"
                     className="vlp-section-edit-btn"
                     onClick={startRename}
-                    aria-label="Rename section"
-                    title="Rename section"
+                    aria-label={t("classroom.sectionBlock.renameSection")}
+                    title={t("classroom.sectionBlock.renameSection")}
                   >
                     <Pencil size={13} />
                   </button>
@@ -745,7 +819,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
               </>
             )}
             <div className="vlp-section-eyebrow">
-              Section {index + 1}{total > 1 ? ` of ${total}` : ""}
+              {t("classroom.sectionBlock.sectionCounter", { current: index + 1, total })}
             </div>
           </div>
           <div className="vlp-section-rule" aria-hidden />
@@ -1003,11 +1077,11 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                   onClick={onAddContent}
                 >
                   <PlusCircle size={16} strokeWidth={1.8} />
-                  Add content
+                  {t("classroom.sectionBlock.addContent")}
                 </button>
               ) : (
                 <p className="vlp-section-empty-label">
-                  No content in this section yet.
+                  {t("classroom.sectionBlock.noContentYet")}
                 </p>
               )}
             </div>
@@ -1021,7 +1095,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                 onClick={onAddContent}
               >
                 <PlusCircle size={16} strokeWidth={1.8} />
-                Add content
+                {t("classroom.sectionBlock.addContent")}
               </button>
             </div>
           )}

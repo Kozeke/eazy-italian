@@ -15,7 +15,8 @@ from app.schemas.user import (
     MagicCodeRequest, VerifyEmailRequest, ResendVerificationRequest
 )
 from app.core.config import settings
-from app.models.subscription import Subscription, UserSubscription
+from app.core.teacher_tariffs import default_teacher_plan_ends_at
+from app.models.subscription import Subscription, SubscriptionName, UserSubscription
 from app.services.email_service import EmailService
 
 router = APIRouter()
@@ -46,16 +47,24 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     # 🔥 Attach FREE subscription
     free_sub = db.query(Subscription).filter(
-        Subscription.name == "free"
+        Subscription.name == SubscriptionName.FREE
     ).first()
 
     if not free_sub:
         raise HTTPException(500, "Free subscription not found")
 
+    # Stores plan end for teachers: Free tier lasts 30 days then must renew or upgrade.
+    free_plan_ends_at = (
+        default_teacher_plan_ends_at("free")
+        if db_user.role == UserRole.TEACHER
+        else None
+    )
+
     db.add(UserSubscription(
         user_id=db_user.id,
         subscription_id=free_sub.id,
-        is_active=True
+        is_active=True,
+        ends_at=free_plan_ends_at,
     ))
 
     db.commit()

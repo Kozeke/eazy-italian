@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
 from app.core.database import get_db
+from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota
 from app.models.user import User
 from app.schemas.exercise_generation import (
     ExerciseGenerateRequest,
@@ -115,6 +116,8 @@ async def generate_exercise_block(
 
     # Resolve unit_id: body may omit it; fall back to the segment's parent unit.
     unit_id = _resolve_unit_id(db, segment_id, body.unit_id)
+    # Consumes one AI exercise-generation credit after basic request validation succeeds.
+    check_and_consume_teacher_ai_quota(db, current_user, "exercise_generation")
 
     block, metadata = await generate_exercise_for_segment(
         exercise_type=exercise_type,
@@ -204,6 +207,8 @@ async def generate_exercise_from_file(
     segment = _load_segment(db, segment_id)
 
     # ── Generate ──────────────────────────────────────────────────────────────
+    # Consumes one AI exercise-generation credit after the input file is validated.
+    check_and_consume_teacher_ai_quota(db, current_user, "exercise_generation")
     try:
         from app.services.ai_exercise_generator import generate_exercise as _gen
         exercise_data, metadata = await _gen(
