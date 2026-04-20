@@ -5,6 +5,8 @@ export interface User {
   last_name: string;
   // Stores full display name returned by backend when available.
   full_name?: string;
+  // Stores persisted profile icon path/URL used by admin header and profile settings page.
+  avatar_url?: string | null;
   role: 'student' | 'teacher';
   locale: string;
   email_verified_at?: string;
@@ -14,6 +16,10 @@ export interface User {
   created_at: string;
   updated_at?: string;
   onboarding_completed?: boolean;
+  // ISO datetime when the active subscription expires; null means no paid subscription.
+  subscription_ends_at?: string | null;
+  // Name of the active subscription plan (e.g. "premium", "pro"); null for free users.
+  subscription?: string | null;
 }
 
 export interface Unit {
@@ -353,4 +359,17 @@ export interface GradeDetail {
       points?: number;
     }>;
   };
+}
+
+// One teacher ledger row returned by GET /admin/tariffs/payments.
+export interface TeacherPaymentRecord {
+  id: number;
+  amount: number;
+  currency: string;
+  status: string;
+  plan_code: string | null;
+  billing_period: string | null;
+  description: string | null;
+  provider_ref: string | null;
+  created_at: string;
 }

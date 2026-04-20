@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
 from app.core.database import get_db
+from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota
 from app.models.user import User
 from app.services.task_generation_flow import generate_tasks_for_unit
 
@@ -95,6 +96,8 @@ async def generate_tasks(
     - **502** AI provider is unreachable or returned an error.
     - **500** Unexpected internal error.
     """
+    # Consumes one AI task-generation credit based on the teacher's active tariff.
+    check_and_consume_teacher_ai_quota(db, current_user, "task_generation")
     logger.info(
         "API request: generate_tasks unit_id=%d task_count=%d difficulty=%s user=%d",
         unit_id,

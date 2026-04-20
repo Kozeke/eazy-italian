@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 
 interface LoadingScreenProps {
   /** When true, the screen fades out and unmounts after the transition */
@@ -43,7 +43,11 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading }) => {
         /* Wrapper */
         .lngai-loading-screen {
           position: fixed;
-          inset: 0;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          min-height: 100vh;
+          height: 100dvh;
           z-index: 9999;
           display: flex;
           align-items: center;
@@ -104,7 +108,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading }) => {
 
       {/* ─── screen ────────────────────────────────────────────────────── */}
       <div
-        className={`lngai-loading-screen${!isLoading ? ' lngai-fade-out' : ''}`}
+        className={`lngai-loading-screen${!isLoading ? " lngai-fade-out" : ""}`}
         role="status"
         aria-label="Loading LinguAI"
         aria-live="polite"
@@ -117,21 +121,25 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading }) => {
           overflow="visible"
           xmlns="http://www.w3.org/2000/svg"
           aria-hidden="true"
-          style={{ display: 'block', overflow: 'visible' }}
+          style={{ display: "block", overflow: "visible" }}
         >
           {/* ── mark ─────────────────────────────────────────────────── */}
 
           {/* Outer ring — subtle pulse */}
           <circle
             className="lngai-outer-ring"
-            cx="20" cy="20" r="17"
+            cx="20"
+            cy="20"
+            r="17"
             stroke="#6C6FEF"
             strokeWidth="1.6"
           />
 
           {/* Inner ring — static */}
           <circle
-            cx="20" cy="20" r="9"
+            cx="20"
+            cy="20"
+            r="9"
             stroke="#6C6FEF"
             strokeWidth="1.1"
             opacity="0.4"
@@ -145,21 +153,27 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading }) => {
             {/* top */}
             <circle
               className="lngai-dot-counter"
-              cx="20" cy="3" r="2"
+              cx="20"
+              cy="3"
+              r="2"
               fill="#6C6FEF"
               opacity="0.75"
             />
             {/* bottom-right */}
             <circle
               className="lngai-dot-counter"
-              cx="34.7" cy="11.5" r="2"
+              cx="34.7"
+              cy="11.5"
+              r="2"
               fill="#6C6FEF"
               opacity="0.75"
             />
             {/* bottom-left */}
             <circle
               className="lngai-dot-counter"
-              cx="34.7" cy="28.5" r="2"
+              cx="34.7"
+              cy="28.5"
+              r="2"
               fill="#6C6FEF"
               opacity="0.75"
             />
@@ -197,12 +211,14 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading }) => {
         {/* Screen-reader-only live text */}
         <span
           style={{
-            position: 'absolute',
-            width: 1, height: 1,
-            padding: 0, margin: -1,
-            overflow: 'hidden',
-            clip: 'rect(0,0,0,0)',
-            whiteSpace: 'nowrap',
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0,0,0,0)",
+            whiteSpace: "nowrap",
             border: 0,
           }}
         >

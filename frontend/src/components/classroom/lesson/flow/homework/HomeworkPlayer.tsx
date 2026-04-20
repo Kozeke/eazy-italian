@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Layers,
   Wand2,
@@ -65,6 +66,8 @@ function HwBlock({
   onSubmitTest,
   onSubmitTask,
 }: HwBlockProps) {
+  // Provides localized labels for per-item homework badges.
+  const { t } = useTranslation();
   // Bumped to remount FlowItemRenderer so homework attempt answers clear locally
   const [answerResetSeq, setAnswerResetSeq] = useState(0);
 
@@ -89,7 +92,7 @@ function HwBlock({
       {hw.copiedFromLesson && (
         <div className="hw-block-badge-from-lesson">
           <Copy size={10} strokeWidth={2.5} />
-          Из урока
+          {t("classroom.homework.fromLesson")}
         </div>
       )}
 
@@ -134,17 +137,17 @@ export interface HomeworkPlayerProps {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 /** Human-readable homework workflow labels for the student banner */
-function homeworkStatusLabel(status: string): string {
+function homeworkStatusLabel(status: string, t: (key: string) => string): string {
   switch (status) {
     case "pending_review":
-      return "На проверке у учителя";
+      return t("classroom.homework.status.pendingReview");
     case "awaiting_student":
-      return "Нужно доработать";
+      return t("classroom.homework.status.awaitingStudent");
     case "completed":
-      return "Выполнено";
+      return t("classroom.homework.status.completed");
     case "assigned":
     default:
-      return "В работе";
+      return t("classroom.homework.status.assigned");
   }
 }
 
@@ -161,6 +164,8 @@ export default function HomeworkPlayer({
   onDeleteItem,
   onReorderItem,
 }: HomeworkPlayerProps) {
+  // Provides localized labels for homework statuses, actions, and empty states.
+  const { t } = useTranslation();
   const { items, removeItem, reorderItem } = useHomework();
   const {
     observedStudentId,
@@ -281,7 +286,7 @@ export default function HomeworkPlayer({
       {mode === "student" && submission && (
         <div className="hw-status-banner">
           <div className="hw-status-banner__row">
-            <span className="hw-status-pill">{homeworkStatusLabel(submission.status)}</span>
+            <span className="hw-status-pill">{homeworkStatusLabel(submission.status, t)}</span>
             {submission.status !== "completed" &&
               submission.status !== "pending_review" && (
                 <button
@@ -290,7 +295,7 @@ export default function HomeworkPlayer({
                   disabled={submitBusy || items.length === 0}
                   onClick={() => void handleSubmitForReview()}
                 >
-                  {submitBusy ? "…" : "Отправить на проверку"}
+                  {submitBusy ? "…" : t("classroom.homework.submitForReview")}
                 </button>
               )}
           </div>
@@ -313,7 +318,7 @@ export default function HomeworkPlayer({
                   disabled={!onAddContent}
                 >
                   <Layers size={20} strokeWidth={1.8} className="hw-empty-card-icon" />
-                  <span>Выбрать упражнение</span>
+                  <span>{t("classroom.homework.pickExercise")}</span>
                 </button>
                 <button
                   className="hw-empty-card"
@@ -321,14 +326,14 @@ export default function HomeworkPlayer({
                   disabled={!onCreateExercise}
                 >
                   <Wand2 size={20} strokeWidth={1.8} className="hw-empty-card-icon" />
-                  <span>Создать упражнение</span>
+                  <span>{t("classroom.homework.createExercise")}</span>
                 </button>
               </div>
             </div>
           ) : (
             <div className="hw-empty">
-              <p className="hw-empty-title">Домашняя работа не назначена</p>
-              <p className="hw-empty-sub">Учитель ещё не добавил задания</p>
+              <p className="hw-empty-title">{t("classroom.homework.emptyTitle")}</p>
+              <p className="hw-empty-sub">{t("classroom.homework.emptySubtitle")}</p>
             </div>
           )
         ) : (
@@ -357,13 +362,13 @@ export default function HomeworkPlayer({
                 {onAddContent && (
                   <button className="hw-add-btn" onClick={onAddContent}>
                     <Layers size={14} strokeWidth={2.5} />
-                    Выбрать упражнение
+                    {t("classroom.homework.pickExercise")}
                   </button>
                 )}
                 {onCreateExercise && (
                   <button className="hw-add-btn hw-add-btn--create" onClick={onCreateExercise}>
                     <Wand2 size={14} strokeWidth={2.5} />
-                    Создать упражнение
+                    {t("classroom.homework.createExercise")}
                   </button>
                 )}
               </div>

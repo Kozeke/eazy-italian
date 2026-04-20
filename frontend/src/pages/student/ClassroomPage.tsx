@@ -43,6 +43,7 @@ import {
   useEffect,
 } from "react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useCourseGeneration } from "../../hooks/useCourseGeneration";
 
@@ -235,6 +236,8 @@ function ErrorState({
   message: string;
   onBack: () => void;
 }) {
+  // Provides localized labels for classroom error states.
+  const { t } = useTranslation();
   return (
     <div
       className="flex h-screen flex-col items-center justify-center gap-4 px-6"
@@ -255,13 +258,15 @@ function ErrorState({
         className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-95"
         style={{ background: DS.primary }}
       >
-        Go back
+        {t("classroom.page.goBack")}
       </button>
     </div>
   );
 }
 
 function EmptyLesson({ unitTitle }: { unitTitle: string }) {
+  // Provides localized text for the empty lesson fallback.
+  const { t } = useTranslation();
   return (
     <div
       className="mx-auto flex max-w-md flex-col items-center justify-center py-24 text-center"
@@ -289,9 +294,9 @@ function EmptyLesson({ unitTitle }: { unitTitle: string }) {
       </div>
       <p className="text-base font-semibold text-slate-800">{unitTitle}</p>
       <p className="mt-2 text-sm leading-relaxed text-slate-400">
-        Your teacher hasn't added any content to this unit yet.
+        {t("classroom.page.emptyLessonDescription")}
         <br />
-        Check back soon!
+        {t("classroom.page.emptyLessonCheckBackSoon")}
       </p>
     </div>
   );
@@ -310,6 +315,8 @@ function ClassroomPageInner({
   userId: number | string | null;
   currentUserName: string;
 }) {
+  // Provides localized labels for classroom toasts, dialogs, and placeholders.
+  const { t } = useTranslation();
   const { unitId } = useParams<{ unitId?: string }>();
 
   // ── Navigation helpers (declared first — useCourseGeneration closures reference them) ──
@@ -685,7 +692,7 @@ function ClassroomPageInner({
           Number(courseId),
           courseEditDataToUpdatePayload(data, course?.settings ?? null),
         );
-        toast.success("Курс сохранён");
+        toast.success(t("classroom.page.courseSaved"));
         reloadUnits();
       } catch (err: unknown) {
         const ax = err as { response?: { data?: { detail?: unknown } } };
@@ -695,12 +702,12 @@ function ClassroomPageInner({
             ? detail
             : Array.isArray(detail)
               ? JSON.stringify(detail)
-              : "Не удалось сохранить курс";
+              : t("classroom.page.courseSaveFailed");
         toast.error(msg);
         throw err;
       }
     },
-    [courseId, course?.settings, reloadUnits],
+    [courseId, course?.settings, reloadUnits, t],
   );
 
   const handleContentSaved = useCallback(async () => {
@@ -820,7 +827,7 @@ function ClassroomPageInner({
       setPublishBusy(true);
       try {
         await unitsApi.publishUnit(currentUnit.id, { publish_children: true });
-        toast.success("Unit published");
+        toast.success(t("classroom.page.unitPublished"));
         await Promise.all([reloadUnit(), reloadUnits()]);
       } catch (err: unknown) {
         const ax = err as { response?: { data?: { detail?: unknown } } };
@@ -830,7 +837,7 @@ function ClassroomPageInner({
             ? detail
             : Array.isArray(detail)
               ? JSON.stringify(detail)
-              : "Could not publish the unit";
+              : t("classroom.page.unitPublishFailed");
         toast.error(msg);
       } finally {
         setPublishBusy(false);
@@ -846,7 +853,7 @@ function ClassroomPageInner({
     if (next) {
       navigateToUnit(next);
     } else {
-      toast("This is the last unit in the course.", { icon: "ℹ️" });
+      toast(t("classroom.page.lastUnitInfo"), { icon: "ℹ️" });
     }
   }, [
     isTeacher,
@@ -856,6 +863,7 @@ function ClassroomPageInner({
     reloadUnit,
     reloadUnits,
     navigateToUnit,
+    t,
   ]);
 
   // Opens the Additional Materials modal from the side panel "Additional materials" button.
@@ -886,7 +894,7 @@ function ClassroomPageInner({
       } catch (error) {
         if (!cancelled) {
           console.error("[ClassroomPage] Failed to refresh unit materials", error);
-          toast.error("Could not load materials.");
+          toast.error(t("classroom.page.materialsLoadFailed"));
         }
       } finally {
         if (!cancelled) setMaterialsLoading(false);
@@ -896,14 +904,14 @@ function ClassroomPageInner({
     return () => {
       cancelled = true;
     };
-  }, [materialsModalOpen, currentUnit?.id, isTeacher]);
+  }, [materialsModalOpen, currentUnit?.id, isTeacher, t]);
 
   // Uploads teacher-selected files, persists attachments on the unit, then reloads unit data.
   const handleUploadUnitMaterials = useCallback(
     async (files: File[]) => {
       if (!isTeacher) return;
       if (!currentUnit?.id) {
-        toast.error("Open a unit before uploading materials.");
+        toast.error(t("classroom.page.openUnitBeforeUpload"));
         return;
       }
       if (files.length === 0) return;
@@ -923,17 +931,17 @@ function ClassroomPageInner({
         await reloadUnit();
         toast.success(
           uploadedMaterials.length === 1
-            ? "Material uploaded."
-            : `${uploadedMaterials.length} materials uploaded.`,
+            ? t("classroom.page.materialUploadedSingle")
+            : t("classroom.page.materialUploadedMany", { count: uploadedMaterials.length }),
         );
       } catch (error) {
         console.error("[ClassroomPage] Failed to upload unit materials", error);
-        toast.error("Could not upload materials.");
+        toast.error(t("classroom.page.materialUploadFailed"));
       } finally {
         setMaterialsUploading(false);
       }
     },
-    [isTeacher, currentUnit?.id, unitDetail?.attachments, reloadUnit],
+    [isTeacher, currentUnit?.id, unitDetail?.attachments, reloadUnit, t],
   );
 
   // ── Course progress rail ──────────────────────────────────────────────────
@@ -1024,7 +1032,11 @@ function ClassroomPageInner({
       if (!mediaBlock) return;
 
       const id = mediaBlock.id || Math.random().toString(36).slice(2, 12);
-      const kindLabel: Record<string, string> = { image: "Image", video: "Video", audio: "Audio" };
+      const kindLabel: Record<string, string> = {
+        image: t("classroom.page.mediaKind.image"),
+        video: t("classroom.page.mediaKind.video"),
+        audio: t("classroom.page.mediaKind.audio"),
+      };
 
       const flowItem = {
         type: "inline_media",
@@ -1032,7 +1044,7 @@ function ClassroomPageInner({
         mediaKind: mediaBlock.kind,
         url: mediaBlock.url ?? "",
         caption: mediaBlock.caption ?? "",
-        label: kindLabel[mediaBlock.kind] ?? "Media",
+        label: kindLabel[mediaBlock.kind] ?? t("classroom.page.mediaKind.media"),
         status: "available",
       };
 
@@ -1045,7 +1057,7 @@ function ClassroomPageInner({
   }, [routerLocation.key, isTeacher, hw.hydrated]);
 
   // ── LessonWorkspace props ─────────────────────────────────────────────────
-  const lessonWorkspaceProps = useMemo<LessonWorkspaceProps>(
+  const lessonWorkspaceProps = useMemo<Omit<LessonWorkspaceProps, "classroomId">>(
     () => ({
       mode: isTeacher ? ("teacher" as const) : ("student" as const),
       unit: (unitDetail as unknown as LessonWorkspaceProps["unit"]),
@@ -1169,10 +1181,20 @@ function ClassroomPageInner({
       if (!isTeacher && unitLoaded && !hasAnyContent) {
         return <EmptyLesson unitTitle={unitDetail!.title} />;
       }
-      return <LessonWorkspace {...lessonWorkspaceProps} />;
+      return (
+        <LessonWorkspace
+          classroomId={Number(courseId)}
+          {...lessonWorkspaceProps}
+        />
+      );
     }
 
-    return <LessonWorkspace {...lessonWorkspaceProps} />;
+    return (
+      <LessonWorkspace
+        classroomId={Number(courseId)}
+        {...lessonWorkspaceProps}
+      />
+    );
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -1184,13 +1206,15 @@ function ClassroomPageInner({
       onUnitChange={handleLiveUnitChange}
       onSlideChange={setLiveSlide}
       onSectionChange={setLiveSection}
+      unitId={currentUnit?.id ?? null}
+      segmentId={currentSectionIntegerId}
     >
       {/* Full-screen column: children = header stack + banners + main (see file header). */}
       <ClassroomLayout ref={layoutRef}>
         {/* Sticky header; lesson rail row disabled (no lessonRail). */}
         <ClassroomHeader
           classroom={classroom ?? undefined}
-          course={course ?? { id: 0, title: "Loading…" }}
+          course={course ?? { id: 0, title: t("classroom.page.loading") }}
           currentUnit={currentUnit}
           units={[]}
           completedUnitIds={completedUnitIds}
@@ -1354,16 +1378,16 @@ function ClassroomPageInner({
             >
               {isTeacher &&
               String((unitDetail as { status?: string } | null)?.status) === "draft"
-                ? "Unit not published"
-                : "Leave classroom?"}
+                ? t("classroom.page.unitNotPublished")
+                : t("classroom.page.leaveClassroomTitle")}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
               {isTeacher &&
               String((unitDetail as { status?: string } | null)?.status) === "draft"
-                ? "This unit is still a draft. Publish it from the sidebar when you are ready, or you can leave the classroom and come back later."
+                ? t("classroom.page.leaveDialogDraftDescription")
                 : isTeacher
-                  ? "You will return to your courses. Unsaved changes in open editors may be lost."
-                  : "You will return to My Classes."}
+                  ? t("classroom.page.leaveDialogTeacherDescription")
+                  : t("classroom.page.leaveDialogStudentDescription")}
             </p>
 
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1381,7 +1405,7 @@ function ClassroomPageInner({
                   '--tw-ring-color': DS.tint,
                 }}
               >
-                Stay
+                {t("classroom.page.stay")}
               </button>
 
               {/* Confirm */}
@@ -1396,7 +1420,7 @@ function ClassroomPageInner({
                   '--tw-ring-color': DS.tint,
                 }}
               >
-                Leave
+                {t("classroom.page.leave")}
               </button>
             </div>
           </div>
@@ -1428,11 +1452,10 @@ function ClassroomPageInner({
               id="draft-switch-title"
               className="text-lg font-semibold text-slate-900"
             >
-              Unit not published
+              {t("classroom.page.unitNotPublished")}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              This unit is still a draft. You can publish it from the sidebar first, or switch units
-              anyway—your draft will stay in this course until you publish.
+              {t("classroom.page.switchDraftUnitDescription")}
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
@@ -1448,7 +1471,7 @@ function ClassroomPageInner({
                   "--tw-ring-color": DS.tint,
                 }}
               >
-                Stay on this unit
+                {t("classroom.page.stayOnThisUnit")}
               </button>
               <button
                 type="button"
@@ -1461,7 +1484,7 @@ function ClassroomPageInner({
                   "--tw-ring-color": DS.tint,
                 }}
               >
-                Switch unit
+                {t("classroom.page.switchUnit")}
               </button>
             </div>
           </div>
@@ -1474,6 +1497,8 @@ function ClassroomPageInner({
 // ─── Page (outer) ─────────────────────────────────────────────────────────────
 
 export default function ClassroomPage() {
+  // Provides localized labels for outer classroom page guard states.
+  const { t } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
   const { user, isTeacher: userIsTeacher, loading: authLoading } = useAuth();
@@ -1482,7 +1507,7 @@ export default function ClassroomPage() {
   if (!courseId) {
     return (
       <ErrorState
-        message="No course specified in the URL."
+        message={t("classroom.page.noCourseInUrl")}
         onBack={() => navigate(noCourseBackPath)}
       />
     );

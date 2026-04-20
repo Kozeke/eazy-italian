@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
 from app.core.database import SessionLocal, get_db
+from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota
 from app.models.test import Test, TestQuestion, TestStatus
 from app.models.user import User
 from app.services.ai.providers.base import AIProviderError
@@ -271,6 +272,8 @@ async def generate_test_for_unit(
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if not unit:
         raise HTTPException(status_code=404, detail=f"Unit with id={unit_id} not found.")
+    # Consumes one AI test-generation credit after unit validation succeeds.
+    check_and_consume_teacher_ai_quota(db, current_user, "test_generation")
 
     # ── 2. Build test title ───────────────────────────────────────────────────
     title = (

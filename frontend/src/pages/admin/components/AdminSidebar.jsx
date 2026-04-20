@@ -12,6 +12,7 @@
 
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import CreateCourseModal from "./CreateCourseModal";
 import { SHELL_SIDEBAR_COLLAPSED_WIDTH, SHELL_SIDEBAR_EXPANDED_WIDTH } from "../../../components/layout/shellDimensions";
 
@@ -447,6 +448,8 @@ const CSS = `
 
 /* ── Component ───────────────────────────────────────────────────────────── */
 export default function AdminSidebar() {
+  // Provides translation function for sidebar labels used across all admin pages.
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate  = useNavigate();
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -472,13 +475,13 @@ export default function AdminSidebar() {
           >
             <div className="asb-active-dot" />
             <span className="asb-ico"><IcoBook /></span>
-            <span className="asb-item-label">Courses</span>
+            <span className="asb-item-label">{t("admin.nav.courses", { defaultValue: "Courses" })}</span>
           </button>
 
           {/* + New Course — visible only when expanded */}
           <button className="asb-new-btn" onClick={() => setCreateModalOpen(true)}>
             <span className="asb-ico"><IcoPlus /></span>
-            <span className="asb-new-btn-label">New Course</span>
+            <span className="asb-new-btn-label">{t("admin.actions.newCourse", { defaultValue: "New Course" })}</span>
           </button>
 
           <div className="asb-divider" />
@@ -490,7 +493,7 @@ export default function AdminSidebar() {
           >
             <div className="asb-active-dot" />
             <span className="asb-ico"><IcoUsers /></span>
-            <span className="asb-item-label">Students</span>
+            <span className="asb-item-label">{t("admin.nav.students", { defaultValue: "Students" })}</span>
           </button>
 
           {/* ③ GRADES */}

@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { coursesApi } from "../../services/api";
 import toast from "react-hot-toast";
 import CreateCourseModal from "./components/CreateCourseModal";
@@ -45,11 +46,19 @@ const GRADS = [
 ];
 
 const STATUS_CFG = {
-  published:{ label:"Published", bg:T.limeL,  color:T.green  },
-  draft:    { label:"Draft",     bg:"#F1F5F9", color:"#64748B"},
-  scheduled:{ label:"Scheduled", bg:T.violetL, color:T.violetD },
-  archived: { label:"Archived",  bg:"#F1F5F9", color:"#64748B"},
+  published:{ bg:T.limeL,  color:T.green  },
+  draft:    { bg:"#F1F5F9", color:"#64748B"},
+  scheduled:{ bg:T.violetL, color:T.violetD },
+  archived: { bg:"#F1F5F9", color:"#64748B"},
 };
+
+// Resolves translated status labels for list-row chips and keeps defaults for missing locale keys.
+function getStatusLabel(t, status) {
+  if (status === "published") return t("admin.course.status.published", { defaultValue: "Published" });
+  if (status === "scheduled") return t("admin.course.status.scheduled", { defaultValue: "Scheduled" });
+  if (status === "archived") return t("admin.course.status.archived", { defaultValue: "Archived" });
+  return t("admin.course.status.draft", { defaultValue: "Draft" });
+}
 
 const stripHtml = h => {
   if (!h) return "";
@@ -486,7 +495,7 @@ const Skel = ({i}) => (
 );
 
 /* ── Empty state ── */
-const EmptyState = ({onNew}) => {
+const EmptyState = ({onNew, t}) => {
   const [v, setV] = useState(false);
   useEffect(()=>{ const t=setTimeout(()=>setV(true),80); return()=>clearTimeout(t); },[]);
   const FLOATS = [
@@ -494,10 +503,10 @@ const EmptyState = ({onNew}) => {
     {e:"🎯",x:"3%", y:"72%",s:24,d:1.1},{e:"🌍",x:"86%",y:"74%",s:22,d:.3},
   ];
   const FEATS = [
-    {e:"🧠",l:"AI course builder", g:`linear-gradient(135deg,${T.violet},#9B9EF7)`},
-    {e:"🚀",l:"Lesson by lesson",  g:`linear-gradient(135deg,${T.violetD},${T.violet})`},
-    {e:"📊",l:"Live analytics",    g:`linear-gradient(135deg,${T.lime},${T.teal})`},
-    {e:"📝",l:"Auto test gen",     g:`linear-gradient(135deg,${T.amber},${T.orange})`},
+    {e:"🧠",l:t("admin.courses.empty.aiBuilder", { defaultValue: "AI course builder" }), g:`linear-gradient(135deg,${T.violet},#9B9EF7)`},
+    {e:"🚀",l:t("admin.courses.empty.lessonByLesson", { defaultValue: "Lesson by lesson" }),  g:`linear-gradient(135deg,${T.violetD},${T.violet})`},
+    {e:"📊",l:t("admin.courses.empty.liveAnalytics", { defaultValue: "Live analytics" }),    g:`linear-gradient(135deg,${T.lime},${T.teal})`},
+    {e:"📝",l:t("admin.courses.empty.autoTestGen", { defaultValue: "Auto test gen" }),     g:`linear-gradient(135deg,${T.amber},${T.orange})`},
   ];
   return (
     <div className="cat-empty">
@@ -510,10 +519,10 @@ const EmptyState = ({onNew}) => {
       ))}
       <div className="cat-empty-card">
         <div className="cat-empty-orb">🎓</div>
-        <div className="cat-empty-badge"><I.Spark/> Welcome to your studio</div>
-        <h2 className="cat-empty-title">Build your first <span>AI-powered course</span></h2>
+        <div className="cat-empty-badge"><I.Spark/> {t("admin.courses.empty.welcome", { defaultValue: "Welcome to your studio" })}</div>
+        <h2 className="cat-empty-title">{t("admin.courses.empty.titlePrefix", { defaultValue: "Build your first" })} <span>{t("admin.courses.empty.titleHighlight", { defaultValue: "AI-powered course" })}</span></h2>
         <p className="cat-empty-sub">
-          Create engaging language courses with AI-generated slides, tasks and tests.
+          {t("admin.courses.empty.subtitle", { defaultValue: "Create engaging language courses with AI-generated slides, tasks and tests." })}
         </p>
         <div className="cat-empty-feats">
           {FEATS.map((f,i)=>(
@@ -524,8 +533,8 @@ const EmptyState = ({onNew}) => {
             </div>
           ))}
         </div>
-        <button className="cat-empty-cta" onClick={onNew}>✨ Create First Course</button>
-        <p className="cat-empty-note">Takes ~2 minutes · AI does the heavy lifting</p>
+        <button className="cat-empty-cta" onClick={onNew}>✨ {t("admin.courses.empty.createFirst", { defaultValue: "Create First Course" })}</button>
+        <p className="cat-empty-note">{t("admin.courses.empty.note", { defaultValue: "Takes ~2 minutes - AI does the heavy lifting" })}</p>
       </div>
     </div>
   );
@@ -571,9 +580,11 @@ const Card = ({course, idx, onOpen}) => {
 };
 
 /* ── Course row (list) ── */
-const Row = ({course, idx, onOpen, onDelete}) => {
+const Row = ({course, idx, onOpen, onDelete, t}) => {
   const grad = GRADS[idx % GRADS.length];
   const st   = STATUS_CFG[course.status] || STATUS_CFG.draft;
+  // Stores translated status chip label for list rows.
+  const statusLabel = getStatusLabel(t, course.status);
   const pct  = (course.units_count ?? 0) > 0
     ? Math.round(((course.published_units_count ?? 0) / course.units_count) * 100) : 0;
   return (
@@ -586,7 +597,7 @@ const Row = ({course, idx, onOpen, onDelete}) => {
         <div className="cat-row-title">{course.title}</div>
         <div className="cat-row-meta">
           {course.level && <span className="cat-row-meta-item" style={{fontWeight:700,color:T.violetD}}>{course.level}</span>}
-          {(course.units_count??0) > 0 && <span className="cat-row-meta-item"><I.Units/> {course.units_count} units</span>}
+          {(course.units_count??0) > 0 && <span className="cat-row-meta-item"><I.Units/> {course.units_count} {t("admin.courses.units", { defaultValue: "units" })}</span>}
           {(course.enrolled_students_count??0) > 0 && <span className="cat-row-meta-item"><I.Students/> {course.enrolled_students_count}</span>}
         </div>
       </div>
@@ -596,7 +607,7 @@ const Row = ({course, idx, onOpen, onDelete}) => {
           <div className="cat-track"><div className="cat-fill" style={{width:`${pct}%`}}/></div>
         </div>
       )}
-      <span className="cat-row-status" style={{background:st.bg,color:st.color}}>{st.label}</span>
+      <span className="cat-row-status" style={{background:st.bg,color:st.color}}>{statusLabel}</span>
       <div className="cat-row-actions">
         {/* Legacy course editor: route /admin/courses/:id/edit is disabled (see AdminCourseEditPage.legacy.tsx).
         <button className="cat-ico-btn" onClick={e=>{e.stopPropagation();onEdit(course.id);}}><I.Pencil/></button>
@@ -608,23 +619,23 @@ const Row = ({course, idx, onOpen, onDelete}) => {
 };
 
 /* ── Delete modal ── */
-const DelModal = ({course, busy, onConfirm, onCancel}) => (
+const DelModal = ({course, busy, onConfirm, onCancel, t}) => (
   <div className="cat-modal-bg" onClick={onCancel}>
     <div className="cat-modal" onClick={e=>e.stopPropagation()}>
       <div style={{fontSize:34,textAlign:"center",marginBottom:12}}>🗑️</div>
       <h3 style={{fontFamily:T.dFont,fontSize:17,fontWeight:900,color:T.text,textAlign:"center",marginBottom:7}}>
-        Delete course?
+        {t("admin.courses.delete.title", { defaultValue: "Delete course?" })}
       </h3>
       <p style={{fontSize:12.5,color:T.sub,textAlign:"center",lineHeight:1.7,marginBottom:20}}>
         <strong style={{color:T.text}}>"{course.title}"</strong> and all its content will be
-        permanently removed. This cannot be undone.
+        {" "}{t("admin.courses.delete.subtitle", { defaultValue: "permanently removed. This cannot be undone." })}
       </p>
       <div style={{display:"flex",gap:8}}>
         <button style={{flex:1,padding:"10px",borderRadius:10,border:`1.5px solid ${T.border}`,background:"white",color:T.sub,fontFamily:T.dFont,fontSize:13,fontWeight:700,cursor:"pointer"}}
-          onClick={onCancel}>Cancel</button>
+          onClick={onCancel}>{t("common.cancel", { defaultValue: "Cancel" })}</button>
         <button disabled={busy}
           style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:"#EF4444",color:"white",fontFamily:T.dFont,fontSize:13,fontWeight:800,cursor:busy?"not-allowed":"pointer",opacity:busy?.65:1,boxShadow:"0 3px 12px rgba(239,68,68,.24)"}}
-          onClick={onConfirm}>{busy?"Deleting…":"Delete"}</button>
+          onClick={onConfirm}>{busy ? t("admin.courses.delete.deleting", { defaultValue: "Deleting..." }) : t("admin.courses.delete.action", { defaultValue: "Delete" })}</button>
       </div>
     </div>
   </div>
@@ -634,6 +645,8 @@ const DelModal = ({course, busy, onConfirm, onCancel}) => (
    MAIN PAGE
    ═══════════════════════════════════════════════════════════════════════════ */
 export default function AdminCoursesCatalog() {
+  // Provides translation function for catalog labels/toasts across all admin pages.
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { startTeacherClassroomOpen } = useTeacherClassroomTransition();
   const [courses,  setCourses]  = useState([]);
@@ -648,9 +661,9 @@ export default function AdminCoursesCatalog() {
   useEffect(()=>{
     coursesApi.getAdminCourses()
       .then(d => setCourses(Array.isArray(d) ? d : []))
-      .catch(() => toast.error("Failed to load courses"))
+      .catch(() => toast.error(t("admin.courses.loadError", { defaultValue: "Failed to load courses" })))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   useEffect(()=>{
     const fn = e => {
@@ -684,8 +697,8 @@ export default function AdminCoursesCatalog() {
     try {
       await coursesApi.deleteCourse(toDelete.id);
       setCourses(c => c.filter(x => x.id !== toDelete.id));
-      toast.success("Course deleted");
-    } catch { toast.error("Failed to delete course"); }
+      toast.success(t("admin.courses.deleted", { defaultValue: "Course deleted" }));
+    } catch { toast.error(t("admin.courses.deleteError", { defaultValue: "Failed to delete course" })); }
     finally { setDeleting(false); setToDelete(null); }
   };
 
@@ -698,14 +711,14 @@ export default function AdminCoursesCatalog() {
         <div className="cat-page">
 
           {/* Title */}
-          <div className="cat-title">Courses</div>
+          <div className="cat-title">{t("admin.nav.courses", { defaultValue: "Courses" })}</div>
 
           {/* Search */}
           <div className="cat-search">
             <I.Search/>
             <input ref={searchRef} value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search courses…"/>
+              placeholder={t("admin.courses.searchPlaceholder", { defaultValue: "Search courses..." })}/>
             {query && <button className="cat-clear-btn" onClick={()=>setQuery("")}>×</button>}
           </div>
 
@@ -725,8 +738,8 @@ export default function AdminCoursesCatalog() {
               <option value="archived">Archived</option>
             </select> */}
             <div className="cat-view-toggle">
-              <button className={`cat-vbtn ${view==="grid"?"on":""}`} onClick={()=>setView("grid")} title="Grid"><I.Grid/></button>
-              <button className={`cat-vbtn ${view==="list"?"on":""}`} onClick={()=>setView("list")} title="List"><I.List/></button>
+              <button className={`cat-vbtn ${view==="grid"?"on":""}`} onClick={()=>setView("grid")} title={t("admin.courses.view.grid", { defaultValue: "Grid" })}><I.Grid/></button>
+              <button className={`cat-vbtn ${view==="list"?"on":""}`} onClick={()=>setView("list")} title={t("admin.courses.view.list", { defaultValue: "List" })}><I.List/></button>
             </div>
           </div>
 
@@ -734,8 +747,8 @@ export default function AdminCoursesCatalog() {
           {!loading && courses.length > 0 && (
             <div className="cat-result-count">
               {isFiltered
-                ? `${filtered.length} of ${courses.length} courses`
-                : `${courses.length} course${courses.length!==1?"s":""}`}
+                ? t("admin.courses.count.filtered", { defaultValue: `${filtered.length} of ${courses.length} courses`, filtered: filtered.length, total: courses.length })
+                : t("admin.courses.count.total", { defaultValue: `${courses.length} course${courses.length!==1?"s":""}`, count: courses.length })}
             </div>
           )}
 
@@ -749,17 +762,17 @@ export default function AdminCoursesCatalog() {
           )}
 
           {/* Empty state */}
-          {!loading && courses.length === 0 && <EmptyState onNew={handleNew}/>}
+          {!loading && courses.length === 0 && <EmptyState onNew={handleNew} t={t}/>}
 
           {/* No filter results */}
           {!loading && courses.length > 0 && filtered.length === 0 && (
             <div className="cat-no-res">
               <div className="cat-no-res-emoji">🔍</div>
-              <div className="cat-no-res-title">No courses match</div>
-              <div className="cat-no-res-sub">Try adjusting your search or clearing the filters.</div>
+              <div className="cat-no-res-title">{t("admin.courses.noResults.title", { defaultValue: "No courses match" })}</div>
+              <div className="cat-no-res-sub">{t("admin.courses.noResults.subtitle", { defaultValue: "Try adjusting your search or clearing the filters." })}</div>
               <button style={{marginTop:14,border:"none",background:T.violetL,color:T.violetD,fontFamily:T.dFont,fontSize:12.5,fontWeight:700,padding:"7px 16px",borderRadius:9,cursor:"pointer"}}
-                onClick={()=>{setQuery("");setLevel("");setStatus("");}}>
-                Clear filters
+                onClick={()=>{setQuery("");}}>
+                {t("admin.courses.noResults.clear", { defaultValue: "Clear filters" })}
               </button>
             </div>
           )}
@@ -771,7 +784,7 @@ export default function AdminCoursesCatalog() {
               <div className="cat-create-tile" onClick={handleNew}>
                 <div className="cat-create-thumb">
                   <div className="cat-create-tile-ico"><I.Plus/></div>
-                  <span className="cat-create-tile-label">Create course</span>
+                  <span className="cat-create-tile-label">{t("admin.courses.create", { defaultValue: "Create course" })}</span>
                 </div>
                 {/* invisible body spacer matching card body height */}
                 <div className="cat-create-body">—</div>
@@ -787,7 +800,7 @@ export default function AdminCoursesCatalog() {
           {!loading && courses.length > 0 && view === "list" && (
             <div className="cat-list">
               {filtered.map((c, i) => (
-                <Row key={c.id} course={c} idx={i}
+                <Row key={c.id} course={c} idx={i} t={t}
                   onOpen={handleOpen} onDelete={setToDelete}/>
               ))}
               <button
@@ -795,7 +808,7 @@ export default function AdminCoursesCatalog() {
                 style={{marginTop:2,border:`1.5px dashed ${T.border}`,borderRadius:11,background:"white",padding:"10px",cursor:"pointer",color:T.violetD,fontFamily:T.dFont,fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"background .15s,border-color .15s"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=T.violetL;e.currentTarget.style.borderColor=T.violet;}}
                 onMouseLeave={e=>{e.currentTarget.style.background="white";e.currentTarget.style.borderColor=T.border;}}>
-                <I.Plus/> Create course
+                <I.Plus/> {t("admin.courses.create", { defaultValue: "Create course" })}
               </button>
             </div>
           )}
@@ -810,7 +823,7 @@ export default function AdminCoursesCatalog() {
 
       {toDelete && (
         <DelModal
-          course={toDelete} busy={deleting}
+          course={toDelete} busy={deleting} t={t}
           onConfirm={handleDelete} onCancel={()=>!deleting&&setToDelete(null)}/>
       )}
     </>

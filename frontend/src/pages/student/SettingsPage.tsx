@@ -66,6 +66,7 @@ import {
 } from '../../components/student/design-system/student-design-system';
 
 import { useAuth } from '../../hooks/useAuth';
+import i18n, { normalizeInterfaceLanguage } from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -73,7 +74,7 @@ import { useAuth } from '../../hooks/useAuth';
 
 type SaveState   = 'idle' | 'saving' | 'success' | 'error';
 type ThemeValue  = 'light' | 'dark' | 'system';
-type LangValue   = 'en' | 'it' | 'fr' | 'de' | 'es';
+type LangValue   = 'en' | 'it' | 'ru';
 
 interface FieldErrors { [key: string]: string | undefined }
 
@@ -760,6 +761,14 @@ export default function SettingsPage() {
   const [prefSave,   setPrefSave]   = useState<SaveState>('idle');
   const [prefErrMsg, setPrefErrMsg] = useState('');
 
+  // Hydrates local interface language preference from authenticated user locale.
+  useEffect(() => {
+    if (!user?.locale) return;
+    // Converts server locale into one of the selector values.
+    const normalizedUserLocale = normalizeInterfaceLanguage(user.locale);
+    setPrefs((previousPrefs) => ({ ...previousPrefs, interface_language: normalizedUserLocale }));
+  }, [user?.locale]);
+
   const togglePref = (key: keyof typeof prefs) =>
     setPrefs(p => ({ ...p, [key]: !p[key] }));
 
@@ -767,12 +776,17 @@ export default function SettingsPage() {
     setPrefSave('saving');
     setPrefErrMsg('');
     try {
+      // Normalizes selected interface language before persisting and applying it globally.
+      const normalizedInterfaceLanguage = normalizeInterfaceLanguage(prefs.interface_language);
       const res = await fetch('/api/v1/student/preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
-        body: JSON.stringify(prefs),
+        body: JSON.stringify({ ...prefs, interface_language: normalizedInterfaceLanguage }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (normalizedInterfaceLanguage !== i18n.language) {
+        await i18n.changeLanguage(normalizedInterfaceLanguage);
+      }
       setPrefSave('success');
       setTimeout(() => setPrefSave('idle'), 2500);
     } catch (err) {
@@ -854,9 +868,7 @@ export default function SettingsPage() {
   const LANGUAGES: { value: LangValue; flag: string; label: string }[] = [
     { value: 'en', flag: '🇬🇧', label: 'English' },
     { value: 'it', flag: '🇮🇹', label: 'Italiano' },
-    { value: 'fr', flag: '🇫🇷', label: 'Français' },
-    { value: 'de', flag: '🇩🇪', label: 'Deutsch'  },
-    { value: 'es', flag: '🇪🇸', label: 'Español'  },
+    { value: 'ru', flag: '🇷🇺', label: 'Русский' },
   ];
   const THEME_OPTIONS = [
     { value: 'light'  as ThemeValue, label: 'Light',  icon: Sun     },
@@ -971,7 +983,14 @@ export default function SettingsPage() {
                   {LANGUAGES.map(lang => (
                     <button
                       key={lang.value}
-                      onClick={() => setPrefs(p => ({ ...p, interface_language: lang.value }))}
+                      onClick={() => {
+                        // Stores selected interface language and applies it immediately app-wide.
+                        const nextLanguage = normalizeInterfaceLanguage(lang.value);
+                        setPrefs((previousPrefs) => ({ ...previousPrefs, interface_language: nextLanguage }));
+                        if (nextLanguage !== i18n.language) {
+                          void i18n.changeLanguage(nextLanguage);
+                        }
+                      }}
                       className={[
                         'flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-all',
                         'focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',

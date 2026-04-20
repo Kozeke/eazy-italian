@@ -1,3 +1,5 @@
+"""Centralized application settings loaded from environment variables."""
+
 from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
@@ -20,6 +22,16 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = "your-app-password"
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
+
+    # Stripe secret key used by backend payment endpoints.
+    STRIPE_SECRET_KEY: str = ""
+
+    # Telegram bot token used to forward support chat messages to Telegram.
+    TELEGRAM_BOT_TOKEN: str = ""
+    # Telegram chat id that receives forwarded support chat messages.
+    TELEGRAM_CHAT_ID: str = ""
+    # Shared secret used to authorize Telegram-to-backend support replies.
+    SUPPORT_REPLY_SECRET: str = ""
     
     # File Storage
     MINIO_ENDPOINT: str = "localhost:9000"

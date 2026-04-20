@@ -36,7 +36,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.auth import get_current_teacher
+from app.core.database import get_db
+from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota
 from app.models.user import User
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -364,7 +367,8 @@ async def _call_ai(prompt: str) -> str:
 @router.post("/generate-outline", response_model=CourseOutlineResponse)
 async def generate_course_outline(
     body: OutlineRequest,
-    _: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
 ) -> CourseOutlineResponse:
     """
     POST /course-builder/generate-outline
@@ -374,6 +378,8 @@ async def generate_course_outline(
     No DB writes.
     """
     logger.info("generate-outline: %r level=%s", body.description[:60], body.level)
+    # Consumes one AI course-generation credit based on the teacher's active tariff.
+    check_and_consume_teacher_ai_quota(db, current_user, "course_generation")
     try:
         outline = _parse_outline(
             await _call_ai(_build_outline_prompt(body.description, body.level))
@@ -393,7 +399,8 @@ async def generate_course_outline_from_files(
     description: str        = Form(..., min_length=4, max_length=1000),
     level:       str        = Form(default="B1"),
     files: list[UploadFile] = File(default=[]),
-    _: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
 ) -> CourseOutlineWithTokenResponse:
     """
     POST /course-builder/generate-outline-from-files
@@ -407,6 +414,8 @@ async def generate_course_outline_from_files(
     (?source_token=) so that each unit is generated with the relevant excerpt
     of the source material as context.
     """
+    # Consumes one AI course-generation credit based on the teacher's active tariff.
+    check_and_consume_teacher_ai_quota(db, current_user, "course_generation")
     # Normalise level
     level_norm = str(level).strip().upper()
     if level_norm not in CEFR_LEVELS:

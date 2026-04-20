@@ -1,6 +1,7 @@
 """Teacher-admin student management endpoints scoped to teacher-owned students."""
 
 import secrets
+from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.auth import get_current_teacher
 from app.core.security import get_password_hash
+from app.core.teacher_tariffs import canonicalize_teacher_plan_name
 from app.models.user import User, UserRole
 from app.models.course import Course
 from app.models.enrollment import CourseEnrollment
@@ -38,10 +40,59 @@ class StudentEnrollmentRequest(BaseModel):
     course_id: int
 
 
+# Normalizes student profile metadata to a mutable dict across all endpoint flows.
+def _get_student_profile_meta(student: User) -> dict[str, Any]:
+    """Return student notification prefs as a mutable metadata map."""
+    # Stores raw profile metadata payload loaded from JSON column.
+    raw_profile_meta = student.notification_prefs
+    if isinstance(raw_profile_meta, dict):
+        # Stores copied metadata map so in-place mutations do not affect shared state.
+        normalized_profile_meta = dict(raw_profile_meta)
+        return normalized_profile_meta
+    return {}
+
+
+# Extracts temporary password from supported metadata keys used across legacy/new flows.
+def _extract_temporary_password_from_profile_meta(
+    profile_meta: dict[str, Any],
+) -> Optional[str]:
+    """Extract temporary password value from profile metadata if present."""
+    # Stores supported key variants used by different versions of admin student flows.
+    supported_temporary_password_keys = (
+        "temporary_password",
+        "temp_password",
+        "temporaryPassword",
+    )
+    for temporary_password_key in supported_temporary_password_keys:
+        # Stores candidate value from the current metadata key.
+        candidate_temporary_password = profile_meta.get(temporary_password_key)
+        if (
+            isinstance(candidate_temporary_password, str)
+            and candidate_temporary_password.strip()
+        ):
+            return candidate_temporary_password.strip()
+    return None
+
+
+# Applies temporary password to student model and profile metadata in one consistent path.
+def _apply_temporary_password_to_student(
+    student: User,
+    profile_meta: dict[str, Any],
+    temporary_password: str,
+) -> None:
+    """Persist temporary password metadata and matching password hash on student."""
+    # Stores hashed password value because only hashes should be persisted in database.
+    temporary_password_hash = get_password_hash(temporary_password)
+    # Stores plain-text temporary password so teacher can retrieve it from the list view.
+    profile_meta["temporary_password"] = temporary_password
+    student.password_hash = temporary_password_hash
+    student.notification_prefs = profile_meta
+
+
 def _is_student_created_by_teacher(student: User, teacher_id: int) -> bool:
     """Check whether student profile metadata marks current teacher as creator."""
     # Stores profile metadata map where admin-created student ownership is persisted.
-    student_profile_meta = student.notification_prefs or {}
+    student_profile_meta = _get_student_profile_meta(student)
     # Stores raw teacher identifier saved during student creation flow.
     raw_creator_teacher_id = student_profile_meta.get("created_by_teacher_id")
     try:
@@ -186,9 +237,6 @@ def create_student(
 
     # Stores a short temporary password so admin can share student login credentials.
     temporary_password = f"{secrets.randbelow(9000) + 1000}"
-    # Stores hashed password value because only hashes should be persisted in database.
-    temp_password_hash = get_password_hash(temporary_password)
-
     existing_user = db.query(User).filter(User.email == payload.email).first()
     if existing_user:
         if existing_user.role != UserRole.STUDENT:
@@ -212,19 +260,21 @@ def create_student(
         parsed_last_name = " ".join(name_parts[1:]).strip() or "—"
 
         # Stores mutable metadata map to update ownership and profile fields in one write.
-        profile_meta = dict(existing_user.notification_prefs or {})
+        profile_meta = _get_student_profile_meta(existing_user)
         profile_meta["phone"] = (payload.phone or "").strip() or None
         profile_meta["native_language"] = (payload.native_language or "").strip() or None
         profile_meta["timezone"] = (payload.timezone or "").strip() or None
         profile_meta["created_by_teacher_id"] = requested_teacher_id
-        # Stores plain-text temporary password so teacher can retrieve it from the list view.
-        profile_meta["temporary_password"] = temporary_password
 
         existing_user.first_name = parsed_first_name
         existing_user.last_name = parsed_last_name
-        existing_user.password_hash = temp_password_hash
         existing_user.is_active = True
-        existing_user.notification_prefs = profile_meta
+        # Ensures returned temporary password is exactly the active login password.
+        _apply_temporary_password_to_student(
+            student=existing_user,
+            profile_meta=profile_meta,
+            temporary_password=temporary_password,
+        )
 
         # Stores existing active subscription row, if already assigned.
         active_subscription = db.query(UserSubscription).filter(
@@ -270,18 +320,23 @@ def create_student(
         "native_language": (payload.native_language or "").strip() or None,
         "timezone": (payload.timezone or "").strip() or None,
         "created_by_teacher_id": requested_teacher_id,
-        # Stores plain-text temporary password so teacher can retrieve it from the list view.
-        "temporary_password": temporary_password,
     }
     student = User(
         email=payload.email,
         first_name=parsed_first_name,
         last_name=parsed_last_name,
         role=UserRole.STUDENT,
-        password_hash=temp_password_hash,
+        # Stores placeholder hash value that gets replaced by temporary password helper.
+        password_hash="placeholder",
         locale="ru",
-        notification_prefs=profile_meta,
+        notification_prefs={},
         is_active=True,
+    )
+    # Ensures returned temporary password is exactly the active login password.
+    _apply_temporary_password_to_student(
+        student=student,
+        profile_meta=profile_meta,
+        temporary_password=temporary_password,
     )
     db.add(student)
     db.flush()
@@ -354,7 +409,7 @@ def update_student(
         student.last_name = parsed_last_name
 
     # Stores profile metadata map currently used for phone/language/timezone fields.
-    profile_meta = dict(student.notification_prefs or {})
+    profile_meta = _get_student_profile_meta(student)
     if payload.phone is not None:
         profile_meta["phone"] = payload.phone.strip() or None
     if payload.native_language is not None:
@@ -460,9 +515,11 @@ def get_students(
             subscription_name = student.subscription_type.value if student.subscription_type else "free"
         
         # Stores notification_prefs map used for profile metadata and temporary credential.
-        student_notification_prefs = student.notification_prefs or {}
+        student_notification_prefs = _get_student_profile_meta(student)
         # Extracts plain-text temporary password stored at creation time; None if cleared.
-        stored_temporary_password = student_notification_prefs.get("temporary_password") or None
+        stored_temporary_password = _extract_temporary_password_from_profile_meta(
+            student_notification_prefs
+        )
 
         student_dict = {
             "id": student.id,
@@ -553,8 +610,16 @@ def change_student_subscription(
     )
 
     # 2️⃣ Find target subscription
+    # Stores canonical plan so legacy premium and new standard are treated uniformly.
+    canonical_subscription_name = canonicalize_teacher_plan_name(payload.subscription)
+    # Stores accepted DB enum values for this logical plan.
+    allowed_subscription_names = (
+        [SubscriptionName.STANDARD, SubscriptionName.PREMIUM]
+        if canonical_subscription_name == "standard"
+        else [SubscriptionName(canonical_subscription_name)]
+    )
     subscription = db.query(Subscription).filter(
-        Subscription.name == payload.subscription,
+        Subscription.name.in_(allowed_subscription_names),
         Subscription.is_active == True
     ).first()
 

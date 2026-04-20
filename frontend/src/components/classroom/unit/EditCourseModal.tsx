@@ -66,8 +66,8 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
       aria-checked={enabled}
       onClick={() => onChange(!enabled)}
       className={[
-        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',
-        enabled ? 'bg-teal-500' : 'bg-slate-300',
+        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40',
+        enabled ? 'bg-[#6C6FEF]' : 'bg-slate-300',
       ].join(' ')}
     >
       <span
@@ -100,7 +100,7 @@ function SelectField({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
         >
           <option value="">{placeholder}</option>
           {options.map((o) => (
@@ -209,7 +209,7 @@ export default function EditCourseModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm"
+        className="fixed inset-0 z-[60] bg-[#0F1128]/45 backdrop-blur-md"
         aria-hidden
         onClick={onClose}
       />
@@ -232,7 +232,7 @@ export default function EditCourseModal({
           <h2 className="text-lg font-bold text-slate-900">Редактировать материал</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-[#EEF0FE] hover:text-[#6C6FEF] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -251,7 +251,7 @@ export default function EditCourseModal({
                 className={[
                   'mr-6 pb-2.5 pt-1 text-[13px] font-semibold transition-colors focus:outline-none',
                   active
-                    ? 'text-teal-600 border-b-2 border-teal-500 -mb-px'
+                    ? 'text-[#6C6FEF] border-b-2 border-[#6C6FEF] -mb-px'
                     : 'text-slate-400 hover:text-slate-600 border-b-2 border-transparent',
                 ].join(' ')}
               >
@@ -276,11 +276,11 @@ export default function EditCourseModal({
                       className="h-10 w-10 rounded-xl object-cover"
                     />
                   ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500 text-white font-bold text-lg select-none">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#6C6FEF] text-white font-bold text-lg select-none">
                       {(title[0] ?? 'C').toUpperCase()}
                     </div>
                   )}
-                  <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
+                  <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:border-[#A5A8F5] hover:bg-[#EEF0FE] hover:text-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40">
                     <Upload className="h-3.5 w-3.5" />
                     Загрузить
                   </button>
@@ -297,7 +297,7 @@ export default function EditCourseModal({
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
                   placeholder="Название курса"
                 />
               </div>
@@ -311,7 +311,7 @@ export default function EditCourseModal({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all resize-none"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all resize-none"
                   placeholder="Введите описание"
                 />
               </div>
@@ -323,7 +323,7 @@ export default function EditCourseModal({
                   <select
                     value={language}
                     onChange={(e) => setLanguage(e.target.value)}
-                    className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+                    className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
                   >
                     {LANGUAGES.map((l) => (
                       <option key={l.value} value={l.value}>
@@ -411,7 +411,7 @@ export default function EditCourseModal({
             type="button"
             disabled={saveInFlight}
             onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50"
+            className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 hover:border-[#A5A8F5] hover:bg-[#EEF0FE] hover:text-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40 disabled:opacity-50"
           >
             Отмена
           </button>
@@ -419,7 +419,7 @@ export default function EditCourseModal({
             type="button"
             disabled={saveInFlight}
             onClick={() => void handleSave()}
-            className="rounded-xl bg-teal-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-teal-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50"
+            className="rounded-xl bg-[#6C6FEF] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40 disabled:opacity-50"
           >
             {saveInFlight ? 'Сохранение…' : 'Сохранить'}
           </button>

@@ -38,6 +38,7 @@ import {
   useState,
   type RefObject,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Users, HelpCircle } from 'lucide-react';
 import { LiveSessionContext } from '../live/LiveSessionProvider';
 import type { OnlineUser } from '../../../hooks/useOnlinePresence';
@@ -98,18 +99,18 @@ function StudentAvatar({ user }: { user: OnlineUser }) {
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
-/** Short Russian labels for homework workflow chips in the roster */
-function homeworkStatusShort(status: string): string {
+/** Localized short labels for homework workflow chips in the roster */
+function homeworkStatusShort(status: string, t: (key: string) => string): string {
   switch (status) {
     case 'pending_review':
-      return 'На проверке';
+      return t('classroom.studentAnswersPanel.homeworkStatus.pendingReview');
     case 'awaiting_student':
-      return 'Студент';
+      return t('classroom.studentAnswersPanel.homeworkStatus.awaitingStudent');
     case 'completed':
-      return 'Готово';
+      return t('classroom.studentAnswersPanel.homeworkStatus.completed');
     case 'assigned':
     default:
-      return 'Черновик';
+      return t('classroom.studentAnswersPanel.homeworkStatus.assigned');
   }
 }
 
@@ -127,6 +128,8 @@ export default function StudentAnswersPanel({
   headerAnchorRef,
   anchorRefreshKey = 0,
 }: StudentAnswersPanelProps) {
+  // Provides localized labels for the student answers panel controls and states.
+  const { t } = useTranslation();
   const ctx = useContext(LiveSessionContext);
 
   // Fixed popover position beside the active answers control (rail or header button)
@@ -293,22 +296,22 @@ export default function StudentAnswersPanel({
               }
             : undefined
         }
-        aria-label="Student answers"
+        aria-label={t('classroom.studentAnswersPanel.aria.panel')}
         role="complementary"
       >
         {/* Header */}
         <div className="sap-header">
           <div className="sap-header__title-row">
-            <span className="sap-header__title">Answers</span>
+            <span className="sap-header__title">{t('classroom.studentAnswersPanel.title')}</span>
             <button
               type="button"
               className="sap-header__help"
               title={
                 variant === 'homework'
-                  ? 'Select a student to view their saved homework like in the lesson player'
-                  : 'Select a student to view their live answers in the lesson player'
+                  ? t('classroom.studentAnswersPanel.help.homework')
+                  : t('classroom.studentAnswersPanel.help.lesson')
               }
-              aria-label="Help"
+              aria-label={t('classroom.studentAnswersPanel.aria.help')}
             >
               <HelpCircle size={14} />
             </button>
@@ -317,14 +320,14 @@ export default function StudentAnswersPanel({
             type="button"
             className="sap-header__close"
             onClick={onClose}
-            aria-label="Close answers panel"
+            aria-label={t('classroom.studentAnswersPanel.aria.close')}
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Student list */}
-        <div className="sap-list" role="listbox" aria-label="Students">
+        <div className="sap-list" role="listbox" aria-label={t('classroom.studentAnswersPanel.aria.studentsList')}>
 
           {/* All students row */}
           <button
@@ -337,18 +340,18 @@ export default function StudentAnswersPanel({
             <div className="sap-row__avatar sap-row__avatar--all">
               <Users size={16} />
             </div>
-            <span className="sap-row__name">All students</span>
+            <span className="sap-row__name">{t('classroom.studentAnswersPanel.allStudents')}</span>
           </button>
 
           {/* Per-student rows */}
           {variant === 'homework' ? (
             homeworkRosterLoading ? (
               <div className="sap-empty">
-                <span>Loading roster…</span>
+                <span>{t('classroom.studentAnswersPanel.loadingRoster')}</span>
               </div>
             ) : homeworkRoster.length === 0 ? (
               <div className="sap-empty">
-                <span>No enrolled students</span>
+                <span>{t('classroom.studentAnswersPanel.noEnrolledStudents')}</span>
               </div>
             ) : (
               homeworkRoster.map((row) => {
@@ -370,14 +373,14 @@ export default function StudentAnswersPanel({
                       {online ? <span className="sap-avatar__dot" /> : null}
                     </div>
                     <span className="sap-row__name">{row.student_name}</span>
-                    <span className="sap-hw-chip">{homeworkStatusShort(row.status)}</span>
+                    <span className="sap-hw-chip">{homeworkStatusShort(row.status, t)}</span>
                   </button>
                 );
               })
             )
           ) : students.length === 0 ? (
             <div className="sap-empty">
-              <span>No students online</span>
+              <span>{t('classroom.studentAnswersPanel.noStudentsOnline')}</span>
             </div>
           ) : (
             students.map((student) => {
@@ -392,7 +395,9 @@ export default function StudentAnswersPanel({
                   onClick={() => handleSelectStudent(student.user_id)}
                 >
                   <StudentAvatar user={student} />
-                  <span className="sap-row__name">{student.user_name ?? `Student ${student.user_id}`}</span>
+                  <span className="sap-row__name">
+                    {student.user_name ?? t('classroom.studentAnswersPanel.fallbackStudentName', { id: student.user_id })}
+                  </span>
                 </button>
               );
             })
@@ -407,7 +412,7 @@ export default function StudentAnswersPanel({
               <textarea
                 className="sap-hw-review__ta"
                 rows={3}
-                placeholder="Feedback for the student (optional)"
+                placeholder={t('classroom.studentAnswersPanel.feedbackPlaceholder')}
                 value={reviewFeedback}
                 onChange={(e) => setReviewFeedback(e.target.value)}
               />
@@ -429,7 +434,7 @@ export default function StudentAnswersPanel({
                     }
                   }}
                 >
-                  Mark complete
+                  {t('classroom.studentAnswersPanel.markComplete')}
                 </button>
                 <button
                   type="button"
@@ -448,7 +453,7 @@ export default function StudentAnswersPanel({
                     }
                   }}
                 >
-                  Needs student review
+                  {t('classroom.studentAnswersPanel.needsStudentReview')}
                 </button>
               </div>
             </div>
@@ -459,7 +464,9 @@ export default function StudentAnswersPanel({
           <div className="sap-footer">
             <span className="sap-footer__dot" />
             <span>
-              {variant === 'homework' ? 'Viewing saved homework' : 'Viewing live answers'}
+              {variant === 'homework'
+                ? t('classroom.studentAnswersPanel.viewingSavedHomework')
+                : t('classroom.studentAnswersPanel.viewingLiveAnswers')}
             </span>
           </div>
         )}

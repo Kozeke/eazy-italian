@@ -29,6 +29,7 @@ import {
   useState,
   type RefObject,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { LayoutGrid } from "lucide-react";
 
@@ -60,6 +61,7 @@ import {
   type InlineMediaBlock,
 } from "./useSegmentPersistence";
 import {
+  classroomAnswersApi,
   presentationsApi,
   segmentsApi,
   tasksApi,
@@ -118,6 +120,8 @@ interface UnitDetail {
 
 export interface LessonWorkspaceProps {
   mode: "student" | "teacher";
+  /** Classroom/course id — used to scope the exercise-answer clear API call. */
+  classroomId: number;
   unit: UnitDetail | null;
   slides: ReviewSlide[];
   slidesLoading: boolean;
@@ -258,6 +262,7 @@ function buildTeacherProps(
 
 function LessonWorkspace({
   mode,
+  classroomId,
   unit,
   slides,
   slidesLoading,
@@ -293,6 +298,8 @@ function LessonWorkspace({
   answersPanelAnchorRef,
   finishUnitActionPending = false,
 }: LessonWorkspaceProps) {
+  // Provides localized labels for classroom lesson workspace controls.
+  const { t } = useTranslation();
   const pendingInlineMediaStorageKey = "lessonPendingInlineMedia";
   const draftRouteContextStorageKey = "exerciseDraftsRouteContext";
   const routerLocation = useLocation();
@@ -369,14 +376,14 @@ function LessonWorkspace({
         acc[`section-${idx}`] = seg.id;
         return acc;
       }, {}),
-    [sortedSegments],
+    [sortedSegments, t],
   );
 
   const sidePanelSegments = useMemo(
     () =>
       sortedSegments.map((segment) => ({
         id: segment.id,
-        title: segment.title ?? `Section ${segment.order_index ?? 0}`,
+        title: segment.title ?? t("classroom.lessonWorkspace.sectionLabel", { index: segment.order_index ?? 0 }),
         order_index: segment.order_index ?? 0,
         status: "draft",
         is_visible_to_students: true,
@@ -481,7 +488,7 @@ function LessonWorkspace({
     const orderIndex = sortedSegments.length;
     try {
       await segmentsApi.createSegment(effectiveUnitId, {
-        title: `Section ${orderIndex + 1}`,
+        title: t("classroom.lessonWorkspace.sectionLabel", { index: orderIndex + 1 }),
         order_index: orderIndex,
         status: "published",
         is_visible_to_students: true,
@@ -491,7 +498,7 @@ function LessonWorkspace({
     } catch (err) {
       console.error("[LessonWorkspace] Failed to add section", err);
     }
-  }, [mode, effectiveUnitId, sortedSegments.length, refetchSegments, onUnitReloaded]);
+  }, [mode, effectiveUnitId, sortedSegments.length, refetchSegments, onUnitReloaded, t]);
 
   /**
    * Persists a new section order after drag-and-drop in the side panel, then aligns scroll index with the same segment.
@@ -885,6 +892,21 @@ function LessonWorkspace({
     ],
   );
 
+  const handleResetBlockAnswers = useCallback(
+    async (blockId: string, studentId?: number) => {
+      if (!classroomId) return;
+      try {
+        await classroomAnswersApi.clearBlockAnswers(classroomId, blockId, {
+          studentId,
+          unitId: effectiveUnitId ?? undefined,
+        });
+      } catch (err) {
+        console.warn("[LessonWorkspace] Failed to clear block answers:", err);
+      }
+    },
+    [classroomId, effectiveUnitId],
+  );
+
   // ── Media import effect (return from ExerciseDraftsPage) ─────────────────────
   useEffect(() => {
     if (mode !== "teacher") return;
@@ -1021,8 +1043,8 @@ function LessonWorkspace({
           className="mx-4 mt-3 mb-1 flex items-center gap-2 rounded-xl border border-amber-100
                      bg-amber-50 px-4 py-2.5 text-[13px] text-amber-700"
         >
-          <span className="font-medium">Slides unavailable:</span>
-          <span>Please try again later.</span>
+          <span className="font-medium">{t("classroom.lessonWorkspace.slidesUnavailable")}</span>
+          <span>{t("classroom.lessonWorkspace.tryAgainLater")}</span>
         </div>
       )}
 
@@ -1041,7 +1063,7 @@ function LessonWorkspace({
           <div
             ref={answersPanelAnchorRef}
             className="lw-answers-rail lw-answers-rail--mobile lw-answers-rail--mobile--responsive mt-1 shrink-0"
-            aria-label="Student answers"
+            aria-label={t("classroom.lessonWorkspace.studentAnswers")}
           >
             {/* <div className="lw-answers-rail__head lw-answers-rail__head--mobile">
               <span className="lw-answers-rail__title">Answers</span>
@@ -1050,9 +1072,9 @@ function LessonWorkspace({
               <button
                 type="button"
                 onClick={onToggleAnswersPanel}
-                aria-label="View student answers"
+                aria-label={t("classroom.lessonWorkspace.viewStudentAnswers")}
                 aria-pressed={answersPanelOpen}
-                title="Student answers"
+                title={t("classroom.lessonWorkspace.studentAnswers")}
                 className={[
                   "ch-icon-btn",
                   answersPanelOpen
@@ -1070,7 +1092,7 @@ function LessonWorkspace({
           <aside
             ref={answersPanelAnchorRef}
             className="lw-answers-rail shrink-0"
-            aria-label="Student answers"
+            aria-label={t("classroom.lessonWorkspace.studentAnswers")}
           >
             {/* <div className="lw-answers-rail__head">
               <p className="lw-answers-rail__title">Answers</p>
@@ -1079,9 +1101,9 @@ function LessonWorkspace({
               <button
                 type="button"
                 onClick={onToggleAnswersPanel}
-                aria-label="View student answers"
+                aria-label={t("classroom.lessonWorkspace.viewStudentAnswers")}
                 aria-pressed={answersPanelOpen}
-                title="Student answers"
+                title={t("classroom.lessonWorkspace.studentAnswers")}
                 className={[
                   "ch-icon-btn",
                   answersPanelOpen
@@ -1110,7 +1132,7 @@ function LessonWorkspace({
               sortedSegments.length > 0
                 ? sortedSegments.map((segment, index) => ({
                     id: `section-${index}`,
-                    label: segment.title ?? `Section ${index + 1}`,
+                    label: segment.title ?? t("classroom.lessonWorkspace.sectionLabel", { index: index + 1 }),
                   }))
                 : undefined
             }
@@ -1157,6 +1179,7 @@ function LessonWorkspace({
                   onEditBlock: handleEditBlock,
                   onCopyExerciseToHomework,
                   onSectionTitleChange: persistSegmentTitleDebounced,
+                  onResetBlockAnswers: handleResetBlockAnswers,
                 }
               : {})}
           />

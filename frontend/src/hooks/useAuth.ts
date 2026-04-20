@@ -1,6 +1,12 @@
-import React, { useState, createContext, useContext, useEffect } from 'react';
+/**
+ * useAuth.ts
+ *
+ * Central auth context provider that manages current user session state and role helpers.
+ */
+import React, { useState, createContext, useContext, useEffect, useCallback } from 'react';
 import { User } from '../types';
 import { authApi } from '../services/api';
+import i18n, { normalizeInterfaceLanguage } from '../i18n';
 
 interface AuthContextType {
   user: User | null;
@@ -8,6 +14,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<User>;
   register: (userData: any) => Promise<User>;
   logout: () => Promise<boolean>; // Returns true if logout was performed, false if blocked
+  // Reloads /users/me into context after profile updates or external changes.
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isTeacher: boolean;
   isStudent: boolean;
@@ -38,6 +46,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     checkAuth();
   }, []);
+
+  // Re-fetches the current user from the API when local state may be stale.
+  const refreshUser = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const currentUser = await authApi.getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  }, []);
+
+  // Keeps app-wide interface language aligned with the locale persisted on the authenticated user.
+  useEffect(() => {
+    if (!user?.locale) {
+      return;
+    }
+    // Converts backend/user locale into a language code that is supported by i18next resources.
+    const normalizedLocale = normalizeInterfaceLanguage(user.locale);
+    if (normalizedLocale !== i18n.language) {
+      i18n.changeLanguage(normalizedLocale).catch((error) => {
+        console.error('Failed to change interface language:', error);
+      });
+    }
+  }, [user?.locale]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -137,6 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     register,
     logout,
+    refreshUser,
     isAuthenticated: !!user,
     isTeacher: user?.role === 'teacher',
     isStudent: user?.role === 'student',

@@ -1,3 +1,5 @@
+"""Subscription and user-plan persistence models."""
+
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -7,6 +9,8 @@ import enum
 
 class SubscriptionName(str, enum.Enum):
     FREE = "free"
+    STANDARD = "standard"
+    # Keeps backward compatibility for old rows created before standard rename.
     PREMIUM = "premium"
     PRO = "pro"
 

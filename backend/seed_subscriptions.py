@@ -1,6 +1,7 @@
 """
-Seed subscriptions table with default subscription plans
-Run this script to populate the subscriptions table
+Seed subscriptions table with default subscription plans.
+
+This script is idempotent: it creates missing plans and updates existing prices.
 """
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -15,31 +16,45 @@ def seed_subscriptions():
     Base.metadata.create_all(bind=engine)
     
     with Session(engine) as session:
-        # Check if subscriptions exist
-        count = session.query(Subscription).count()
-        
-        if count > 0:
-            print(f"✓ Subscriptions table already has {count} records")
-            existing = session.query(Subscription).all()
-            print("\nExisting subscriptions:")
-            for sub in existing:
-                print(f"  - {sub.name.value}: ${sub.price}")
-            return
-        
         print("Seeding subscriptions table...")
-        
-        # Create default subscriptions using the model
-        subscriptions = [
-            Subscription(name=SubscriptionName.FREE, price=0.00, is_active=True),
-            Subscription(name=SubscriptionName.PREMIUM, price=9.99, is_active=True),
-            Subscription(name=SubscriptionName.PRO, price=19.99, is_active=True),
-        ]
-        
-        session.add_all(subscriptions)
+
+        # Stores canonical subscription price list used by teacher/student billing features.
+        default_prices = {
+            SubscriptionName.FREE: 0.00,
+            SubscriptionName.STANDARD: 14.90,
+            SubscriptionName.PRO: 65.00,
+        }
+
+        # Stores existing rows by enum name for idempotent upsert behavior.
+        existing_by_name = {
+            sub.name: sub
+            for sub in session.query(Subscription).all()
+        }
+
+        # Creates missing plans or updates prices/active flags for existing plans.
+        for plan_name, plan_price in default_prices.items():
+            existing = existing_by_name.get(plan_name)
+            if existing is None:
+                session.add(
+                    Subscription(
+                        name=plan_name,
+                        price=plan_price,
+                        is_active=True,
+                    )
+                )
+                continue
+            existing.price = plan_price
+            existing.is_active = True
+
+        # Keeps premium rows active for backward compatibility while migrating to standard.
+        legacy_premium = existing_by_name.get(SubscriptionName.PREMIUM)
+        if legacy_premium is not None:
+            legacy_premium.is_active = True
+
         session.commit()
-        
-        print("✓ Subscriptions seeded successfully")
-        
+
+        print("✓ Subscriptions seeded/updated successfully")
+
         # Display created subscriptions
         created = session.query(Subscription).all()
         print("\nCreated subscriptions:")

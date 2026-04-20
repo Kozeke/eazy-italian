@@ -16,6 +16,7 @@ from .lesson_chunk import LessonChunk
 from .presentation import Presentation, PresentationSlide
 from .live_session import LiveSession
 from .homework_submission import UnitHomeworkSubmission, HomeworkSubmissionStatus
+from .teacher_payment import TeacherPayment, TeacherPaymentStatus
 
 __all__ = [
     "User",
@@ -49,4 +50,6 @@ __all__ = [
     "LiveSession",
     "UnitHomeworkSubmission",
     "HomeworkSubmissionStatus",
+    "TeacherPayment",
+    "TeacherPaymentStatus",
 ]

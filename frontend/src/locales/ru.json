@@ -235,6 +235,7 @@
     },
     "actions": {
       "new": "Создать",
+      "newCourse": "Новый курс",
       "save": "Сохранить",
       "publish": "Опубликовать",
       "preview": "Предварительный просмотр",
@@ -267,6 +268,38 @@
       "archived": "Архивировано"
     },
     "role": "Преподаватель",
+    "profileSettings": {
+      "pageTitle": "Личный профиль",
+      "tabSettings": "Настройки",
+      "tabDescription": "Описание",
+      "back": "Назад к каталогу",
+      "editAvatar": "Редактировать",
+      "name": "Имя",
+      "email": "Эл. почта",
+      "password": "Пароль",
+      "changePassword": "Изменить",
+      "passwordHint": "Смена пароля в приложении пока недоступна. Выйдите из аккаунта и воспользуйтесь «Забыли пароль» на странице входа.",
+      "phone": "Телефон",
+      "phonePlaceholder": "Ваш номер телефона",
+      "uiLanguage": "Язык интерфейса",
+      "nativeLanguage": "Родной язык",
+      "country": "Страна",
+      "timezone": "Часовой пояс",
+      "bioLabel": "О себе",
+      "bioPlaceholder": "Расскажите студентам о стиле преподавания, опыте или доступности.",
+      "saved": "Изменения сохранены",
+      "saveError": "Не удалось сохранить. Проверьте данные и попробуйте снова.",
+      "langRussian": "Русский",
+      "langEnglish": "English",
+      "langItalian": "Italiano",
+      "countryIT": "Италия",
+      "countryRU": "Россия",
+      "countryKZ": "Казахстан",
+      "countryUS": "США",
+      "countryGB": "Великобритания",
+      "countryDE": "Германия",
+      "countryFR": "Франция"
+    },
     "footer": {
       "hint": "Управляйте контентом, студентами и аналитикой из этой панели преподавателя."
     },
@@ -293,6 +326,438 @@
       "questionNumber": "Вопрос #{{id}}",
       "error": "Ошибка",
       "emptyAnswer": "—"
+    },
+    "course": {
+      "status": {
+        "draft": "Черновик",
+        "published": "Опубликовано",
+        "scheduled": "Запланировано",
+        "archived": "Архивировано"
+      }
+    },
+    "courses": {
+      "searchPlaceholder": "Поиск курсов...",
+      "create": "Создать курс",
+      "units": "юнитов",
+      "loadError": "Не удалось загрузить курсы",
+      "deleted": "Курс удален",
+      "deleteError": "Не удалось удалить курс",
+      "view": {
+        "grid": "Сетка",
+        "list": "Список"
+      },
+      "count": {
+        "filtered": "{{filtered}} из {{total}} курсов",
+        "total": "{{count}} курс(ов)"
+      },
+      "noResults": {
+        "title": "Курсы не найдены",
+        "subtitle": "Попробуйте изменить поисковый запрос или очистить фильтры.",
+        "clear": "Очистить фильтры"
+      },
+      "delete": {
+        "title": "Удалить курс?",
+        "subtitle": "будет удален навсегда. Это действие нельзя отменить.",
+        "action": "Удалить",
+        "deleting": "Удаление..."
+      },
+      "empty": {
+        "welcome": "Добро пожаловать в вашу студию",
+        "titlePrefix": "Создайте свой первый",
+        "titleHighlight": "курс с поддержкой AI",
+        "subtitle": "Создавайте увлекательные языковые курсы со слайдами, заданиями и тестами, сгенерированными AI.",
+        "aiBuilder": "AI-конструктор курсов",
+        "lessonByLesson": "Урок за уроком",
+        "liveAnalytics": "Живая аналитика",
+        "autoTestGen": "Автогенерация тестов",
+        "createFirst": "Создать первый курс",
+        "note": "Займет ~2 минуты - AI сделает основную работу"
+      }
+    },
+    "help": {
+      "button": "Помощь",
+      "menuLabel": "Меню помощи",
+      "gettingStarted": "Начало работы",
+      "tutorialArticles": "Обучающие статьи",
+      "updates": "Обновления",
+      "newUpdates": "Доступны новые обновления",
+      "blog": "Блог",
+      "youtube": "YouTube-канал",
+      "support": "Служба поддержки"
+    },
+    "subscription": {
+      "info": "Информация о подписке",
+      "planTab": "Тариф",
+      "limitsTab": "Лимиты",
+      "standardPlan": "Стандарт",
+      "freePlan": "Бесплатный",
+      "active": "Активен",
+      "paidUntil": "Оплачено до",
+      "daysLeft": "дн. осталось",
+      "upgradeHint": "Обновите тариф, чтобы открыть все функции",
+      "goToPlans": "Перейти к тарифам",
+      "limitsPlaceholder": "Лимиты использования появятся здесь.",
+      "daysLeftAria": "Подписка: осталось {{days}} дней",
+      "planAria": "Текущий тариф подписки",
+      "daysLeftTitle": "Осталось {{days}} дней",
+      "freePlanTitle": "Бесплатный тариф - нажмите для обновления"
+    },
+    "userMenu": {
+      "label": "Меню пользователя",
+      "openForUser": "Открыть меню пользователя {{userName}}"
+    },
+    "theme": {
+      "dark": "Темная тема"
+    },
+    "tariffs": {
+      "title": "Тарифы"
+    },
+    "supportChat": {
+      "title": "Чат поддержки",
+      "subtitle": "Обычно мы отвечаем в течение нескольких часов",
+      "closeChatAria": "Закрыть чат",
+      "loadingMessages": "Загрузка сообщений...",
+      "emptyTitle": "Привет! Чем мы можем помочь?",
+      "emptyDescription": "Отправьте нам сообщение, и наша команда ответит вам как можно скорее.",
+      "supportLabel": "Поддержка",
+      "readStatus": "Прочитано",
+      "inputPlaceholder": "Введите сообщение... (Enter для отправки)",
+      "sendMessageAria": "Отправить сообщение",
+      "openWidgetAria": "Открыть чат поддержки",
+      "closeWidgetAria": "Закрыть чат поддержки",
+      "errors": {
+        "load": "Не удалось загрузить сообщения.",
+        "send": "Не удалось отправить. Попробуйте снова."
+      }
+    }
+  },
+  "classroom": {
+    "page": {
+      "goBack": "Назад",
+      "emptyLessonDescription": "Преподаватель еще не добавил контент в этот урок.",
+      "emptyLessonCheckBackSoon": "Загляните позже!",
+      "courseSaved": "Курс сохранен",
+      "courseSaveFailed": "Не удалось сохранить курс",
+      "unitPublished": "Урок опубликован",
+      "unitPublishFailed": "Не удалось опубликовать урок",
+      "lastUnitInfo": "Это последний урок в курсе.",
+      "materialsLoadFailed": "Не удалось загрузить материалы.",
+      "openUnitBeforeUpload": "Откройте урок перед загрузкой материалов.",
+      "materialUploadedSingle": "Материал загружен.",
+      "materialUploadedMany": "Загружено материалов: {{count}}.",
+      "materialUploadFailed": "Не удалось загрузить материалы.",
+      "loading": "Загрузка...",
+      "unitNotPublished": "Урок не опубликован",
+      "leaveClassroomTitle": "Выйти из класса?",
+      "leaveDialogDraftDescription": "Этот урок все еще в черновике. Вы можете опубликовать его из боковой панели, или выйти и вернуться позже.",
+      "leaveDialogTeacherDescription": "Вы вернетесь к своим курсам. Несохраненные изменения в открытых редакторах могут быть потеряны.",
+      "leaveDialogStudentDescription": "Вы вернетесь в Мои классы.",
+      "stay": "Остаться",
+      "leave": "Выйти",
+      "switchDraftUnitDescription": "Этот урок все еще в черновике. Вы можете сначала опубликовать его из боковой панели, или переключить урок-драфт останется в курсе до публикации.",
+      "stayOnThisUnit": "Остаться на этом уроке",
+      "switchUnit": "Переключить урок",
+      "noCourseInUrl": "В URL не указан курс.",
+      "mediaKind": {
+        "image": "Изображение",
+        "video": "Видео",
+        "audio": "Аудио",
+        "media": "Медиа"
+      }
+    },
+    "lessonWorkspace": {
+      "sectionLabel": "Раздел {{index}}",
+      "slidesUnavailable": "Слайды недоступны:",
+      "tryAgainLater": "Пожалуйста, попробуйте позже.",
+      "studentAnswers": "Ответы учеников",
+      "viewStudentAnswers": "Посмотреть ответы учеников"
+    },
+    "lessonShared": {
+      "somethingWentWrong": "Что-то пошло не так"
+    },
+    "verticalPlayer": {
+      "lesson": "Урок",
+      "section": "Раздел"
+    },
+    "homework": {
+      "status": {
+        "pendingReview": "На проверке у преподавателя",
+        "awaitingStudent": "Нужно доработать",
+        "completed": "Выполнено",
+        "assigned": "В работе"
+      },
+      "fromLesson": "Из урока",
+      "submitForReview": "Отправить на проверку",
+      "pickExercise": "Выбрать упражнение",
+      "createExercise": "Создать упражнение",
+      "emptyTitle": "Домашняя работа не назначена",
+      "emptySubtitle": "Преподаватель еще не добавил задания"
+    },
+    "sectionBlock": {
+      "media": {
+        "imageLabel": "Изображение",
+        "videoLabel": "Видео",
+        "audioLabel": "Аудио",
+        "carouselLabel": "Карусель изображений",
+        "imagePlaceholder": "Вставьте URL изображения...",
+        "videoPlaceholder": "Вставьте ссылку YouTube / Vimeo...",
+        "audioPlaceholder": "Вставьте URL аудиофайла..."
+      },
+      "previewAlt": "Предпросмотр",
+      "videoPreviewTitle": "Предпросмотр видео",
+      "previewAfterSave": "Предпросмотр доступен после сохранения.",
+      "removeMediaAria": "Удалить блок {{label}}",
+      "uploadImageTitle": "Загрузить изображение",
+      "captionOptional": "Подпись (необязательно)",
+      "imageAlt": "Изображение",
+      "videoTitle": "Видео",
+      "sectionTitleAria": "Название раздела",
+      "renameSection": "Переименовать раздел",
+      "sectionCounter": "Раздел {{current}} из {{total}}",
+      "addContent": "Добавить контент",
+      "noContentYet": "В этом разделе пока нет контента."
+    },
+    "exerciseMenu": {
+      "copyToHomework": "Скопировать в дом. работу",
+      "hideFromStudent": "Скрыть от ученика",
+      "focusExercise": "Внимание на упражнение",
+      "resetAnswers": "Сбросить ответы",
+      "toHomework": "В домашнюю работу",
+      "moveUp": "Переместить вверх",
+      "moveDown": "Переместить вниз",
+      "editExercise": "Редактировать упражнение",
+      "edit": "Редактировать",
+      "newVersion": "Новая версия",
+      "deleteExercise": "Удалить упражнение",
+      "copyExerciseTo": "Копировать упражнение в...",
+      "blockOptionsAria": "Опции блока",
+      "resetConfirm": {
+        "title": "Сбросить у всех учеников?",
+        "body": "Ответы всех подключенных учеников будут очищены.",
+        "confirm": "Сбросить"
+      }
+    },
+    "bottomNav": {
+      "lessonNavigationAria": "Навигация по уроку",
+      "progressAria": "Прогресс {{percent}}%",
+      "previousSectionAria": "Предыдущий раздел",
+      "previous": "Назад",
+      "nextSectionAria": "Следующий раздел",
+      "next": "Далее"
+    },
+    "sectionPanel": {
+      "sectionNavigator": "Навигатор разделов",
+      "unitNavigator": "Навигатор уроков",
+      "sections": "Разделы",
+      "completedProgress": "{{done}} / {{total}} завершено",
+      "noSectionsYet": "Пока нет разделов",
+      "availableSectionsAria": "Доступные разделы",
+      "noUnitsYet": "Пока нет уроков",
+      "availableUnitsAria": "Доступные уроки",
+      "itemCount": "{{count}} эл.",
+      "addSection": "Добавить раздел",
+      "publishUnit": "Опубликовать урок",
+      "finishUnit": "Завершить урок",
+      "additionalMaterials": "Дополнительные материалы",
+      "aria": {
+        "dragToReorder": "Перетащите для переупорядочивания {{title}}",
+        "removeSection": "Удалить раздел {{title}}"
+      },
+      "removeDialog": {
+        "title": "Удалить этот раздел?",
+        "body": "Вы уверены, что хотите удалить \"{{title}}\"? Это действие нельзя отменить.",
+        "remove": "Удалить"
+      }
+    },
+    "unitList": {
+      "nowStudying": "Сейчас изучается",
+      "slidesCount": "{{count}} слайдов",
+      "tasksCount": "{{count}} заданий",
+      "testsCount": "{{count}} тестов",
+      "openUnit": "Открыть урок",
+      "aria": {
+        "reorder": "Переупорядочить",
+        "shareUnit": "Поделиться уроком",
+        "moreOptions": "Больше опций"
+      },
+      "actions": {
+        "generateAi": "Сгенерировать AI",
+        "hideUnit": "Скрыть урок",
+        "copy": "Копировать",
+        "edit": "Редактировать",
+        "delete": "Удалить"
+      }
+    },
+    "unitSelector": {
+      "defaultCourseInitial": "К",
+      "courseThumbnailAlt": "Обложка курса",
+      "share": "Поделиться",
+      "moreCourseOptions": "Больше опций курса",
+      "courseSettings": "Настройки курса",
+      "copyCourse": "Скопировать курс",
+      "deleteCourse": "Удалить курс",
+      "tabs": {
+        "contents": "Содержание",
+        "description": "Описание"
+      },
+      "descriptionComingSoon": "Описание скоро появится",
+      "searchPlaceholder": "Поиск уроков",
+      "searchAria": "Поиск уроков",
+      "filter": "Фильтр",
+      "availableUnitsAria": "Доступные уроки",
+      "generatedBadge": "Сгенерировано",
+      "generatingBadge": "Генерация...",
+      "createUnit": "Создать урок",
+      "creating": "Создание...",
+      "generate": "Сгенерировать",
+      "empty": {
+        "noMatches": "Совпадений не найдено",
+        "noUnits": "Нет доступных уроков",
+        "resetSearch": "Сбросить поиск"
+      },
+      "unitLabel": "Урок {{index}} - {{title}}",
+      "progressBanner": {
+        "allGenerated": "Все {{total}} уроков сгенерированы - нажмите на любой урок, чтобы начать преподавать",
+        "generatingWithErrors": "Генерация... {{done}}/{{total}} готово (есть ошибки)",
+        "generatingBackground": "Генерация в фоне... {{done}}/{{total}} уроков готово"
+      },
+      "courseGeneration": {
+        "generatedReady": "Курс сгенерирован - готово уроков: {{count}}",
+        "generatingProgress": "Генерация... {{done}} / {{total}} уроков готово",
+        "outlineReady": "AI-структура готова - {{count}} уроков",
+        "reviewBeforeGeneratePrefix": "Проверьте структуру ниже, затем нажмите",
+        "generateCourseButton": "Сгенерировать курс",
+        "editOutline": "Редактировать структуру",
+        "generatingShort": "Генерация...",
+        "fillAllUnits": "Это заполнит все {{count}} уроков AI-контентом.",
+        "allUnitsGenerated": "Все уроки сгенерированы! Выберите урок ниже, чтобы начать преподавать."
+      }
+    },
+    "header": {
+      "classroomSectionsAria": "Разделы класса",
+      "lessonTab": "Урок",
+      "homeworkTab": "Домашняя работа",
+      "homeworkItemsAria": "Заданий домашней работы: {{count}}",
+      "backToClassesAria": "Назад к моим классам",
+      "classes": "Классы",
+      "changeUnit": "Сменить урок",
+      "chooseUnit": "Выбрать урок",
+      "unitShort": "Урок",
+      "chooseShort": "Выбор"
+    },
+    "studentAnswersPanel": {
+      "title": "Ответы",
+      "allStudents": "Все ученики",
+      "loadingRoster": "Загрузка списка...",
+      "noEnrolledStudents": "Нет записанных учеников",
+      "noStudentsOnline": "Нет учеников онлайн",
+      "fallbackStudentName": "Ученик {{id}}",
+      "feedbackPlaceholder": "Комментарий для ученика (необязательно)",
+      "markComplete": "Отметить выполненным",
+      "needsStudentReview": "Нужна доработка учеником",
+      "viewingSavedHomework": "Просмотр сохраненной домашней работы",
+      "viewingLiveAnswers": "Просмотр ответов в реальном времени",
+      "homeworkStatus": {
+        "pendingReview": "На проверке",
+        "awaitingStudent": "Студент",
+        "completed": "Готово",
+        "assigned": "Черновик"
+      },
+      "help": {
+        "homework": "Выберите ученика, чтобы просматривать его сохраненную домашнюю работу, как в проигрывателе урока",
+        "lesson": "Выберите ученика, чтобы просматривать его ответы в реальном времени в проигрывателе урока"
+      },
+      "aria": {
+        "panel": "Ответы учеников",
+        "help": "Справка",
+        "close": "Закрыть панель ответов",
+        "studentsList": "Ученики"
+      }
+    },
+    "generateUnitModal": {
+      "aria": {
+        "generateUnitContent": "Сгенерировать контент урока"
+      },
+      "generateUnitContent": "Сгенерировать контент урока",
+      "generateWithAi": "Сгенерировать с AI",
+      "fromFile": "Из файла",
+      "topicPlaceholder": "например: Present Simple, словарь: еда и напитки...",
+      "descriptionPlaceholder": "Опишите, на чем должен сфокусироваться AI: учебные цели, контекст, словарь, грамматика и любые другие детали...",
+      "alwaysIncludedPrefix": "Каждый сегмент всегда включает",
+      "textBlock": "текстовый блок",
+      "alwaysIncludedSuffix": "- правила грамматики, лексику и примеры в Markdown.",
+      "cefrLevel": "Уровень CEFR",
+      "language": "Язык",
+      "numberOfSegments": "Количество сегментов",
+      "exerciseTypesLabel": "Типы упражнений",
+      "exerciseDistributionHint": "Все выбранные типы будут распределены по сегментам.",
+      "typesBySegments": "({{typeCount}} тип(ов) x {{segmentCount}} сегмент(ов))",
+      "instructionLanguage": "Язык инструкций",
+      "instructionLanguageHint": "Язык заголовков упражнений и UI-меток, которые видят ученики.",
+      "dropItHere": "Перетащите файл сюда!",
+      "dropOrBrowse": "Перетащите файл или нажмите для выбора",
+      "fileTypesHint": "PDF, DOCX, TXT, PPT, PPTX - до 20 МБ",
+      "browseFiles": "Выбрать файл",
+      "fileExtractionHint": "AI извлечет контент из файла и сгенерирует сегменты на его основе.",
+      "includeAiIllustrations": "Добавить AI-иллюстрации",
+      "advancedSettings": "Расширенные настройки",
+      "generatingSummary": "Генерируем {{count}} сегмент(ов) {{details}}.",
+      "withIllustrations": "с текстовыми блоками, упражнениями и иллюстрациями",
+      "withoutIllustrations": "с текстовыми блоками и упражнениями",
+      "mayTakeSeconds": "Это может занять {{range}} секунд.",
+      "generatingContent": "Генерируем контент...",
+      "generateSegments": "Сгенерировать {{count}} сегмент(ов)",
+      "generateFromFile": "Сгенерировать из файла",
+      "languageOptions": {
+        "english": "Английский",
+        "spanish": "Испанский",
+        "french": "Французский",
+        "german": "Немецкий",
+        "italian": "Итальянский",
+        "portuguese": "Португальский",
+        "russian": "Русский",
+        "chinese": "Китайский",
+        "japanese": "Японский",
+        "arabic": "Арабский"
+      },
+      "instructionLanguages": {
+        "english": "English",
+        "russian": "Русский",
+        "spanish": "Español",
+        "french": "Français",
+        "german": "Deutsch",
+        "italian": "Italiano",
+        "portuguese": "Português"
+      },
+      "exerciseTypes": {
+        "drag_to_gap": { "label": "Перетащи в пропуск", "description": "Перетаскивайте слова в пропуски" },
+        "type_word_in_gap": { "label": "Впишите в пропуск", "description": "Введите пропущенное слово" },
+        "select_word_form": { "label": "Выбор формы", "description": "Выберите правильную форму слова" },
+        "match_pairs": { "label": "Сопоставление пар", "description": "Сопоставьте термины и определения" },
+        "build_sentence": { "label": "Собери предложение", "description": "Расставьте перемешанные слова" },
+        "order_paragraphs": { "label": "Порядок абзацев", "description": "Расположите абзацы в правильном порядке" },
+        "sort_into_columns": { "label": "Сортировка по колонкам", "description": "Распределите слова по категориям" },
+        "test_without_timer": { "label": "Тест (без таймера)", "description": "Тест с выбором ответа" },
+        "test_with_timer": { "label": "Тест (с таймером)", "description": "Тест с выбором ответа на время" },
+        "true_false": { "label": "Верно / Неверно", "description": "Утверждения верно или неверно" }
+      },
+      "errors": {
+        "enterTopic": "Пожалуйста, введите тему перед генерацией.",
+        "uploadFile": "Пожалуйста, загрузите файл перед генерацией.",
+        "invalidResponse": "Генерация завершена, но сервер вернул пустой или некорректный ответ.",
+        "generic": "Что-то пошло не так. Попробуйте снова."
+      },
+      "success": {
+        "contentGenerated": "Контент сгенерирован!",
+        "segmentsCreated": "{{count}} сегмент(ов)",
+        "textBlocksCreated": "{{count}} текстовый(ых) блок(ов)",
+        "exercisesCreated": "{{count}} упражнение(й)",
+        "illustrationsCreated": "{{count}} иллюстрация(й)",
+        "segmentTextCount": "{{count}} текст",
+        "imageTag": "изображение",
+        "generateMore": "Сгенерировать еще",
+        "done": "Готово"
+      }
     }
   },
   "landing": {

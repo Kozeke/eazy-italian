@@ -64,6 +64,8 @@ class ResendVerificationRequest(BaseModel):
 class UserResponse(UserBase):
     id: int
     role: UserRole
+    # Stores profile avatar URL resolved from notification_prefs metadata.
+    avatar_url: Optional[str] = None
     email_verified_at: Optional[datetime] = None
     notification_prefs: Dict[str, Any] = {}
     is_active: bool

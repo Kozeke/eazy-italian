@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
 from app.core.database import get_db
+from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota
 from app.models.segment import Segment
 from app.models.unit import Unit
 from app.models.user import User
@@ -236,6 +237,8 @@ async def generate_unit_content(
     current_user: User = Depends(get_current_teacher),
 ) -> UnitGenerateResponse:
     _get_unit_or_404(db, unit_id, current_user.id)
+    # Consumes one AI unit-generation credit based on the teacher's active tariff.
+    check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
 
     try:
         provider = _get_ai_provider()
@@ -382,6 +385,8 @@ async def generate_unit_from_file(
         )
 
     # ── Run generator ─────────────────────────────────────────────────────────
+    # Consumes one AI unit-generation credit after file/form validation succeeds.
+    check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
     try:
         provider = _get_ai_provider()
     except Exception as exc:

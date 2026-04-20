@@ -25,6 +25,7 @@
  */
 
 import React, { useRef, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   BookOpen,
   FileText,
@@ -99,7 +100,7 @@ const LEVEL_COLORS: Record<string, string> = {
 type ChipColor = 'teal' | 'amber' | 'emerald' | 'slate';
 
 const CHIP_COLORS: Record<ChipColor, string> = {
-  teal:    'bg-teal-50 text-teal-700',
+  teal:    'bg-[#EEF0FE] text-[#4F52C2]',
   amber:   'bg-amber-50 text-amber-700',
   emerald: 'bg-emerald-50 text-emerald-700',
   slate:   'bg-slate-100 text-slate-500',
@@ -143,6 +144,8 @@ function UnitActionDropdown({
   onEdit?:     (u: any) => void;
   onDelete?:   (u: any) => void;
 }) {
+  // Provides localized labels for the unit action dropdown.
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -175,7 +178,7 @@ function UnitActionDropdown({
         'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors',
         destructive
           ? 'text-red-500 hover:bg-red-50'
-          : 'text-slate-700 hover:bg-slate-50',
+          : 'text-slate-700 hover:bg-[#EEF0FE] hover:text-[#4F52C2]',
       ].join(' ')}
     >
       {icon}
@@ -186,14 +189,14 @@ function UnitActionDropdown({
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-1 z-50 w-48 rounded-xl bg-white shadow-lg ring-1 ring-slate-200 py-1 overflow-hidden"
+      className="absolute right-0 top-full mt-1 z-50 w-48 rounded-xl bg-white shadow-lg ring-1 ring-[#E5E7EB] py-1 overflow-hidden"
     >
-      {onGenerate && menuItem(<Sparkles className="h-4 w-4 shrink-0" />, 'Сгенерировать AI', () => onGenerate(unit))}
-      {menuItem(<EyeOff className="h-4 w-4 shrink-0" />, 'Скрыть урок',   () => onHide?.(unit))}
-      {menuItem(<Copy   className="h-4 w-4 shrink-0" />, 'Копировать',    () => onCopy?.(unit))}
-      {menuItem(<Pen    className="h-4 w-4 shrink-0" />, 'Редактировать', () => onEdit?.(unit))}
+      {onGenerate && menuItem(<Sparkles className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.generateAi'), () => onGenerate(unit))}
+      {menuItem(<EyeOff className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.hideUnit'),   () => onHide?.(unit))}
+      {menuItem(<Copy   className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.copy'),    () => onCopy?.(unit))}
+      {menuItem(<Pen    className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.edit'), () => onEdit?.(unit))}
       <div className="border-t border-slate-100" />
-      {menuItem(<Trash2 className="h-4 w-4 shrink-0" />, 'Удалить',       () => onDelete?.(unit), true)}
+      {menuItem(<Trash2 className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.delete'),       () => onDelete?.(unit), true)}
     </div>
   );
 }
@@ -215,6 +218,8 @@ export default function UnitListItem({
   onEdit,
   onDelete,
 }: UnitListItemProps) {
+  // Provides localized labels for unit rows and hover actions.
+  const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const locked    = isLocked || unit.is_visible_to_students === false;
@@ -231,12 +236,12 @@ export default function UnitListItem({
   const medallion = locked
     ? { bg: 'bg-slate-100 text-slate-300', icon: null }
     : isCurrent
-    ? { bg: 'bg-teal-600 text-white shadow-md shadow-teal-100', icon: null }
+    ? { bg: 'bg-[#6C6FEF] text-white shadow-md shadow-[#6C6FEF]/20', icon: null }
     : isCompleted
-    ? { bg: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200', icon: 'check' }
-    : { bg: 'bg-slate-100 text-slate-400 group-hover:bg-teal-50 group-hover:text-teal-600', icon: null };
+    ? { bg: 'bg-[#EEF0FE] text-[#6C6FEF] ring-1 ring-[#C7CAFB]', icon: 'check' }
+    : { bg: 'bg-slate-100 text-slate-400 group-hover:bg-[#EEF0FE] group-hover:text-[#6C6FEF]', icon: null };
 
-  const iconBtn = 'rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors';
+  const iconBtn = 'rounded-lg p-1.5 text-slate-400 hover:text-[#6C6FEF] hover:bg-[#EEF0FE] transition-colors';
 
   return (
     <li className="group relative">
@@ -244,10 +249,10 @@ export default function UnitListItem({
         className={[
           'relative w-full px-4 py-3.5 transition-all duration-150',
           isCurrent
-            ? 'bg-teal-50/70 border-l-[3px] border-teal-500'
+            ? 'bg-[#EEF0FE]/80 border-l-[3px] border-[#6C6FEF]'
             : isCompleted && !locked
-            ? 'hover:bg-emerald-50/40 border-l-[3px] border-transparent hover:border-emerald-300'
-            : 'hover:bg-teal-50/50 border-l-[3px] border-transparent hover:border-teal-200',
+            ? 'hover:bg-[#EEF0FE]/30 border-l-[3px] border-transparent hover:border-[#A5A8F5]'
+            : 'hover:bg-[#EEF0FE]/50 border-l-[3px] border-transparent hover:border-[#A5A8F5]',
           locked ? 'opacity-40' : '',
         ].join(' ')}
       >
@@ -260,7 +265,7 @@ export default function UnitListItem({
             role="option"
             aria-selected={isCurrent}
             aria-disabled={locked}
-            className="flex flex-1 min-w-0 items-center gap-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-400 disabled:cursor-not-allowed"
+            className="flex flex-1 min-w-0 items-center gap-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#6C6FEF] disabled:cursor-not-allowed"
           >
             {/* Number medallion */}
             <div
@@ -284,12 +289,12 @@ export default function UnitListItem({
                   className={[
                     'text-[13px] font-semibold leading-snug transition-colors',
                     isCurrent
-                      ? 'text-teal-800'
+                      ? 'text-[#4F52C2]'
                       : locked
                       ? 'text-slate-400'
                       : isCompleted
                       ? 'text-slate-600'
-                      : 'text-slate-800 group-hover:text-teal-700',
+                      : 'text-slate-800 group-hover:text-[#4F52C2]',
                   ].join(' ')}
                 >
                   {unit.title}
@@ -302,8 +307,8 @@ export default function UnitListItem({
                 )}
 
                 {isCurrent && (
-                  <span className="shrink-0 rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold text-teal-700">
-                    Now studying
+                  <span className="shrink-0 rounded-full bg-[#6C6FEF]/10 px-2 py-0.5 text-[10px] font-bold text-[#6C6FEF]">
+                    {t('classroom.unitList.nowStudying')}
                   </span>
                 )}
               </div>
@@ -313,21 +318,21 @@ export default function UnitListItem({
                   {hasSlides && (
                     <ContentChip
                       icon={Presentation}
-                      label={`${cc?.slides ?? cc?.videos ?? 0} slides`}
+                      label={t('classroom.unitList.slidesCount', { count: cc?.slides ?? cc?.videos ?? 0 })}
                       color="teal"
                     />
                   )}
                   {hasTask && (
                     <ContentChip
                       icon={FileText}
-                      label={`${cc?.tasks ?? 0} task${(cc?.tasks ?? 0) !== 1 ? 's' : ''}`}
+                      label={t('classroom.unitList.tasksCount', { count: cc?.tasks ?? 0 })}
                       color="amber"
                     />
                   )}
                   {hasTest && (
                     <ContentChip
                       icon={FlaskConical}
-                      label={`${cc?.tests ?? 0} test${(cc?.tests ?? 0) !== 1 ? 's' : ''}`}
+                      label={t('classroom.unitList.testsCount', { count: cc?.tests ?? 0 })}
                       color="emerald"
                     />
                   )}
@@ -349,11 +354,11 @@ export default function UnitListItem({
               {locked ? (
                 <Lock className="h-4 w-4 text-slate-300" />
               ) : isCurrent ? (
-                <PlayCircle className="h-4 w-4 text-teal-500" />
+                <PlayCircle className="h-4 w-4 text-[#6C6FEF]" />
               ) : isCompleted ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <CheckCircle2 className="h-4 w-4 text-[#6C6FEF]" />
               ) : (
-                <BookOpen className="h-4 w-4 text-slate-300 group-hover:text-teal-400 transition-colors" />
+                <BookOpen className="h-4 w-4 text-slate-300 group-hover:text-[#6C6FEF] transition-colors" />
               )}
             </span>
           </button>
@@ -376,7 +381,7 @@ export default function UnitListItem({
               {/* Drag handle — visual affordance only */}
               <button
                 className={iconBtn}
-                aria-label="Reorder"
+                aria-label={t('classroom.unitList.aria.reorder')}
                 tabIndex={-1}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -386,7 +391,7 @@ export default function UnitListItem({
               {/* Share */}
               <button
                 className={iconBtn}
-                aria-label="Share unit"
+                aria-label={t('classroom.unitList.aria.shareUnit')}
                 tabIndex={-1}
                 onClick={(e) => { e.stopPropagation(); onShare?.(unit); }}
               >
@@ -397,7 +402,7 @@ export default function UnitListItem({
               <div className="relative">
                 <button
                   className={iconBtn}
-                  aria-label="More options"
+                aria-label={t('classroom.unitList.aria.moreOptions')}
                   tabIndex={-1}
                   onClick={(e) => { e.stopPropagation(); setDropdownOpen((v) => !v); }}
                 >
@@ -418,10 +423,10 @@ export default function UnitListItem({
 
               {/* "Открыть урок" pill */}
               <button
-                className="ml-1 rounded-full bg-[#4DD8E0] px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-400 transition-colors whitespace-nowrap"
+                className="ml-1 rounded-full bg-[#6C6FEF] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#4F52C2] transition-colors whitespace-nowrap shadow-sm shadow-[#6C6FEF]/20"
                 onClick={(e) => { e.stopPropagation(); onOpen ? onOpen(unit) : onClick(); }}
               >
-                Открыть урок
+                {t('classroom.unitList.openUnit')}
               </button>
             </div>
           )}
