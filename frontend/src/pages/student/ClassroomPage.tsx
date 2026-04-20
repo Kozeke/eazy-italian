@@ -770,6 +770,54 @@ function ClassroomPageInner({
     }
   }, [units.length, courseId]);
 
+  /**
+   * Deletes one teacher-selected unit from the course and keeps classroom navigation stable.
+   */
+  const handleDeleteUnit = useCallback(
+    async (unitToDelete: ClassroomUnit) => {
+      if (!isTeacher) return;
+      // Stores the native confirmation copy shown before irreversible unit deletion.
+      const deleteConfirmationMessage = `Delete "${unitToDelete.title}"? This action cannot be undone.`;
+      // Prevents accidental destructive actions from the unit dropdown.
+      const isDeletionConfirmed = window.confirm(deleteConfirmationMessage);
+      if (!isDeletionConfirmed) return;
+      try {
+        await unitsApi.deleteUnit(unitToDelete.id);
+        // Stores the local list that excludes the deleted unit for fallback navigation.
+        const remainingUnits = units
+          .filter((unit) => unit.id !== unitToDelete.id)
+          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+        // Stores the next best unit to open when the current unit was deleted.
+        const fallbackUnit = remainingUnits[0] ?? null;
+        if (currentUnit?.id === unitToDelete.id) {
+          if (fallbackUnit) {
+            navigateToUnit(fallbackUnit);
+          } else {
+            navigate(`${classroomBasePath}/${courseId}`, { replace: true });
+          }
+        }
+        reloadUnits();
+        // Shows success feedback immediately after backend deletion completes.
+        toast.success(`"${unitToDelete.title}" deleted`);
+      } catch (error) {
+        console.error("[ClassroomPage] Failed to delete unit", error);
+        // Explains that delete failed so the teacher can retry from the modal.
+        toast.error("Failed to delete unit");
+      }
+    },
+    [
+      isTeacher,
+      units,
+      currentUnit?.id,
+      navigateToUnit,
+      navigate,
+      classroomBasePath,
+      courseId,
+      reloadUnits,
+      t,
+    ],
+  );
+
   /** Navigates to a unit URL and resets local lesson progress (shared by selector, finish, and draft confirm). */
   const navigateToUnit = useCallback(
     (unit: ClassroomUnit) => {
@@ -1290,6 +1338,7 @@ function ClassroomPageInner({
         generateUnitId={undefined}
         generateUnitTitle={undefined}
         onCreateAndGenerate={handleCreateAndGenerate}
+        onDeleteUnit={isTeacher ? handleDeleteUnit : undefined}
         onEditCourse={isTeacher ? handleEditCourse : undefined}
         editCourseDescription={editCourseSeed.initialDescription}
         editCourseLanguage={editCourseSeed.initialLanguage}

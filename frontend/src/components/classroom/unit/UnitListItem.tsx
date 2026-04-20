@@ -195,8 +195,14 @@ function UnitActionDropdown({
       {menuItem(<EyeOff className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.hideUnit'),   () => onHide?.(unit))}
       {menuItem(<Copy   className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.copy'),    () => onCopy?.(unit))}
       {menuItem(<Pen    className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.edit'), () => onEdit?.(unit))}
-      <div className="border-t border-slate-100" />
-      {menuItem(<Trash2 className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.delete'),       () => onDelete?.(unit), true)}
+      {onDelete && <div className="border-t border-slate-100" />}
+      {onDelete &&
+        menuItem(
+          <Trash2 className="h-4 w-4 shrink-0" />,
+          t('classroom.unitList.actions.delete'),
+          () => onDelete(unit),
+          true,
+        )}
     </div>
   );
 }
