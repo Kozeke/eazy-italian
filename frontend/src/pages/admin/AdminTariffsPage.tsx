@@ -6,26 +6,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Crown, HelpCircle } from "lucide-react";
-import { coursesApi, teacherTariffsApi } from "../../services/api";
+import { useLocation, useNavigate } from "react-router-dom";
+import { coursesApi } from "../../services/api";
 import AdminTariffsPaymentHistory from "./components/AdminTariffsPaymentHistory";
-import ConnectPaymentModal from "./components/ConnectPaymentModal";
 
 type BillingDuration = "1m" | "3m" | "6m" | "12m";
+type TariffsTab = "tariffs" | "payments" | "bonuses" | "certificates";
 
 // Identifies which pricing card launched the connect checkout.
 type ConnectablePlanId = "free" | "standard" | "pro";
 
-// Snapshot passed into the checkout modal and payment POST body builders.
-type ConnectCheckoutPayload = {
-  durationLabel: string;
-  planName: string;
-  priceLabel: string;
-  planTagLabels: readonly string[];
-  yearSavingsLabel?: string;
-  amountUsd: number;
-  planCode: ConnectablePlanId;
-  billingPeriod: BillingDuration | null;
-};
+// Reads the active tab from the query string so deep links can open Payments directly.
+function readTariffsTabFromSearch(search: string): TariffsTab {
+  const query = new URLSearchParams(search);
+  const tab = query.get("tab");
+  return tab === "payments" || tab === "bonuses" || tab === "certificates" ? tab : "tariffs";
+}
 
 // Billing cycle options for paid Standard / Pro rows.
 const BILLING_OPTIONS: Array<{ id: BillingDuration; label: string; discount?: string }> = [
@@ -79,6 +75,10 @@ function InfoHint({ title }: { title: string }) {
 }
 
 export default function AdminTariffsPage() {
+  // Router navigate helper used for switching to the dedicated subscription page.
+  const navigate = useNavigate();
+  // Current URL location used to restore selected tab and payment refresh trigger.
+  const location = useLocation();
   // Shared primary action style to keep Tariffs CTAs consistent with other admin catalog pages.
   const primaryActionClass =
     "rounded-xl border border-violet-600 bg-violet-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-violet-700 hover:shadow-[0_6px_16px_rgba(108,111,239,0.28)]";
@@ -86,15 +86,13 @@ export default function AdminTariffsPage() {
   const secondaryActionClass =
     "rounded-xl border border-[#E8E8F0] bg-white px-3 py-2 text-xs font-bold text-[#4F52C2] shadow-sm transition hover:border-violet-300 hover:bg-violet-50";
   // Top section tab (only Tariffs is fully built; others are placeholders).
-  const [activeTab, setActiveTab] = useState<"tariffs" | "payments" | "bonuses" | "certificates">("tariffs");
+  const [activeTab, setActiveTab] = useState<TariffsTab>(() => readTariffsTabFromSearch(location.search));
   // Selected billing window for Standard / Pro display copy.
   const [selectedDuration, setSelectedDuration] = useState<BillingDuration>("1m");
   // Stores total number of teacher courses pulled from admin courses API.
   const [coursesCount, setCoursesCount] = useState<number>(0);
   // Stores loading flag for the course counter widget in the current plan block.
   const [coursesLoading, setCoursesLoading] = useState<boolean>(true);
-  // Which plan card (or null) is driving the connect checkout modal.
-  const [connectPlanKey, setConnectPlanKey] = useState<ConnectablePlanId | null>(null);
   // Incremented after a successful Pay so the Payments tab refetches ledger rows.
   const [paymentsRefreshKey, setPaymentsRefreshKey] = useState<number>(0);
 
@@ -103,104 +101,23 @@ export default function AdminTariffsPage() {
     () => BILLING_OPTIONS.find((o) => o.id === selectedDuration)?.label ?? "1 mo",
     [selectedDuration],
   );
-  // Tag lines passed into the connect checkout for the Standard column.
-  const connectStandardTags = useMemo(
-    () =>
-      [
-        `${PLAN_FEATURES_STANDARD[0].label}: ${PLAN_FEATURES_STANDARD[0].value}`,
-        `${PLAN_FEATURES_STANDARD[1].label}: ${PLAN_FEATURES_STANDARD[1].value}`,
-      ] as const,
-    [],
-  );
-  // Tag lines passed into the connect checkout for the Pro column.
-  const connectProTags = useMemo(
-    () =>
-      [
-        `${PLAN_FEATURES_PRO[0].label}: ${PLAN_FEATURES_PRO[0].value}`,
-        `${PLAN_FEATURES_PRO[1].label}: ${PLAN_FEATURES_PRO[1].value}`,
-      ] as const,
-    [],
-  );
-  // Tag lines for the Free tier connect flow.
-  const connectFreeTags = useMemo(
-    () =>
-      [
-        `${PLAN_FEATURES_FREE[0].label}: ${PLAN_FEATURES_FREE[0].value}`,
-        `${PLAN_FEATURES_FREE[1].label}: ${PLAN_FEATURES_FREE[1].value}`,
-      ] as const,
-    [],
-  );
-  // Approximate USD saved versus twelve single-month checks when yearly includes -25% (Standard).
-  const yearSavingsVersusMonthlyUsd = useMemo(() => {
-    if (selectedDuration === "12m") return null;
-    const fullYearAtMonthly = STANDARD_PLAN_PRICE_USD * 12;
-    const yearlyOffer = fullYearAtMonthly * 0.75;
-    return Math.round((fullYearAtMonthly - yearlyOffer) * 10) / 10;
-  }, [selectedDuration]);
-  // Same yearly savings idea for the Pro monthly list price.
-  const proYearSavingsVersusMonthlyUsd = useMemo(() => {
-    if (selectedDuration === "12m") return null;
-    const fullYearAtMonthly = PRO_PLAN_PRICE_USD * 12;
-    const yearlyOffer = fullYearAtMonthly * 0.75;
-    return Math.round((fullYearAtMonthly - yearlyOffer) * 10) / 10;
-  }, [selectedDuration]);
-  // Copy for the yellow upsell row; omitted when yearly billing is already chosen.
-  const connectYearSavingsHint = useMemo(() => {
-    if (yearSavingsVersusMonthlyUsd == null) return undefined;
-    return `If you pay for 1 year you could save: ${yearSavingsVersusMonthlyUsd} USD`;
-  }, [yearSavingsVersusMonthlyUsd]);
-  // Pro-specific yearly savings line for the modal upsell.
-  const connectProYearSavingsHint = useMemo(() => {
-    if (proYearSavingsVersusMonthlyUsd == null) return undefined;
-    return `If you pay for 1 year you could save: ${proYearSavingsVersusMonthlyUsd} USD`;
-  }, [proYearSavingsVersusMonthlyUsd]);
-  // Props bundle for ConnectPaymentModal based on the active plan key.
-  const connectPaymentPayload = useMemo((): ConnectCheckoutPayload | null => {
-    if (!connectPlanKey) return null;
-    if (connectPlanKey === "free") {
-      return {
-        durationLabel: "Forever",
-        planName: "Free",
-        priceLabel: "0.00 USD",
-        planTagLabels: connectFreeTags,
-        yearSavingsLabel: undefined,
-        amountUsd: 0,
-        planCode: "free",
-        billingPeriod: null,
-      };
+  // Handles query-driven tab selection and payment ledger refresh after returning from checkout.
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    const tabFromQuery = readTariffsTabFromSearch(location.search);
+    setActiveTab(tabFromQuery);
+    const refreshToken = Number(query.get("refresh"));
+    if (Number.isFinite(refreshToken) && refreshToken > 0) {
+      setPaymentsRefreshKey(refreshToken);
     }
-    if (connectPlanKey === "standard") {
-      return {
-        durationLabel,
-        planName: "Standard",
-        priceLabel: `${STANDARD_PLAN_PRICE_USD.toFixed(2)} USD`,
-        planTagLabels: connectStandardTags,
-        yearSavingsLabel: connectYearSavingsHint,
-        amountUsd: STANDARD_PLAN_PRICE_USD,
-        planCode: "standard",
-        billingPeriod: selectedDuration,
-      };
-    }
-    return {
-      durationLabel,
-      planName: "Pro",
-      priceLabel: `${PRO_PLAN_PRICE_USD.toFixed(2)} USD`,
-      planTagLabels: connectProTags,
-      yearSavingsLabel: connectProYearSavingsHint,
-      amountUsd: PRO_PLAN_PRICE_USD,
-      planCode: "pro",
-      billingPeriod: selectedDuration,
-    };
-  }, [
-    connectPlanKey,
-    connectFreeTags,
-    connectProTags,
-    connectProYearSavingsHint,
-    connectStandardTags,
-    connectYearSavingsHint,
-    durationLabel,
-    selectedDuration,
-  ]);
+  }, [location.search]);
+  // Opens the dedicated route where subscription checkout is handled.
+  const openConnectSubscriptionPage = (planCode: ConnectablePlanId) => {
+    // Encodes selected plan and duration so the checkout page can reconstruct pricing details.
+    const query = new URLSearchParams({ plan: planCode });
+    if (planCode !== "free") query.set("duration", selectedDuration);
+    navigate(`/admin/tariffs/connect?${query.toString()}`);
+  };
   // Loads current teacher courses once so tariffs can show actual usage.
   useEffect(() => {
     // Prevents state update if request resolves after unmount.
@@ -346,7 +263,7 @@ export default function AdminTariffsPage() {
                 <p className="text-center text-[10px] text-slate-500">Forever</p>
                 <button
                   type="button"
-                  onClick={() => setConnectPlanKey("free")}
+                  onClick={() => openConnectSubscriptionPage("free")}
                   className={`mt-2 w-full ${secondaryActionClass}`}
                 >
                   Connect
@@ -374,7 +291,7 @@ export default function AdminTariffsPage() {
                 <p className="text-center text-[10px] text-slate-500">per {durationLabel.toLowerCase()}</p>
                 <button
                   type="button"
-                  onClick={() => setConnectPlanKey("standard")}
+                  onClick={() => openConnectSubscriptionPage("standard")}
                   className={`mt-2 w-full ${primaryActionClass}`}
                 >
                   Connect
@@ -403,7 +320,7 @@ export default function AdminTariffsPage() {
                 <p className="text-center text-[10px] text-slate-500">per {durationLabel.toLowerCase()}</p>
                 <button
                   type="button"
-                  onClick={() => setConnectPlanKey("pro")}
+                  onClick={() => openConnectSubscriptionPage("pro")}
                   className={`mt-2 w-full ${primaryActionClass}`}
                 >
                   Connect
@@ -450,39 +367,6 @@ export default function AdminTariffsPage() {
         </section>
       )}
 
-      {connectPaymentPayload ? (
-        <ConnectPaymentModal
-          key={connectPlanKey ?? "connect"}
-          open
-          onClose={() => setConnectPlanKey(null)}
-          // ── display props (unchanged) ──────────────────────────────────────
-          durationLabel={connectPaymentPayload.durationLabel}
-          planName={connectPaymentPayload.planName}
-          priceLabel={connectPaymentPayload.priceLabel}
-          planTagLabels={connectPaymentPayload.planTagLabels}
-          yearSavingsLabel={connectPaymentPayload.yearSavingsLabel}
-          // ── new props required for Stripe integration ──────────────────────
-          amountUsd={connectPaymentPayload.amountUsd}
-          planCode={connectPaymentPayload.planCode}
-          billingPeriod={connectPaymentPayload.billingPeriod}
-          // ── onPay now receives the Stripe PaymentIntent ID ─────────────────
-          onPay={async (providerRef: string) => {
-            await teacherTariffsApi.recordPayment({
-              amount: connectPaymentPayload.amountUsd,
-              currency: "USD",
-              status: "succeeded",
-              plan_code: connectPaymentPayload.planCode,
-              ...(connectPaymentPayload.billingPeriod
-                ? { billing_period: connectPaymentPayload.billingPeriod }
-                : {}),
-              description: `Checkout — ${connectPaymentPayload.planName} (${connectPaymentPayload.durationLabel})`,
-              provider_ref: providerRef,
-            });
-            setPaymentsRefreshKey((k) => k + 1);
-            setConnectPlanKey(null);
-          }}
-        />
-      ) : null}
     </div>
   );
 }

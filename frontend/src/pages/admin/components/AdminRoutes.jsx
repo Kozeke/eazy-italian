@@ -58,6 +58,7 @@ import ExerciseEditorPage      from "../ExerciseEditorPage";
 import ExerciseDraftsPage      from "../ExerciseDraftsPage";
 import AdminProfileSettingsPage from "../AdminProfileSettingsPage";
 import AdminTariffsPage from "../AdminTariffsPage";
+import AdminTariffsConnectPage from "../AdminTariffsConnectPage";
 
 /*
  * Legacy-only admin pages (routes below are commented out). Sources live next to this file:
@@ -516,6 +517,8 @@ export default function AdminRoutes() {
         <Route path="profile" element={<AdminProfileSettingsPage />} />
         {/* ── TARIFFS (header user menu + trial icon) ── */}
         <Route path="tariffs" element={<AdminTariffsPage />} />
+        {/* ── TARIFFS CHECKOUT (dedicated page route) ── */}
+        <Route path="tariffs/connect" element={<AdminTariffsConnectPage />} />
 
         {/* ── GRADES ── */}
         {/* <Route path="grades">
