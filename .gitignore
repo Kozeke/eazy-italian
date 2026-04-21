@@ -92,6 +92,9 @@ dist
 # Gatsby files
 .cache/
 public
+# Allow frontend static assets in Vite public folder (e.g., favicon) to be tracked.
+!frontend/public/
+!frontend/public/favicon.svg
 
 # Storybook build outputs
 .out
