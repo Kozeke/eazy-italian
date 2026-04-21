@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = False
     
     # CORS - Frontend URLs that are allowed to access the API
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://eazy-italian-frontend.onrender.com"
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://eazy-italian-frontend.onrender.com,https://ligua-ai.com"
     
     @property
     def cors_origins_list(self) -> List[str]:
@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
     API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "Eazy Italian"
+    PROJECT_NAME: str = "Ligua AI"
     
     # AI Provider Configuration
     AI_PROVIDER: str = "groq"
