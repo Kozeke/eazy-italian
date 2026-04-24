@@ -435,19 +435,8 @@ export function ClozeInputQuestionPlayer({
     answer && typeof answer === 'object' && !Array.isArray(answer)
       ? (answer as Record<string, string>) : {};
 
-  const promptText = question.question_text ?? question.prompt ?? '';
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {promptText && (
-        <div style={{
-          padding: '11px 14px', borderRadius: 10,
-          background: 'var(--ex-bg-soft)', border: '1px solid var(--ex-border-soft)',
-          fontSize: 14, color: 'var(--ex-ink-mid)', lineHeight: 1.6,
-        }}>
-          {promptText}
-        </div>
-      )}
       {gaps.map((gap, i) => (
         <ClozeInputRow
           key={gap.id} gap={gap} index={i}
@@ -1094,8 +1083,22 @@ export function OrderingSentencesQuestionPlayer({ question, answer, onAnswer, di
 export default function QuestionRenderer(props: QuestionRendererProps) {
   const type = props.question.type as QuestionType;
   const { questionKey, ...rest } = props;
+  // Resolve the question prompt from either field name (both are set by toRuntimeQuestion)
+  const promptText = props.question.question_text ?? props.question.prompt ?? '';
   return (
     <div key={questionKey} className={questionKey !== undefined ? 'ex-animate-slide-in' : undefined}>
+      {/* Render the question stem above the answer widget for every question type */}
+      {promptText && (
+        <p style={{
+          fontSize: 15,
+          fontWeight: 600,
+          color: 'var(--ex-ink)',
+          lineHeight: 1.5,
+          margin: '0 0 12px',
+        }}>
+          {promptText}
+        </p>
+      )}
       {(() => {
         switch (type) {
           case 'multiple_choice':    return <MultipleChoiceQuestionPlayer {...rest} />;

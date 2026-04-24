@@ -23,10 +23,18 @@ import { LiveSessionContext } from "../../live/LiveSessionProvider";
 import { showTeacherExerciseHints } from "./showTeacherExerciseHints";
 import "./DragToGap.css";
 
+/** Raw column entry produced by the unit-generator (pre-question-hydration path). */
+interface RawColumnEntry {
+  title: string;
+  words: string[];
+}
+
 interface SortIntoColumnsData {
   title?: string;
   question?: OrderingWordsDraft;
   payload?: Record<string, unknown>;
+  /** Legacy / unit-generator format: present when question is absent. */
+  columns?: RawColumnEntry[];
 }
 
 interface SortIntoColumnsItemData {
@@ -35,6 +43,58 @@ interface SortIntoColumnsItemData {
   label?: string;
   data: SortIntoColumnsData;
   status: string;
+}
+
+/**
+ * Convert the raw `{columns: [{title, words}]}` shape (stored by the unit
+ * generator before `_ordering_words_from_sort_columns` was introduced) into
+ * the `OrderingWordsDraft` shape that `buildColumns` / `SortIntoColumnsBlock`
+ * expects.  Token IDs mirror the Python generator: `sic_{colIdx}_{wordIdx}`.
+ */
+function buildQuestionFromRawColumns(
+  rawColumns: RawColumnEntry[],
+): OrderingWordsDraft {
+  const tokensInOrder: TokenDraft[] = [];
+  const sentenceGroups: string[][] = [];
+  const columnTitles: string[] = [];
+
+  rawColumns.forEach((col, colIdx) => {
+    const groupIds: string[] = [];
+    col.words.forEach((word, wordIdx) => {
+      const id = `sic_${colIdx}_${wordIdx}`;
+      tokensInOrder.push({ id, text: word });
+      groupIds.push(id);
+    });
+    sentenceGroups.push(groupIds);
+    columnTitles.push(col.title ?? `Column ${colIdx + 1}`);
+  });
+
+  const correctOrder = tokensInOrder.map((t) => t.id);
+
+  // Odds-first scramble — mirrors SortIntoColumnsEditorPage.scrambleTokenIds
+  function scramble(ids: string[]): string[] {
+    if (ids.length <= 1) return [...ids];
+    if (ids.length === 2) return [ids[1], ids[0]];
+    const odds = ids.filter((_, i) => i % 2 === 1).reverse();
+    const evens = ids.filter((_, i) => i % 2 === 0);
+    const result = [...odds, ...evens];
+    return result.every((id, i) => id === ids[i]) ? [...ids.slice(1), ids[0]] : result;
+  }
+
+  const tokById = new Map(tokensInOrder.map((t) => [t.id, t]));
+  const scrambledTokens = scramble(correctOrder).map((id) => ({ ...tokById.get(id)! }));
+
+  return {
+    type: "ordering_words",
+    prompt: "",
+    tokens: scrambledTokens,
+    correct_order: correctOrder,
+    score: 1,
+    metadata: {
+      sentence_groups: sentenceGroups,
+      column_titles: columnTitles,
+    },
+  } as unknown as OrderingWordsDraft;
 }
 
 interface ColumnInfo {
@@ -90,7 +150,18 @@ export default function SortIntoColumnsBlock({
   suppressAnswerFeedback = false,
 }: ExerciseBlockProps) {
   const typedItem = item as unknown as SortIntoColumnsItemData;
-  const question = typedItem.data?.question;
+
+  // Resolve question: prefer the canonical `data.question` field produced by the
+  // Python generator; fall back to converting `data.columns` for exercises that
+  // were persisted by the unit-generator before question-hydration was added.
+  const question: OrderingWordsDraft | undefined = useMemo(() => {
+    if (typedItem.data?.question) return typedItem.data.question;
+    const rawCols = typedItem.data?.columns;
+    if (Array.isArray(rawCols) && rawCols.length >= 2) {
+      return buildQuestionFromRawColumns(rawCols as RawColumnEntry[]);
+    }
+    return undefined;
+  }, [typedItem.data]);
 
   const liveCtx = useContext(LiveSessionContext);
   const isTeacher = liveCtx?.role === "teacher";

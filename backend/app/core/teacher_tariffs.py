@@ -31,6 +31,11 @@ _AI_QUOTA_KEYS: tuple[str, ...] = (
     "test_generation",
 )
 
+# Stores teacher emails allowed to bypass AI generation quotas for internal testing.
+_AI_QUOTA_BYPASS_EMAILS: set[str] = {
+    "teacher@eazyitalian.com",
+}
+
 # Stores plan-level hard caps for each AI action (None means unlimited).
 _TARIFF_LIMITS: dict[TeacherTariffName, dict[str, int | None]] = {
     "free": {
@@ -249,6 +254,11 @@ def check_and_consume_teacher_ai_quota(db: Session, user: User, quota_key: str) 
         )
     if normalized_quota_key not in _AI_QUOTA_KEYS:
         # Unknown actions are intentionally ignored to stay forward-compatible.
+        return
+
+    # Stores normalized user email so internal test accounts can bypass plan quotas.
+    normalized_user_email = (user.email or "").strip().lower()
+    if normalized_user_email in _AI_QUOTA_BYPASS_EMAILS:
         return
 
     # Stores current plan and expiry status before enforcing hard limits.

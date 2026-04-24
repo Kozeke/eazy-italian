@@ -6,22 +6,34 @@ AI-powered unit segment & exercise generator.
 Generates a full set of Segments (with text blocks, exercise blocks, and
 optionally AI images) for a given Unit from a high-level topic description.
 
-Flow
-----
-1.  Call the configured AI provider with a structured prompt.
+Flow  (two-phase design)
+------------------------
+Phase 1 — LLM generates the content skeleton only:
+    Segment titles, descriptions, and educational text blocks (grammar rules,
+    vocabulary, examples). The LLM is NOT asked to choose exercise types —
+    this was unreliable and caused types to be skipped or under-generated.
+
+Phase 2 — Service distributes exercise types deterministically:
+    ``_distribute_exercises()`` spreads ``request.exercise_types`` across
+    segments using round-robin so every requested type appears at least once,
+    regardless of model quality or segment count.
+
+Full pipeline:
+1.  Call the configured AI provider with a structured prompt (text-only).
 2.  Parse + validate the returned JSON blueprint.
-3.  For each segment in the blueprint:
+3.  Inject deterministic exercise plan into the blueprint.
+4.  For each segment in the blueprint:
       a. Create a ``Segment`` DB record.
       b. For each text block: insert a ``kind="text"`` media block with
          grammar rules / vocabulary / examples in Markdown.
       c. For each exercise block: call ``generate_exercise_for_segment()``.
       d. If ``include_images=True``: generate an SVG diagram via
          ``SVGImageProvider`` and append a ``kind="image"`` media block.
-4.  Return a summary: ``{ segments_created, texts_created,
+5.  Return a summary: ``{ segments_created, texts_created,
     exercises_created, images_created }``.
 
-Blueprint schema the LLM must return
---------------------------------------
+Blueprint schema the LLM must return  (no "exercises" key)
+------------------------------------------------------------
 {
   "segments": [
     {
@@ -32,10 +44,6 @@ Blueprint schema the LLM must return
           "title": "Grammar Rules",
           "content": "## Greetings\\n\\nUse *Hello* for formal..."
         }
-      ],
-      "exercises": [
-        { "type": "drag_to_gap",  "topic_hint": "Greetings vocabulary" },
-        { "type": "match_pairs",  "topic_hint": "Common phrases" }
       ]
     }
   ]
@@ -255,20 +263,9 @@ class UnitGeneratorService:
     # ── Prompt builder ────────────────────────────────────────────────────────
 
     def _build_prompt(self, request: UnitGenerateRequest) -> str:
-        if request.exercise_types:
-            normalised = [t.replace("-", "_").lower() for t in request.exercise_types]
-            valid = [t for t in normalised if t in SUPPORTED_EXERCISE_TYPES]
-            exercise_hint = (
-                f"Distribute these exercise types across the segments "
-                f"(repeat as needed to cover all segments): {', '.join(valid)}.\n"
-                f"Each segment should have 1–3 exercises chosen from this list."
-            )
-        else:
-            exercise_hint = (
-                "Choose appropriate exercise types from this list for each segment: "
-                + ", ".join(sorted(SUPPORTED_EXERCISE_TYPES))
-                + ".\nEach segment should have 1–3 exercises."
-            )
+        # Exercise types are distributed deterministically by _distribute_exercises()
+        # after the LLM returns its blueprint.  Do NOT ask the LLM to choose or
+        # list exercise types — it is unreliable and causes types to be dropped.
 
         content_section = ""
         if request.source_content:
@@ -294,8 +291,6 @@ Generate a lesson unit structure for the following specification:
   Language : {request.language}
   Segments : {request.num_segments}
 {teacher_directive}{content_section}
-{exercise_hint}
-
 Return ONLY a single valid JSON object — no markdown, no code fences, no
 preamble, no trailing text.  The JSON must match this exact schema:
 
@@ -309,12 +304,6 @@ preamble, no trailing text.  The JSON must match this exact schema:
           "title": "<block heading, e.g. 'Grammar Rules', 'Key Vocabulary', 'Examples'>",
           "content": "<educational markdown content: rules, vocab lists, usage examples>"
         }}
-      ],
-      "exercises": [
-        {{
-          "type": "<exercise_type_key>",
-          "topic_hint": "<brief directive for the AI exercise generator>"
-        }}
       ]
     }}
   ]
@@ -326,10 +315,8 @@ Rules:
   * Contain grammar rules, vocabulary, or examples relevant to the segment.
   * Written in clear, student-friendly Markdown.
   * Use headings (##), bold (**word**), and bullet lists (- item) freely.
-  * Text title and content MUST be in {request.language}. Aim for 60–120 words — concise and clear.
-- Exercise "type" must be one of: {', '.join(sorted(SUPPORTED_EXERCISE_TYPES))}.
-- "topic_hint" must be a short, specific instruction in English (internal AI directive).
-  Example: "Greetings vocabulary — formal and informal", "Past tense regular verbs".
+  * Text title and content MUST be in {request.language}. Aim for 80–200 words.
+- Do NOT include an "exercises" key — exercise blocks are added separately.
 - Segment titles and descriptions must be in {request.language}.
 - Keep JSON strictly valid: no trailing commas, no comments.
 
@@ -503,6 +490,127 @@ Return ONLY the JSON object."""
         except ValidationError as exc:
             raise ValueError(f"Blueprint schema validation failed: {exc}") from exc
 
+    # ── Image prompt helpers ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _extract_content_bullets(seg_bp: "SegmentBlueprint") -> list[str]:
+        """
+        Derive up to 4 concise bullet-point strings from the segment's generated
+        text blocks so the image prompt reflects the actual lesson content.
+
+        Priority order:
+        1. Non-empty lines that start with a Markdown bullet (- / * / •)
+           or a numbered list (1. 2. etc.) — these are already concise items.
+        2. Short heading lines (## Heading) stripped of hashes.
+        3. Segment description as a last resort.
+
+        Each candidate is stripped of Markdown emphasis (**bold**, *italic*)
+        and capped at 80 chars so the final prompt stays within token limits.
+        """
+        import re
+
+        _MD_EMPHASIS = re.compile(r"[*_`]{1,3}")
+        _MD_HEADING  = re.compile(r"^#{1,6}\s+")
+        _MD_BULLET   = re.compile(r"^[-*•]\s+")
+        _MD_NUMBERED = re.compile(r"^\d+[.)]\s+")
+
+        def clean(text: str) -> str:
+            text = _MD_EMPHASIS.sub("", text).strip()
+            return text[:80].rstrip()
+
+        bullets: list[str] = []
+        headings: list[str] = []
+
+        for txt_bp in seg_bp.texts:
+            for raw_line in txt_bp.content.splitlines():
+                line = raw_line.strip()
+                if not line:
+                    continue
+                if _MD_BULLET.match(line) or _MD_NUMBERED.match(line):
+                    candidate = clean(_MD_BULLET.sub("", _MD_NUMBERED.sub("", line)))
+                    if candidate and len(candidate) > 3:
+                        bullets.append(candidate)
+                elif _MD_HEADING.match(line):
+                    candidate = clean(_MD_HEADING.sub("", line))
+                    if candidate and len(candidate) > 3:
+                        headings.append(candidate)
+
+        result = bullets[:4]
+
+        # Pad with headings if not enough bullets
+        if len(result) < 3:
+            for h in headings:
+                if h not in result:
+                    result.append(h)
+                if len(result) >= 4:
+                    break
+
+        # Final fallback: segment description or just the title
+        if not result:
+            if seg_bp.description:
+                result = [seg_bp.description[:80]]
+            else:
+                result = [seg_bp.title]
+
+        return result
+
+    # ── Exercise distribution (deterministic) ────────────────────────────────
+
+    @staticmethod
+    def _distribute_exercises(
+        exercise_types: list[str],
+        num_segments: int,
+        topic: str,
+    ) -> list[list[tuple[str, str]]]:
+        """
+        Spread ``exercise_types`` across ``num_segments`` deterministically.
+
+        Design goals
+        ------------
+        - Every requested type appears **at least once** (guaranteed).
+        - Types are distributed round-robin so no segment is overloaded.
+        - If ``types > segments`` multiple types go into the same segment
+          (no artificial cap — the teacher asked for all of them).
+        - If ``types < segments`` remaining segments get types cycling from
+          the start of the list so every segment has at least one exercise.
+        - When ``exercise_types`` is empty the service falls back to auto
+          mode: one ``match_pairs`` per segment (safe default).
+
+        Returns
+        -------
+        list of length ``num_segments``, each element is a list of
+        ``(exercise_type, topic_hint)`` tuples ready for ExerciseBlueprint.
+        """
+        normalised = [
+            t.replace("-", "_").lower()
+            for t in exercise_types
+            if t.replace("-", "_").lower() in SUPPORTED_EXERCISE_TYPES
+        ]
+
+        result: list[list[tuple[str, str]]] = [[] for _ in range(num_segments)]
+
+        if not normalised:
+            # Auto-mode fallback: one match_pairs per segment
+            for seg_idx in range(num_segments):
+                hint = f"{topic} — matching practice"
+                result[seg_idx].append(("match_pairs", hint))
+            return result
+
+        # Round-robin: each type goes to segment (i % num_segments)
+        for i, ex_type in enumerate(normalised):
+            seg_idx = i % num_segments
+            hint = f"{topic} — {ex_type.replace('_', ' ')} practice"
+            result[seg_idx].append((ex_type, hint))
+
+        # Fill any segment that ended up empty (happens when len(types) < num_segments)
+        for seg_idx in range(num_segments):
+            if not result[seg_idx]:
+                fallback = normalised[seg_idx % len(normalised)]
+                hint = f"{topic} — {fallback.replace('_', ' ')} practice"
+                result[seg_idx].append((fallback, hint))
+
+        return result
+
     # ── Persistence ───────────────────────────────────────────────────────────
 
     async def _persist(
@@ -514,10 +622,36 @@ Return ONLY the JSON object."""
         """
         Write all Segment records:
           1. Text blocks  (grammar/vocabulary/examples — always)
-          2. Exercise blocks (AI-generated interactive exercises)
+          2. Exercise blocks (types injected deterministically, not from LLM)
           3. Image block  (SVG diagram — only if include_images=True)
+
+        Exercise types come from ``_distribute_exercises()`` — the LLM
+        blueprint's ``exercises`` field (if any) is completely ignored.
         """
         from sqlalchemy.orm.attributes import flag_modified
+
+        # ── Deterministic exercise injection ──────────────────────────────────
+        # Build a per-segment exercise plan from request.exercise_types directly.
+        # This bypasses the LLM's exercise selection entirely, guaranteeing that
+        # every requested type is generated regardless of model behaviour.
+        exercise_plan = self._distribute_exercises(
+            request.exercise_types,
+            len(blueprint.segments),
+            request.topic,
+        )
+        for seg_bp, ex_list in zip(blueprint.segments, exercise_plan):
+            seg_bp.exercises = [
+                ExerciseBlueprint(type=ex_type, topic_hint=hint)
+                for ex_type, hint in ex_list
+            ]
+        logger.info(
+            "UnitGenerator: exercise plan injected — %d segment(s), types per segment: %s",
+            len(blueprint.segments),
+            [
+                [ex.type for ex in seg_bp.exercises]
+                for seg_bp in blueprint.segments
+            ],
+        )
 
         result = UnitGenerateResult(segments_created=0, exercises_created=0)
 
@@ -616,11 +750,12 @@ Return ONLY the JSON object."""
             if img_provider is not None:
                 try:
                     from app.services.image_prompt_builder import ImagePromptBuilder
+                    # Build bullet points from the actual generated text content so
+                    # the image reflects what the segment teaches, not just the title.
+                    content_bullets = self._extract_content_bullets(seg_bp)
                     img_prompt = ImagePromptBuilder.build(
                         slide_title=seg_bp.title,
-                        bullet_points=(
-                            [seg_bp.description] if seg_bp.description else [request.topic]
-                        ),
+                        bullet_points=content_bullets,
                         topic=request.topic,
                         audience=f"{request.level} level {request.language} learner",
                         style="educational, flat illustration, clean background",

@@ -287,11 +287,18 @@ function ExerciseDraftsPageRoute() {
         firstPayload?.type === "true_false"
           ? firstPayload.type
           : null;
-      // Re-use the segment block id when editing so upsertInlineMediaBlock replaces in place
+      // Re-use the segment block id when editing so upsertInlineMediaBlock replaces in place.
+      // When the AI generator already persisted a block on the server, its id travels back
+      // through the payload as _aiBlockId — use that instead of minting a new random id
+      // which would cause persistCustomLessonBlockToSegment to append a duplicate block.
       const customBlockId =
         editBlockId && editBlockId.length > 0
           ? editBlockId
-          : Math.random().toString(36).slice(2, 10);
+          : firstPayload?._aiBlockId &&
+              typeof firstPayload._aiBlockId === 'string' &&
+              firstPayload._aiBlockId.length > 0
+            ? firstPayload._aiBlockId
+            : Math.random().toString(36).slice(2, 10);
 
       const customBlock =
         customType

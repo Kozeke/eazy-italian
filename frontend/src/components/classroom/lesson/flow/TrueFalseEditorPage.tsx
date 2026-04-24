@@ -156,6 +156,9 @@ export default function TrueFalseEditorPage({
     normaliseDraft(initialTitle, initialDraft),
   );
   const [showAIModal, setShowAIModal] = useState(false);
+  // Server-assigned block id from AI generation — forwarded in the payload so
+  // handleExerciseSave upserts the existing block instead of appending a duplicate.
+  const [generatedBlockId, setGeneratedBlockId] = useState<string | null>(null);
 
   const questionDrafts = useMemo(
     () =>
@@ -202,6 +205,7 @@ export default function TrueFalseEditorPage({
       resolvedTitle,
       [{
         type,
+        _aiBlockId: generatedBlockId ?? undefined,
         data: {
           title: resolvedTitle,
           ...(type === 'test_with_timer'
@@ -216,6 +220,7 @@ export default function TrueFalseEditorPage({
   };
 
   const handleGenerated = (block: GeneratedBlock) => {
+    setGeneratedBlockId(block.id);
     setDraft((prev) => applyGeneratedBlock(block, prev));
     setShowAIModal(false);
   };

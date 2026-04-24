@@ -7,7 +7,7 @@ interface Props {
   initialTitle?: string;
   initialData?: TypeWordToImageData;
   label?: string;
-  onSave: (data: TypeWordToImageData) => void;
+  onSave: (data: TypeWordToImageData, blockId?: string) => void;
   onCancel: () => void;
   segmentId?: string | number | null;
 }

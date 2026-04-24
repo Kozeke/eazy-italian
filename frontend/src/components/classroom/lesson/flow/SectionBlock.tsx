@@ -536,7 +536,6 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     // Provides localized labels and ARIA text for section interactions.
     const { t } = useTranslation();
     const isTeacher = mode === "teacher";
-    const isEmpty = items.length === 0;
 
     // Live classroom WS — teacher-only patches scroll targets for students
     const liveSession = useContext(LiveSessionContext);
@@ -565,6 +564,18 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     const mediaBlocks = isMediaOwnedByParent
       ? (controlledMediaBlocks ?? [])
       : (controlledMediaBlocks ?? localMediaBlocks);
+    // Suppress legacy 'test' flow items when new-style test blocks already exist in
+    // mediaBlocks. Without this guard the same test content renders twice:
+    //   1. From mediaBlocks  →  TestWithTimerBlock / TestWithoutTimerBlock
+    //   2. From flow items   →  SlideBlock → TestStep  (legacy)
+    // build_sentence / match_pairs are unaffected — they have no legacy counterpart.
+    const hasNewStyleTestBlocks = mediaBlocks.some(
+      (b) => b.kind === "test_with_timer" || b.kind === "test_without_timer",
+    );
+    const effectiveItems = hasNewStyleTestBlocks
+      ? items.filter((item) => item.type !== "test")
+      : items;
+    const isEmpty = effectiveItems.length === 0;
 
     const mediaBlocksRef = useRef(mediaBlocks);
     useEffect(() => { mediaBlocksRef.current = mediaBlocks; }, [mediaBlocks]);
@@ -700,18 +711,12 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     // component mounts and its useLiveSyncField subscribe fires — otherwise the stale WS-cached
     // value replays into the freshly mounted component and undoes the reset.
     const bumpAnswerReset = useCallback((blockId: string) => {
-      // 1. Evict stale cached WS values so subscribe() finds nothing.
-      liveSession?.evictBlockFromCache(blockId);
-
-      // 2. Mark the block as reset so useLiveSyncField discards late arrivals.
       markBlockReset(blockId);
-
-      // 3. Bump the key — the exercise block remounts with blank local state.
       setAnswerResetSeqByBlockId((prev) => ({
         ...prev,
         [blockId]: (prev[blockId] ?? 0) + 1,
       }));
-    }, [liveSession]);
+    }, []);
 
     /**
      * Teacher-side reset: bumps local seq AND broadcasts over the live session
@@ -968,7 +973,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
           {/* ── Exercise items — dispatched via registry ───────────────────── */}
           {!isEmpty && (
             <div className="vlp-blocks">
-              {items.map((item, blockIndex) => (
+              {effectiveItems.map((item, blockIndex) => (
                 <div key={item.id} data-lesson-focus-anchor={item.id}>
                 {isTeacher ? (
                   <ExerciseBlockMenu
@@ -1020,7 +1025,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                         : undefined
                     }
                     onMoveDown={
-                      onReorderBlock && blockIndex < items.length - 1
+                      onReorderBlock && blockIndex < effectiveItems.length - 1
                         ? () => onReorderBlock(item.id, "down")
                         : undefined
                     }
@@ -1030,7 +1035,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                       item={item}
                       mode={mode}
                       isFirst={blockIndex === 0}
-                      isLast={blockIndex === items.length - 1}
+                      isLast={blockIndex === effectiveItems.length - 1}
                       onComplete={() => onItemCompleted(item.id, item.type)}
                       onStartTest={onStartTest}
                       onSubmitTest={onSubmitTest}
@@ -1049,7 +1054,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                       item={item}
                       mode={mode}
                       isFirst={blockIndex === 0}
-                      isLast={blockIndex === items.length - 1}
+                      isLast={blockIndex === effectiveItems.length - 1}
                       onComplete={() => onItemCompleted(item.id, item.type)}
                       onStartTest={onStartTest}
                       onSubmitTest={onSubmitTest}

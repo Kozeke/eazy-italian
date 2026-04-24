@@ -25,7 +25,7 @@ interface Props {
   initialData?: DragToImageData;
   label?: string;
   showWordsBar?: boolean;
-  onSave: (data: DragToImageData) => void;
+  onSave: (data: DragToImageData, blockId?: string) => void;
   onCancel: () => void;
   segmentId?: string | number | null;
   exerciseType?: 'drag_to_image' | 'type_word_to_image';
@@ -62,6 +62,10 @@ export default function DragWordToImageEditorPage({
   const [uploadingCardId, setUploadingCardId] = useState<string | null>(null);
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Holds the server-assigned block id when AI generation persisted the block.
+  // Passed to onSave so handleExerciseSave reuses it instead of generating a
+  // new random id that would create a duplicate block on the segment.
+  const generatedBlockIdRef = useRef<string | null>(null);
 
   const filledChips = useMemo(
     () =>
@@ -96,13 +100,15 @@ export default function DragWordToImageEditorPage({
 
   const handleSave = () => {
     if (!canSave) return;
+    // Pass the AI-assigned block id so handleExerciseSave reuses it instead
+    // of generating a fresh random id that would create a duplicate block.
     onSave({
       title: title.trim(),
       cards: cards.map((card) => ({
         ...card,
         answer: card.answer.trim(),
       })),
-    });
+    }, generatedBlockIdRef.current ?? undefined);
   };
 
   // The backend emits kind="drag_word_to_image" while the editor can be opened
@@ -111,6 +117,8 @@ export default function DragWordToImageEditorPage({
   const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
     const ACCEPTED_KINDS = new Set(["drag_word_to_image", "drag_to_image", exerciseType]);
     if (!ACCEPTED_KINDS.has(block.kind) || !block.data || typeof block.data !== 'object') return;
+    // Capture the server-assigned id for use when the user saves the editor.
+    generatedBlockIdRef.current = block.id;
     const d = block.data as DragToImageData;
     setTitle(typeof d.title === 'string' ? d.title : block.title ?? '');
     setCards(

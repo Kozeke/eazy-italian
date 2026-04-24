@@ -25,7 +25,7 @@ interface Props {
   initialTitle?: string;
   initialData?: SelectFormToImageData;
   label?: string;
-  onSave: (data: SelectFormToImageData) => void;
+  onSave: (data: SelectFormToImageData, blockId?: string) => void;
   onCancel: () => void;
   segmentId?: string | number | null;
   exerciseType?: 'select_form_to_image';
@@ -156,6 +156,10 @@ export default function SelectFormToImageEditorPage({
   const [uploadingCardId, setUploadingCardId] = useState<string | null>(null);
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Holds the server-assigned block id when AI generation persisted the block.
+  // Passed to onSave so handleExerciseSave reuses it instead of generating a
+  // new random id that would create a duplicate block on the segment.
+  const generatedBlockIdRef = useRef<string | null>(null);
 
   const canSave =
     cards.length > 0 &&
@@ -240,13 +244,17 @@ export default function SelectFormToImageEditorPage({
 
   const handleSave = () => {
     if (!canSave) return;
+    // Pass the AI-assigned block id so handleExerciseSave reuses it instead
+    // of generating a fresh random id that would create a duplicate block.
     onSave({
       title: title.trim(),
       cards: cards.map((card) => serialiseCard(card)),
-    });
+    }, generatedBlockIdRef.current ?? undefined);
   };
   // Apply AI-generated select_form_to_image data into local draft state.
   const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
+    // Capture the server-assigned id for use when the user saves the editor.
+    generatedBlockIdRef.current = block.id;
     if (block.kind !== 'select_form_to_image' || !block.data || typeof block.data !== 'object') return;
     const d = block.data as SelectFormToImageData;
     setTitle(typeof d.title === 'string' ? d.title : block.title ?? '');

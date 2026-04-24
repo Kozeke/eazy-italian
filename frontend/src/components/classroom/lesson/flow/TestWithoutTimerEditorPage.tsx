@@ -109,6 +109,10 @@ export default function TestWithoutTimerEditorPage({
     normaliseDraft(initialTitle, initialDraft),
   );
   const [showAIModal, setShowAIModal] = useState(false);
+  // Tracks the server-assigned block ID when AI generation already persisted
+  // the block to the segment. Passed through onSave so AdminRoutes reuses the
+  // same ID instead of generating a new random one (which would create a duplicate).
+  const [generatedBlockId, setGeneratedBlockId] = useState<string | null>(null);
 
   const questionDrafts = useMemo(
     () =>
@@ -138,6 +142,10 @@ export default function TestWithoutTimerEditorPage({
       draft.title.trim() || label,
       [{
         type: 'test_without_timer',
+        // Carry the AI-assigned block id so AdminRoutes.handleExerciseSave
+        // reuses it instead of generating a fresh random id (which would
+        // cause a duplicate block to be appended to the segment).
+        _aiBlockId: generatedBlockId ?? undefined,
         data: {
           title: draft.title.trim() || label,
           questions: questionDrafts,
@@ -149,6 +157,10 @@ export default function TestWithoutTimerEditorPage({
   };
 
   const handleGenerated = (block: GeneratedBlock) => {
+    // Store the server-assigned block id so handleSave can pass it through
+    // the payload, preventing persistCustomLessonBlockToSegment from creating
+    // a duplicate block with a freshly generated random id.
+    setGeneratedBlockId(block.id);
     setDraft((prev) => applyGeneratedBlock(block, prev));
     setShowAIModal(false);
   };

@@ -88,8 +88,12 @@ export default function OrderParagraphsEditorPage({
     normaliseDraft(initialDraft),
   );
   const [showAIModal, setShowAIModal] = useState(false);
+  // Server-assigned block id from AI generation — forwarded in the payload so
+  // handleExerciseSave upserts the existing block instead of appending a duplicate.
+  const [generatedBlockId, setGeneratedBlockId] = useState<string | null>(null);
 
   const handleGenerated = (block: GeneratedBlock) => {
+    setGeneratedBlockId(block.id);
     const { title: newTitle, draft: newDraft } = applyGeneratedBlock(block);
     if (newTitle) setTitle(newTitle);
     setDraft(newDraft);
@@ -116,6 +120,7 @@ export default function OrderParagraphsEditorPage({
       resolvedTitle,
       [{
         type: 'order_paragraphs',
+        _aiBlockId: generatedBlockId ?? undefined,
         data: {
           title: resolvedTitle,
           question: preparedDraft,

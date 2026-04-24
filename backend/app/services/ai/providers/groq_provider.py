@@ -47,10 +47,7 @@ logger = logging.getLogger(__name__)
 _GROQ_API_BASE   = "https://api.groq.com/openai/v1"
 _DEFAULT_MODEL   = "llama-3.3-70b-versatile"
 _DEFAULT_TIMEOUT = float(os.environ.get("GROQ_TIMEOUT", "60"))
-# llama-3.3-70b-versatile supports up to 32 768 output tokens on Groq.
-# 4 096 was too small — rich markdown text blocks in unit blueprints would
-# hit the ceiling, causing the JSON to be cut mid-string.
-_MAX_TOKENS      = int(os.environ.get("GROQ_MAX_TOKENS", "8192"))
+_MAX_TOKENS      = 8000
 
 
 class GroqProvider(AIProvider):
@@ -91,18 +88,15 @@ class GroqProvider(AIProvider):
         max_tokens: int = _MAX_TOKENS,
         timeout: float = _DEFAULT_TIMEOUT,
         system_prompt: str | None = None,
-        # Set to "json_object" to enable Groq's JSON mode (structured output).
-        # Only takes effect on non-streaming calls.
-        response_format: str | None = None,
+        json_mode: bool = False,
     ) -> None:
-        self.api_key        = api_key or os.environ.get("GROQ_API_KEY", "")
-        self.model          = model or os.environ.get("GROQ_MODEL", _DEFAULT_MODEL)
-        self.temperature    = temperature
-        self.max_tokens     = max_tokens
-        self.timeout        = timeout
-        self.system_prompt  = system_prompt
-        self.response_format = response_format
-
+        self.api_key      = api_key or os.environ.get("GROQ_API_KEY", "")
+        self.model        = model or os.environ.get("GROQ_MODEL", _DEFAULT_MODEL)
+        self.temperature  = temperature
+        self.max_tokens   = max_tokens
+        self.timeout      = timeout
+        self.system_prompt = system_prompt
+        self.json_mode     = json_mode
         if not self.api_key:
             raise AIProviderError(
                 "Groq API key is missing — set the GROQ_API_KEY environment variable "
@@ -131,17 +125,14 @@ class GroqProvider(AIProvider):
         return messages
 
     def _build_payload(self, prompt: str, *, stream: bool = False) -> dict[str, Any]:
-        payload: dict[str, Any] = {
+        payload = {
             "model":       self.model,
             "messages":    self._build_messages(prompt),
             "temperature": self.temperature,
             "max_tokens":  self.max_tokens,
             "stream":      stream,
         }
-        # JSON mode: forces the model to emit only valid JSON, eliminating
-        # markdown fences and preamble.  Only enabled for non-streaming calls
-        # because Groq does not support response_format with streaming yet.
-        if not stream and self.response_format == "json_object":
+        if self.json_mode:
             payload["response_format"] = {"type": "json_object"}
         return payload
 

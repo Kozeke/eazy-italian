@@ -2178,7 +2178,7 @@ async def generate_test_without_timer_from_unit_content(
 
                 # ── Extract options ────────────────────────────────────────
                 options_raw = q.get("options", q.get("choices", q.get("answers", [])))
-                options: list[dict] = []
+                options_text: list[str] = []
                 for o in options_raw:
                     if isinstance(o, dict):
                         text = str(
@@ -2187,11 +2187,16 @@ async def generate_test_without_timer_from_unit_content(
                     else:
                         text = str(o).strip()
                     if text:
-                        options.append({"text": text})
+                        options_text.append(text)
 
                 # ── Extract and clamp correct_index ────────────────────────
                 correct_index = int(q.get("correct_index", q.get("answer_index", 0)))
-                correct_index = max(0, min(correct_index, len(options) - 1))
+                correct_index = max(0, min(correct_index, len(options_text) - 1))
+
+                # Build options list with stable ids for the frontend QuestionDraft format
+                options = [{"id": f"opt_{i}", "text": t} for i, t in enumerate(options_text)]
+                # For structural validation we still need the raw list
+                options_for_validation = [{"text": t} for t in options_text]
 
                 # ── Structural validation ──────────────────────────────────
                 if not prompt_text or len(options) < 2:
@@ -2205,7 +2210,7 @@ async def generate_test_without_timer_from_unit_content(
                 # ── Semantic validation (the main bug guard) ───────────────
                 # Reject questions where the model copied the correct answer
                 # into the prompt field instead of writing an actual question.
-                if _prompt_duplicates_correct_option(prompt_text, options, correct_index):
+                if _prompt_duplicates_correct_option(prompt_text, options_for_validation, correct_index):
                     malformed_count += 1
                     logger.warning(
                         "test_without_timer: prompt is identical to correct option — "
@@ -2222,10 +2227,14 @@ async def generate_test_without_timer_from_unit_content(
                         prompt_text,
                     )
 
+                # Save in QuestionDraft format expected by TestWithoutTimerBlock /
+                # TestWithTimerBlock on the frontend.  Each option carries a stable
+                # "opt_N" id so the renderer can build correct_option_ids references.
                 questions.append({
-                    "prompt":        prompt_text,
-                    "options":       options,
-                    "correct_index": correct_index,
+                    "type":              "multiple_choice",
+                    "prompt":            prompt_text,
+                    "options":           options,
+                    "correct_option_ids": [f"opt_{correct_index}"],
                 })
 
             if not questions:
