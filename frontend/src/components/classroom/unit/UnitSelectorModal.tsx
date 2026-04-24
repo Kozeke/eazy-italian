@@ -587,7 +587,6 @@ export default function UnitSelectorModal({
   onCreateUnit,
   courseThumbnailUrl,
   courseSubtitle,
-  onAddUnit,
   onGenerateUnit,
   onShareCourse,
   onEditUnit,
@@ -1101,7 +1100,7 @@ export default function UnitSelectorModal({
             {isTeacher && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: '1.5px solid #F3F4F6', padding: '10px 16px' }}>
                 <button
-                  onClick={() => { setCreateUnitOpen(true); onAddUnit?.(); onCreateUnit?.('manual'); }}
+                  onClick={() => { setCreateUnitOpen(true); }}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     fontSize: 13, fontWeight: 600,

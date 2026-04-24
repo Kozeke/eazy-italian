@@ -311,20 +311,20 @@ function OrderTextPreview() {
   );
 }
 
-function AnagramPreview() {
-  return (
-    <div style={{ ...P.card, width: 190, textAlign: "center" }}>
-      <p style={{ margin: "0 0 8px", fontSize: 11, color: C.sub, fontWeight: 500 }}>Warm Season</p>
-      <div style={{ display: "flex", justifyContent: "center", gap: 4, marginBottom: 6 }}>
-        {["S", "_", "_", "_", "_", "r"].map((c, i) => (
-          <div key={i} style={{ width: 20, height: 22, borderRadius: 5, border: "1.5px solid #E8EAFD", background: c !== "_" ? "#EEF0FE" : "#F7F7FA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: C.primary }}>
-            {c === "S" || c === "r" ? c : ""}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// function AnagramPreview() {
+//   return (
+//     <div style={{ ...P.card, width: 190, textAlign: "center" }}>
+//       <p style={{ margin: "0 0 8px", fontSize: 11, color: C.sub, fontWeight: 500 }}>Warm Season</p>
+//       <div style={{ display: "flex", justifyContent: "center", gap: 4, marginBottom: 6 }}>
+//         {["S", "_", "_", "_", "_", "r"].map((c, i) => (
+//           <div key={i} style={{ width: 20, height: 22, borderRadius: 5, border: "1.5px solid #E8EAFD", background: c !== "_" ? "#EEF0FE" : "#F7F7FA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: C.primary }}>
+//             {c === "S" || c === "r" ? c : ""}
+//           </div>
+//         ))}
+//       </div>
+//     </div>
+//   );
+// }
 
 function MatchingPreview() {
   const pairs: [string, string][] = [["English", "Hello"], ["French", "Salut"], ["Italian", "Ciao"], ["Spanish", "Hola"]];
@@ -554,7 +554,8 @@ export const TEMPLATE_REGISTRY: TemplateConfig[] = [
   { id: "order-sentence",section: "Put in Order", label: "Build a sentence",    preview: <OrderSentencePreview />, customEditor: "build_sentence" },
   { id: "sort-columns", section: "Put in Order",  label: "Sort into columns",   preview: <SortColumnsPreview />, customEditor: "sort_into_columns" },
   { id: "order-text",   section: "Put in Order",  label: "Order paragraphs",    preview: <OrderTextPreview />,   customEditor: "order_paragraphs" },
-  { id: "anagram",      section: "Put in Order",  label: "Make a word",         preview: <AnagramPreview />,     draftType: "ordering_words" },
+  // Hidden temporarily: "Make a word" is disabled in the drafts gallery.
+  // { id: "anagram",      section: "Put in Order",  label: "Make a word",         preview: <AnagramPreview />,     draftType: "ordering_words" },
   { id: "matching",     section: "Put in Order",  label: "Match pairs",         preview: <MatchingPreview />,    customEditor: "match_pairs" },
 ];
 

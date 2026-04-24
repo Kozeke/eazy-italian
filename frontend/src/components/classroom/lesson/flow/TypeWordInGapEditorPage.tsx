@@ -58,7 +58,7 @@ interface Props {
   label?: string;
   /** Segment id forwarded to AI generation and live-sync key namespace. */
   segmentId?: string | number | null;
-  onSave: (data: TypeWordInGapData) => void;
+  onSave: (data: TypeWordInGapData, blockId?: string) => void;
   onCancel: () => void;
 }
 
@@ -231,6 +231,10 @@ export default function TypeWordInGapEditorPage({
   const answerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Holds the server-assigned block id when AI generation persisted the block.
+  // Passed to onSave so handleExerciseSave reuses it instead of generating a
+  // new random id that would create a duplicate block on the segment.
+  const generatedBlockIdRef = useRef<string | null>(null);
 
   // ── DOM sync ─────────────────────────────────────────────────────────────────
 
@@ -380,7 +384,9 @@ export default function TypeWordInGapEditorPage({
   const handleSave = useCallback(() => {
     if (!canSave) return;
     const synced = syncFromDOM(segments);
-    onSave({ title, segments: synced, gaps });
+    // Pass the AI-assigned block id so handleExerciseSave reuses it instead
+    // of generating a fresh random id that would create a duplicate block.
+    onSave({ title, segments: synced, gaps }, generatedBlockIdRef.current ?? undefined);
   }, [canSave, segments, gaps, title, syncFromDOM, onSave]);
 
   // ── AI generation ─────────────────────────────────────────────────────────────
@@ -392,6 +398,8 @@ export default function TypeWordInGapEditorPage({
       typeof block.data !== "object"
     )
       return;
+    // Capture the server-assigned id for use when the user saves the editor.
+    generatedBlockIdRef.current = block.id;
     const d = block.data as TypeWordInGapData;
     setTitle(typeof d.title === "string" ? d.title : (block.title ?? ""));
     const nextSegs =

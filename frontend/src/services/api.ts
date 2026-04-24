@@ -18,7 +18,6 @@ import {
   AdminStudentCreateResponse,
   TeacherPaymentRecord,
 } from "../types";
-import { promptSessionExpired } from "./sessionExpiredPrompt";
 
 // Get API base URL from environment variables
 // Defaults to localhost for development if not set
@@ -50,7 +49,10 @@ api.interceptors.request.use(
   },
 );
 
-// Response interceptor to handle errors
+// Response interceptor to handle 401 errors via silent token refresh.
+// Flow: attempt silent refresh → retry request on success → redirect to login on failure.
+// The "Session expired" prompt is intentionally not shown so it never appears on initial
+// page load when the browser has stale tokens from a previous session.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -61,7 +63,7 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      // If the user isn't logged in (no access token stored), don't show a session-expired prompt.
+      // If the user isn't logged in (no access token stored), nothing to refresh.
       const hasAccessToken = !!localStorage.getItem("token");
       if (!hasAccessToken) {
         return Promise.reject(error);
@@ -80,86 +82,67 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      // Prompt once, and allow the user 10 seconds to decide.
-      let alreadyPrompting =
-        sessionStorage.getItem("auth_expired_prompt_open") === "true";
-      if (alreadyPrompting) {
-        // Stale flag from a previous crash/reload shouldn't block future prompts.
-        sessionStorage.removeItem("auth_expired_prompt_open");
-        alreadyPrompting = false;
-      }
-      if (!alreadyPrompting) {
-        sessionStorage.setItem("auth_expired_prompt_open", "true");
+      // Capture URL for post-login redirect before any async work
+      const currentUrl =
+        window.location.pathname +
+        window.location.search +
+        window.location.hash;
 
-        const currentUrl =
-          window.location.pathname +
-          window.location.search +
-          window.location.hash;
+      // Clears tokens and navigates to /login, preserving the intended destination.
+      const redirectToLogin = () => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refresh_token");
+        // Notify AuthProvider so test state and other side-effects are cleaned up.
+        try {
+          window.dispatchEvent(new CustomEvent("perform-logout"));
+        } catch {
+          // ignore dispatch failures
+        }
         try {
           sessionStorage.setItem("post_login_redirect", currentUrl);
         } catch {
           // ignore storage failures
         }
+        window.location.href = `/login?next=${encodeURIComponent(currentUrl)}`;
+      };
 
-        const forceLogoutToLogin = () => {
-          localStorage.removeItem("token");
-          localStorage.removeItem("refresh_token");
-          // Let AuthProvider cleanup as well (test state, etc.)
-          try {
-            window.dispatchEvent(new CustomEvent("perform-logout"));
-          } catch {
-            // ignore
+      // Attempt a silent refresh. If there is no refresh token on hand, go straight
+      // to login — the session is unrecoverable and we must not show a stale prompt.
+      const refreshToken = localStorage.getItem("refresh_token");
+      if (!refreshToken) {
+        redirectToLogin();
+        return Promise.reject(error);
+      }
+
+      // Start a single shared refresh promise so concurrent 401s do not race.
+      refreshFlowPromise = (async () => {
+        try {
+          const refreshRes = await axios.post<TokenResponse>(
+            `${API_BASE_URL}/auth/refresh`,
+            { refresh_token: refreshToken },
+          );
+          const newAccessToken = refreshRes.data.access_token;
+          localStorage.setItem("token", newAccessToken);
+          if (refreshRes.data.refresh_token) {
+            localStorage.setItem("refresh_token", refreshRes.data.refresh_token);
           }
-          const next = encodeURIComponent(currentUrl);
-          window.location.href = `/login?next=${next}`;
-        };
-
-        refreshFlowPromise = (async () => {
-          const choice = await promptSessionExpired(10);
-          if (choice !== "stay") {
-            forceLogoutToLogin();
-            return null;
-          }
-
-          const refreshToken = localStorage.getItem("refresh_token");
-          if (!refreshToken) {
-            forceLogoutToLogin();
-            return null;
-          }
-
-          try {
-            const refreshRes = await axios.post<TokenResponse>(
-              `${API_BASE_URL}/auth/refresh`,
-              {
-                refresh_token: refreshToken,
-              },
-            );
-            const newAccessToken = refreshRes.data.access_token;
-            localStorage.setItem("token", newAccessToken);
-            if (refreshRes.data.refresh_token) {
-              localStorage.setItem(
-                "refresh_token",
-                refreshRes.data.refresh_token,
-              );
-            }
-            return newAccessToken;
-          } catch {
-            forceLogoutToLogin();
-            return null;
-          }
-        })().finally(() => {
-          refreshFlowPromise = null;
-          sessionStorage.removeItem("auth_expired_prompt_open");
-        });
-
-        const newToken = await refreshFlowPromise;
-        if (newToken && error.config) {
-          error.config.headers = {
-            ...(error.config.headers || {}),
-            Authorization: `Bearer ${newToken}`,
-          };
-          return api.request(error.config);
+          return newAccessToken;
+        } catch {
+          // Refresh token itself is expired or invalid — redirect silently to login.
+          redirectToLogin();
+          return null;
         }
+      })().finally(() => {
+        refreshFlowPromise = null;
+      });
+
+      const newToken = await refreshFlowPromise;
+      if (newToken && error.config) {
+        error.config.headers = {
+          ...(error.config.headers || {}),
+          Authorization: `Bearer ${newToken}`,
+        };
+        return api.request(error.config);
       }
     }
     return Promise.reject(error);

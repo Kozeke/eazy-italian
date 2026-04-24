@@ -121,6 +121,10 @@ export default function TestWithTimerEditorPage({
     normaliseDraft(initialTitle, initialDraft),
   );
   const [showAIModal, setShowAIModal] = useState(false);
+  // Server-assigned block id set when AI generation saves a block to the segment.
+  // Forwarded through the payload so handleExerciseSave reuses the same id
+  // instead of generating a new random one that would produce a duplicate block.
+  const [generatedBlockId, setGeneratedBlockId] = useState<string | null>(null);
 
   const questionDrafts = useMemo(
     () =>
@@ -151,6 +155,7 @@ export default function TestWithTimerEditorPage({
       [
         {
           type: 'test_with_timer',
+          _aiBlockId: generatedBlockId ?? undefined,
           data: {
             title: draft.title.trim() || label,
             time_limit_minutes: draft.time_limit_minutes || DEFAULT_TIME_LIMIT,
@@ -164,6 +169,7 @@ export default function TestWithTimerEditorPage({
   };
 
   const handleGenerated = (block: GeneratedBlock) => {
+    setGeneratedBlockId(block.id);
     setDraft((prev) => applyGeneratedBlock(block, prev));
     setShowAIModal(false);
   };

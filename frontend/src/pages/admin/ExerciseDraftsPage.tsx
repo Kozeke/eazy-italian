@@ -877,84 +877,86 @@ export default function ExerciseDraftsPage({
    * contract so the lesson workspace doesn't need to know about this type.
    */
   const handleDragToGapSave = useCallback(
-    async (data: DragToGapData) => {
+    async (data: DragToGapData, blockId?: string) => {
       const title = data.title || selected?.label || "Drag word to gap";
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("drag_to_gap", title, data);
         return;
       }
       if (onSave) {
-        await onSave(title, [{ type: "drag_to_gap", data }], []);
+        // _aiBlockId carries the server-assigned id from AI generation so
+        // handleExerciseSave can upsert the block instead of appending a duplicate.
+        await onSave(title, [{ type: "drag_to_gap", _aiBlockId: blockId, data }], []);
       }
     },
     [onSave, selected, routerState, storeHomeworkExercise],
   );
 
   const handleTypeWordInGapSave = useCallback(
-    async (data: TypeWordInGapData) => {
+    async (data: TypeWordInGapData, blockId?: string) => {
       const title = data.title || selected?.label || "Type word in gap";
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("type_word_in_gap", title, data);
         return;
       }
       if (onSave) {
-        await onSave(title, [{ type: "type_word_in_gap", data }], []);
+        await onSave(title, [{ type: "type_word_in_gap", _aiBlockId: blockId, data }], []);
       }
     },
     [onSave, selected, routerState, storeHomeworkExercise],
   );
 
   const handleTypeWordToImageSave = useCallback(
-    async (data: TypeWordToImageData) => {
+    async (data: TypeWordToImageData, blockId?: string) => {
       const title = data.title || selected?.label || "Type word to image";
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("type_word_to_image", title, data);
         return;
       }
       if (onSave) {
-        await onSave(title, [{ type: "type_word_to_image", data }], []);
+        await onSave(title, [{ type: "type_word_to_image", _aiBlockId: blockId, data }], []);
       }
     },
     [onSave, selected, routerState, storeHomeworkExercise],
   );
 
   const handleSelectFormToImageSave = useCallback(
-    async (data: SelectFormToImageData) => {
+    async (data: SelectFormToImageData, blockId?: string) => {
       const title = data.title || selected?.label || "Select form to image";
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("select_form_to_image", title, data);
         return;
       }
       if (onSave) {
-        await onSave(title, [{ type: "select_form_to_image", data }], []);
+        await onSave(title, [{ type: "select_form_to_image", _aiBlockId: blockId, data }], []);
       }
     },
     [onSave, selected, routerState, storeHomeworkExercise],
   );
 
   const handleDragToImageSave = useCallback(
-    async (data: DragToImageData) => {
+    async (data: DragToImageData, blockId?: string) => {
       const title = data.title || selected?.label || "Drag word to image";
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("drag_to_image", title, data);
         return;
       }
       if (onSave) {
-        await onSave(title, [{ type: "drag_to_image", data }], []);
+        await onSave(title, [{ type: "drag_to_image", _aiBlockId: blockId, data }], []);
       }
     },
     [onSave, selected, routerState, storeHomeworkExercise],
   );
 
   const handleSelectWordFormSave = useCallback(
-    async (data: SelectWordFormData) => {
+    async (data: SelectWordFormData, blockId?: string) => {
       const title = data.title || selected?.label || "Select word form";
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("select_word_form", title, data);
         return;
       }
       if (onSave) {
-        await onSave(title, [{ type: "select_word_form", data }], []);
+        await onSave(title, [{ type: "select_word_form", _aiBlockId: blockId, data }], []);
       }
     },
     [onSave, selected, routerState, storeHomeworkExercise],

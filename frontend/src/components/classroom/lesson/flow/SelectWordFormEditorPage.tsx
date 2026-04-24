@@ -42,7 +42,7 @@ interface Props {
   initialTitle?: string;
   initialData?: SelectWordFormData;
   label?: string;
-  onSave: (data: SelectWordFormData) => void;
+  onSave: (data: SelectWordFormData, blockId?: string) => void;
   onCancel: () => void;
   segmentId?: string | number | null;
 }
@@ -220,6 +220,10 @@ export default function SelectWordFormEditorPage({
   const lastFocusedIdx = useRef<number | null>(null);
   const variantInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const rootRef = useRef<HTMLDivElement>(null);
+  // Holds the server-assigned block id when AI generation persisted the block.
+  // Passed to onSave so handleExerciseSave reuses it instead of generating a
+  // new random id that would create a duplicate block on the segment.
+  const generatedBlockIdRef = useRef<string | null>(null);
 
   const selectedVariants = useMemo(
     () => collectCheckedVariants(variantRows),
@@ -362,11 +366,15 @@ export default function SelectWordFormEditorPage({
   const handleSave = useCallback(() => {
     if (!canSave) return;
     const synced = syncFromDOM(segments);
-    onSave({ title, segments: synced, gaps });
+    // Pass the AI-assigned block id so handleExerciseSave reuses it instead
+    // of generating a fresh random id that would create a duplicate block.
+    onSave({ title, segments: synced, gaps }, generatedBlockIdRef.current ?? undefined);
   }, [canSave, gaps, onSave, segments, syncFromDOM, title]);
 
   const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
     if (block.kind !== 'select_word_form' || !block.data || typeof block.data !== 'object') return;
+    // Capture the server-assigned id for use when the user saves the editor.
+    generatedBlockIdRef.current = block.id;
     const d = block.data as SelectWordFormData;
     setTitle(typeof d.title === 'string' ? d.title : block.title ?? '');
     const nextSegs = Array.isArray(d.segments) && d.segments.length > 0

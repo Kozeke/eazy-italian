@@ -41,7 +41,7 @@ const HEADER_H = SHELL_HEADER_HEIGHT;
 
 /* ── CSS ─────────────────────────────────────────────────────────────────── */
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
   /* ── Header bar ─────────────────────────────────────────────────────────── */
   .ah-root {

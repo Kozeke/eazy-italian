@@ -157,8 +157,13 @@ export default function SortIntoColumnsEditorPage({
   const [columns, setColumns] = useState<ColumnDraft[]>(() =>
     normaliseColumns(initialDraft),
   );
-  const [showAIModal, setShowAIModal] = useState(false);   // ← ADD
-    const handleGenerated = (block: GeneratedBlock) => {     // ← ADD
+  const [showAIModal, setShowAIModal] = useState(false);
+  // Server-assigned block id from AI generation — forwarded in the payload so
+  // handleExerciseSave upserts the existing block instead of appending a duplicate.
+  const [generatedBlockId, setGeneratedBlockId] = useState<string | null>(null);
+
+  const handleGenerated = (block: GeneratedBlock) => {
+    setGeneratedBlockId(block.id);
     const { title: newTitle, columns: newColumns } = applyGeneratedBlock(block);
     if (newTitle) setTitle(newTitle);
     setColumns(newColumns);
@@ -261,6 +266,7 @@ export default function SortIntoColumnsEditorPage({
       resolvedTitle,
       [{
         type: 'sort_into_columns',
+        _aiBlockId: generatedBlockId ?? undefined,
         data: {
           title: resolvedTitle,
           question: preparedDraft,

@@ -64,6 +64,30 @@ function toRuntimeQuestion(
   draft: QuestionDraft,
   index: number,
 ): RuntimeQuestion {
+  // ── Normalise legacy AI-generated format ─────────────────────────────────
+  // The AI generator previously saved questions as:
+  //   { prompt, options: [{text}], correct_index: N }
+  // without a `type` field or stable option ids.
+  // Detect and upgrade to the full QuestionDraft shape so both old DB data
+  // and freshly generated exercises render correctly.
+  const rawDraft = draft as unknown as Record<string, unknown>;
+  if (!rawDraft.type && rawDraft.correct_index !== undefined) {
+    const rawOptions = (rawDraft.options ?? []) as Array<{ text?: string; id?: string }>;
+    const correctIndex = Number(rawDraft.correct_index ?? 0);
+    const normalisedOptions = rawOptions.map((o, i) => ({
+      id: o.id ?? `opt_${i}`,
+      text: o.text ?? "",
+    }));
+    const correctId = normalisedOptions[correctIndex]?.id ?? `opt_${correctIndex}`;
+    draft = {
+      ...rawDraft,
+      type: "multiple_choice",
+      options: normalisedOptions,
+      correct_option_ids: [correctId],
+    } as QuestionDraft;
+  }
+  // ── End normalisation ──────────────────────────────────────────────────────
+
   const base: RuntimeQuestion = {
     id: index + 1,
     type: draft.type,

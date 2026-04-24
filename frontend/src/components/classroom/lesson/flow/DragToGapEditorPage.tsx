@@ -61,7 +61,7 @@ interface Props {
   typingHintText?: string;
   /** Segment id for POST /segments/{id}/exercises/drag-to-gap (from lesson context). */
   segmentId?: string | number | null;
-  onSave: (data: DragToGapData) => void;
+  onSave: (data: DragToGapData, blockId?: string) => void;
   onCancel: () => void;
 }
 
@@ -161,6 +161,10 @@ export default function DragToGapEditorPage({
   const answerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Holds the server-assigned block id when AI generation persisted the block.
+  // Passed to onSave so handleExerciseSave reuses it instead of generating a
+  // new random id that would create a duplicate block on the segment.
+  const generatedBlockIdRef = useRef<string | null>(null);
 
   // ── DOM sync ─────────────────────────────────────────────────────────────────
 
@@ -291,11 +295,15 @@ export default function DragToGapEditorPage({
   const handleSave = useCallback(() => {
     if (!canSave) return;
     const synced = syncFromDOM(segments);
-    onSave({ title, segments: synced, gaps });
+    // Pass the AI-assigned block id so handleExerciseSave reuses it instead
+    // of generating a fresh random id that would create a duplicate block.
+    onSave({ title, segments: synced, gaps }, generatedBlockIdRef.current ?? undefined);
   }, [canSave, segments, gaps, title, syncFromDOM, onSave]);
 
   const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
     if (block.kind !== exerciseType || !block.data || typeof block.data !== 'object') return;
+    // Capture the server-assigned id for use when the user saves the editor.
+    generatedBlockIdRef.current = block.id;
     const d = block.data as DragToGapData;
     setTitle(typeof d.title === 'string' ? d.title : block.title ?? '');
     const nextSegs = Array.isArray(d.segments) && d.segments.length > 0

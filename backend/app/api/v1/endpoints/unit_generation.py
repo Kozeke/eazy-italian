@@ -194,7 +194,7 @@ def _get_ai_provider():
 
     if provider_name == "groq":
         from app.services.ai.providers.groq_provider import GroqProvider
-        p = GroqProvider()
+        p = GroqProvider(max_tokens=8000, json_mode=True) 
         logger.info("Unit-gen AI provider: GroqProvider (model=%s)", p.model)
         from app.services.ai_exercise_generator import _build_ollama_provider, _WithOllamaFallback  # type: ignore[attr-defined]
         fallback = _build_ollama_provider()

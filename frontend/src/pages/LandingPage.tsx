@@ -307,16 +307,22 @@ footer { max-width: 1100px; margin: 0 auto; padding: 48px 24px; display: flex; f
 `;
 
 /* ─── Logo SVG ─── */
-const LogoSVG = ({ width = 150, height = 36 }: { width?: number; height?: number }) => (
-  <svg width={width} height={height} viewBox="0 0 180 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="20" cy="20" r="17" stroke="#6C6FEF" strokeWidth="1.6" />
-    <circle cx="20" cy="20" r="9" stroke="#6C6FEF" strokeWidth="1.1" opacity="0.4" />
-    <circle cx="20" cy="20" r="3" fill="#6C6FEF" />
-    <circle cx="20" cy="3" r="2" fill="#6C6FEF" opacity="0.75" />
-    <circle cx="34.7" cy="11.5" r="2" fill="#6C6FEF" opacity="0.75" />
-    <circle cx="34.7" cy="28.5" r="2" fill="#6C6FEF" opacity="0.75" />
-    <text x="48" y="26" fontFamily="'Syne', system-ui, sans-serif" fontWeight="700" fontSize="19" fill="#1A1A2E" letterSpacing="-0.5">Lingu</text>
-    <text x="106" y="26" fontFamily="'Syne', system-ui, sans-serif" fontWeight="700" fontSize="19" fill="#6C6FEF" letterSpacing="-0.5">AI</text>
+const LogoSVG = ({ width = 180, height = 40 }: { width?: number; height?: number }) => (
+  <svg width={width} height={height} viewBox="0 0 180 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="20" cy="20" r="17" stroke="#6C6FEF" strokeWidth="1.6"/>
+    <circle cx="20" cy="20" r="9"  stroke="#6C6FEF" strokeWidth="1.1" opacity="0.4"/>
+    <circle cx="20" cy="20" r="3"  fill="#6C6FEF"/>
+    <circle cx="20" cy="3"         r="2" fill="#6C6FEF" opacity="0.55"/>
+    <circle cx="34.7" cy="11.5"   r="2" fill="#6C6FEF" opacity="0.55"/>
+    <circle cx="34.7" cy="28.5"   r="2" fill="#6C6FEF" opacity="0.55"/>
+    <text x="48" y="26"
+      fontFamily="'Syne', system-ui, sans-serif"
+      fontWeight="700" fontSize="19"
+      fill="#1A1A2E" letterSpacing="-0.5">Lingu</text>
+    <text x="106" y="26"
+      fontFamily="'Syne', system-ui, sans-serif"
+      fontWeight="700" fontSize="19"
+      fill="#6C6FEF" letterSpacing="-0.5">AI</text>
   </svg>
 );
 

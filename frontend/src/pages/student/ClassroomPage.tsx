@@ -743,6 +743,42 @@ function ClassroomPageInner({
     }
   }, [units.length, courseId, classroomBasePath, navigate]);
 
+  // Creates a unit from the data the teacher filled in CreateUnitModal, seeds it
+  // with a default segment so the lesson workspace is ready immediately, then
+  // navigates to the new unit's classroom page.
+  const handleCreateUnitData = useCallback(async (data: import('../../components/classroom/unit/CreateUnitModal').CreateUnitData) => {
+    try {
+      const nextOrderIndex = units.length;
+      // Use the user-supplied title; fall back to a default if left blank.
+      const title = data.title.trim() || `Unit ${nextOrderIndex + 1}`;
+      const newUnit = await unitsApi.createUnit({
+        title,
+        description: data.description || undefined,
+        level: 'A1',
+        course_id: Number(courseId),
+        order_index: nextOrderIndex,
+      } as any);
+
+      // Seed the new unit with one default segment so the editor opens with
+      // something to work with rather than showing an empty state.
+      try {
+        await segmentsApi.createSegment(newUnit.id, {
+          title: 'Section 1',
+          order_index: 0,
+          status: 'draft',
+          is_visible_to_students: false,
+        });
+      } catch (segErr) {
+        // Non-fatal — the teacher can add sections manually if this fails.
+        console.warn('[handleCreateUnitData] could not create default segment:', segErr);
+      }
+
+      navigate(`${classroomBasePath}/${courseId}/${newUnit.id}`, { replace: false });
+    } catch (err) {
+      console.error('[handleCreateUnitData] failed to create unit:', err);
+    }
+  }, [units.length, courseId, classroomBasePath, navigate]);
+
   const generatingUnitIdRef = useRef<number | null>(null);
 
   const handleCreateAndGenerate = useCallback(async (): Promise<{ id: number; title: string } | null> => {
@@ -1287,6 +1323,7 @@ function ClassroomPageInner({
         courseThumbnailUrl={course?.thumbnail_url ?? undefined}
         isTeacher={isTeacher}
         onCreateUnit={handleCreateUnit}
+        onCreateUnitData={handleCreateUnitData}
         generateUnitId={undefined}
         generateUnitTitle={undefined}
         onCreateAndGenerate={handleCreateAndGenerate}

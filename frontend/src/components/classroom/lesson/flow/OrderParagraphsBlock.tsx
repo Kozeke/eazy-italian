@@ -27,6 +27,9 @@ interface OrderParagraphsData {
   title?: string;
   question?: OrderingSentencesDraft;
   payload?: Record<string, unknown>;
+  // Flat format saved by unit generator and exercise generation API
+  items?: Array<{ id: string; text: string; correct_order?: number }>;
+  shuffled?: string[];
 }
 
 interface OrderParagraphsItemData {
@@ -48,13 +51,45 @@ function getInitialItems(question: OrderingSentencesDraft): TokenDraft[] {
     .map((item) => ({ ...(item as TokenDraft) }));
 }
 
+/**
+ * Resolves an OrderingSentencesDraft from either storage format:
+ *  - Nested: data.question (saved by OrderParagraphsEditorPage)
+ *  - Flat:   data.items[]  (saved by unit generator & exercise generation API)
+ */
+function resolveQuestion(
+  data: OrderParagraphsData,
+  label?: string,
+): OrderingSentencesDraft | undefined {
+  if (data.question) return data.question;
+
+  if (data.items && data.items.length > 0) {
+    const sorted = [...data.items].sort(
+      (a, b) => (a.correct_order ?? 0) - (b.correct_order ?? 0),
+    );
+    const items: TokenDraft[] = sorted.map((item) => ({
+      id: item.id,
+      text: item.text,
+    }));
+    const correct_order = sorted.map((item) => item.id);
+    return {
+      type: "ordering_sentences",
+      prompt: data.title ?? label ?? "",
+      items,
+      correct_order,
+      score: 1,
+    };
+  }
+
+  return undefined;
+}
+
 export default function OrderParagraphsBlock({
   item,
   mode,
   onComplete,
 }: ExerciseBlockProps) {
   const typedItem = item as unknown as OrderParagraphsItemData;
-  const question = typedItem.data?.question;
+  const question = resolveQuestion(typedItem.data, typedItem.label);
 
   const liveCtx = useContext(LiveSessionContext);
   const isTeacher = liveCtx?.role === "teacher";

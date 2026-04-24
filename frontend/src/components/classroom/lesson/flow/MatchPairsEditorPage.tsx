@@ -191,8 +191,12 @@ export default function MatchPairsEditorPage({
   const [title, setTitle] = useState(initialTitle);
   const [rows, setRows] = useState<PairRowDraft[]>(() => normaliseRows(initialDraft));
   const [showAIModal, setShowAIModal] = useState(false);
+  // Server-assigned block id from AI generation — forwarded in the payload so
+  // handleExerciseSave upserts the existing block instead of appending a duplicate.
+  const [generatedBlockId, setGeneratedBlockId] = useState<string | null>(null);
 
   const handleGenerated = (block: GeneratedBlock) => {
+    setGeneratedBlockId(block.id);
     const { title: newTitle, rows: newRows } = applyGeneratedBlock(block);
     if (newTitle) setTitle(newTitle);
     setRows(newRows);
@@ -250,6 +254,7 @@ export default function MatchPairsEditorPage({
       resolvedTitle,
       [{
         type: 'match_pairs',
+        _aiBlockId: generatedBlockId ?? undefined,
         data: {
           title: resolvedTitle,
           question: preparedDraft,
