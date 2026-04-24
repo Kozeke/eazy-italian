@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = False
     
     # CORS - Frontend URLs that are allowed to access the API
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://eazy-italian-frontend.onrender.com,https://ligua-ai.com"
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://eazy-italian-frontend.onrender.com,https://ligua-ai.com,https://linguai.net"
     
     @property
     def cors_origins_list(self) -> List[str]:
@@ -59,6 +59,7 @@ class Settings(BaseSettings):
             "http://127.0.0.1:3002",
             "https://eazy-italian-frontend.onrender.com",
             "https://ligua-ai.com",
+            "https://linguai.net",
         ]
         
         # Parse environment variable origins and filter out wildcards
