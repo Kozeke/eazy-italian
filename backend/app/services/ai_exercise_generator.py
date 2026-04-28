@@ -41,6 +41,7 @@ import re
 from typing import Any
 
 from app.services.ai.providers.base import AIProvider, AIProviderError
+from app.services.image_prompt_builder import ImagePromptBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,117 @@ _PASSAGE_MODE_GAP_THRESHOLD = 1
 # Below this threshold the attempt is treated as a hard failure and retried
 # (or handed off to the Ollama fallback).
 _PARTIAL_SUCCESS_THRESHOLD = 0.40
+
+
+# Written-out numbers recognised as explicit counts (one → 1 … twenty → 20).
+_WORD_TO_INT: dict[str, int] = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
+    "nineteen": 19, "twenty": 20,
+}
+
+# Matches a word-count range so those digit(s) are NOT treated as a sentence count.
+# e.g. "4–6 words", "4-6 words", "4 to 6 words", "5 words"
+_WORD_COUNT_RANGE_RE = re.compile(
+    r"\b\d+\s*(?:[-–]|to)\s*\d+\s*words?|\b\d+\s*words?",
+    re.IGNORECASE,
+)
+
+
+def _extract_count_from_hint(topic_hint: str | None, default: int) -> int:
+    """
+    Return the first explicit *count* found in the teacher's topic_hint.
+
+    Priority
+    --------
+    1. Written number words: "one sentence" → 1, "three pairs" → 3.
+       These are checked before digits so "one sentence with 5-6 words" correctly
+       returns 1 rather than 5.
+    2. Digit numbers that are NOT part of a word-count range.
+       "4–6 words" and "5 words" are skipped so they don't shadow the real count.
+
+    The result is clamped to [1, 30].
+
+    Examples
+    --------
+    >>> _extract_count_from_hint("generate one sentence about Harry Potter", 5)
+    1
+    >>> _extract_count_from_hint("Shuffle 4–6 words into one sentence", 5)
+    1
+    >>> _extract_count_from_hint("Match 5 italian words to English", 6)
+    5
+    >>> _extract_count_from_hint("build 3 sentences with 5-6 words", 5)
+    3
+    >>> _extract_count_from_hint(None, 5)
+    5
+    """
+    if not topic_hint:
+        return default
+
+    hint_lower = topic_hint.lower()
+
+    # ── 1. Written number words (highest priority) ──────────────────────────
+    for word, value in _WORD_TO_INT.items():
+        if re.search(rf"\b{word}\b", hint_lower):
+            return max(1, min(value, 30))
+
+    # ── 2. Digit numbers, skipping any that are part of a word-count range ──
+    # Strip word-count patterns from the hint before searching for digits.
+    stripped = _WORD_COUNT_RANGE_RE.sub("", hint_lower)
+    m = re.search(r"\b(\d+)\b", stripped)
+    if m:
+        n = int(m.group(1))
+        return max(1, min(n, 30))
+
+    return default
+
+
+def _extract_word_count_from_hint(topic_hint: str | None) -> tuple[int | None, int | None]:
+    """
+    Parse an optional word-count constraint from the teacher's topic_hint.
+
+    Recognised patterns (case-insensitive):
+      "5-6 words"      → (5, 6)
+      "5 to 6 words"   → (5, 6)
+      "about 5 words"  → (5, 5)
+      "5 words"        → (5, 5)
+      "at least 5 words" → (5, None)
+      "up to 8 words"    → (None, 8)
+
+    Returns
+    -------
+    (min_words, max_words) — either or both may be None if not specified.
+    """
+    if not topic_hint:
+        return None, None
+
+    hint = topic_hint.lower()
+
+    # Range: "5-6 words" or "5 to 6 words"
+    m = re.search(r"(\d+)\s*(?:-|to)\s*(\d+)\s*words?", hint)
+    if m:
+        lo, hi = int(m.group(1)), int(m.group(2))
+        return (min(lo, hi), max(lo, hi))
+
+    # "at least N words"
+    m = re.search(r"at\s+least\s+(\d+)\s*words?", hint)
+    if m:
+        return int(m.group(1)), None
+
+    # "up to N words" / "at most N words" / "max N words"
+    m = re.search(r"(?:up\s+to|at\s+most|max(?:imum)?)\s+(\d+)\s*words?", hint)
+    if m:
+        return None, int(m.group(1))
+
+    # "about / around / ~N words" or plain "N words"
+    m = re.search(r"(?:about|around|~|approximately)?\s*(\d+)\s*words?", hint)
+    if m:
+        n = int(m.group(1))
+        return n, n
+
+    return None, None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -262,24 +374,29 @@ def _build_passage_prompt(
         "may contain the same word or phrase (case-insensitive)."
     )
 
-    return f"""You are a language-exercise author. Write ONE passage for a fill-in-the-gap exercise.
+    return f"""You are a language-exercise author. Write ONE titled passage for a fill-in-the-gap exercise.
 
 RULES
 -----
-1. Output ONLY the passage text. No JSON, no labels, no commentary.
-2. Mark each gap answer by wrapping it in square brackets: [answer].
-3. Use {gap_line}.
-4. The passage must contain {sentence_line}
-5. Each bracketed answer is the exact word/phrase (≤4 words) the student must drag into the blank.{gap_type_block}{uniqueness_note}
+1. Output EXACTLY two parts, separated by a blank line:
+   - Line 1: TITLE: <a short, descriptive, topic-specific exercise title — max 8 words>
+   - Then the passage text with gap markers.
+2. The TITLE must reflect the TOPIC of the content (e.g. "Past Tenses: Travel Vocabulary", "Business English: Office Routines"). Do NOT use generic titles like "Fill in the gaps".
+3. Mark each gap answer by wrapping it in square brackets: [answer].
+4. Use {gap_line}.
+5. The passage must contain {sentence_line}
+6. Each bracketed answer is the exact word/phrase (≤4 words) the student must fill in.{gap_type_block}{uniqueness_note}
 {lang_block}{hint_block}
 EXAMPLE (3 gaps, 2 sentences):
+TITLE: Present Perfect: Travel Experiences
+
 Next summer, they [will open] a new restaurant in Barcelona. She [will finish] the project, and he [will join] the team.
 
 SOURCE CONTENT
 --------------
 \"\"\"{unit_content}\"\"\"
 
-Output ONLY the passage with bracketed gap answers. Nothing else."""
+Output ONLY the TITLE line + blank line + passage. Nothing else."""
 
 
 def _parse_marked_passage(
@@ -290,6 +407,9 @@ def _parse_marked_passage(
     Convert a marked passage (plain text with [answer] markers) into a
     full DragToGapData dict:
         { title, segments: [TextSeg | GapSeg, ...], gaps: { gId: answer } }
+
+    If the AI output begins with "TITLE: <text>" (from the new prompt format),
+    that line is extracted as the exercise title, overriding the fallback `title`.
 
     Algorithm
     ---------
@@ -309,11 +429,22 @@ def _parse_marked_passage(
         ]
         gaps = {"g1": "will finish", "g2": "had left"}
     """
+    # ── Extract AI-generated title if present ─────────────────────────────────
+    passage_text = raw_text
+    _title_re = re.compile(r"^TITLE:\s*(.+?)(?:\n|$)", re.IGNORECASE)
+    _title_match = _title_re.match(raw_text.lstrip())
+    if _title_match:
+        extracted_title = _title_match.group(1).strip()
+        if extracted_title:
+            title = extracted_title
+        # Remove the TITLE line (and any following blank lines) from the passage
+        passage_text = raw_text.lstrip()[_title_match.end():].lstrip("\n\r")
+
     segments: list[dict] = []
     gaps: dict[str, str] = {}
 
     # Split into alternating text / marker pieces
-    parts = _MARKER_RE.split(raw_text)
+    parts = _MARKER_RE.split(passage_text)
     # parts = [text0, answer1, text1, answer2, text2, ...]
 
     gap_idx = 0
@@ -345,30 +476,59 @@ def _infer_title(
     instruction_language: str,
     gap_type: str | None,
 ) -> str:
-    """Generate a short exercise title when we're using passage mode."""
-    if gap_type:
-        base = f"Fill in the gaps: {gap_type}"
-    elif topic_hint:
-        # Use first sentence of the hint (up to 50 chars)
-        first = topic_hint.split(".")[0].strip()
-        base = first[:50] if len(first) > 50 else first
-    else:
-        base = "Fill in the gaps"
+    """Fallback title when the AI does not output a TITLE: line."""
+    # Language-specific defaults keyed by (language, gap_type presence)
+    _TITLED_DEFAULTS: dict[str, dict[str, str]] = {
+        "russian": {
+            "verb":   "Глаголы: вставьте пропущенные слова",
+            "noun":   "Существительные: вставьте пропущенные слова",
+            "":       "Вставьте пропущенные слова",
+        },
+        "italian": {
+            "verb":   "Verbi: completa le frasi",
+            "noun":   "Sostantivi: completa le frasi",
+            "":       "Inserisci le parole mancanti",
+        },
+        "spanish": {
+            "verb":   "Verbos: rellena los huecos",
+            "noun":   "Sustantivos: rellena los huecos",
+            "":       "Rellena los huecos",
+        },
+        "french": {
+            "verb":   "Verbes: complétez les blancs",
+            "":       "Complétez les blancs",
+        },
+        "german": {
+            "verb":   "Verben: Lücken ausfüllen",
+            "":       "Lücken ausfüllen",
+        },
+        "portuguese": {
+            "":       "Preencha os espaços",
+        },
+    }
 
-    if instruction_language and instruction_language.lower() not in ("english", "auto"):
-        # Prepend a translated label where we can — fall back to English
-        _TITLES = {
-            "russian":    "Вставьте пропущенные слова",
-            "italian":    "Inserisci le parole mancanti",
-            "spanish":    "Rellena los huecos",
-            "french":     "Complétez les blancs",
-            "german":     "Lücken ausfüllen",
-            "portuguese": "Preencha os espaços",
-        }
-        lang = instruction_language.lower()
-        if lang in _TITLES:
-            return _TITLES[lang]
-    return base
+    lang = (instruction_language or "").lower()
+    if lang in _TITLED_DEFAULTS:
+        lang_map = _TITLED_DEFAULTS[lang]
+        if gap_type:
+            # Match on first word of gap_type (e.g. "Verbs only" → "verb")
+            first_word = gap_type.lower().split()[0].rstrip("s")
+            for key, val in lang_map.items():
+                if key and first_word.startswith(key):
+                    return val
+        return lang_map.get("", list(lang_map.values())[-1])
+
+    # English / auto — build a descriptive fallback from the topic hint
+    if topic_hint:
+        first = topic_hint.split(".")[0].strip()
+        base = first[:60] if len(first) > 60 else first
+        if gap_type:
+            return f"{gap_type}: {base}"
+        return base if base else "Fill in the Gaps"
+
+    if gap_type:
+        return f"Fill in the Gaps: {gap_type}"
+    return "Fill in the Gaps"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -450,7 +610,7 @@ If the gap type is "Verbs only":
 
     example_content = json.dumps(
         {
-            "title": "Вставьте пропущенные слова",
+            "title": "Present Tense: Everyday Actions",
             "segments": [
                 {"type": "text", "value": "In italiano il verbo "},
                 {"type": "gap", "id": "g1"},
@@ -492,6 +652,7 @@ RULES:
 5. gaps contains exactly one key per GapSeg id.
 6. Each answer is the exact word/phrase (≤4 words) — no extra whitespace.
 7. ALL gap answers MUST be UNIQUE (case-insensitive). Hard constraint.
+8. "title" must be SHORT (≤8 words), DESCRIPTIVE and topic-specific (e.g. "Past Tenses: Travel Vocabulary"). NEVER use generic titles like "Fill in the gaps".
 
 EXAMPLE:
 {example_content}
@@ -748,7 +909,12 @@ def _validate_marked_passage(
     - Gap or sentence count is < 40% of what was requested.
     - Duplicate gap answers (always a hard failure).
     """
-    markers = _MARKER_RE.findall(raw_text)
+    # Strip TITLE line if present before validation
+    _title_re_v = re.compile(r"^TITLE:\s*.+?(?:\n|$)", re.IGNORECASE)
+    _title_match_v = _title_re_v.match(raw_text.lstrip())
+    validation_text = raw_text.lstrip()[_title_match_v.end():].lstrip("\n\r") if _title_match_v else raw_text
+
+    markers = _MARKER_RE.findall(validation_text)
     if not markers:
         raise ValueError(
             "Model did not produce any [bracketed] gap markers. "
@@ -779,7 +945,7 @@ def _validate_marked_passage(
 
     # ── sentence count check ──────────────────────────────────────────────────
     if sentence_count is not None:
-        found_sentences = len(re.findall(r"[.!?]+", raw_text))
+        found_sentences = len(re.findall(r"[.!?]+", validation_text))
         if found_sentences < sentence_count:
             ratio = found_sentences / sentence_count
             if ratio < _PARTIAL_SUCCESS_THRESHOLD:
@@ -881,6 +1047,21 @@ async def generate_drag_to_gap_from_unit_content(
         raise ValueError("gap_count must be >= 1.")
 
     _provider = provider or _default_provider
+
+    # ── extract gap count from topic_hint if not supplied by caller ──────────
+    # e.g. "Create 8 gaps", "10 word gaps", "fill in 6 blanks"
+    if gap_count is None and topic_hint:
+        _gap_m = re.search(
+            r"\b(\d+)\b(?:\s+\w+){0,3}\s+(?:gaps?|blanks?|spaces?)\b",
+            topic_hint,
+            re.IGNORECASE,
+        )
+        if _gap_m:
+            gap_count = max(1, min(int(_gap_m.group(1)), 30))
+            logger.info(
+                "drag_to_gap: inferred gap_count=%d from topic_hint=%r",
+                gap_count, topic_hint[:120],
+            )
 
     # ── detect explicit sentence count from teacher hint ──────────────────────
     # Patterns matched (case-insensitive):
@@ -1318,7 +1499,7 @@ async def generate_select_word_form_from_unit_content(
     Server-side parsing builds the SelectWordFormData structure.
     """
     _provider = provider or _default_provider
-    effective_gaps = gap_count or 6
+    effective_gaps = gap_count or _extract_count_from_hint(topic_hint, default=6)
     lang_hint = f" The passage must be written in {content_language}." if content_language != "auto" else ""
     gap_type_hint = f" Focus gaps on: {gap_type}." if gap_type else ""
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
@@ -1411,7 +1592,7 @@ def _parse_match_pairs_json(raw: str) -> dict:
     random.shuffle(right_items)
 
     return {
-        "title":       data.get("title", "Match the pairs"),
+        "title":       str(data.get("title", "")).strip(),
         "left_items":  left_items,
         "right_items": right_items,
         "pairs":       pairs,
@@ -1429,11 +1610,13 @@ async def generate_match_pairs_from_unit_content(
     **_ignored,
 ) -> tuple[dict, dict]:
     _provider = provider or _default_provider
-    effective_pairs = pair_count or 6
+    # Honour an explicit number in the teacher's topic hint (e.g. "Match 5 italian
+    # words") before falling back to pair_count and then the hard-coded default.
+    effective_pairs = pair_count or _extract_count_from_hint(topic_hint, default=6)
     lang_hint = f" Pairs must be in {content_language}." if content_language != "auto" else ""
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
  
-    titles = {
+    fallback_titles = {
         "russian": "Соотнесите пары",
         "italian": "Abbina le coppie",
         "english": "Match the pairs",
@@ -1441,7 +1624,7 @@ async def generate_match_pairs_from_unit_content(
         "french":  "Associez les paires",
         "spanish": "Empareja las parejas",
     }
-    default_title = titles.get(instruction_language.lower(), "Match the pairs")
+    fallback_title = fallback_titles.get(instruction_language.lower(), "Match the pairs")
  
     system_prompt = (
         "You are a language-exercise designer. "
@@ -1450,9 +1633,13 @@ async def generate_match_pairs_from_unit_content(
     user_prompt = (
         f"Create a match-pairs exercise with exactly {effective_pairs} pairs.{lang_hint}\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
+        "Rules:\n"
+        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name that reflects the topic.\n"
+        "- Do NOT use generic titles like 'Match the pairs'.\n"
+        "- Pairs must be clearly related and derived from the source material.\n\n"
         "Respond with this JSON structure (no extra keys):\n"
         "{\n"
-        f'  "title": "{default_title}",\n'
+        '  "title": "<descriptive exercise title>",\n'
         '  "pairs": [\n'
         '    {"left": "term or phrase", "right": "definition or translation"},\n'
         "    ...\n"
@@ -1467,6 +1654,7 @@ async def generate_match_pairs_from_unit_content(
         try:
             raw = await _provider.agenerate(prompt)
             data = _parse_match_pairs_json(raw)
+            data["title"] = str(data.get("title", "")).strip() or fallback_title
             metadata = {
                 "generation_model":    getattr(_provider, "model", "unknown"),
                 "generation_attempts": attempt + 1,
@@ -1559,11 +1747,27 @@ async def generate_build_sentence_from_unit_content(
     **_ignored,
 ) -> tuple[dict, dict]:
     _provider = provider or _default_provider
-    sentence_count = pair_count or 5
+
+    # ── Parse sentence count and optional word count from the teacher hint ──
+    sentence_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
+    min_words, max_words = _extract_word_count_from_hint(topic_hint)
+
     lang_hint = f" Sentences must be in {content_language}." if content_language != "auto" else ""
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
- 
-    titles = {
+
+    # Build word-length constraint clause for the prompt
+    if min_words is not None and max_words is not None and min_words == max_words:
+        word_constraint = f" Each sentence must be exactly {min_words} words long."
+    elif min_words is not None and max_words is not None:
+        word_constraint = f" Each sentence must be {min_words}–{max_words} words long."
+    elif min_words is not None:
+        word_constraint = f" Each sentence must be at least {min_words} words long."
+    elif max_words is not None:
+        word_constraint = f" Each sentence must be no more than {max_words} words long."
+    else:
+        word_constraint = ""
+
+    fallback_titles = {
         "russian": "Составьте предложения",
         "italian": "Costruisci le frasi",
         "english": "Build the sentences",
@@ -1571,25 +1775,29 @@ async def generate_build_sentence_from_unit_content(
         "french":  "Construisez les phrases",
         "spanish": "Construye las frases",
     }
-    default_title = titles.get(instruction_language.lower(), "Build the sentences")
- 
+    fallback_title = fallback_titles.get(instruction_language.lower(), "Build the sentences")
+
     system_prompt = (
         "You are a language-exercise designer. "
         "Respond ONLY with valid JSON — no markdown, no explanation."
     )
     user_prompt = (
-        f"Create a build-sentence exercise with exactly {sentence_count} sentences.{lang_hint}\n"
+        f"Create a build-sentence exercise with EXACTLY {sentence_count} sentence(s).{lang_hint}{word_constraint}\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
+        "Rules:\n"
+        f"- The \"sentences\" array MUST contain EXACTLY {sentence_count} item(s). No more, no fewer.\n"
+        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name that reflects this content.\n"
+        "- Do NOT use generic titles like 'Build the sentences'.\n\n"
         "Respond with this JSON structure:\n"
         "{\n"
-        f'  "title": "{default_title}",\n'
+        '  "title": "<descriptive exercise title>",\n'
         '  "sentences": [\n'
         '    "First complete sentence here.",\n'
         "    ...\n"
         "  ]\n"
         "}"
     )
- 
+
     prompt = f"{system_prompt}\n\n{user_prompt}"
 
     last_exc: Exception | None = None
@@ -1599,33 +1807,48 @@ async def generate_build_sentence_from_unit_content(
             raw = await _provider.agenerate(prompt)
             cleaned = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
             parsed  = _json.loads(cleaned)
- 
+
+            raw_sentences = parsed.get("sentences", [])
+
+            if not raw_sentences:
+                raise ValueError("No sentences in LLM output.")
+
+            # Enforce sentence count: truncate if the model returned too many,
+            # reject and retry if it returned too few.
+            if len(raw_sentences) > sentence_count:
+                logger.warning(
+                    "build_sentence: model returned %d sentences, expected %d — truncating.",
+                    len(raw_sentences), sentence_count,
+                )
+                raw_sentences = raw_sentences[:sentence_count]
+            elif len(raw_sentences) < sentence_count:
+                raise ValueError(
+                    f"build_sentence: model returned {len(raw_sentences)} sentences, "
+                    f"expected {sentence_count}."
+                )
+
             sentences_out = []
-            for i, sent in enumerate(parsed.get("sentences", []), 1):
+            for i, sent in enumerate(raw_sentences, 1):
                 words = str(sent).split()
                 shuffled = words[:]
                 random.shuffle(shuffled)
                 sentences_out.append({
-                    "id":          f"bs_{i}",
-                    "words":       words,
-                    "shuffled":    shuffled,
-                    "sentence":    str(sent),
+                    "id":       f"bs_{i}",
+                    "words":    words,
+                    "shuffled": shuffled,
+                    "sentence": str(sent),
                 })
- 
-            if not sentences_out:
-                raise ValueError("No sentences in LLM output.")
 
-            resolved_title = parsed.get("title", default_title)
-            # Align with manual save path: player reads data.question (ordering_words draft)
+            resolved_title = str(parsed.get("title", "")).strip() or fallback_title
             question, payload = _ordering_words_from_build_sentence_rows(
                 resolved_title,
                 sentences_out,
             )
             data = {
-                "title": resolved_title,
+                "title":     resolved_title,
                 "sentences": sentences_out,
-                "question": question,
-                "payload": payload,
+                "question":  question,
+                "payload":   payload,
             }
             metadata = {
                 "generation_model":    getattr(_provider, "model", "unknown"),
@@ -1636,7 +1859,7 @@ async def generate_build_sentence_from_unit_content(
         except Exception as exc:
             last_exc = exc
             logger.warning("build_sentence attempt %d failed: %s", attempt + 1, exc)
- 
+
     raise ValueError(f"build_sentence generation failed after {max_retries + 1} attempts: {last_exc}")
  
  
@@ -1655,11 +1878,11 @@ async def generate_order_paragraphs_from_unit_content(
     **_ignored,
 ) -> tuple[dict, dict]:
     _provider = provider or _default_provider
-    para_count = pair_count or 4
+    para_count = pair_count or _extract_count_from_hint(topic_hint, default=4)
     lang_hint = f" Paragraphs must be in {content_language}." if content_language != "auto" else ""
     topic_str  = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
  
-    titles = {
+    fallback_titles = {
         "russian": "Расставьте абзацы по порядку",
         "italian": "Metti i paragrafi nell'ordine corretto",
         "english": "Put the paragraphs in order",
@@ -1667,15 +1890,18 @@ async def generate_order_paragraphs_from_unit_content(
         "french":  "Mettez les paragraphes dans l'ordre",
         "spanish": "Ordena los párrafos",
     }
-    default_title = titles.get(instruction_language.lower(), "Put the paragraphs in order")
+    fallback_title = fallback_titles.get(instruction_language.lower(), "Put the paragraphs in order")
  
     system_prompt = "You are a language-exercise designer. Respond ONLY with valid JSON."
     user_prompt = (
         f"Create an order-paragraphs exercise with exactly {para_count} short paragraphs (2–4 sentences each).{lang_hint}\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
+        "Rules:\n"
+        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name based on the source content.\n"
+        "- Do NOT use generic titles like 'Put the paragraphs in order'.\n\n"
         "Respond with this JSON:\n"
         "{\n"
-        f'  "title": "{default_title}",\n'
+        '  "title": "<descriptive exercise title>",\n'
         '  "paragraphs": ["First paragraph text.", "Second paragraph text.", ...]\n'
         "}"
     )
@@ -1703,7 +1929,7 @@ async def generate_order_paragraphs_from_unit_content(
             ]
  
             data = {
-                "title":    parsed.get("title", default_title),
+                "title":    str(parsed.get("title", "")).strip() or fallback_title,
                 "items":    items,
                 "shuffled": [p["id"] for p in random.sample(items, len(items))],
             }
@@ -1742,7 +1968,7 @@ async def generate_sort_into_columns_from_unit_content(
     applyGeneratedBlock) expects this shape:
 
         {
-          "title": "...",
+          "title": "...",          ← now AI-generated, descriptive
           "columns": [
             { "title": "Column A", "words": ["word1", "word2", ...] },
             { "title": "Column B", "words": ["word3", "word4", ...] },
@@ -1754,14 +1980,31 @@ async def generate_sort_into_columns_from_unit_content(
     so callers can tune density with the same parameter.
     """
     _provider = provider or _default_provider
-    words_per_col = pair_count or 4
-    topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
+    words_per_col = pair_count or _extract_count_from_hint(topic_hint, default=4)
+
+    # ── Parse column count from topic_hint ────────────────────────────────────
+    # Teacher can write "Generate 10 columns", "make 5 columns", "6 columns", etc.
+    column_count: int = 3  # sensible default
+    if topic_hint:
+        _col_match = re.search(r"\b(\d+)\s*col(?:umns?)?", topic_hint, re.IGNORECASE)
+        if _col_match:
+            column_count = max(2, min(int(_col_match.group(1)), 15))  # clamp 2–15
+
+    # Build a directive block that surfaces the teacher's full instruction prominently
+    directive_block = ""
+    if topic_hint:
+        directive_block = (
+            f"\n\nCRITICAL TEACHER DIRECTIVE (must be followed exactly):\n"
+            f"  {topic_hint}\n"
+            f"This directive overrides any default rules about column count or content."
+        )
 
     lang_hint = ""
     if content_language != "auto":
         lang_hint = f" All column titles and words must be in {content_language}."
 
-    titles = {
+    # Fallback title used ONLY if the model omits the field entirely.
+    fallback_titles = {
         "russian":   "Распределите слова по колонкам",
         "italian":   "Ordina le parole nelle colonne",
         "english":   "Sort into columns",
@@ -1771,28 +2014,37 @@ async def generate_sort_into_columns_from_unit_content(
         "ukrainian": "Розподіліть слова по колонках",
         "polish":    "Posortuj do kolumn",
     }
-    default_title = titles.get(instruction_language.lower(), "Sort into columns")
+    fallback_title = fallback_titles.get(instruction_language.lower(), "Sort into columns")
 
     system_prompt = (
         "You are a language-exercise designer. "
         "Respond ONLY with valid JSON — no markdown, no explanation, no code fences."
     )
     user_prompt = (
-        f"Create a sort-into-columns vocabulary exercise with exactly 2 or 3 columns.{lang_hint}\n"
+        f"Create a sort-into-columns vocabulary exercise with exactly {column_count} columns.{lang_hint}\n"
         f"Each column must have a clear thematic title and exactly {words_per_col} words or short phrases.\n"
-        f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
+        f"Source material:\n{unit_content[:3000]}{directive_block}\n\n"
         "Rules:\n"
-        "- Column titles must be distinct categories clearly derived from the material.\n"
+        f"- You MUST produce exactly {column_count} columns — no more, no fewer.\n"
+        "- Each column must have a UNIQUE thematic title that reflects the teacher directive above.\n"
         "- Words must unambiguously belong to their column — avoid overlap.\n"
         "- Words should be vocabulary items (nouns, verbs, adjectives) or short phrases, "
         "not full sentences.\n"
-        "- Do NOT number the words.\n\n"
-        "Respond with this exact JSON structure:\n"
+        "- Do NOT number the words.\n"
+        "- If the teacher directive specifies different tenses, grammar topics, or categories for "
+        "each column, follow that specification strictly — each column title and its words must "
+        "reflect the requested tense or category.\n"
+        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE name for this specific exercise "
+        "(e.g. 'English Tenses: From Past to Future' or 'Kitchen Vocabulary by Category'). "
+        "Do NOT use generic placeholders like 'Sort into columns' — make it reflect the actual "
+        "topic and column categories.\n\n"
+        f"Respond with this exact JSON structure (must have exactly {column_count} column objects):\n"
         "{\n"
-        f'  "title": "{default_title}",\n'
+        '  "title": "<descriptive exercise title>",\n'
         '  "columns": [\n'
         '    { "title": "Category A", "words": ["word1", "word2", "word3", "word4"] },\n'
-        '    { "title": "Category B", "words": ["word5", "word6", "word7", "word8"] }\n'
+        '    { "title": "Category B", "words": ["word5", "word6", "word7", "word8"] },\n'
+        f'    ... (repeat for all {column_count} columns)\n'
         '  ]\n'
         "}"
     )
@@ -1811,32 +2063,36 @@ async def generate_sort_into_columns_from_unit_content(
 
             parsed = _json.loads(cleaned)
 
-            raw_columns = parsed.get("columns", [])
-            if not raw_columns:
-                raise ValueError("No columns found in LLM output.")
+            columns_raw = parsed.get("columns", [])
+            if not isinstance(columns_raw, list) or len(columns_raw) < 2:
+                raise ValueError(f"Expected ≥2 columns, got {len(columns_raw)}")
+            # Warn (but don't fail) if the model produced fewer columns than requested
+            if len(columns_raw) < column_count:
+                logger.warning(
+                    "sort_into_columns: requested %d columns but model produced %d",
+                    column_count,
+                    len(columns_raw),
+                )
 
             columns = []
-            for col in raw_columns:
+            for col in columns_raw:
                 col_title = str(col.get("title", "")).strip()
                 words = [str(w).strip() for w in col.get("words", []) if str(w).strip()]
-                if not col_title:
-                    raise ValueError("Column missing title.")
-                if not words:
-                    raise ValueError(f"Column '{col_title}' has no words.")
+                if not col_title or not words:
+                    raise ValueError(f"Column missing title or words: {col}")
                 columns.append({"title": col_title, "words": words})
 
-            if len(columns) < 2:
-                raise ValueError(f"Expected at least 2 columns, got {len(columns)}.")
+            # Use AI-generated title; fall back to generic only if absent
+            exercise_title = str(parsed.get("title", "")).strip() or fallback_title
 
             data = {
-                "title":   parsed.get("title", default_title),
+                "title":   exercise_title,
                 "columns": columns,
             }
             metadata = {
                 "generation_model":    getattr(_provider, "model", "unknown"),
                 "generation_attempts": attempt + 1,
                 "exercise_type":       "sort_into_columns",
-                "column_count":        len(columns),
             }
             return data, metadata
 
@@ -1879,11 +2135,11 @@ async def generate_drag_word_to_image_from_unit_content(
         }
     """
     _provider = provider or _default_provider
-    card_count = pair_count or 5
+    card_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
     lang_hint = f" Words must be in {content_language}." if content_language != "auto" else ""
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
 
-    titles = {
+    fallback_titles = {
         "russian": "Перенесите слово к изображению",
         "italian": "Trascina la parola sull'immagine giusta",
         "english": "Drag the word to the correct image",
@@ -1891,7 +2147,7 @@ async def generate_drag_word_to_image_from_unit_content(
         "french":  "Faites glisser le mot vers l'image correcte",
         "spanish": "Arrastra la palabra a la imagen correcta",
     }
-    default_title = titles.get(instruction_language.lower(), "Drag the word to the correct image")
+    fallback_title = fallback_titles.get(instruction_language.lower(), "Drag the word to the correct image")
 
     system_prompt = (
         "You are a language-exercise designer. "
@@ -1900,12 +2156,15 @@ async def generate_drag_word_to_image_from_unit_content(
     user_prompt = (
         f"Create a drag-word-to-image vocabulary exercise with exactly {card_count} items.{lang_hint}\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
+        "Rules:\n"
+        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name reflecting the vocabulary theme.\n"
+        "- Do NOT use generic titles like 'Drag the word to the correct image'.\n\n"
         "For each item provide:\n"
         '  - "answer": the vocabulary word or short phrase the student drags (target language)\n'
         '  - "description": a brief English image description so the teacher knows what photo to upload\n\n'
         "Respond with this JSON structure:\n"
         "{\n"
-        f'  "title": "{default_title}",\n'
+        '  "title": "<descriptive exercise title>",\n'
         '  "items": [\n'
         '    {"answer": "apple", "description": "a red apple on a white background"},\n'
         "    ...\n"
@@ -1941,7 +2200,10 @@ async def generate_drag_word_to_image_from_unit_content(
             if not cards:
                 raise ValueError("All generated items had empty answers.")
 
-            data = {"title": parsed.get("title", default_title), "cards": cards}
+            data = {
+                "title": str(parsed.get("title", "")).strip() or fallback_title,
+                "cards": cards,
+            }
             metadata = {
                 "generation_model":    getattr(_provider, "model", "unknown"),
                 "generation_attempts": attempt + 1,
@@ -2058,7 +2320,7 @@ async def generate_test_without_timer_from_unit_content(
           3. Auto-retry on the same attempt if too many questions are malformed.
     """
     _provider = provider or _default_provider
-    question_count = pair_count or 5  # pair_count reused as question count
+    question_count = pair_count or _extract_count_from_hint(topic_hint, default=5)  # pair_count reused as question count
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
 
     lang_hint = ""
@@ -2068,7 +2330,7 @@ async def generate_test_without_timer_from_unit_content(
             f"in {content_language}."
         )
 
-    titles = {
+    fallback_titles = {
         "russian":   "Тест",
         "italian":   "Test",
         "english":   "Test",
@@ -2078,7 +2340,7 @@ async def generate_test_without_timer_from_unit_content(
         "ukrainian": "Тест",
         "polish":    "Test",
     }
-    default_title = titles.get(instruction_language.lower(), "Test")
+    fallback_title = fallback_titles.get(instruction_language.lower(), "Test")
 
     # ── Prompt design notes ────────────────────────────────────────────────────
     # The critical fix is in the worked example and the explicit warning.
@@ -2109,9 +2371,11 @@ async def generate_test_without_timer_from_unit_content(
         "4. 'correct_index' is the 0-based position of the correct option in the "
         "'options' array (0 = first, 1 = second, 2 = third, 3 = fourth).\n"
         "5. Vary correct_index across questions — do NOT always use 0.\n\n"
+        "6. The top-level 'title' must be a SHORT, DESCRIPTIVE exercise name based on the source material.\n"
+        "   Do NOT use generic titles like 'Test'.\n\n"
         "WORKED EXAMPLE (follow this pattern exactly):\n"
         "{\n"
-        f'  "title": "{default_title}",\n'
+        '  "title": "Past Simple: Choose the Correct Form",\n'
         '  "questions": [\n'
         '    {\n'
         '      "prompt": "Which sentence uses the past simple correctly?",\n'
@@ -2193,13 +2457,11 @@ async def generate_test_without_timer_from_unit_content(
                 correct_index = int(q.get("correct_index", q.get("answer_index", 0)))
                 correct_index = max(0, min(correct_index, len(options_text) - 1))
 
-                # Build options list with stable ids for the frontend QuestionDraft format
-                options = [{"id": f"opt_{i}", "text": t} for i, t in enumerate(options_text)]
                 # For structural validation we still need the raw list
                 options_for_validation = [{"text": t} for t in options_text]
 
                 # ── Structural validation ──────────────────────────────────
-                if not prompt_text or len(options) < 2:
+                if not prompt_text or len(options_text) < 2:
                     malformed_count += 1
                     logger.debug(
                         "test_without_timer: skipping question with missing "
@@ -2227,6 +2489,24 @@ async def generate_test_without_timer_from_unit_content(
                         prompt_text,
                     )
 
+                # ── Server-side shuffle ────────────────────────────────────
+                # LLMs tend to place the correct answer first regardless of
+                # the "vary correct_index" instruction.  We shuffle the options
+                # here so the correct position is uniformly random, then
+                # re-assign stable "opt_N" ids AFTER shuffling so that
+                # correct_option_ids always points to the right answer.
+                correct_text = options_text[correct_index]
+                shuffled_texts = options_text[:]
+                random.shuffle(shuffled_texts)
+                # Ensure the shuffled result differs from original when possible
+                if len(shuffled_texts) > 1 and shuffled_texts == options_text:
+                    # swap first two elements to break the tie
+                    shuffled_texts[0], shuffled_texts[1] = shuffled_texts[1], shuffled_texts[0]
+                new_correct_index = shuffled_texts.index(correct_text)
+
+                # Build options list with stable ids for the frontend QuestionDraft format
+                options = [{"id": f"opt_{i}", "text": t} for i, t in enumerate(shuffled_texts)]
+
                 # Save in QuestionDraft format expected by TestWithoutTimerBlock /
                 # TestWithTimerBlock on the frontend.  Each option carries a stable
                 # "opt_N" id so the renderer can build correct_option_ids references.
@@ -2234,7 +2514,7 @@ async def generate_test_without_timer_from_unit_content(
                     "type":              "multiple_choice",
                     "prompt":            prompt_text,
                     "options":           options,
-                    "correct_option_ids": [f"opt_{correct_index}"],
+                    "correct_option_ids": [f"opt_{new_correct_index}"],
                 })
 
             if not questions:
@@ -2245,7 +2525,7 @@ async def generate_test_without_timer_from_unit_content(
                 )
 
             data = {
-                "title":     parsed.get("title", default_title),
+                "title":     str(parsed.get("title", "")).strip() or fallback_title,
                 "questions": questions,
             }
             metadata = {
@@ -2294,14 +2574,14 @@ async def generate_true_false_from_unit_content(
     Frontend converts these into TrueFalseDraft objects via aiQuestionToTrueFalseQuestion.
     """
     _provider = provider or _default_provider
-    statement_count = pair_count or 6
+    statement_count = pair_count or _extract_count_from_hint(topic_hint, default=6)
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
  
     lang_hint = ""
     if content_language != "auto":
         lang_hint = f" Statements must be in {content_language}."
  
-    titles = {
+    fallback_titles = {
         "russian":   "Верно / Неверно",
         "italian":   "Vero / Falso",
         "english":   "True / False",
@@ -2311,7 +2591,7 @@ async def generate_true_false_from_unit_content(
         "ukrainian": "Правда / Брехня",
         "polish":    "Prawda / Fałsz",
     }
-    default_title = titles.get(instruction_language.lower(), "True / False")
+    fallback_title = fallback_titles.get(instruction_language.lower(), "True / False")
  
     system_prompt = (
         "You are a language-exercise designer. "
@@ -2326,9 +2606,11 @@ async def generate_true_false_from_unit_content(
         "- False statements should contain a plausible but incorrect detail from the material.\n"
         "- Avoid trick questions or double negatives.\n"
         "- Use the source material language for statements unless directed otherwise.\n\n"
+        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name tied to the topic.\n"
+        "- Do NOT use generic titles like 'True / False'.\n\n"
         "Respond with this exact JSON structure:\n"
         "{\n"
-        f'  "title": "{default_title}",\n'
+        '  "title": "<descriptive exercise title>",\n'
         '  "questions": [\n'
         '    { "prompt": "statement text here", "correct_answer": true },\n'
         '    { "prompt": "statement text here", "correct_answer": false }\n'
@@ -2373,7 +2655,7 @@ async def generate_true_false_from_unit_content(
                 raise ValueError("All generated statements were malformed.")
  
             data = {
-                "title":     parsed.get("title", default_title),
+                "title":     str(parsed.get("title", "")).strip() or fallback_title,
                 "questions": questions,
             }
             metadata = {
@@ -2394,9 +2676,324 @@ async def generate_true_false_from_unit_content(
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# text — Markdown reading / grammar explanation (TextBlock in the lesson player)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+async def generate_reading_text_from_unit_content(
+    unit_content: str,
+    content_language: str = "auto",
+    instruction_language: str = "english",
+    topic_hint: str | None = None,
+    provider=None,
+    max_retries: int = 2,
+    **_ignored,
+) -> tuple[dict, dict]:
+    """
+    Produce a teacher-facing Markdown block for ``TextBlock.tsx``.
+
+    Returns data keys aligned with the frontend ``TextBlockData`` shape:
+    ``title``, ``content`` (Markdown string), and ``format: "markdown"``.
+    """
+    _provider = provider or _default_provider
+    topic_str = f"\n\nTeacher focus: {topic_hint}" if topic_hint else ""
+    lang_rule = ""
+    if content_language != "auto":
+        lang_rule = f" Write the main body in {content_language}."
+    # Helps when the authoring UI is localized; student-facing copy still follows content_language.
+    teacher_title_hint = ""
+    if instruction_language.lower() not in ("english", "auto"):
+        teacher_title_hint = (
+            f"\nThe \"title\" should be clear for teachers using {instruction_language} in the UI."
+        )
+
+    system_prompt = (
+        "You are an expert language teacher. "
+        "Respond ONLY with valid JSON — no markdown fences, no commentary."
+    )
+    user_prompt = (
+        "Create an engaging reading passage or grammar explanation for a digital lesson. "
+        "Ground it in the source material; add brief examples only when the material supports them."
+        f"{lang_rule}\n\n"
+        f"Source material:\n{unit_content[:6000]}{topic_str}\n\n"
+        "Respond with JSON containing exactly:\n"
+        '  \"title\": a short, specific section title (max 80 characters) tied to the topic;\n'
+        '  \"content\": one string in Markdown using ## for the main heading (### for subheadings '
+        "if needed), **bold** and *italic* for key terms, and bullet lists (- item) where helpful. "
+        "Use short paragraphs (2–5 sentences). Target roughly 150–450 words unless the source is very short.\n"
+        "Do not wrap the JSON in ``` code fences."
+        f"{teacher_title_hint}"
+    )
+
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            raw = await _provider.agenerate(f"{system_prompt}\n\n{user_prompt}")
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+                cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+
+            parsed = json.loads(cleaned)
+            title = str(parsed.get("title", "")).strip()
+            content = str(parsed.get("content", "")).strip()
+            if not content:
+                raise ValueError("Empty content in LLM output.")
+            if not title:
+                title = "Reading"
+
+            data = {
+                "title": title,
+                "content": content,
+                "format": "markdown",
+            }
+            metadata = {
+                "generation_model": getattr(_provider, "model", "unknown"),
+                "generation_attempts": attempt + 1,
+                "exercise_type": "text",
+            }
+            return data, metadata
+
+        except Exception as exc:
+            last_exc = exc
+            logger.warning("text block attempt %d failed: %s", attempt + 1, exc)
+
+    raise ValueError(
+        f"text generation failed after {max_retries + 1} attempts: {last_exc}"
+    )
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# image — HuggingFace Inference API when HF_API_KEY is set, else SVG (LLM) fallback
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def _markdown_bullets_for_image_prompt(content: str, max_bullets: int = 3) -> list[str]:
+    """
+    Extract short bullet/heading lines from Markdown for ImagePromptBuilder.
+
+    Mirrors the bullet-extraction strategy in unit_generator.UnitGeneratorService.
+    """
+    _md_emphasis = re.compile(r"[*_`]{1,3}")
+    _md_heading = re.compile(r"^#{1,6}\s+")
+    _md_bullet = re.compile(r"^[-*•]\s+")
+    _md_numbered = re.compile(r"^\d+[.)]\s+")
+
+    def clean(text: str) -> str:
+        text = _md_emphasis.sub("", text).strip()
+        return text[:80].rstrip()
+
+    bullets: list[str] = []
+    headings: list[str] = []
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _md_bullet.match(line) or _md_numbered.match(line):
+            candidate = clean(_md_bullet.sub("", _md_numbered.sub("", line)))
+            if candidate and len(candidate) > 3:
+                bullets.append(candidate)
+        elif _md_heading.match(line):
+            candidate = clean(_md_heading.sub("", line))
+            if candidate and len(candidate) > 3:
+                headings.append(candidate)
+
+    result = bullets[:4]
+    if len(result) < max_bullets:
+        for h in headings:
+            if h not in result:
+                result.append(h)
+            if len(result) >= max_bullets:
+                break
+    if not result and content.strip():
+        first = content.strip().split("\n")[0].strip()
+        if first:
+            result = [clean(first)[:120]]
+    return (result[:max_bullets] if result else ["language learning concept"])
+
+
+async def generate_image_block_from_unit_content(
+    unit_content: str,
+    content_language: str = "auto",
+    instruction_language: str = "english",
+    topic_hint: str | None = None,
+    provider=None,
+    max_retries: int = 2,
+    **_ignored,
+) -> tuple[dict, dict]:
+    """
+    Build an image block using the same provider chain as unit generation:
+
+    HuggingFaceImageProvider when ``HF_API_KEY`` is set, otherwise SVGImageProvider
+    (LLM SVG) via the default text provider.
+    """
+    del max_retries, provider  # Signature parity with other generators; unused here.
+
+    slide_title = (topic_hint or "").strip().split("\n")[0][:120] or "Educational illustration"
+    bullets = _markdown_bullets_for_image_prompt(unit_content or "")
+    if topic_hint and topic_hint.strip():
+        hint_line = topic_hint.strip().split("\n")[0].strip()
+        if hint_line and hint_line not in bullets:
+            bullets = [hint_line[:80]] + bullets
+    bullets = bullets[:3] or ["key vocabulary and grammar concept"]
+
+    deck_topic = (topic_hint or "").strip()[:200] or "Lesson illustration"
+    audience_lang = content_language if content_language != "auto" else "the lesson language"
+
+    img_prompt = ImagePromptBuilder.build(
+        slide_title=slide_title,
+        bullet_points=bullets,
+        topic=deck_topic,
+        audience=f"{audience_lang} learner",
+        style="educational, flat illustration, clean background",
+    )
+
+    hf_key = os.environ.get("HF_API_KEY", "")
+    img_provider = None
+    if hf_key:
+        try:
+            from app.services.ai.image_providers.huggingface_provider import (
+                HuggingFaceImageProvider,
+            )
+
+            img_provider = HuggingFaceImageProvider(
+                api_key=hf_key,
+                width=512,
+                height=384,
+            )
+        except Exception as exc:
+            logger.warning(
+                "image block: HuggingFace init failed, falling back to SVG: %s",
+                exc,
+            )
+            img_provider = None
+    if img_provider is None:
+        from app.services.ai.image_providers.svg_provider import SVGImageProvider
+
+        img_provider = SVGImageProvider(ai_provider=_default_provider)
+
+    style = "educational, flat illustration, clean background"
+    alt = f"Educational illustration for: {slide_title}"
+    img_result = await img_provider.agenerate_image(
+        prompt=img_prompt,
+        alt_text=alt,
+        style=style,
+    )
+
+    caption = slide_title[:200] if slide_title else None
+    data = {
+        "src": img_result.as_data_uri(),
+        "alt_text": img_result.alt_text or alt,
+        "title": caption,
+    }
+    model_label = getattr(img_provider, "model", None) or type(img_provider).__name__
+    metadata = {
+        "generation_model": str(model_label),
+        "generation_attempts": 1,
+        "exercise_type": "image",
+        "image_source": img_result.source,
+        "instruction_language": instruction_language,
+    }
+    return data, metadata
+
+
+async def generate_image_stacked_from_unit_content(
+    unit_content: str,
+    content_language: str = "auto",
+    instruction_language: str = "english",
+    topic_hint: str | None = None,
+    provider=None,
+    max_retries: int = 2,
+    pair_count: int | None = None,
+    **_ignored,
+) -> tuple[dict, dict]:
+    """
+    Generate several lesson illustrations (vertical stack in the player).
+
+    Uses the same HuggingFace → SVG fallback chain as :func:`generate_image_block_from_unit_content`.
+    ``pair_count`` selects how many images to create (clamped 2–6); default 3.
+    """
+    del max_retries, provider
+
+    n_images = pair_count or _extract_count_from_hint(topic_hint, default=3)
+    n_images = max(2, min(n_images, 6))
+
+    base_title = (topic_hint or "").strip().split("\n")[0][:120] or "Lesson visuals"
+    bullets = _markdown_bullets_for_image_prompt(unit_content or "", max_bullets=max(n_images + 2, 6))
+    if topic_hint and topic_hint.strip():
+        hint_line = topic_hint.strip().split("\n")[0].strip()
+        if hint_line and hint_line not in bullets:
+            bullets = [hint_line[:80]] + bullets
+    pad_i = 0
+    while len(bullets) < n_images:
+        pad_i += 1
+        bullets.append(f"{base_title} — visual {pad_i}")
+    bullets = bullets[:n_images]
+
+    deck_topic = (topic_hint or "").strip()[:200] or "Lesson illustration"
+    audience_lang = content_language if content_language != "auto" else "the lesson language"
+    style = "educational, flat illustration, clean background"
+
+    hf_key = os.environ.get("HF_API_KEY", "")
+    img_provider = None
+    if hf_key:
+        try:
+            from app.services.ai.image_providers.huggingface_provider import (
+                HuggingFaceImageProvider,
+            )
+
+            img_provider = HuggingFaceImageProvider(
+                api_key=hf_key,
+                width=512,
+                height=384,
+            )
+        except Exception as exc:
+            logger.warning("image_stacked: HuggingFace init failed: %s", exc)
+            img_provider = None
+    if img_provider is None:
+        from app.services.ai.image_providers.svg_provider import SVGImageProvider
+
+        img_provider = SVGImageProvider(ai_provider=_default_provider)
+
+    images_out: list[dict[str, str]] = []
+    for i, slide_focus in enumerate(bullets):
+        img_prompt = ImagePromptBuilder.build(
+            slide_title=slide_focus,
+            bullet_points=[slide_focus],
+            topic=deck_topic,
+            audience=f"{audience_lang} learner",
+            style=style,
+        )
+        alt = f"Educational illustration {i + 1}/{n_images}: {slide_focus}"
+        img_result = await img_provider.agenerate_image(
+            prompt=img_prompt,
+            alt_text=alt[:300],
+            style=style,
+        )
+        images_out.append({
+            "src": img_result.as_data_uri(),
+            "alt_text": img_result.alt_text or alt,
+        })
+
+    data = {
+        "title": base_title[:200],
+        "images": images_out,
+    }
+    model_label = getattr(img_provider, "model", None) or type(img_provider).__name__
+    metadata = {
+        "generation_model": str(model_label),
+        "generation_attempts": 1,
+        "exercise_type": "image_stacked",
+        "image_count": n_images,
+        "instruction_language": instruction_language,
+    }
+    return data, metadata
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # REGISTRY + DISPATCH  ← The only public API callers should use
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- 
+
 from collections.abc import Callable, Awaitable
  
 GeneratorFn = Callable[..., Awaitable[tuple[dict, dict]]]
@@ -2413,6 +3010,9 @@ EXERCISE_GENERATORS: dict[str, GeneratorFn] = {
     "test_without_timer":   generate_test_without_timer_from_unit_content,
     "test_with_timer":      generate_test_without_timer_from_unit_content,  # same shape, timer set by editor
     "true-false":           generate_true_false_from_unit_content,
+    "text":                 generate_reading_text_from_unit_content,
+    "image":                generate_image_block_from_unit_content,
+    "image_stacked":        generate_image_stacked_from_unit_content,
 }
  
  

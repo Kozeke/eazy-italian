@@ -44,17 +44,49 @@ function normaliseDraft(
 function aiQuestionToTestQuestion(raw: Record<string, unknown>): TestQuestion {
   const id = Math.random().toString(36).slice(2, 9);
   const prompt = String(raw.prompt ?? raw.question ?? '');
-  const options: { id: string; text: string }[] = (
+
+  // Preserve original IDs from the AI payload so correct_option_ids can be resolved.
+  const rawOptions: { originalId: string; text: string }[] = (
     Array.isArray(raw.options) ? raw.options : []
-  ).map((o: unknown) => ({
-    id: Math.random().toString(36).slice(2, 9),
-    text: String(typeof o === 'object' && o !== null ? (o as Record<string, unknown>).text ?? o : o),
+  ).map((o: unknown) => {
+    if (typeof o === 'object' && o !== null) {
+      const obj = o as Record<string, unknown>;
+      return {
+        originalId: String(obj.id ?? Math.random().toString(36).slice(2, 9)),
+        text: String(obj.text ?? o),
+      };
+    }
+    return { originalId: Math.random().toString(36).slice(2, 9), text: String(o) };
+  });
+
+  // Map original IDs → fresh internal IDs for this draft
+  const originalToNew = new Map<string, string>(
+    rawOptions.map((o) => [o.originalId, Math.random().toString(36).slice(2, 9)]),
+  );
+
+  const options: { id: string; text: string }[] = rawOptions.map((o) => ({
+    id: originalToNew.get(o.originalId)!,
+    text: o.text,
   }));
+
+  // Prefer correct_option_ids (AI uses original IDs); fall back to correct_index
   const correctIds: string[] = [];
   if (options.length > 0) {
-    const correctIdx = typeof raw.correct_index === 'number' ? raw.correct_index : 0;
-    const correctOpt = options[correctIdx] ?? options[0];
-    correctIds.push(correctOpt.id);
+    const rawCorrectIds = Array.isArray(raw.correct_option_ids)
+      ? (raw.correct_option_ids as unknown[]).map(String)
+      : [];
+
+    if (rawCorrectIds.length > 0) {
+      for (const origId of rawCorrectIds) {
+        const newId = originalToNew.get(origId);
+        if (newId) correctIds.push(newId);
+      }
+    }
+
+    if (correctIds.length === 0) {
+      const correctIdx = typeof raw.correct_index === 'number' ? raw.correct_index : 0;
+      correctIds.push((options[correctIdx] ?? options[0]).id);
+    }
   }
 
   const typedDraft: QuestionDraft = {

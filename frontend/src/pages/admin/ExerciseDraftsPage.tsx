@@ -81,6 +81,18 @@ import TextEditorPage, {
 import ImageEditorPage, {
   type ImageBlockData,
 } from "../../components/classroom/lesson/flow/ImageEditorPage";
+import ImageStackedEditorPage, {
+  type ImageStackedData,
+} from "../../components/classroom/lesson/flow/ImageStackedEditorPage";
+import GifAnimationEditorPage, {
+  type GifAnimationData,
+} from "../../components/classroom/lesson/flow/GifAnimationEditorPage";
+import VideoEditorPage, {
+  type VideoBlockData,
+} from "../../components/classroom/lesson/flow/VideoEditorPage";
+import AudioEditorPage, {
+  type AudioBlockData,
+} from "../../components/classroom/lesson/flow/AudioEditorPage";
 import "../../components/classroom/lesson/flow/DragToGap.css";
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
@@ -94,6 +106,10 @@ type PageMode =
   | "editor"
   | "text_block_editor"
   | "image_block_editor"
+  | "image_stacked_editor"
+  | "gif_animation_editor"
+  | "video_block_editor"
+  | "audio_block_editor"
   | "drag_to_gap_editor"
   | "drag_to_image_editor"
   | "type_word_to_image_editor"
@@ -117,6 +133,14 @@ function pageModeForTemplateCustomEditor(
       return "text_block_editor";
     case "image_block":
       return "image_block_editor";
+    case "image_stacked":
+      return "image_stacked_editor";
+    case "gif_animation":
+      return "gif_animation_editor";
+    case "video_block":
+      return "video_block_editor";
+    case "audio_block":
+      return "audio_block_editor";
     case "drag_to_gap":
       return "drag_to_gap_editor";
     case "drag_to_image":
@@ -195,6 +219,9 @@ const C = {
   cardShadow: "0 1px 3px rgba(60,64,120,0.07), 0 4px 18px rgba(60,64,120,0.05)",
   hoverShadow: "0 8px 24px rgba(108,111,239,0.14), 0 2px 8px rgba(108,111,239,0.06)",
 };
+
+// Contains template ids that should be hidden from the exercise gallery.
+const DISABLED_TEMPLATE_IDS = new Set<string>(["audio-repeat", "anagram"]);
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -462,12 +489,15 @@ function Gallery({
   const q = search.toLowerCase().trim();
 
   const filtered = useMemo(
-    () =>
-      q
-        ? TEMPLATE_REGISTRY.filter(
+    () => {
+      // Stores only enabled templates so disabled exercises never appear in the gallery.
+      const enabledTemplates = TEMPLATE_REGISTRY.filter((t) => !DISABLED_TEMPLATE_IDS.has(t.id));
+      return q
+        ? enabledTemplates.filter(
             (t) => t.label.toLowerCase().includes(q) || t.section.toLowerCase().includes(q),
           )
-        : TEMPLATE_REGISTRY,
+        : enabledTemplates;
+    },
     [q],
   );
 
@@ -664,6 +694,10 @@ export default function ExerciseDraftsPage({
       if (
         tmpl?.customEditor === "text_block" ||
         tmpl?.customEditor === "image_block" ||
+        tmpl?.customEditor === "image_stacked" ||
+        tmpl?.customEditor === "gif_animation" ||
+        tmpl?.customEditor === "video_block" ||
+        tmpl?.customEditor === "audio_block" ||
         tmpl?.customEditor === "drag_to_gap" ||
         tmpl?.customEditor === "drag_to_image" ||
         tmpl?.customEditor === "type_word_to_image" ||
@@ -684,6 +718,14 @@ export default function ExerciseDraftsPage({
             ? "text_block_editor"
             : tmpl.customEditor === "image_block"
             ? "image_block_editor"
+            : tmpl.customEditor === "image_stacked"
+            ? "image_stacked_editor"
+            : tmpl.customEditor === "gif_animation"
+            ? "gif_animation_editor"
+            : tmpl.customEditor === "video_block"
+            ? "video_block_editor"
+            : tmpl.customEditor === "audio_block"
+            ? "audio_block_editor"
             : tmpl.customEditor === "drag_to_gap"
             ? "drag_to_gap_editor"
             : tmpl.customEditor === "drag_to_image"
@@ -785,7 +827,13 @@ export default function ExerciseDraftsPage({
         return;
       }
       if (lessonReturnTo) {
-        navigate(lessonReturnTo, { replace: true });
+        // Stores section anchor passed through router state as a fallback when
+        // sessionStorage import payloads are unavailable (e.g. large uploads).
+        const returnTargetSectionId = routerState?.targetSectionId ?? null;
+        navigate(lessonReturnTo, {
+          replace: true,
+          state: { targetSectionId: returnTargetSectionId },
+        });
         return;
       }
     }
@@ -821,7 +869,7 @@ export default function ExerciseDraftsPage({
    * local upsert, relying on a server GET that may not yet carry data.src.
    */
   const handleImageBlockSave = useCallback(
-    async (data: ImageBlockData) => {
+    async (data: ImageBlockData, blockId?: string) => {
       // Resolved title used for the block label.
       const title = data.title || selected?.label || "Image block";
 
@@ -834,15 +882,17 @@ export default function ExerciseDraftsPage({
       // Lesson-context path: write optimistically to lessonPendingInlineMedia so
       // LessonWorkspace can call upsertInlineMediaBlock with the full data.src.
       if (lessonReturnTo) {
-        // Unique id for the new block (or re-use the existing one when editing).
-        const blockId =
-          inlineEditSeed?.blockId && inlineEditSeed.blockId.length > 0
-            ? inlineEditSeed.blockId
-            : Math.random().toString(36).slice(2, 10);
+        // Prefer AI-persisted id, then inline edit seed, then a new random id.
+        const resolvedBlockId =
+          blockId && blockId.length > 0
+            ? blockId
+            : inlineEditSeed?.blockId && inlineEditSeed.blockId.length > 0
+              ? inlineEditSeed.blockId
+              : Math.random().toString(36).slice(2, 10);
 
         // Inline media block shape consumed by LessonWorkspace / SectionBlock.
         const customBlock = {
-          id: blockId,
+          id: resolvedBlockId,
           kind: "image" as const,
           title,
           data,
@@ -865,17 +915,330 @@ export default function ExerciseDraftsPage({
 
       // Fallback: let the parent onSave handle everything (e.g. non-lesson contexts).
       if (onSave) {
-        await onSave(title, [{ type: "image", data }], []);
+        await onSave(title, [{ type: "image", _aiBlockId: blockId, data }], []);
       }
     },
     [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
   );
 
   /**
-   * Callback from DragToGapEditorPage.
-   * Wraps the DragToGapData into the standard onSave(title, payloads, drafts)
-   * contract so the lesson workspace doesn't need to know about this type.
+   * Callback from ImageStackedEditorPage — multi-image block payload.
    */
+  const handleImageStackedSave = useCallback(
+    async (data: ImageStackedData, blockId?: string) => {
+      const title =
+        data.title?.trim() || selected?.label || "Images stacked";
+
+      if (routerState?.homeworkMode) {
+        storeHomeworkExercise("image_stacked", title, data);
+        return;
+      }
+
+      if (lessonReturnTo) {
+        const resolvedBlockId =
+          blockId && blockId.length > 0
+            ? blockId
+            : inlineEditSeed?.blockId && inlineEditSeed.blockId.length > 0
+              ? inlineEditSeed.blockId
+              : Math.random().toString(36).slice(2, 10);
+
+        const customBlock = {
+          id: resolvedBlockId,
+          kind: "image_stacked" as const,
+          title,
+          data: data as unknown as Record<string, unknown>,
+        };
+
+        try {
+          sessionStorage.setItem(
+            "lessonPendingInlineMedia",
+            JSON.stringify({
+              customBlock,
+              targetSectionId: routerState?.targetSectionId ?? null,
+            }),
+          );
+        } catch (err) {
+          // Prevent navigation stall when uploaded media data URI exceeds
+          // sessionStorage quota. If the block is already persisted (blockId),
+          // store only minimal metadata and mark alreadyPersisted so
+          // LessonWorkspace skips optimistic upsert and hydrates from server.
+          if (blockId && blockId.length > 0) {
+            const lightweightBlock = {
+              id: resolvedBlockId,
+              kind: "video_embed" as const,
+              title,
+              data: {},
+            };
+            sessionStorage.setItem(
+              "lessonPendingInlineMedia",
+              JSON.stringify({
+                customBlock: lightweightBlock,
+                targetSectionId: routerState?.targetSectionId ?? null,
+                alreadyPersisted: true,
+              }),
+            );
+          } else {
+            throw err;
+          }
+        }
+
+        navigate(lessonReturnTo, { replace: true });
+        return;
+      }
+
+      if (onSave) {
+        await onSave(title, [{ type: "image_stacked", _aiBlockId: blockId, data }], []);
+      }
+    },
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+  );
+
+  /**
+   * Callback from GifAnimationEditorPage — GIF animation block payload.
+   * Mirrors the ImageStackedEditorPage pattern exactly.
+   */
+  const handleGifAnimationSave = useCallback(
+    async (data: GifAnimationData, blockId?: string) => {
+      const title = data.caption?.trim() || selected?.label || "GIF animation";
+
+      if (routerState?.homeworkMode) {
+        storeHomeworkExercise("gif_animation", title, data);
+        return;
+      }
+
+      if (lessonReturnTo) {
+        const resolvedBlockId =
+          blockId && blockId.length > 0
+            ? blockId
+            : inlineEditSeed?.blockId && inlineEditSeed.blockId.length > 0
+              ? inlineEditSeed.blockId
+              : Math.random().toString(36).slice(2, 10);
+
+        const customBlock = {
+          id: resolvedBlockId,
+          kind: "gif_animation" as const,
+          title,
+          data: data as unknown as Record<string, unknown>,
+        };
+
+        try {
+          sessionStorage.setItem(
+            "lessonPendingInlineMedia",
+            JSON.stringify({
+              customBlock,
+              targetSectionId: routerState?.targetSectionId ?? null,
+            }),
+          );
+        } catch (err) {
+          // Prevent navigation stall when uploaded media data URI exceeds
+          // sessionStorage quota. If the block is already persisted (blockId),
+          // store only minimal metadata and mark alreadyPersisted so
+          // LessonWorkspace skips optimistic upsert and hydrates from server.
+          if (blockId && blockId.length > 0) {
+            const lightweightBlock = {
+              id: resolvedBlockId,
+              kind: "audio_embed" as const,
+              title,
+              data: {},
+            };
+            sessionStorage.setItem(
+              "lessonPendingInlineMedia",
+              JSON.stringify({
+                customBlock: lightweightBlock,
+                targetSectionId: routerState?.targetSectionId ?? null,
+                alreadyPersisted: true,
+              }),
+            );
+          } else {
+            throw err;
+          }
+        }
+
+        navigate(lessonReturnTo, { replace: true });
+        return;
+      }
+
+      if (onSave) {
+        await onSave(title, [{ type: "gif_animation", _aiBlockId: blockId, data }], []);
+      }
+    },
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+  );
+
+  /**
+   * Callback from VideoEditorPage — custom embedded video block payload.
+   */
+  const handleVideoBlockSave = useCallback(
+    async (data: VideoBlockData, blockId?: string) => {
+      // Stores resolved block title for menu labels and fallback.
+      const title = data.title?.trim() || selected?.label || "Video block";
+
+      if (routerState?.homeworkMode) {
+        storeHomeworkExercise("video_embed", title, data);
+        return;
+      }
+
+      if (lessonReturnTo) {
+        // Stores id used by optimistic lesson merge when returning to section view.
+        const resolvedBlockId =
+          blockId && blockId.length > 0
+            ? blockId
+            : inlineEditSeed?.blockId && inlineEditSeed.blockId.length > 0
+              ? inlineEditSeed.blockId
+              : Math.random().toString(36).slice(2, 10);
+
+        // Stores lesson media payload consumed by LessonWorkspace pending-media hydration.
+        const customBlock = {
+          id: resolvedBlockId,
+          kind: "video_embed" as const,
+          title,
+          data: data as unknown as Record<string, unknown>,
+        };
+
+        // Resolved section id carried both via sessionStorage and navigate state
+        // so LessonWorkspace always knows where to scroll back to, even when
+        // sessionStorage is unavailable (quota exceeded by a large data URI).
+        const resolvedTargetSectionId = routerState?.targetSectionId ?? null;
+
+        try {
+          sessionStorage.setItem(
+            "lessonPendingInlineMedia",
+            JSON.stringify({
+              customBlock,
+              targetSectionId: resolvedTargetSectionId,
+            }),
+          );
+        } catch {
+          // Uploaded video files produce large base64 data URIs that can exceed
+          // sessionStorage quota. Fall back in two stages:
+          //
+          //  1. Block was already persisted server-side (blockId present): write a
+          //     lightweight stub so LessonWorkspace skips the local upsert and lets
+          //     the normal server GET hydrate the full block list.
+          //  2. No blockId (server POST also failed or no segmentId): skip
+          //     sessionStorage entirely. The navigate state carries targetSectionId
+          //     so the teacher still lands on the correct section.
+          if (blockId && blockId.length > 0) {
+            const lightweightBlock = {
+              id: resolvedBlockId,
+              kind: "video_embed" as const,
+              title,
+              data: {},
+            };
+            try {
+              sessionStorage.setItem(
+                "lessonPendingInlineMedia",
+                JSON.stringify({
+                  customBlock: lightweightBlock,
+                  targetSectionId: resolvedTargetSectionId,
+                  alreadyPersisted: true,
+                }),
+              );
+            } catch {
+              // If even the tiny lightweight write fails, navigate state alone
+              // carries the targetSectionId. Do not block navigation.
+            }
+          }
+          // Never rethrow: navigation must always proceed so the teacher is not
+          // stranded on the editor page. When blockId is absent the block was not
+          // saved; the teacher can retry, but they should at least return to the
+          // correct section.
+        }
+
+        // Always include targetSectionId in navigate state as a belt-and-suspenders
+        // fallback. LessonWorkspace reads routeState.targetSectionId before
+        // storedImport.targetSectionId, so this guarantees correct section scrolling
+        // even when sessionStorage is quota-exceeded or otherwise unavailable.
+        navigate(lessonReturnTo, {
+          replace: true,
+          state: { targetSectionId: resolvedTargetSectionId },
+        });
+        return;
+      }
+
+      if (onSave) {
+        await onSave(title, [{ type: "video_embed", _aiBlockId: blockId, data }], []);
+      }
+    },
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+  );
+
+  /**
+   * Callback from AudioEditorPage — custom embedded audio block payload.
+   */
+  const handleAudioBlockSave = useCallback(
+    async (data: AudioBlockData, blockId?: string) => {
+      // Stores resolved block title for menu labels and fallback.
+      const title = data.title?.trim() || selected?.label || "Audio block";
+
+      if (routerState?.homeworkMode) {
+        storeHomeworkExercise("audio_embed", title, data);
+        return;
+      }
+
+      if (lessonReturnTo) {
+        // Stores id used by optimistic lesson merge when returning to section view.
+        const resolvedBlockId =
+          blockId && blockId.length > 0
+            ? blockId
+            : inlineEditSeed?.blockId && inlineEditSeed.blockId.length > 0
+              ? inlineEditSeed.blockId
+              : Math.random().toString(36).slice(2, 10);
+
+        // Stores lesson media payload consumed by LessonWorkspace pending-media hydration.
+        const customBlock = {
+          id: resolvedBlockId,
+          kind: "audio_embed" as const,
+          title,
+          data: data as unknown as Record<string, unknown>,
+        };
+
+        try {
+          sessionStorage.setItem(
+            "lessonPendingInlineMedia",
+            JSON.stringify({
+              customBlock,
+              targetSectionId: routerState?.targetSectionId ?? null,
+            }),
+          );
+        } catch (err) {
+          // Prevent navigation stall when uploaded media data URI exceeds
+          // sessionStorage quota. If the block is already persisted (blockId),
+          // store only minimal metadata and mark alreadyPersisted so
+          // LessonWorkspace skips optimistic upsert and hydrates from server.
+          if (blockId && blockId.length > 0) {
+            const lightweightBlock = {
+              id: resolvedBlockId,
+              kind: "audio_embed" as const,
+              title,
+              data: {},
+            };
+            sessionStorage.setItem(
+              "lessonPendingInlineMedia",
+              JSON.stringify({
+                customBlock: lightweightBlock,
+                targetSectionId: routerState?.targetSectionId ?? null,
+                alreadyPersisted: true,
+              }),
+            );
+          } else {
+            throw err;
+          }
+        }
+
+        navigate(lessonReturnTo, { replace: true });
+        return;
+      }
+
+      if (onSave) {
+        await onSave(title, [{ type: "audio_embed", _aiBlockId: blockId, data }], []);
+      }
+    },
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+  );
+  //  * Wraps the DragToGapData into the standard onSave(title, payloads, drafts)
+  //  * contract so the lesson workspace doesn't need to know about this type.
+  //  */
   const handleDragToGapSave = useCallback(
     async (data: DragToGapData, blockId?: string) => {
       const title = data.title || selected?.label || "Drag word to gap";
@@ -968,14 +1331,14 @@ export default function ExerciseDraftsPage({
    * contract so the lesson workspace can persist it like any other block.
    */
   const handleTextBlockSave = useCallback(
-    async (data: TextBlockData) => {
+    async (data: TextBlockData, blockId?: string) => {
       const title = data.title || selected?.label || "Text block";
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("text", title, data);
         return;
       }
       if (onSave) {
-        await onSave(title, [{ type: "text", data }], []);
+        await onSave(title, [{ type: "text", _aiBlockId: blockId, data }], []);
       }
     },
     [onSave, selected, routerState, storeHomeworkExercise],
@@ -1004,36 +1367,183 @@ export default function ExerciseDraftsPage({
 
       {/* ── TextBlock custom editor ──────────────────────────────────────── */}
       {pageMode === "text_block_editor" && (
-        <TextEditorPage
-          initialTitle={
-            inlineEditSeed?.kind === "text" ? inlineEditSeed.title : (selected?.label ?? "")
-          }
-          initialData={
-            inlineEditSeed?.kind === "text"
-              ? (inlineEditSeed.data as unknown as TextBlockData)
-              : undefined
-          }
-          label={selected?.label}
-          onCancel={handleCancelEditor}
-          onSave={handleTextBlockSave}
-        />
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px",
+          minHeight: "100vh",
+          boxSizing: "border-box",
+        }}>
+          <div style={{ maxWidth: 860, width: "100%", margin: "0 auto" }}>
+            <TextEditorPage
+              initialTitle={
+                inlineEditSeed?.kind === "text" ? inlineEditSeed.title : (selected?.label ?? "")
+              }
+              initialData={
+                inlineEditSeed?.kind === "text"
+                  ? (inlineEditSeed.data as unknown as TextBlockData)
+                  : undefined
+              }
+              label={selected?.label}
+              segmentId={effectiveSegmentId}
+              onCancel={handleCancelEditor}
+              onSave={handleTextBlockSave}
+            />
+          </div>
+        </div>
       )}
 
       {/* ── ImageBlock custom editor ─────────────────────────────────────── */}
       {pageMode === "image_block_editor" && (
-        <ImageEditorPage
-          initialTitle={
-            inlineEditSeed?.kind === "image" ? inlineEditSeed.title : (selected?.label ?? "")
-          }
-          initialData={
-            inlineEditSeed?.kind === "image"
-              ? (inlineEditSeed.data as unknown as ImageBlockData)
-              : undefined
-          }
-          label={selected?.label}
-          onCancel={handleCancelEditor}
-          onSave={handleImageBlockSave}
-        />
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px",
+          minHeight: "100vh",
+          boxSizing: "border-box",
+        }}>
+          <div style={{ maxWidth: 860, width: "100%", margin: "0 auto" }}>
+            <ImageEditorPage
+              initialTitle={
+                inlineEditSeed?.kind === "image" ? inlineEditSeed.title : (selected?.label ?? "")
+              }
+              initialData={
+                inlineEditSeed?.kind === "image"
+                  ? (inlineEditSeed.data as unknown as ImageBlockData)
+                  : undefined
+              }
+              label={selected?.label}
+              segmentId={effectiveSegmentId}
+              onCancel={handleCancelEditor}
+              onSave={handleImageBlockSave}
+            />
+          </div>
+        </div>
+      )}
+
+      {pageMode === "image_stacked_editor" && (
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px",
+          minHeight: "100vh",
+          boxSizing: "border-box",
+        }}>
+          <div style={{ maxWidth: 860, width: "100%", margin: "0 auto" }}>
+            <ImageStackedEditorPage
+              initialTitle={
+                inlineEditSeed?.kind === "image_stacked"
+                  ? inlineEditSeed.title
+                  : (selected?.label ?? "")
+              }
+              initialData={
+                inlineEditSeed?.kind === "image_stacked"
+                  ? (inlineEditSeed.data as unknown as ImageStackedData)
+                  : undefined
+              }
+              label={selected?.label}
+              segmentId={effectiveSegmentId}
+              onCancel={handleCancelEditor}
+              onSave={handleImageStackedSave}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── GIF animation custom editor ───────────────────────────────────── */}
+      {pageMode === "gif_animation_editor" && (
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px",
+          minHeight: "100vh",
+          boxSizing: "border-box",
+        }}>
+          <div style={{ maxWidth: 860, width: "100%", margin: "0 auto" }}>
+            <GifAnimationEditorPage
+              initialTitle={
+                inlineEditSeed?.kind === "gif_animation"
+                  ? inlineEditSeed.title
+                  : (selected?.label ?? "")
+              }
+              initialData={
+                inlineEditSeed?.kind === "gif_animation"
+                  ? (inlineEditSeed.data as unknown as GifAnimationData)
+                  : undefined
+              }
+              label={selected?.label}
+              segmentId={effectiveSegmentId}
+              onCancel={handleCancelEditor}
+              onSave={handleGifAnimationSave}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Video block custom editor ─────────────────────────────────────── */}
+      {pageMode === "video_block_editor" && (
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px",
+          minHeight: "100vh",
+          boxSizing: "border-box",
+        }}>
+          <div style={{ maxWidth: 860, width: "100%", margin: "0 auto" }}>
+            <VideoEditorPage
+              initialTitle={
+                inlineEditSeed?.kind === "video_embed"
+                  ? inlineEditSeed.title
+                  : (selected?.label ?? "")
+              }
+              initialData={
+                inlineEditSeed?.kind === "video_embed"
+                  ? (inlineEditSeed.data as unknown as VideoBlockData)
+                  : undefined
+              }
+              label={selected?.label}
+              segmentId={effectiveSegmentId}
+              onCancel={handleCancelEditor}
+              onSave={handleVideoBlockSave}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Audio block custom editor ─────────────────────────────────────── */}
+      {pageMode === "audio_block_editor" && (
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px",
+          minHeight: "100vh",
+          boxSizing: "border-box",
+        }}>
+          <div style={{ maxWidth: 860, width: "100%", margin: "0 auto" }}>
+            <AudioEditorPage
+              initialTitle={
+                inlineEditSeed?.kind === "audio_embed"
+                  ? inlineEditSeed.title
+                  : (selected?.label ?? "")
+              }
+              initialData={
+                inlineEditSeed?.kind === "audio_embed"
+                  ? (inlineEditSeed.data as unknown as AudioBlockData)
+                  : undefined
+              }
+              label={selected?.label}
+              segmentId={effectiveSegmentId}
+              onCancel={handleCancelEditor}
+              onSave={handleAudioBlockSave}
+            />
+          </div>
+        </div>
       )}
 
       {/* ── DragToGap custom editor ───────────────────────────────────────── */}

@@ -490,7 +490,11 @@ export interface InlineMediaBlock {
     | "test_without_timer"
     | "test_with_timer"
     | "true_false"
-    | "text";
+    | "text"
+    | "gif_animation"
+    | "image_stacked"
+    | "video_embed"
+    | "audio_embed";
   url?: string;
   caption?: string;
   slides?: CarouselSlide[];

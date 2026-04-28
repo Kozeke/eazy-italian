@@ -16,6 +16,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { ImageIcon, Eye, EyeOff, Upload, Link } from "lucide-react";
+import api from "../../../../services/api";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
@@ -55,8 +56,19 @@ interface Props {
   initialData?: ImageBlockData;
   /** Gallery label forwarded from exerciseTemplateRegistry. */
   label?: string;
-  /** Called when the teacher clicks Save. */
-  onSave: (data: ImageBlockData) => void | Promise<void>;
+  /**
+   * Real API segment id (integer). When present, Save POSTs to
+   * POST /segments/{segmentId}/exercises/image so the block is immediately
+   * persisted server-side — matching the behaviour of AI-generated blocks.
+   * When absent (non-lesson contexts) the caller's onSave handles persistence.
+   */
+  segmentId?: string | number | null;
+  /**
+   * Called when the teacher clicks Save.
+   * `blockId` is the server-assigned id returned by the POST endpoint;
+   * it is undefined when segmentId was not provided.
+   */
+  onSave: (data: ImageBlockData, blockId?: string) => void | Promise<void>;
   /** Called when the teacher clicks × or Cancel. */
   onCancel: () => void;
 }
@@ -67,6 +79,7 @@ export default function ImageEditorPage({
   initialTitle = "",
   initialData,
   label,
+  segmentId,
   onSave,
   onCancel,
 }: Props) {
@@ -101,15 +114,42 @@ export default function ImageEditorPage({
     if (!src.trim() || saving) return;
     setSaving(true);
     try {
-      await onSave({
+      const imageData: ImageBlockData = {
         src: src.trim(),
         alt_text: altText.trim() || undefined,
         title: title.trim() || undefined,
-      });
+      };
+
+      // ── Lesson context: POST to create the block server-side immediately ──
+      // Mirrors the AI-generated image flow (POST /segments/{id}/exercises/image)
+      // so the block gets a stable server-assigned id and is persisted before the
+      // caller navigates back — avoiding the race with the debounced PUT autosave.
+      const numericSegmentId = segmentId != null ? Number(segmentId) : NaN;
+      if (Number.isFinite(numericSegmentId) && numericSegmentId > 0) {
+        try {
+          const response = await api.post<{ block: { id: string } }>(
+            `/segments/${numericSegmentId}/exercises/image`,
+            {
+              title: imageData.title || label || "Image block",
+              data: imageData,
+            },
+          );
+          const blockId: string | undefined = response.data?.block?.id;
+          await onSave(imageData, blockId);
+          return;
+        } catch (err) {
+          // If the POST fails (network error, etc.), fall through to the
+          // caller-managed save so the teacher never loses their work.
+          console.warn("[ImageEditorPage] POST /exercises/image failed, falling back:", err);
+        }
+      }
+
+      // ── Fallback / non-lesson path ────────────────────────────────────────
+      await onSave(imageData);
     } finally {
       setSaving(false);
     }
-  }, [src, altText, title, saving, onSave]);
+  }, [src, altText, title, saving, segmentId, label, onSave]);
 
   /** Reads the selected file and stores it as a data URI in src. */
   const handleFileChange = useCallback(

@@ -37,6 +37,7 @@ import { SEGMENT_EDITABLE_EXERCISE_KINDS } from "../../../../pages/admin/exercis
 import { FlowItemRenderer } from "./FlowItemRenderer";
 import { ImageCarouselEditor, ImageCarouselViewer } from "./ImageCarousel.tsx";
 import type { CarouselSlide } from "./ImageCarousel.tsx";
+import ImageStackedBlock from "./ImageStackedBlock";
 import BottomNavigation from "./BottomNavigation";
 import type { InlineMediaBlock } from "../useSegmentPersistence";
 import ExerciseBlockMenu from "./ExerciseBlockMenu";
@@ -536,6 +537,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     // Provides localized labels and ARIA text for section interactions.
     const { t } = useTranslation();
     const isTeacher = mode === "teacher";
+    const isEmpty = items.length === 0;
 
     // Live classroom WS — teacher-only patches scroll targets for students
     const liveSession = useContext(LiveSessionContext);
@@ -545,15 +547,24 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     ): block is InlineMediaBlock & { kind: "image" | "video" | "audio" } => {
       if (block.kind === "video" || block.kind === "audio") return true;
       if (block.kind === "image") {
-        // AI-generated images are SVG data URIs → route to FlowItemRenderer (ImageBlock).
-        // Teacher-uploaded JPEG/PNG images (blob URL, data URI, or external URL) stay in
-        // InlineMediaCard (teacher edit) / InlineMediaViewer (student view).
-        const src = block.data?.src as string | undefined;
-        if (src?.startsWith("data:image/svg")) return false;
+        // Any block that was created via ImageEditorPage or AI generation has
+        // data.src set (SVG, PNG, JPEG data URI, or https URL stored in data).
+        // Route ALL of these to FlowItemRenderer (ImageBlock) which already
+        // handles every format — SVG via dangerouslySetInnerHTML, everything
+        // else via a plain <img>.
+        //
+        // Only pure inline media blocks (added via the URL input directly in
+        // InlineMediaCard, with data.src absent) stay in the simple path.
+        const dataSrc = block.data?.src as string | undefined;
+        if (dataSrc) return false;
         return true;
       }
       return false;
     };
+
+    // Allows image_stacked runtime checks without tightening InlineMediaBlock union.
+    const isImageStackedMediaBlock = (block: InlineMediaBlock): boolean =>
+      (block.kind as string) === "image_stacked";
 
     // ── Inline media state ─────────────────────────────────────────────────────
     const [localMediaBlocks, setLocalMediaBlocks] = useState<InlineMediaBlock[]>(
@@ -564,18 +575,6 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     const mediaBlocks = isMediaOwnedByParent
       ? (controlledMediaBlocks ?? [])
       : (controlledMediaBlocks ?? localMediaBlocks);
-    // Suppress legacy 'test' flow items when new-style test blocks already exist in
-    // mediaBlocks. Without this guard the same test content renders twice:
-    //   1. From mediaBlocks  →  TestWithTimerBlock / TestWithoutTimerBlock
-    //   2. From flow items   →  SlideBlock → TestStep  (legacy)
-    // build_sentence / match_pairs are unaffected — they have no legacy counterpart.
-    const hasNewStyleTestBlocks = mediaBlocks.some(
-      (b) => b.kind === "test_with_timer" || b.kind === "test_without_timer",
-    );
-    const effectiveItems = hasNewStyleTestBlocks
-      ? items.filter((item) => item.type !== "test")
-      : items;
-    const isEmpty = effectiveItems.length === 0;
 
     const mediaBlocksRef = useRef(mediaBlocks);
     useEffect(() => { mediaBlocksRef.current = mediaBlocks; }, [mediaBlocks]);
@@ -896,57 +895,111 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                           : undefined
                       }
                     >
-                      <FlowItemRenderer
-                        key={`ex-remount-${block.id}-${answerResetSeqByBlockId[block.id] ?? 0}`}
-                        item={
-                          {
-                            id: block.id,
-                            type: block.kind,
-                            label: block.title ?? block.kind,
-                            data: block.data ?? {},
-                            status: "available",
-                          } as any
-                        }
-                        mode={mode}
-                        isFirst={false}
-                        isLast={false}
-                        onComplete={() => {}}
-                        onStartTest={onStartTest}
-                        onSubmitTest={onSubmitTest}
-                        onLoadTask={onLoadTask}
-                        onSubmitTask={onSubmitTask}
-                        onOpenTask={onOpenTask}
-                        onOpenTest={onOpenTest}
-                        loading={loading}
-                        onEditSlides={onEditSlides}
-                      />
+                      {isImageStackedMediaBlock(block) ? (
+                        <ImageStackedBlock
+                          key={`ex-remount-${block.id}-${answerResetSeqByBlockId[block.id] ?? 0}`}
+                          item={
+                            {
+                              id: block.id,
+                              type: block.kind,
+                              label: block.title ?? block.kind,
+                              data: block.data ?? {},
+                              status: "available",
+                            } as any
+                          }
+                          mode={mode}
+                          isFirst={false}
+                          isLast={false}
+                          onComplete={() => {}}
+                          onStartTest={onStartTest}
+                          onSubmitTest={onSubmitTest}
+                          onLoadTask={onLoadTask}
+                          onSubmitTask={onSubmitTask}
+                          onOpenTask={onOpenTask}
+                          onOpenTest={onOpenTest}
+                          loading={loading}
+                          onEditSlides={onEditSlides}
+                        />
+                      ) : (
+                        <FlowItemRenderer
+                          key={`ex-remount-${block.id}-${answerResetSeqByBlockId[block.id] ?? 0}`}
+                          item={
+                            {
+                              id: block.id,
+                              type: block.kind,
+                              label: block.title ?? block.kind,
+                              data: block.data ?? {},
+                              status: "available",
+                            } as any
+                          }
+                          mode={mode}
+                          isFirst={false}
+                          isLast={false}
+                          onComplete={() => {}}
+                          onStartTest={onStartTest}
+                          onSubmitTest={onSubmitTest}
+                          onLoadTask={onLoadTask}
+                          onSubmitTask={onSubmitTask}
+                          onOpenTask={onOpenTask}
+                          onOpenTest={onOpenTest}
+                          loading={loading}
+                          onEditSlides={onEditSlides}
+                        />
+                      )}
                     </ExerciseBlockMenu>
                   ) : (
                     <ExerciseBlockMenu onResetAnswers={() => bumpAnswerReset(block.id)}>
-                      <FlowItemRenderer
-                        key={`ex-remount-${block.id}-${answerResetSeqByBlockId[block.id] ?? 0}`}
-                        item={
-                          {
-                            id: block.id,
-                            type: block.kind,
-                            label: block.title ?? block.kind,
-                            data: block.data ?? {},
-                            status: "available",
-                          } as any
-                        }
-                        mode={mode}
-                        isFirst={false}
-                        isLast={false}
-                        onComplete={() => {}}
-                        onStartTest={onStartTest}
-                        onSubmitTest={onSubmitTest}
-                        onLoadTask={onLoadTask}
-                        onSubmitTask={onSubmitTask}
-                        onOpenTask={onOpenTask}
-                        onOpenTest={onOpenTest}
-                        loading={loading}
-                        onEditSlides={onEditSlides}
-                      />
+                      {isImageStackedMediaBlock(block) ? (
+                        <ImageStackedBlock
+                          key={`ex-remount-${block.id}-${answerResetSeqByBlockId[block.id] ?? 0}`}
+                          item={
+                            {
+                              id: block.id,
+                              type: block.kind,
+                              label: block.title ?? block.kind,
+                              data: block.data ?? {},
+                              status: "available",
+                            } as any
+                          }
+                          mode={mode}
+                          isFirst={false}
+                          isLast={false}
+                          onComplete={() => {}}
+                          onStartTest={onStartTest}
+                          onSubmitTest={onSubmitTest}
+                          onLoadTask={onLoadTask}
+                          onSubmitTask={onSubmitTask}
+                          onOpenTask={onOpenTask}
+                          onOpenTest={onOpenTest}
+                          loading={loading}
+                          onEditSlides={onEditSlides}
+                        />
+                      ) : (
+                        <FlowItemRenderer
+                          key={`ex-remount-${block.id}-${answerResetSeqByBlockId[block.id] ?? 0}`}
+                          item={
+                            {
+                              id: block.id,
+                              type: block.kind,
+                              label: block.title ?? block.kind,
+                              data: block.data ?? {},
+                              status: "available",
+                            } as any
+                          }
+                          mode={mode}
+                          isFirst={false}
+                          isLast={false}
+                          onComplete={() => {}}
+                          onStartTest={onStartTest}
+                          onSubmitTest={onSubmitTest}
+                          onLoadTask={onLoadTask}
+                          onSubmitTask={onSubmitTask}
+                          onOpenTask={onOpenTask}
+                          onOpenTest={onOpenTest}
+                          loading={loading}
+                          onEditSlides={onEditSlides}
+                        />
+                      )}
                     </ExerciseBlockMenu>
                   )}
                 </div>
@@ -973,7 +1026,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
           {/* ── Exercise items — dispatched via registry ───────────────────── */}
           {!isEmpty && (
             <div className="vlp-blocks">
-              {effectiveItems.map((item, blockIndex) => (
+              {items.map((item, blockIndex) => (
                 <div key={item.id} data-lesson-focus-anchor={item.id}>
                 {isTeacher ? (
                   <ExerciseBlockMenu
@@ -1025,7 +1078,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                         : undefined
                     }
                     onMoveDown={
-                      onReorderBlock && blockIndex < effectiveItems.length - 1
+                      onReorderBlock && blockIndex < items.length - 1
                         ? () => onReorderBlock(item.id, "down")
                         : undefined
                     }
@@ -1035,7 +1088,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                       item={item}
                       mode={mode}
                       isFirst={blockIndex === 0}
-                      isLast={blockIndex === effectiveItems.length - 1}
+                      isLast={blockIndex === items.length - 1}
                       onComplete={() => onItemCompleted(item.id, item.type)}
                       onStartTest={onStartTest}
                       onSubmitTest={onSubmitTest}
@@ -1054,7 +1107,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                       item={item}
                       mode={mode}
                       isFirst={blockIndex === 0}
-                      isLast={blockIndex === effectiveItems.length - 1}
+                      isLast={blockIndex === items.length - 1}
                       onComplete={() => onItemCompleted(item.id, item.type)}
                       onStartTest={onStartTest}
                       onSubmitTest={onSubmitTest}

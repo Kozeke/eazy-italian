@@ -4,20 +4,24 @@
  * Teacher-facing editor for "Text block" exercises.
  *
  * UX flow:
- *   1. Teacher enters an optional title in the header (editable center field).
- *   2. Teacher writes Markdown content in the large textarea.
- *   3. A live preview of the rendered TextBlock appears below the textarea.
- *   4. Clicking "Save" calls onSave({ type: "text", data: { content, format: "markdown" } }).
+ *   1. Teacher enters an optional title in the title row (same pattern as gap / match-pair editors).
+ *   2. Teacher writes Markdown in the card textarea (or uses Generate with AI when a segment is open).
+ *   3. A live preview of the rendered TextBlock appears below the card when enabled.
+ *   4. Footer Cancel / Save matches other custom exercise editors.
  *
  * Output shape (TextBlockData) is consumed by TextBlock.tsx in the lesson flow.
  * Registered in exerciseTemplateRegistry.tsx as customEditor: "text_block".
  */
 
-import { useState, useCallback, useMemo } from "react";
-import { BookOpen, Eye, EyeOff } from "lucide-react";
+import { useState, useCallback, useMemo, useRef } from "react";
+import { BookOpen, Eye, EyeOff, Sparkles } from "lucide-react";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import AIExerciseGeneratorModal, {
+  type GeneratedBlock,
+} from "./AI_generation/AIExerciseGeneratorModal";
+import "./DragToGap.css";
 
 // ── Design tokens (mirrors project-wide palette) ───────────────────────────────
 const C = {
@@ -31,7 +35,6 @@ const C = {
   text:      "#1C1F3A",
   sub:       "#6B6F8E",
   muted:     "#A8ABCA",
-  success:   "#10B981",
 };
 
 // ── Output data shape (matches TextBlock.tsx consumer) ────────────────────────
@@ -54,8 +57,10 @@ interface Props {
   initialData?: TextBlockData;
   /** Gallery label forwarded from exerciseTemplateRegistry. */
   label?: string;
-  /** Called when the teacher clicks Save. */
-  onSave: (data: TextBlockData) => void | Promise<void>;
+  /** Segment id for POST /segments/{id}/exercises/text (lesson context). */
+  segmentId?: string | number | null;
+  /** Called when the teacher clicks Save; optional block id from AI upsert. */
+  onSave: (data: TextBlockData, blockId?: string) => void | Promise<void>;
   /** Called when the teacher clicks × or Cancel. */
   onCancel: () => void;
 }
@@ -190,159 +195,166 @@ export default function TextEditorPage({
   initialTitle = "",
   initialData,
   label,
+  segmentId,
   onSave,
   onCancel,
 }: Props) {
-  /** Editable block title (shown in the BookOpen header strip of the rendered block). */
+  /** Visible block title synced with TextBlock header strip and save payload. */
   const [title, setTitle] = useState(initialTitle || initialData?.title || "");
 
-  /** Markdown content body typed by the teacher. */
+  /** Markdown body edited by the teacher. */
   const [content, setContent] = useState(initialData?.content ?? "");
 
-  /** Whether the live preview panel is visible. */
+  /** Toggles the live Markdown preview below the editor card. */
   const [showPreview, setShowPreview] = useState(true);
 
-  /** True while the async save is in flight. */
+  /** AI generator modal visibility. */
+  const [showAIModal, setShowAIModal] = useState(false);
+
+  /** True while Save is awaiting onSave. */
   const [saving, setSaving] = useState(false);
 
-  /** Whether the content has been modified since last save. */
-  const isDirty = content.trim().length > 0;
+  /** Server block id after AI generation — forwarded on Save to avoid duplicate blocks. */
+  const generatedBlockIdRef = useRef<string | null>(null);
 
-  /** Rendered preview nodes, recalculated on every content change. */
+  /** True when the textarea has non-whitespace content (enables Save). */
+  const canSave = content.trim().length > 0;
+
+  /** Memoized preview nodes derived from Markdown content. */
   const previewNodes = useMemo(() => renderMarkdown(content), [content]);
 
+  /** Applies a persisted AI block into local editor state. */
+  const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
+    if (block.kind !== "text" || !block.data || typeof block.data !== "object") return;
+    generatedBlockIdRef.current = block.id;
+    const d = block.data as Record<string, unknown>;
+    const nextTitle = String(d.title ?? block.title ?? "").trim();
+    const nextContent = String(d.content ?? "");
+    setTitle(nextTitle);
+    setContent(nextContent);
+  }, []);
+
   const handleSave = useCallback(async () => {
-    if (!content.trim() || saving) return;
+    if (!canSave || saving) return;
     setSaving(true);
     try {
-      await onSave({ content, format: "markdown", title: title.trim() || undefined });
+      await onSave(
+        { content, format: "markdown", title: title.trim() || undefined },
+        generatedBlockIdRef.current ?? undefined,
+      );
     } finally {
       setSaving(false);
     }
-  }, [content, title, saving, onSave]);
+  }, [content, title, canSave, saving, onSave]);
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: C.bg,
-      fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif",
-      display: "flex",
-      flexDirection: "column",
-    }}>
-      {/* ── Fixed top header bar ──────────────────────────────────────────── */}
+    <div className="dtg-editor-root">
       <ExerciseHeader
         title={title}
         headerLabel={label ?? "Text block"}
-        editableTitleInHeader
-        isDirty={isDirty}
+        editableTitleInHeader={false}
         onClose={onCancel}
-        onTitleChange={setTitle}
       />
 
-      {/* ── Editor body (below the fixed header) ─────────────────────────── */}
-      <div style={{
-        marginTop: EXERCISE_HEADER_HEIGHT_PX,
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        padding: "32px 24px",
-        maxWidth: 860,
-        width: "100%",
-        margin: `${EXERCISE_HEADER_HEIGHT_PX}px auto 0`,
-        boxSizing: "border-box",
-      }}>
+      <div
+        className="dtg-editor-content"
+        style={{ paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14 }}
+        aria-label={label ?? "Text block editor"}
+      >
+        <div className="dtg-title-row">
+          <input
+            className="dtg-title-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Название упражнения"
+            aria-label="Exercise title"
+          />
+        </div>
 
-        {/* Toolbar row: preview toggle + save button */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 16,
-        }}>
-          <button
-            type="button"
-            onClick={() => setShowPreview((v) => !v)}
+        <div className="mp-editor-card">
+          <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 6,
-              padding: "7px 14px",
-              borderRadius: 8,
-              border: `1.5px solid ${C.border}`,
-              background: showPreview ? C.tint : C.white,
-              color: showPreview ? C.primary : C.sub,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 10,
             }}
           >
-            {showPreview ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
-            {showPreview ? "Hide preview" : "Show preview"}
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowPreview((v) => !v)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "7px 14px",
+                borderRadius: 8,
+                border: `1.5px solid ${C.border}`,
+                background: showPreview ? C.tint : C.white,
+                color: showPreview ? C.primary : C.sub,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {showPreview ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
+              {showPreview ? "Скрыть предпросмотр" : "Показать предпросмотр"}
+            </button>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!content.trim() || saving}
+            <button
+              type="button"
+              className="dtg-generate-btn"
+              style={{ margin: 0 }}
+              onClick={() => setShowAIModal(true)}
+            >
+              <Sparkles size={13} />
+              Сгенерировать
+            </button>
+          </div>
+
+          <p style={{ margin: 0, fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+            Markdown: <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>**жирный**</code>
+            {" "}
+            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>*курсив*</code>
+            {" "}
+            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>## Заголовок</code>
+            {" "}
+            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>- список</code>
+          </p>
+
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder={"Текст в Markdown…\n\n## Правило\n**Пример:** *essere* для состояний.\n- io sono\n- tu sei"}
+            rows={14}
             style={{
-              padding: "9px 24px",
-              borderRadius: 9,
-              border: "none",
-              background: !content.trim() || saving ? C.muted : C.primary,
-              color: C.white,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: !content.trim() || saving ? "default" : "pointer",
-              fontFamily: "inherit",
-              transition: "background 0.15s",
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "14px 16px",
+              borderRadius: 12,
+              border: `1.5px solid ${C.border}`,
+              background: C.white,
+              fontSize: 14,
+              color: C.text,
+              lineHeight: 1.7,
+              fontFamily: "'JetBrains Mono','Fira Mono','Courier New',monospace",
+              resize: "vertical",
+              outline: "none",
+              transition: "border-color 0.15s",
             }}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
+            onFocus={(e) => { e.currentTarget.style.borderColor = C.primary; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = C.border; }}
+          />
         </div>
 
-        {/* Markdown hint */}
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: C.muted }}>
-          Supports Markdown: <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>**bold**</code>{" "}
-          <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>*italic*</code>{" "}
-          <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>## Heading</code>{" "}
-          <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>- list item</code>
-        </p>
-
-        {/* Markdown textarea */}
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={"Write your text in Markdown…\n\n## Grammar Rule\n**Rule:** Use *essere* for states of being.\n- io sono\n- tu sei\n- lui/lei è"}
-          rows={14}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: "14px 16px",
-            borderRadius: 12,
-            border: `1.5px solid ${C.border}`,
-            background: C.white,
-            fontSize: 14,
-            color: C.text,
-            lineHeight: 1.7,
-            fontFamily: "'JetBrains Mono','Fira Mono','Courier New',monospace",
-            resize: "vertical",
-            outline: "none",
-            transition: "border-color 0.15s",
-          }}
-          onFocus={(e) => { e.currentTarget.style.borderColor = C.primary; }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = C.border; }}
-        />
-
-        {/* Live preview panel */}
         {showPreview && content.trim() && (
-          <div style={{ marginTop: 24 }}>
+          <div style={{ marginTop: 18 }}>
             <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Preview
+              Предпросмотр
             </p>
 
-            {/* Renders exactly as TextBlock.tsx would in the lesson flow */}
             <div style={{
               borderRadius: 16,
               background: C.white,
@@ -350,7 +362,6 @@ export default function TextEditorPage({
               overflow: "hidden",
               boxShadow: "0 1px 4px rgba(108,111,239,0.07)",
             }}>
-              {/* BookOpen header strip */}
               <div style={{
                 display: "flex",
                 alignItems: "center",
@@ -378,14 +389,48 @@ export default function TextEditorPage({
                 )}
               </div>
 
-              {/* Rendered markdown body */}
               <div style={{ padding: "16px 20px 12px", lineHeight: 1.65 }}>
                 {previewNodes}
               </div>
             </div>
           </div>
         )}
+
+        <div className="dtg-footer">
+          <label className="dtg-pro-toggle">
+            Pro
+            <input type="checkbox" style={{ marginLeft: 6 }} />
+          </label>
+
+          <div className="dtg-footer-btns">
+            <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
+              Отмена
+            </button>
+            <button
+              type="button"
+              className={[
+                "dtg-btn-save",
+                !canSave || saving ? "dtg-btn-save--disabled" : "",
+              ].filter(Boolean).join(" ")}
+              onClick={handleSave}
+              disabled={!canSave || saving}
+              title={!canSave ? "Введите текст перед сохранением" : "Сохранить блок"}
+            >
+              {saving ? "Сохранение…" : "Сохранить"}
+            </button>
+          </div>
+        </div>
       </div>
+
+      <AIExerciseGeneratorModal
+        exerciseType="text"
+        open={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        segmentId={segmentId}
+        onGenerated={(block) => {
+          applyGeneratedBlock(block);
+        }}
+      />
     </div>
   );
 }

@@ -29,6 +29,7 @@ import logging
 from typing import Annotated, Any, Literal, Union
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
@@ -82,6 +83,278 @@ SUPPORTED_TYPES: set[str] = {
 def _slug_to_type(slug: str) -> str:
     """Convert URL slug to registry key.  'drag-to-gap' → 'drag_to_gap'."""
     return slug.replace("-", "_")
+from pydantic import BaseModel as _BaseModel
+
+
+# ── Manual-save request schemas ───────────────────────────────────────────────
+
+class _ImageBlockRequest(_BaseModel):
+    title: str | None = None
+    data: dict
+
+
+class _VideoBlockRequest(_BaseModel):
+    title: str | None = None
+    data: dict
+
+
+class _AudioBlockRequest(_BaseModel):
+    title: str | None = None
+    data: dict
+
+
+class ImageStackedSaveRequest(BaseModel):
+    images: list[dict]
+    title: str | None = None
+
+
+class GifAnimationSaveRequest(BaseModel):
+    src: str
+    alt_text: str | None = None
+    caption: str | None = None
+    loop: bool = True
+    title: str | None = None
+
+
+# ── Dedicated image-block save endpoint ───────────────────────────────────────
+# Must be declared BEFORE the generic /{exercise_slug} route so FastAPI matches
+# the fixed path segment "image" before treating it as a slug parameter.
+
+@router.post(
+    "/{segment_id}/exercises/image",
+    summary="Persist a teacher-created image block for a segment",
+    description=(
+        "Creates an image block from a teacher-supplied URL or data URI and "
+        "appends it to the segment's media_blocks list.  Returns the new block "
+        "in the same shape as AI-generated blocks so the frontend can treat "
+        "both paths identically."
+    ),
+)
+async def create_image_block(
+    segment_id: int,
+    body: _ImageBlockRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    src = (body.data or {}).get("src", "")
+    if not src or not str(src).strip():
+        raise HTTPException(status_code=400, detail="data.src is required and must not be empty.")
+ 
+    segment = _load_segment(db, segment_id)
+ 
+    block_title = (body.title or "").strip() or "Image block"
+    try:
+        block = _append_block(
+            db=db,
+            segment=segment,
+            kind="image",
+            block_title=block_title,
+            data=body.data,
+            created_by=current_user.id,
+        )
+    except Exception as exc:
+        logger.error(
+            "DB error persisting image block for segment_id=%d: %s",
+            segment_id, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save the image block. Please try again.",
+        ) from exc
+ 
+    return {"block": block}
+
+
+# ── Dedicated video_embed save endpoint ────────────────────────────────────────
+# Must be declared BEFORE the generic /{exercise_slug} route so FastAPI matches
+# the fixed path segment "video_embed" before treating it as a slug parameter.
+
+@router.post(
+    "/{segment_id}/exercises/video_embed",
+    summary="Persist a teacher-created video block for a segment",
+    description=(
+        "Creates a video_embed block from a teacher-supplied URL and "
+        "appends it to the segment's media_blocks list. Returns the new block "
+        "in the same shape as AI-generated blocks."
+    ),
+    include_in_schema=False,
+)
+async def create_video_embed_block(
+    segment_id: int,
+    body: _VideoBlockRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    # Stores posted src value from body.data for required-field validation.
+    src = (body.data or {}).get("src", "")
+    if not src or not str(src).strip():
+        raise HTTPException(status_code=400, detail="data.src is required and must not be empty.")
+
+    segment = _load_segment(db, segment_id)
+
+    # Stores human-readable block title with stable default fallback.
+    block_title = (body.title or "").strip() or "Video block"
+    try:
+        block = _append_block(
+            db=db,
+            segment=segment,
+            kind="video_embed",
+            block_title=block_title,
+            data=body.data,
+            created_by=current_user.id,
+        )
+    except Exception as exc:
+        logger.error(
+            "DB error persisting video_embed block for segment_id=%d: %s",
+            segment_id, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save the video block. Please try again.",
+        ) from exc
+
+    return {"block": block}
+
+
+# ── Dedicated audio_embed save endpoint ────────────────────────────────────────
+# Must be declared BEFORE the generic /{exercise_slug} route so FastAPI matches
+# the fixed path segment "audio_embed" before treating it as a slug parameter.
+
+@router.post(
+    "/{segment_id}/exercises/audio_embed",
+    summary="Persist a teacher-created audio block for a segment",
+    description=(
+        "Creates an audio_embed block from a teacher-supplied URL and "
+        "appends it to the segment's media_blocks list. Returns the new block "
+        "in the same shape as AI-generated blocks."
+    ),
+    include_in_schema=False,
+)
+async def create_audio_embed_block(
+    segment_id: int,
+    body: _AudioBlockRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    # Stores posted src value from body.data for required-field validation.
+    src = (body.data or {}).get("src", "")
+    if not src or not str(src).strip():
+        raise HTTPException(status_code=400, detail="data.src is required and must not be empty.")
+
+    segment = _load_segment(db, segment_id)
+
+    # Stores human-readable block title with stable default fallback.
+    block_title = (body.title or "").strip() or "Audio block"
+    try:
+        block = _append_block(
+            db=db,
+            segment=segment,
+            kind="audio_embed",
+            block_title=block_title,
+            data=body.data,
+            created_by=current_user.id,
+        )
+    except Exception as exc:
+        logger.error(
+            "DB error persisting audio_embed block for segment_id=%d: %s",
+            segment_id, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save the audio block. Please try again.",
+        ) from exc
+
+    return {"block": block}
+
+
+# ── Dedicated image_stacked save endpoint ─────────────────────────────────────
+
+@router.post(
+    "/{segment_id}/exercises/image_stacked",
+    summary="Persist a manually-entered stacked-image block for a segment",
+    include_in_schema=False,
+)
+async def save_image_stacked_block(
+    segment_id: int,
+    body: ImageStackedSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    filled = [img for img in (body.images or []) if str(img.get("src", "")).strip()]
+    if len(filled) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="At least 2 images with a non-empty 'src' are required.",
+        )
+
+    segment = _load_segment(db, segment_id)
+    data: dict = {"images": body.images}
+    if body.title:
+        data["title"] = body.title.strip()
+
+    block = _append_block(
+        db=db,
+        segment=segment,
+        kind="image_stacked",
+        block_title=body.title or "Images stacked",
+        data=data,
+        created_by=current_user.id,
+    )
+    return {"block": block}
+
+
+# ── Dedicated gif_animation save endpoint ─────────────────────────────────────
+# Must be declared BEFORE the generic /{exercise_slug} route.
+
+@router.post(
+    "/{segment_id}/exercises/gif_animation",
+    summary="Persist a teacher-created GIF animation block for a segment",
+    description=(
+        "Creates a gif_animation block from a teacher-supplied URL or data URI and "
+        "appends it to the segment's media_blocks list.  Returns the new block "
+        "in the same shape as AI-generated blocks."
+    ),
+    include_in_schema=False,
+)
+async def create_gif_animation_block(
+    segment_id: int,
+    body: GifAnimationSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    if not body.src or not str(body.src).strip():
+        raise HTTPException(status_code=400, detail="src is required and must not be empty.")
+
+    segment = _load_segment(db, segment_id)
+
+    block_title = (body.title or body.caption or "").strip() or "GIF animation"
+    data: dict = {"src": body.src.strip()}
+    if body.alt_text:
+        data["alt_text"] = body.alt_text.strip()
+    if body.caption:
+        data["caption"] = body.caption.strip()
+    data["loop"] = body.loop
+
+    try:
+        block = _append_block(
+            db=db,
+            segment=segment,
+            kind="gif_animation",
+            block_title=block_title,
+            data=data,
+            created_by=current_user.id,
+        )
+    except Exception as exc:
+        logger.error(
+            "DB error persisting gif_animation block for segment_id=%d: %s",
+            segment_id, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save the GIF animation block. Please try again.",
+        ) from exc
+
+    return {"block": block}
 
 
 # ── Generic endpoint ──────────────────────────────────────────────────────────

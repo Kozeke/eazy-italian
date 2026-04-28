@@ -2,6 +2,12 @@
  * OrderParagraphsBlock.tsx
  *
  * Paragraph reordering; order of paragraph ids syncs bidirectionally in live mode.
+ *
+ * Features:
+ *  - Auto-check: green border = correct position, red border = wrong position (after first drag)
+ *  - All-correct celebration: all borders flash green for 2 s, then onComplete fires
+ *  - Teacher: position badge shows the correct order number (1 = "goes first")
+ *  - Student: no position numbers shown
  */
 
 import {
@@ -22,6 +28,9 @@ import { useLiveSyncField } from "../../../../hooks/useLiveSession";
 import { LiveSessionContext } from "../../live/LiveSessionProvider";
 import { showTeacherExerciseHints } from "./showTeacherExerciseHints";
 import "./DragToGap.css";
+
+// Fixed learner-facing instruction for paragraph-ordering blocks to avoid sourcing prompt text from generated data.
+const ORDER_PARAGRAPHS_PROMPT_TEXT = "Reorder the paragraphs to form the correct sequence.";
 
 interface OrderParagraphsData {
   title?: string;
@@ -83,6 +92,15 @@ function resolveQuestion(
   return undefined;
 }
 
+// Compares two ordered id arrays to prevent no-op state writes from live-sync echoes.
+function areIdOrdersEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
 export default function OrderParagraphsBlock({
   item,
   mode,
@@ -103,11 +121,18 @@ export default function OrderParagraphsBlock({
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const completedRef = useRef(false);
 
+  /** True after the student has made at least one drag move — enables live coloring. */
+  const [hasDragged, setHasDragged] = useState(false);
+  /** Briefly true when every paragraph lands in the correct slot. */
+  const [celebrating, setCelebrating] = useState(false);
+
   const itemByIdRef = useRef<Map<string, TokenDraft>>(new Map());
 
   useEffect(() => {
     setOrderedItems(initialItems);
     setDraggingIndex(null);
+    setHasDragged(false);
+    setCelebrating(false);
     completedRef.current = false;
   }, [initialItems, typedItem.id]);
 
@@ -127,33 +152,45 @@ export default function OrderParagraphsBlock({
     orderIds,
     (remote) => {
       if (!Array.isArray(remote)) return;
+      // Stores the remotely-synced order of paragraph ids.
       const ids = remote as string[];
+      // Builds the next ordered paragraph list from the item registry.
       const next: TokenDraft[] = [];
       for (const id of ids) {
         const token = itemByIdRef.current.get(id);
         if (token) next.push(token);
       }
-      if (next.length === ids.length) setOrderedItems(next);
+      if (next.length !== ids.length) return;
+      setOrderedItems((previous) => {
+        // Prevent render loops by ignoring remote updates that do not change id ordering.
+        const previousIds = previous.map((entry) => entry.id);
+        if (areIdOrdersEqual(previousIds, ids)) return previous;
+        return next;
+      });
     },
     { bidirectional: true },
   );
 
+  /** Completion + celebration logic */
   useEffect(() => {
-    if (!question || completedRef.current || isTeacher) return;
-    const currentOrder = orderedItems.map((currentItem) => currentItem.id);
+    if (!question || completedRef.current || isTeacher || !hasDragged) return;
+    const currentOrder = orderedItems.map((ci) => ci.id);
     const isComplete =
       currentOrder.length === question.correct_order.length &&
-      currentOrder.every(
-        (itemId, index) => itemId === question.correct_order[index],
-      );
+      currentOrder.every((id, idx) => id === question.correct_order[idx]);
     if (isComplete) {
       completedRef.current = true;
-      onComplete();
+      setCelebrating(true);
+      setTimeout(() => {
+        setCelebrating(false);
+        onComplete();
+      }, 1800);
     }
-  }, [isTeacher, onComplete, orderedItems, question]);
+  }, [isTeacher, onComplete, orderedItems, question, hasDragged]);
 
   const moveItem = useCallback((fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
+    setHasDragged(true);
     setOrderedItems((prev) => {
       const next = [...prev];
       const [moved] = next.splice(fromIndex, 1);
@@ -181,16 +218,21 @@ export default function OrderParagraphsBlock({
         </div>
       )}
 
-      {question.prompt?.trim() && (
-        <div className="bs-prompt">{question.prompt}</div>
-      )}
+      <div className="bs-prompt">{ORDER_PARAGRAPHS_PROMPT_TEXT}</div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {orderedItems.map((currentItem, index) => {
+          /** 1-based position this paragraph SHOULD be in (answer key) */
           const correctRank =
             question.correct_order.indexOf(currentItem.id) >= 0
               ? question.correct_order.indexOf(currentItem.id) + 1
               : null;
+
+          /** Is this paragraph currently sitting in its correct slot? */
+          const isInCorrectSlot =
+            question.correct_order[index] === currentItem.id;
+
+          // ── drag-target hint for the teacher (highlights canonical slot) ─────
           const draggedParagraphId =
             draggingIndex !== null
               ? orderedItems[draggingIndex]?.id
@@ -204,6 +246,24 @@ export default function OrderParagraphsBlock({
             draggingIndex !== null &&
             canonicalSlotIndex >= 0 &&
             index === canonicalSlotIndex;
+
+          // ── border / background based on correctness ──────────────────────────
+          let borderColor = "#e2e8f0";
+          let bgColor = "#f8fafc";
+          let boxShadow: string | undefined;
+
+          if (celebrating) {
+            // All-correct celebration: everything goes green
+            borderColor = "#22c55e";
+          } else if (showCanonicalRowHint) {
+            // Teacher drag-target hint
+            borderColor = "#c4b5fd";
+            bgColor = "#faf5ff";
+            boxShadow = "0 0 0 3px rgba(167, 139, 250, 0.35)";
+          } else if (hasDragged && !isTeacher) {
+            // Student live feedback — border only
+            borderColor = isInCorrectSlot ? "#22c55e" : "#f87171";
+          }
 
           return (
             <div
@@ -223,14 +283,15 @@ export default function OrderParagraphsBlock({
                 alignItems: "flex-start",
                 gap: 12,
                 padding: "14px 16px",
-                borderRadius: 18,
-                border: `1.5px solid ${showCanonicalRowHint ? "#c4b5fd" : "#e2e8f0"}`,
-                background: showCanonicalRowHint ? "#faf5ff" : "#f8fafc",
-                boxShadow: showCanonicalRowHint
-                  ? "0 0 0 3px rgba(167, 139, 250, 0.35)"
-                  : undefined,
+                borderRadius: 14,
+                border: `1.5px solid ${borderColor}`,
+                background: bgColor,
+                boxShadow,
+                transition:
+                  "border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease",
               }}
             >
+              {/* ── drag handle ─────────────────────────────────────────────── */}
               <button
                 type="button"
                 draggable
@@ -259,34 +320,33 @@ export default function OrderParagraphsBlock({
                 <GripVertical size={14} />
               </button>
 
-              <span
-                style={{
-                  flexShrink: 0,
-                  width: 28,
-                  height: 28,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 8,
-                  background: "#eef2ff",
-                  color: "#4f46e5",
-                  fontSize: 12,
-                  fontWeight: 800,
-                }}
-              >
-                {index + 1}
-              </span>
-
+              {/* ── position badge: correct order for teacher, hidden for student ─ */}
               {teacherOrderHints && correctRank != null && (
                 <span
-                  className="swf-teacher-answer-hint"
-                  style={{ flexShrink: 0, alignSelf: "center", margin: 0 }}
-                  title="Canonical position in the answer key"
+                  title={`This paragraph belongs in position ${correctRank}`}
+                  style={{
+                    flexShrink: 0,
+                    minWidth: 28,
+                    height: 28,
+                    paddingInline: 6,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 8,
+                    background: "#EEF0FE",
+                    color: "#4F52C2",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    lineHeight: 1,
+                    gap: 3,
+                    whiteSpace: "nowrap",
+                  }}
                 >
-                  Key #{correctRank}
+                  #{correctRank}
                 </span>
               )}
 
+              {/* ── paragraph text ───────────────────────────────────────────── */}
               <div
                 style={{
                   flex: 1,
@@ -298,6 +358,7 @@ export default function OrderParagraphsBlock({
               >
                 {currentItem.text}
               </div>
+
             </div>
           );
         })}

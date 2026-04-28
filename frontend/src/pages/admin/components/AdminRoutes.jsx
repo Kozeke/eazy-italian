@@ -287,17 +287,24 @@ function ExerciseDraftsPageRoute() {
           ? firstPayload.type
           : null;
       // Re-use the segment block id when editing so upsertInlineMediaBlock replaces in place.
-      // When the AI generator already persisted a block on the server, its id travels back
-      // through the payload as _aiBlockId — use that instead of minting a new random id
-      // which would cause persistCustomLessonBlockToSegment to append a duplicate block.
+      // Also reuse the id already persisted by the AI generation POST — without this,
+      // saving after AI generation appends a duplicate block instead of updating in place.
+      // Priority order for the AI-persisted block id:
+      // 1. data._persistedBlockId  — DragToGap / TypeWordInGap editors (onSave(data) pattern)
+      // 2. payload._aiBlockId      — all other editors (onSave(title, payloads, drafts) pattern)
+      // Both convey the same intent: the AI generation POST already saved this block;
+      // reuse its id so persistCustomLessonBlockToSegment updates-in-place, not appends.
+      const aiPersistedId =
+        (typeof firstPayload?.data?._persistedBlockId === "string" && firstPayload.data._persistedBlockId.length > 0
+          ? firstPayload.data._persistedBlockId
+          : null) ??
+        (typeof firstPayload?._aiBlockId === "string" && firstPayload._aiBlockId.length > 0
+          ? firstPayload._aiBlockId
+          : null);
       const customBlockId =
         editBlockId && editBlockId.length > 0
           ? editBlockId
-          : firstPayload?._aiBlockId &&
-              typeof firstPayload._aiBlockId === 'string' &&
-              firstPayload._aiBlockId.length > 0
-            ? firstPayload._aiBlockId
-            : Math.random().toString(36).slice(2, 10);
+          : aiPersistedId ?? Math.random().toString(36).slice(2, 10);
 
       const customBlock =
         customType
@@ -335,12 +342,18 @@ function ExerciseDraftsPageRoute() {
                   : customType === "test_with_timer"
                     ? "Test with timer"
                     : "Test without timer"),
-              data:
-                firstPayload.data &&
-                typeof firstPayload.data === "object" &&
-                !Array.isArray(firstPayload.data)
-                  ? firstPayload.data
-                  : {},
+              data: (() => {
+                if (
+                  firstPayload.data &&
+                  typeof firstPayload.data === "object" &&
+                  !Array.isArray(firstPayload.data)
+                ) {
+                  // Strip internal metadata key before persisting
+                  const { _persistedBlockId: _ignored, ...cleanData } = firstPayload.data;
+                  return cleanData;
+                }
+                return {};
+              })(),
             }
           : null;
       // Tracks whether the block was already written to the server so the

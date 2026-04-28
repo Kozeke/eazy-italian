@@ -27,7 +27,36 @@ interface Props {
   onCancel: () => void;
 }
 
-// Add this helper function before the component
+// ── Shuffle helpers (mirrors BuildSentenceBlock.tsx) ─────────────────────────
+// FNV-1a 32-bit hash with finalisation avalanche.
+// The old polynomial hash (hash * 31 + charCode) produced nearly sequential
+// output for sequential IDs like tok_0_0, tok_0_1 — those only differ in the
+// last character so their hashes differed by exactly 1, sorting them back into
+// reading order. FNV-1a + avalanche mix makes adjacent inputs diverge strongly.
+function hashString(value: string): number {
+  let h = 2166136261; // FNV-1a offset basis
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619); // FNV prime
+    h >>>= 0;
+  }
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x45d9f3b);
+  h >>>= 0;
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+function deterministicShuffleByIds(ids: string[], seed: string): string[] {
+  return [...ids].sort((a, b) => {
+    const aHash = hashString(`${seed}:${a}`);
+    const bHash = hashString(`${seed}:${b}`);
+    if (aHash !== bHash) return aHash - bHash;
+    return a.localeCompare(b);
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function applyGeneratedBlock(block: GeneratedBlock): {
   title: string;
   draft: OrderingWordsDraft;
@@ -40,28 +69,40 @@ function applyGeneratedBlock(block: GeneratedBlock): {
   const title = data.title ?? block.title ?? '';
   const sentences = data.sentences ?? [];
 
-  // Build one OrderingWordsDraft per sentence, merged as sentence_groups
-  const tokens: TokenDraft[] = [];
+  // Build tokens in correct reading order first (ids are stable positional refs)
+  const tokenMap = new Map<string, TokenDraft>();
   const sentenceGroups: string[][] = [];
 
   sentences.forEach((sent, sIdx) => {
     const groupIds: string[] = [];
     sent.words.forEach((word, wIdx) => {
       const id = `tok_${sIdx}_${wIdx}`;
-      tokens.push({ id, text: word });
+      tokenMap.set(id, { id, text: word });
       groupIds.push(id);
     });
     sentenceGroups.push(groupIds);
   });
 
-  const correct_order = tokens.map((t) => t.id);
+  // correct_order stays in reading order — used for grading
+  const correct_order = sentenceGroups.flat();
+
+  // Shuffle the display order of tokens per sentence group (same logic as BuildSentenceBlock)
+  const shuffledTokens: TokenDraft[] = [];
+  sentenceGroups.forEach((groupIds, sIdx) => {
+    const seed = `editor:bs-pool:${sIdx}:${groupIds[0] ?? ''}`;
+    const shuffledIds = deterministicShuffleByIds(groupIds, seed);
+    shuffledIds.forEach((id) => {
+      const t = tokenMap.get(id);
+      if (t) shuffledTokens.push(t);
+    });
+  });
 
   const draft: OrderingWordsDraft = {
     type: 'ordering_words',
     prompt: title,
-    tokens,
+    tokens: shuffledTokens,
     correct_order,
-    score: 1,   // ← ADD THIS TOO
+    score: 1,
     metadata: { sentence_groups: sentenceGroups },
   };
 
@@ -84,6 +125,7 @@ export default function BuildSentenceEditorPage({
   const [draft, setDraft] = useState<OrderingWordsDraft>(() =>
     normaliseDraft(initialDraft),
   );
+  // Inside the component, after the existing useState calls:
   const [showAIModal, setShowAIModal] = useState(false);
   // Server-assigned block id from AI generation — forwarded in the payload so
   // handleExerciseSave upserts the existing block instead of appending a duplicate.

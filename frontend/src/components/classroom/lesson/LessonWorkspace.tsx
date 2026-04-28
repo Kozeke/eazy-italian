@@ -49,7 +49,9 @@ import {
   LessonFlowError,
   LessonRailState,
 } from "./flow/LessonPlayerShared";
-import SectionSidePanel, { type Segment as SidePanelSegment } from "../unit/SectionSidePanel";
+import SectionSidePanel, {
+  type Segment as SidePanelSegment,
+} from "../unit/SectionSidePanel";
 import "../classroom-mode.css";
 
 import {
@@ -343,26 +345,31 @@ function LessonWorkspace({
     handleCarouselSlidesChange,
     flush: flushInlineMediaSaves,
     persistSegmentTitleDebounced,
-  } = useSegmentPersistence({ effectiveUnitId, mode, refreshKey: segmentRefreshKey, unitSegments: unit?.id === effectiveUnitId ? unit?.segments as UnitSegment[] | undefined : undefined });
+  } = useSegmentPersistence({
+    effectiveUnitId,
+    mode,
+    refreshKey: segmentRefreshKey,
+    unitSegments:
+      unit?.id === effectiveUnitId
+        ? (unit?.segments as UnitSegment[] | undefined)
+        : undefined,
+  });
 
   // Build sortedSegments from the hook's fetchedSegments first.
   // Fall back to unit?.segments ONLY when both belong to the same unit —
   // if unit?.id !== effectiveUnitId the unit fetch is still in-flight and
   // unit?.segments holds stale data from the previous unit, which would leak
   // the old unit's media blocks into the new unit's sections.
-  const sortedSegments = useMemo(
-    () => {
-      if (fetchedSegments.length > 0) return fetchedSegments;
-      // Only use the embedded segments when they are confirmed to be for the
-      // current unit.  While useStudentUnit is resolving the new unit it
-      // briefly sets unit=null, so unit?.id will be undefined — safe to skip.
-      if (unit?.id != null && unit.id === effectiveUnitId) {
-        return getSortedSegments(unit.segments);
-      }
-      return [];
-    },
-    [fetchedSegments, unit?.id, unit?.segments, effectiveUnitId],
-  );
+  const sortedSegments = useMemo(() => {
+    if (fetchedSegments.length > 0) return fetchedSegments;
+    // Only use the embedded segments when they are confirmed to be for the
+    // current unit.  While useStudentUnit is resolving the new unit it
+    // briefly sets unit=null, so unit?.id will be undefined — safe to skip.
+    if (unit?.id != null && unit.id === effectiveUnitId) {
+      return getSortedSegments(unit.segments);
+    }
+    return [];
+  }, [fetchedSegments, unit?.id, unit?.segments, effectiveUnitId]);
 
   /**
    * Maps the UI section string-key (e.g. "section-0") to the real integer
@@ -383,7 +390,11 @@ function LessonWorkspace({
     () =>
       sortedSegments.map((segment) => ({
         id: segment.id,
-        title: segment.title ?? t("classroom.lessonWorkspace.sectionLabel", { index: segment.order_index ?? 0 }),
+        title:
+          segment.title ??
+          t("classroom.lessonWorkspace.sectionLabel", {
+            index: segment.order_index ?? 0,
+          }),
         order_index: segment.order_index ?? 0,
         status: "draft",
         is_visible_to_students: true,
@@ -403,12 +414,37 @@ function LessonWorkspace({
     setPendingInlineMediaTargetSectionId,
   ] = useState<string | null>(null);
 
+  /**
+   * When the teacher returns from an editor page (ExerciseDraftsPage), we store
+   * the id of the new / just-edited block here so VerticalLessonPlayer can scroll
+   * it into view after React renders the updated section.
+   */
+  const [pendingScrollToBlockId, setPendingScrollToBlockId] = useState<string | null>(null);
+
   const exerciseImportConsumedRef = useRef(false);
 
   // Reset the guard when the unit changes
   useEffect(() => {
     exerciseImportConsumedRef.current = false;
   }, [effectiveUnitId]);
+
+  // ── Section definitions (memoised to avoid spurious VLP effect re-runs) ─────
+  // Previously created inline inside the JSX with `.map()`, which produced a new
+  // array reference on every render and caused VLP's sections useMemo + effects to
+  // fire constantly — including the critical pendingInlineMedia scroll effect, which
+  // raced against the clearing effect and missed the target section.
+  const sectionDefinitions = useMemo(
+    () =>
+      sortedSegments.length > 0
+        ? sortedSegments.map((segment, index) => ({
+            id: `section-${index}`,
+            label:
+              segment.title ??
+              t("classroom.lessonWorkspace.sectionLabel", { index: index + 1 }),
+          }))
+        : undefined,
+    [sortedSegments, t],
+  );
 
   // ── Flow ──────────────────────────────────────────────────────────────────────
   const flow = useMemo(
@@ -488,7 +524,9 @@ function LessonWorkspace({
     const orderIndex = sortedSegments.length;
     try {
       await segmentsApi.createSegment(effectiveUnitId, {
-        title: t("classroom.lessonWorkspace.sectionLabel", { index: orderIndex + 1 }),
+        title: t("classroom.lessonWorkspace.sectionLabel", {
+          index: orderIndex + 1,
+        }),
         order_index: orderIndex,
         status: "published",
         is_visible_to_students: true,
@@ -498,23 +536,39 @@ function LessonWorkspace({
     } catch (err) {
       console.error("[LessonWorkspace] Failed to add section", err);
     }
-  }, [mode, effectiveUnitId, sortedSegments.length, refetchSegments, onUnitReloaded, t]);
+  }, [
+    mode,
+    effectiveUnitId,
+    sortedSegments.length,
+    refetchSegments,
+    onUnitReloaded,
+    t,
+  ]);
 
   /**
    * Persists a new section order after drag-and-drop in the side panel, then aligns scroll index with the same segment.
    */
   const handleReorderSegments = useCallback(
     async (orderedSegmentIds: number[]) => {
-      if (mode !== "teacher" || !effectiveUnitId || orderedSegmentIds.length === 0) return;
-      const activeSegmentId =
-        sortedSegments[visibleSectionIndex]?.id ?? null;
+      if (
+        mode !== "teacher" ||
+        !effectiveUnitId ||
+        orderedSegmentIds.length === 0
+      )
+        return;
+      const activeSegmentId = sortedSegments[visibleSectionIndex]?.id ?? null;
       try {
-        const payload = orderedSegmentIds.map((id, order_index) => ({ id, order_index }));
+        const payload = orderedSegmentIds.map((id, order_index) => ({
+          id,
+          order_index,
+        }));
         await segmentsApi.reorderSegments(effectiveUnitId, payload);
         await refetchSegments();
         onUnitReloaded();
         if (activeSegmentId != null) {
-          const newIndex = orderedSegmentIds.findIndex((id) => id === activeSegmentId);
+          const newIndex = orderedSegmentIds.findIndex(
+            (id) => id === activeSegmentId,
+          );
           if (newIndex >= 0) {
             setVisibleSectionIndex(newIndex);
             requestAnimationFrame(() => scrollToSectionRef.current?.(newIndex));
@@ -545,7 +599,8 @@ function LessonWorkspace({
         await refetchSegments();
         onUnitReloaded();
         let nextIdx = visibleSectionIndex;
-        if (deletedIndex < visibleSectionIndex) nextIdx = visibleSectionIndex - 1;
+        if (deletedIndex < visibleSectionIndex)
+          nextIdx = visibleSectionIndex - 1;
         else if (deletedIndex === visibleSectionIndex) {
           nextIdx = Math.min(deletedIndex, oldLen - 2);
         }
@@ -606,7 +661,7 @@ function LessonWorkspace({
       const targetSegmentId: number | null =
         sectionId != null
           ? (sectionToSegmentIntegerIdMap[sectionId] ??
-             resolveSegmentIdForSection(sectionId, sortedSegments))
+            resolveSegmentIdForSection(sectionId, sortedSegments))
           : (currentSectionIntegerId ?? sortedSegments[0]?.id ?? null);
       sessionStorage.setItem(
         draftRouteContextStorageKey,
@@ -617,7 +672,11 @@ function LessonWorkspace({
         }),
       );
       navigate("/admin/exercises/new", {
-        state: { returnTo, targetSectionId: sectionId ?? null, targetSegmentId },
+        state: {
+          returnTo,
+          targetSectionId: sectionId ?? null,
+          targetSegmentId,
+        },
       });
     },
     [
@@ -636,12 +695,20 @@ function LessonWorkspace({
       if (mode !== "teacher" || !effectiveUnitId) return;
 
       // Remove a persisted segment JSON block (AI exercises, etc.) via PUT media_blocks.
-      for (const [sectionId, blocks] of Object.entries(inlineMediaBySectionId)) {
+      for (const [sectionId, blocks] of Object.entries(
+        inlineMediaBySectionId,
+      )) {
         if (!blocks.some((b) => b.id === blockId)) continue;
         const prunedBlocks = blocks.filter((b) => b.id !== blockId);
-        const targetSegmentId = resolveSegmentIdForSection(sectionId, sortedSegments);
+        const targetSegmentId = resolveSegmentIdForSection(
+          sectionId,
+          sortedSegments,
+        );
         if (!targetSegmentId) {
-          console.warn("[LessonWorkspace] Delete block: could not resolve segment id", sectionId);
+          console.warn(
+            "[LessonWorkspace] Delete block: could not resolve segment id",
+            sectionId,
+          );
           return;
         }
         try {
@@ -650,7 +717,10 @@ function LessonWorkspace({
           });
           handleInlineMediaChange(sectionId, prunedBlocks);
         } catch (err) {
-          console.error("[LessonWorkspace] Failed to delete segment media block", err);
+          console.error(
+            "[LessonWorkspace] Failed to delete segment media block",
+            err,
+          );
         }
         return;
       }
@@ -734,10 +804,13 @@ function LessonWorkspace({
       if (mode !== "teacher") return;
 
       // Reorder persisted segment media_blocks (custom exercises, etc.)
-      for (const [sectionId, blocks] of Object.entries(inlineMediaBySectionId)) {
+      for (const [sectionId, blocks] of Object.entries(
+        inlineMediaBySectionId,
+      )) {
         const blockPosition = blocks.findIndex((b) => b.id === blockId);
         if (blockPosition === -1) continue;
-        const swapPosition = direction === "up" ? blockPosition - 1 : blockPosition + 1;
+        const swapPosition =
+          direction === "up" ? blockPosition - 1 : blockPosition + 1;
         if (swapPosition < 0 || swapPosition >= blocks.length) return;
         const reorderedBlocks = [...blocks];
         const temp = reorderedBlocks[blockPosition];
@@ -753,20 +826,37 @@ function LessonWorkspace({
       const nonDividerItems = flow.items.filter((i) => i.type !== "divider");
       const currentIndex = nonDividerItems.findIndex((i) => i.id === blockId);
       if (currentIndex === -1) return;
-      const neighborIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      const neighborIndex =
+        direction === "up" ? currentIndex - 1 : currentIndex + 1;
       if (neighborIndex < 0 || neighborIndex >= nonDividerItems.length) return;
 
-      const currentItem = nonDividerItems[currentIndex] as Record<string, unknown>;
-      const neighborItem = nonDividerItems[neighborIndex] as Record<string, unknown>;
+      const currentItem = nonDividerItems[currentIndex] as Record<
+        string,
+        unknown
+      >;
+      const neighborItem = nonDividerItems[neighborIndex] as Record<
+        string,
+        unknown
+      >;
       if (currentItem.type !== neighborItem.type) return;
 
       try {
         if (currentItem.type === "video") {
-          const curVideo = (currentItem as { video?: { id?: number; order_index?: number; order?: number } }).video;
-          const neighVideo = (neighborItem as { video?: { id?: number; order_index?: number; order?: number } }).video;
+          const curVideo = (
+            currentItem as {
+              video?: { id?: number; order_index?: number; order?: number };
+            }
+          ).video;
+          const neighVideo = (
+            neighborItem as {
+              video?: { id?: number; order_index?: number; order?: number };
+            }
+          ).video;
           if (curVideo?.id == null || neighVideo?.id == null) return;
           const curOrder = Number(curVideo.order_index ?? curVideo.order ?? 0);
-          const neighOrder = Number(neighVideo.order_index ?? neighVideo.order ?? 0);
+          const neighOrder = Number(
+            neighVideo.order_index ?? neighVideo.order ?? 0,
+          );
           await unitsApi.reorderUnitContent(effectiveUnitId, {
             videos: [
               { id: Number(curVideo.id), order_index: neighOrder },
@@ -774,8 +864,12 @@ function LessonWorkspace({
             ],
           });
         } else if (currentItem.type === "task") {
-          const curTask = (currentItem as { task?: { id?: number; order_index?: number } }).task;
-          const neighTask = (neighborItem as { task?: { id?: number; order_index?: number } }).task;
+          const curTask = (
+            currentItem as { task?: { id?: number; order_index?: number } }
+          ).task;
+          const neighTask = (
+            neighborItem as { task?: { id?: number; order_index?: number } }
+          ).task;
           if (curTask?.id == null || neighTask?.id == null) return;
           const curOrder = Number(curTask.order_index ?? 0);
           const neighOrder = Number(neighTask.order_index ?? 0);
@@ -786,8 +880,12 @@ function LessonWorkspace({
             ],
           });
         } else if (currentItem.type === "test") {
-          const curTest = (currentItem as { test?: { id?: number; order_index?: number } }).test;
-          const neighTest = (neighborItem as { test?: { id?: number; order_index?: number } }).test;
+          const curTest = (
+            currentItem as { test?: { id?: number; order_index?: number } }
+          ).test;
+          const neighTest = (
+            neighborItem as { test?: { id?: number; order_index?: number } }
+          ).test;
           if (curTest?.id == null || neighTest?.id == null) return;
           const curOrder = Number(curTest.order_index ?? 0);
           const neighOrder = Number(neighTest.order_index ?? 0);
@@ -802,7 +900,10 @@ function LessonWorkspace({
         }
         onUnitReloaded();
       } catch (err) {
-        console.error("[LessonWorkspace] Failed to reorder unit flow item", err);
+        console.error(
+          "[LessonWorkspace] Failed to reorder unit flow item",
+          err,
+        );
       }
     },
     [
@@ -823,7 +924,9 @@ function LessonWorkspace({
       let blockSectionId: string | null = null;
       // Persisted segment block so the drafts page can open the right editor with data
       let found: InlineMediaBlock | null = null;
-      for (const [sectionId, blocks] of Object.entries(inlineMediaBySectionId)) {
+      for (const [sectionId, blocks] of Object.entries(
+        inlineMediaBySectionId,
+      )) {
         const hit = blocks.find((b) => b.id === blockId);
         if (hit && SEGMENT_EDITABLE_EXERCISE_KINDS.has(hit.kind)) {
           found = hit;
@@ -831,7 +934,11 @@ function LessonWorkspace({
           break;
         }
       }
-      if (!found || !blockSectionId || !templateIdForSegmentExerciseKind(found.kind)) {
+      if (
+        !found ||
+        !blockSectionId ||
+        !templateIdForSegmentExerciseKind(found.kind)
+      ) {
         console.warn(
           "[LessonWorkspace] Edit block: no editable segment exercise found for id",
           blockId,
@@ -855,7 +962,9 @@ function LessonWorkspace({
         kind: found.kind,
         title: found.title ?? "",
         data:
-          found.data && typeof found.data === "object" && !Array.isArray(found.data)
+          found.data &&
+          typeof found.data === "object" &&
+          !Array.isArray(found.data)
             ? found.data
             : {},
       };
@@ -923,7 +1032,10 @@ function LessonWorkspace({
 
     const storedImport = (() => {
       const raw = sessionStorage.getItem(pendingInlineMediaStorageKey);
-      console.log('[LessonWorkspace] checking lessonPendingInlineMedia on mount:', { found: !!raw, raw });
+      console.log(
+        "[LessonWorkspace] checking lessonPendingInlineMedia on mount:",
+        { found: !!raw, raw },
+      );
 
       if (!raw) return null;
       try {
@@ -948,7 +1060,10 @@ function LessonWorkspace({
     const customBlock =
       routeState?.exerciseImportForTest?.customBlock ??
       storedImport?.customBlock;
-    if (!mediaBlock && !customBlock && !storedImport?.templateId) return;
+    // Stores whether router state still carries a section anchor even when
+    // the pending import payload is missing (e.g. large upload could not be stored).
+    const hasSectionReturnState = typeof routeState?.targetSectionId === "string";
+    if (!mediaBlock && !customBlock && !storedImport?.templateId && !hasSectionReturnState) return;
     if (exerciseImportConsumedRef.current) return;
     exerciseImportConsumedRef.current = true;
 
@@ -962,7 +1077,33 @@ function LessonWorkspace({
     navigate(`${pathname}${search}${hash}`, { replace: true, state: {} });
     sessionStorage.removeItem(pendingInlineMediaStorageKey);
 
+    if (!mediaBlock && !customBlock && !templateId && hasSectionReturnState) {
+      // Stores parsed section index for direct fallback scroll when there is no block payload.
+      const fallbackTargetIdx = parseLessonSectionIndex(targetSectionId);
+      if (fallbackTargetIdx !== null && fallbackTargetIdx > 0) {
+        setPendingInlineMediaTargetSectionId(targetSectionId);
+        setVisibleSectionIndex(fallbackTargetIdx);
+        requestAnimationFrame(() => {
+          scrollToSectionRef.current?.(fallbackTargetIdx);
+        });
+      }
+      return;
+    }
+
     if (customBlock) {
+      // Traces custom block handoff from drafts page back into lesson section state.
+      if (customBlock.kind === "image_stacked") {
+        console.log("[LessonWorkspace] importing image_stacked customBlock", {
+          customBlockId: customBlock.id,
+          customBlockTitle: customBlock.title,
+          targetSectionId,
+          alreadyPersisted: Boolean(storedImport?.alreadyPersisted),
+          dataKeys:
+            customBlock.data && typeof customBlock.data === "object"
+              ? Object.keys(customBlock.data as Record<string, unknown>)
+              : [],
+        });
+      }
       if (storedImport?.alreadyPersisted) {
         // The block was already written to the server by persistCustomLessonBlockToSegment
         // before navigation. Skip upsertInlineMediaBlock: calling it while
@@ -979,6 +1120,28 @@ function LessonWorkspace({
       // Clearing is handled by the data-driven effect below once sortedSegments
       // are available — avoids the 150 ms race where segments haven't loaded yet.
       setPendingInlineMediaTargetSectionId(targetSectionId);
+
+      // ── Scroll to the specific block (new or edited) ─────────────────────
+      // After the editor saves and navigates back, we tell VLP to scroll the
+      // exact block (by its data-lesson-focus-anchor id) into view so the
+      // teacher lands right on the content they just created / modified.
+      setPendingScrollToBlockId(customBlock.id);
+
+      // ── Direct scroll-to-section (belt-and-suspenders) ───────────────────
+      // The pendingInlineMediaTargetSectionId signal races when sortedSegments
+      // haven't loaded yet on remount (VLP only has section-0, can't find
+      // section-N, and the clearing effect nulls the signal before sections
+      // populate). Directly set visibleSectionIndex + call scrollToSectionRef
+      // so the correct section is shown regardless of segment-load timing.
+      const targetIdx = parseLessonSectionIndex(targetSectionId);
+      if (targetIdx !== null && targetIdx > 0) {
+        setVisibleSectionIndex(targetIdx);
+        // scrollToSectionRef is wired after VLP mounts; one rAF is enough.
+        requestAnimationFrame(() => {
+          scrollToSectionRef.current?.(targetIdx);
+        });
+      }
+
       return;
     }
 
@@ -993,8 +1156,20 @@ function LessonWorkspace({
 
     // Carousel-only template path does not set pending target — still jump back to the right section.
     // Cleared by the data-driven effect below once sortedSegments are available.
-    if (templateId === "img-carousel" && parseLessonSectionIndex(targetSectionId) != null) {
+    if (
+      templateId === "img-carousel" &&
+      parseLessonSectionIndex(targetSectionId) != null
+    ) {
       setPendingInlineMediaTargetSectionId(targetSectionId);
+    }
+
+    // Direct scroll for non-customBlock paths (same belt-and-suspenders as above).
+    const templateTargetIdx = parseLessonSectionIndex(targetSectionId);
+    if (templateTargetIdx !== null && templateTargetIdx > 0) {
+      setVisibleSectionIndex(templateTargetIdx);
+      requestAnimationFrame(() => {
+        scrollToSectionRef.current?.(templateTargetIdx);
+      });
     }
   }, [
     mode,
@@ -1004,6 +1179,7 @@ function LessonWorkspace({
     upsertInlineMediaBlock,
     setCarouselSlidesBySectionId,
     setPendingInlineMediaTargetSectionId,
+    setVisibleSectionIndex,
   ]);
 
   // ── Clear pendingInlineMediaTargetSectionId once data is ready ───────────────
@@ -1012,12 +1188,17 @@ function LessonWorkspace({
   // and its scroll effect can find the target section), then clear in the next
   // animation frame — giving VLP's useEffect one render cycle to act first.
   useEffect(() => {
-    if (!pendingInlineMediaTargetSectionId || sortedSegments.length === 0) return;
+    if (!pendingInlineMediaTargetSectionId || sortedSegments.length === 0)
+      return;
     const raf = requestAnimationFrame(() => {
       setPendingInlineMediaTargetSectionId(null);
     });
     return () => cancelAnimationFrame(raf);
-  }, [pendingInlineMediaTargetSectionId, sortedSegments, setPendingInlineMediaTargetSectionId]);
+  }, [
+    pendingInlineMediaTargetSectionId,
+    sortedSegments,
+    setPendingInlineMediaTargetSectionId,
+  ]);
 
   // ── Render gates ───────────────────────────────────────────────────────────────
   if (loading && !unit) return <LessonFlowSkeleton />;
@@ -1043,7 +1224,9 @@ function LessonWorkspace({
           className="mx-4 mt-3 mb-1 flex items-center gap-2 rounded-xl border border-amber-100
                      bg-amber-50 px-4 py-2.5 text-[13px] text-amber-700"
         >
-          <span className="font-medium">{t("classroom.lessonWorkspace.slidesUnavailable")}</span>
+          <span className="font-medium">
+            {t("classroom.lessonWorkspace.slidesUnavailable")}
+          </span>
           <span>{t("classroom.lessonWorkspace.tryAgainLater")}</span>
         </div>
       )}
@@ -1121,21 +1304,16 @@ function LessonWorkspace({
           className={[
             // flex-1: in column layout, take height below the answers rail; in row layout, fill beside the panel so .vlp-root gets a bounded flex height.
             "flex  min-h-0 flex-col",
-            showDesktopSidePanel ? "min-w-[700px] max-w-[900px]" : "w-full min-w-0 max-w-none",
+            showDesktopSidePanel
+              ? "min-w-[700px] max-w-[900px]"
+              : "w-full min-w-0 max-w-none",
           ].join(" ")}
         >
           <VerticalLessonPlayer
-            key={`vlp-unit-${effectiveUnitId ?? 'none'}`}
+            key={`vlp-unit-${effectiveUnitId ?? "none"}`}
             flow={flow}
             mode={mode}
-            sectionDefinitions={
-              sortedSegments.length > 0
-                ? sortedSegments.map((segment, index) => ({
-                    id: `section-${index}`,
-                    label: segment.title ?? t("classroom.lessonWorkspace.sectionLabel", { index: index + 1 }),
-                  }))
-                : undefined
-            }
+            sectionDefinitions={sectionDefinitions}
             onActiveSectionChange={(index) => {
               setVisibleSectionIndex(index);
             }}
@@ -1171,6 +1349,14 @@ function LessonWorkspace({
                   }
                 : undefined
             }
+            pendingScrollToBlockId={
+              mode === "teacher" ? pendingScrollToBlockId : null
+            }
+            onScrollToBlockConsumed={
+              mode === "teacher"
+                ? () => setPendingScrollToBlockId(null)
+                : undefined
+            }
             {...(mode === "teacher"
               ? {
                   ...buildTeacherProps(onContentSaved, handleAddContent),
@@ -1188,8 +1374,12 @@ function LessonWorkspace({
         {showDesktopSidePanel && (
           <SectionSidePanel
             open={showDesktopSidePanel}
-            segments={sidePanelSegments.length > 0 ? sidePanelSegments : undefined}
-            currentSegmentId={sidePanelSegments[visibleSectionIndex]?.id ?? null}
+            segments={
+              sidePanelSegments.length > 0 ? sidePanelSegments : undefined
+            }
+            currentSegmentId={
+              sidePanelSegments[visibleSectionIndex]?.id ?? null
+            }
             onSelectSegment={handleSelectSegment}
             onAddSegment={mode === "teacher" ? handleAddSegment : undefined}
             onRemoveSegment={

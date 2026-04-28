@@ -10,11 +10,13 @@
  * • Advanced panel shows/hides config options based on the selected type.
  * • ReviewStep is now generic — works for all exercise types, not just drag_to_gap.
  * • All design tokens / sub-components unchanged so the rest of the UI is stable.
+ * • "By description" uses EXERCISE_PROMPT_HINTS: three quick chips + two richer chips per
+ *   exercise type, plus a matching textarea placeholder.
  *
  * Adding a new exercise type
  * --------------------------
- * Add ONE entry to EXERCISE_TYPE_CONFIGS below.
- * Zero other frontend changes needed (the editor just passes exerciseType="your_type").
+ * Add ONE entry to EXERCISE_TYPE_CONFIGS below, and (recommended) a matching
+ * EXERCISE_PROMPT_HINTS entry. The editor passes exerciseType="your_type".
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -200,6 +202,36 @@ const EXERCISE_TYPE_CONFIGS: ExerciseTypeConfig[] = [
     showPairs:      true,   // reuse pair-count field as "question count"
     defaultGapType: "",
   },
+  {
+    type:           "text",
+    label:          "Reading text",
+    icon:           "📖",
+    description:    "Markdown reading or grammar explanation for the lesson",
+    endpoint:       "text",
+    showGaps:       false,
+    showPairs:      false,
+    defaultGapType: "",
+  },
+  {
+    type:           "image",
+    label:          "Image block",
+    icon:           "🖼",
+    description:    "AI illustration (Hugging Face when configured, else SVG)",
+    endpoint:       "image",
+    showGaps:       false,
+    showPairs:      false,
+    defaultGapType: "",
+  },
+  {
+    type:           "image_stacked",
+    label:          "Images stacked",
+    icon:           "🖼",
+    description:    "Several AI illustrations in one block (2–6 images)",
+    endpoint:       "image-stacked",
+    showGaps:       false,
+    showPairs:      true,
+    defaultGapType: "",
+  },
 ];
 
 // Map for fast lookup
@@ -233,7 +265,7 @@ type Step = "configure"   | "review";
 
 const LANGUAGE_OPTIONS = ["Detect automatically", "English"];
 const GAP_OPTIONS      = ["Auto", "3", "5", "8", "10", "15"];
-const PAIR_OPTIONS     = ["Auto", "4", "6", "8", "10"];
+const PAIR_OPTIONS     = ["Auto", "2", "3", "4", "6", "8", "10"];
 const DIFFICULTY_OPTIONS = ["Beginner (A1–A2)", "Intermediate (B1–B2)", "Advanced (C1–C2)"];
 const GAP_TYPE_OPTIONS   = [
   "Verbs only",
@@ -244,13 +276,258 @@ const GAP_TYPE_OPTIONS   = [
   "Custom words",
 ];
 
-const PROMPT_CHIPS = [
-  "Write a text on the topic",
-  "Generate text with focus on",
-  "Create a short story about",
-  "Practice past tense with",
-  "Vocabulary exercise about",
-];
+/**
+ * Suggested prompt starters: three short (lighter output) and two richer (longer
+ * text / more items). Keys match EXERCISE_TYPE_CONFIGS[].type.
+ */
+interface ExercisePromptHints {
+  /** Shorter or simpler prompts, typically lower token use */
+  simple: readonly [string, string, string];
+  /** Longer or denser outputs — note for teachers: uses more tokens */
+  advanced: readonly [string, string];
+}
+
+// Default when a type is missing from the per-type map
+const DEFAULT_PROMPT_HINTS: ExercisePromptHints = {
+  simple: [
+    "Write a text on the topic of",
+    "Generate focused practice for",
+    "Create a short exercise about",
+  ],
+  advanced: [
+    "Build a full paragraph with several gaps or items about",
+    "Design a longer, richer task with varied vocabulary for",
+  ],
+};
+
+/**
+ * Per-exercise prompt chips for the “By description” tab — simple vs advanced
+ * so teachers see what to ask for at a glance.
+ */
+const EXERCISE_PROMPT_HINTS: Record<string, ExercisePromptHints> = {
+  drag_to_gap: {
+    simple: [
+      "3 gaps, topic:",
+      "5 short lines with past tense, theme:",
+      "Fill gaps: vocabulary about",
+    ],
+    advanced: [
+      "A dialogue with 8 gaps, B1 level, about",
+      "One longer news-style paragraph with 10 mixed gaps on",
+    ],
+  },
+  type_word_in_gap: {
+    simple: [
+      "2 sentences, type the missing verb about",
+      "Short text, type articles (il/lo/gli) in:",
+      "4 gaps, learners type each word, topic:",
+    ],
+    advanced: [
+      "A full paragraph: learners type every missing word (6–8 gaps) for",
+      "Conversation lines with 10 gaps, keyboard input, context:",
+    ],
+  },
+  select_word_form: {
+    simple: [
+      "Dropdown: correct verb form in 4 sentences about",
+      "3 gaps, adjective vs adverb, theme:",
+      "Mixed tenses, topic:",
+    ],
+    advanced: [
+      "8 dropdowns, subjunctive/conditional, passage about",
+      "Longer text, many form choices, advanced grammar on",
+    ],
+  },
+  match_pairs: {
+    simple: [
+      "Match 5 Italian words to English for",
+      "Pair idioms to meanings, theme:",
+      "Connect food words to categories:",
+    ],
+    advanced: [
+      "8 pairs: Italian phrases and English definitions about",
+      "Cultural matching (tradition, region, saying) for",
+    ],
+  },
+  build_sentence: {
+    simple: [
+      "Shuffle 4–6 words into one sentence about",
+      "2 jumbled simple sentences, topic:",
+      "Present tense word order practice:",
+    ],
+    advanced: [
+      "5 shuffled medium sentences with subordinate clauses on",
+      "Mix jumbled questions and statements for",
+    ],
+  },
+  select_form_to_image: {
+    simple: [
+      "3 image cards, pick the correct adjective for each:",
+      "Choose the word for each food picture, theme:",
+      "2 cards, verb forms, illustrated topic:",
+    ],
+    advanced: [
+      "6 cards: prepositions and room pictures; phrases about",
+      "Larger set: adjective agreement with illustrated words for",
+    ],
+  },
+  drag_word_to_image: {
+    simple: [
+      "Drag the label to 3 pictures:",
+      "4 image cards, animals and Italian names:",
+      "Match simple objects (table, chair) to words:",
+    ],
+    advanced: [
+      "6 scene images, drag a short phrase to each, context:",
+      "Workplace and profession images with vocabulary for",
+    ],
+  },
+  drag_to_image: {
+    simple: [
+      "Drag the label to 3 pictures:",
+      "4 image cards, animals and Italian names:",
+      "Match simple objects to Italian words:",
+    ],
+    advanced: [
+      "6 scene images, drag a short phrase to each, context:",
+      "Workplace and profession images with vocabulary for",
+    ],
+  },
+  order_paragraphs: {
+    simple: [
+      "4 jumbled short paragraphs about",
+      "Sequence 3 lines of a simple story on",
+      "Put 4 text snippets in order, topic:",
+    ],
+    advanced: [
+      "6 jumbled blocks forming a short article on",
+      "A longer text split into 5 jumbled parts, connectors in",
+    ],
+  },
+  test_without_timer: {
+    simple: [
+      "5 multiple-choice on vocabulary for",
+      "4 questions on prepositions, theme:",
+      "3 easy grammar items about",
+    ],
+    advanced: [
+      "10 MCQ reading comprehension, passage idea:",
+      "8 mixed questions: culture + grammar on",
+    ],
+  },
+  test_with_timer: {
+    simple: [
+      "5 quick MCQ, vocabulary:",
+      "4 timed questions, prepositions, topic:",
+      "3 short grammar items about",
+    ],
+    advanced: [
+      "10 MCQ, reading passage, theme:",
+      "8 faster-paced mixed questions for",
+    ],
+  },
+  true_false: {
+    simple: [
+      "4 true/false statements on",
+      "Quick facts: 5 T/F about",
+      "3 T/F for beginners, topic:",
+    ],
+    advanced: [
+      "8 nuanced T/F for advanced learners on",
+      "After a short text: 6 T/F about",
+    ],
+  },
+  sort_into_columns: {
+    simple: [
+      "4 columns: food, drink, place, time — theme:",
+      "3 columns: masculine, feminine, plural for",
+      "Sort 12 items into 4 category columns about",
+    ],
+    advanced: [
+      "4 column headers, 3 items per column, rich vocabulary for",
+      "A sorting task with 4 themes and mixed difficulty on",
+    ],
+  },
+  text: {
+    simple: [
+      "Write 2 short sentences about",
+      "A brief note explaining",
+      "Simple A2 explanation of",
+    ],
+    advanced: [
+      "A short reading passage (5–6 sentences) with a title about",
+      "Mini text with subheadings and key terms in bold on",
+    ],
+  },
+  image: {
+    simple: [
+      "Simple flat illustration of",
+      "Cartoon style, one subject:",
+      "Icon-style picture for a lesson on",
+    ],
+    advanced: [
+      "Detailed scene, warm colors, context:",
+      "Educational diagram-style image explaining",
+    ],
+  },
+  /** Several frames in one block — keep style consistent across the stack */
+  image_stacked: {
+    simple: [
+      "2–3 simple panels, same art style, theme:",
+      "A small sequence: step 1, step 2, step 3 for",
+      "Icon row: morning, lunch, evening — topic:",
+    ],
+    advanced: [
+      "4–5 panels that tell a short visual story, setting:",
+      "6 matching illustrations, one cohesive sequence for a lesson on",
+    ],
+  },
+};
+
+// Merges registry with defaults for unknown types
+function getPromptHintsForExerciseType(exerciseType: string): ExercisePromptHints {
+  return EXERCISE_PROMPT_HINTS[exerciseType] ?? DEFAULT_PROMPT_HINTS;
+}
+
+// Textarea placeholder lines tailored to the block being generated
+function getDescriptionPlaceholder(exerciseType: string): string {
+  const byType: Record<string, string> = {
+    text:
+      "Example: Write 2 short sentences about ordering coffee in an Italian bar.\n" +
+      "Or: a short grammar tip on agreement with collective nouns.",
+    image:
+      "Example: A friendly cartoon barista and two cups, soft pastel background.\n" +
+      "Or: simple line-art icons for a lesson on public transport.",
+    image_stacked:
+      "Example: 3 stacked frames — order coffee, drink at the bar, pay; same flat style and palette.\n" +
+      "Or: 4 panels, recipe or daily-routine steps, simple cartoon, consistent background.",
+    sort_into_columns:
+      "Example: 4 columns — breakfast, lunch, dinner, snack — with 12 food words in Italian to sort.\n" +
+      "Or: 3 columns for ser/estar-style distinctions with vocabulary items…",
+    order_paragraphs:
+      "Example: 4 shuffled short paragraphs on how to make pasta, correct order: recipe steps.\n" +
+      "Or: 3 jumbled intro sentences about a city tour.",
+    match_pairs:
+      "Example: Match 6 Italian phrasal verbs to their English meanings (travel theme).\n" +
+      "Or: pair proverbs to their meanings for advanced learners.",
+    build_sentence:
+      "Example: One jumbled line for “Non ho ancora visto il film” about weekends.\n" +
+      "Or: 2 simple sentences, present tense, topic shopping.",
+    test_without_timer: "Example: 5 MCQ on irregular past participles, cooking theme.",
+    test_with_timer:    "Example: 6 quick MCQ, 45 seconds, vocabulary on the office.",
+    true_false:         "Example: 5 T/F on Italian geography; one subtle trick statement.",
+    drag_word_to_image: "Example: 4 images — cat, dog, fish, bird — with Italian labels to drag.",
+    drag_to_image:      "Example: 4 images — cat, dog, fish, bird — with Italian labels to drag.",
+    select_form_to_image: "Example: 3 food photos, choose the correct adjective (gender/number) for each.",
+    drag_to_gap:        "Example: 5 gaps, mixed vocabulary, a short text about a train journey.",
+    type_word_in_gap:   "Example: 4 gaps; learners type missing verbs, past tense, day at school.",
+    select_word_form:   "Example: 6 gaps with dropdowns, subjunctive in wishes and doubts.",
+  };
+  return (
+    byType[exerciseType] ??
+    "Example: Generate 10 engaging sentences for teenagers to practice Past Simple and Past Continuous."
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -732,6 +1009,89 @@ function DataPreview({ data, exerciseType }: { data: Record<string, unknown> | n
       </div>
     );
   }
+
+  // Markdown body for TextBlock — show a short excerpt in the review step.
+  if (exerciseType === "text") {
+    const body = typeof data.content === "string" ? data.content : "";
+    if (!body.trim()) return null;
+    const flat = body.trim().replace(/\s+/g, " ");
+    const previewLen = 320;
+    return (
+      <div style={{
+        marginTop: 10,
+        fontSize: 12,
+        color: C.sub,
+        lineHeight: 1.55,
+        maxHeight: 120,
+        overflow: "hidden",
+      }}>
+        {flat.slice(0, previewLen)}
+        {flat.length > previewLen ? "…" : ""}
+      </div>
+    );
+  }
+
+  // ImageStackedBlock — preview first two frames.
+  if (exerciseType === "image_stacked") {
+    const rawImages = data.images as unknown;
+    if (!Array.isArray(rawImages)) return null;
+    const thumbs = rawImages
+      .filter((x): x is { src?: string } => Boolean(x) && typeof x === "object")
+      .map((x) => String(x.src ?? ""))
+      .filter((s) => s.length > 0)
+      .slice(0, 3);
+    if (thumbs.length === 0) return null;
+    return (
+      <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {thumbs.map((src, i) => (
+          <div
+            key={i}
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: 8,
+              overflow: "hidden",
+              border: `1.5px solid ${C.border}`,
+              background: C.bg,
+            }}
+          >
+            <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          </div>
+        ))}
+        {rawImages.length > 3 ? (
+          <span style={{ fontSize: 11.5, color: C.muted, alignSelf: "center" }}>
+            +{rawImages.length - 3} more
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
+  // ImageBlock — data URI or URL from HF / SVG pipeline.
+  if (exerciseType === "image") {
+    const src = typeof data.src === "string" ? data.src : "";
+    if (!src.trim()) return null;
+    return (
+      <div style={{
+        marginTop: 10,
+        borderRadius: 10,
+        overflow: "hidden",
+        maxHeight: 200,
+        border: `1.5px solid ${C.border}`,
+        background: C.bg,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <img
+          src={src}
+          alt={typeof data.alt_text === "string" ? data.alt_text : "Generated illustration"}
+          style={{ maxWidth: "100%", maxHeight: 200, display: "block", objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+
   if (exerciseType === "select_form_to_image") {
     const cards = data.cards as Array<{ answers: string[]; options?: string[] }> | undefined;
     if (!cards?.length) return null;
@@ -853,6 +1213,7 @@ export default function AIExerciseGeneratorModal({
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
+  // Fills the description from a hint chip (trailing space for continued typing)
   const setChipPrompt = useCallback((text: string) => { setPrompt(text + " "); }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -964,6 +1325,8 @@ export default function AIExerciseGeneratorModal({
   if (!open) return null;
 
   const activeCfg = EXERCISE_TYPE_MAP.get(exerciseType) ?? EXERCISE_TYPE_CONFIGS[0];
+  // Quick vs richer prompt chips for the open exercise type
+  const promptHintSet = getPromptHintsForExerciseType(exerciseType);
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -1134,34 +1497,72 @@ export default function AIExerciseGeneratorModal({
                       </span>
                     </div>
 
-                    {/* Prompt chips */}
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
-                      {PROMPT_CHIPS.map((chip) => (
-                        <button key={chip} type="button" onClick={() => setChipPrompt(chip)}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 4,
-                            fontSize: 11.5, padding: "4px 9px", borderRadius: 20,
-                            background: C.tint, color: C.primaryDk,
-                            border: `1.5px solid ${C.tintDeep}`,
-                            cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap",
-                            transition: "background 0.12s", fontFamily: "inherit",
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = C.tintDeep; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = C.tint; }}
-                        >
-                          ✦ {chip}
-                        </button>
-                      ))}
+                    {/* Prompt hint chips: three quick, two richer (per exercise type) */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, color: C.sub, marginBottom: 6,
+                        letterSpacing: "0.03em",
+                      }}>
+                        Quick ideas
+                      </div>
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+                        {promptHintSet.simple.map((chip) => (
+                          <button key={chip} type="button" onClick={() => setChipPrompt(chip)}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 4,
+                              fontSize: 11.5, padding: "4px 9px", borderRadius: 20,
+                              background: C.tint, color: C.primaryDk,
+                              border: `1.5px solid ${C.tintDeep}`,
+                              cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap",
+                              transition: "background 0.12s", fontFamily: "inherit",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = C.tintDeep; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = C.tint; }}
+                          >
+                            ✦ {chip}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, color: C.sub, marginBottom: 6,
+                        letterSpacing: "0.03em",
+                      }}>
+                        Longer / richer
+                        <span style={{ fontWeight: 500, color: C.muted, marginLeft: 6, letterSpacing: 0 }}>
+                          (more model output, higher token use)
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                        {promptHintSet.advanced.map((chip) => (
+                          <button key={chip} type="button" onClick={() => setChipPrompt(chip)}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 4,
+                              fontSize: 11.5, padding: "4px 9px", borderRadius: 20,
+                              background: "#FAFAFF", color: C.primaryDk,
+                              border: `1.5px dashed ${C.tintDeep}`,
+                              cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap",
+                              transition: "background 0.12s, border-color 0.12s", fontFamily: "inherit",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = C.tint;
+                              e.currentTarget.style.borderColor = C.primary;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "#FAFAFF";
+                              e.currentTarget.style.borderColor = C.tintDeep;
+                            }}
+                          >
+                            ✦ {chip}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     {/* Textarea */}
                     <textarea
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
-                      placeholder={
-                        "Enter a prompt, for example:\n" +
-                        "Generate 10 engaging sentences for teenagers to practice Past Simple and Past Continuous."
-                      }
+                      placeholder={getDescriptionPlaceholder(exerciseType)}
                       rows={5}
                       style={{
                         width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 12,
@@ -1274,6 +1675,8 @@ export default function AIExerciseGeneratorModal({
                             label={
                               exerciseType === "build_sentence" || exerciseType === "order_paragraphs"
                                 ? "Number of sentences"
+                                : exerciseType === "image_stacked"
+                                ? "Number of images"
                                 : "Number of pairs"
                             }
                             value={pairCount}
