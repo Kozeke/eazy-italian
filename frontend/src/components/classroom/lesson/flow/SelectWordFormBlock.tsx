@@ -262,13 +262,17 @@ export default function SelectWordFormBlock({
 
   return (
     <div className="dtg-block swf-block">
-      {title && <div className="dtg-block-title">{title}</div>}
-
-      {!teacherAnswerHints && (
-        <div className="swf-helper-bar" aria-hidden="true">
-          Select the correct form in each dropdown.
-        </div>
-      )}
+      {/* ── Exercise header: title + instruction ─────────────────────────── */}
+      <div className="dtg-exercise-header">
+        {title && (
+          <div className="dtg-exercise-title">{title}</div>
+        )}
+        
+          <div className="dtg-exercise-instruction">
+            Select the correct word form in each gap
+          </div>
+        
+      </div>
 
       <div
         className="dtg-text swf-text"

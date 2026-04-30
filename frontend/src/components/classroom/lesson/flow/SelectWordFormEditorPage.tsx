@@ -502,9 +502,16 @@ export default function SelectWordFormEditorPage({
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
+            placeholder="Exercise title (shown to students)"
             aria-label="Exercise title"
           />
+        </div>
+
+        {/* ── Student-facing preview: instruction shown in the block */}
+        <div className="dtg-editor-title-preview">
+          <div className="dtg-exercise-instruction">
+            Select the correct word form in each gap
+          </div>
         </div>
 
         <div

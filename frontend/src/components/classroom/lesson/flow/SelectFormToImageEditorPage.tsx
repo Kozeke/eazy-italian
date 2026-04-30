@@ -163,6 +163,7 @@ export default function SelectFormToImageEditorPage({
 
   const canSave =
     cards.length > 0 &&
+    uploadingCardId === null &&
     cards.every(
       (card) =>
         card.imageUrl.trim() !== '' && serialiseCard(card).answers.length > 0,
@@ -244,12 +245,16 @@ export default function SelectFormToImageEditorPage({
 
   const handleSave = () => {
     if (!canSave) return;
-    // Pass the AI-assigned block id so handleExerciseSave reuses it instead
-    // of generating a fresh random id that would create a duplicate block.
-    onSave({
+    // Embed _persistedBlockId inside the data object so it survives
+    // ExerciseDraftsPage's onSave adapter — AdminRoutes reads it from
+    // firstPayload.data._persistedBlockId and reuses the block id,
+    // preventing a duplicate block from being appended to the segment.
+    const data: SelectFormToImageData & { _persistedBlockId?: string } = {
       title: title.trim(),
       cards: cards.map((card) => serialiseCard(card)),
-    }, generatedBlockIdRef.current ?? undefined);
+    };
+    if (generatedBlockIdRef.current) data._persistedBlockId = generatedBlockIdRef.current;
+    onSave(data, generatedBlockIdRef.current ?? undefined);
   };
   // Apply AI-generated select_form_to_image data into local draft state.
   const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
@@ -330,6 +335,12 @@ export default function SelectFormToImageEditorPage({
             placeholder="Название упражнения"
             aria-label="Exercise title"
           />
+        </div>
+
+        <div className="dtg-editor-title-preview">
+          <div className="dtg-exercise-instruction">
+            Select the correct form under each image
+          </div>
         </div>
 
         <div className="dti-editor-board" aria-label="Image cards with selectable forms">

@@ -166,6 +166,12 @@ export default function DragToGapEditorPage({
 }: Props) {
   const [title, setTitle] = useState(initialTitle);
   const [showAIModal, setShowAIModal] = useState(false);
+  /**
+   * Server-assigned block id from a previous AI generation POST call.
+   * Carried through handleSave so the parent reuses it instead of minting
+   * a new random id — which would create a duplicate block in media_blocks.
+   */
+  const [persistedBlockId, setPersistedBlockId] = useState<string | null>(null);
 
   // Segment array: alternating TextSeg and GapSeg entries.
   const [segments, setSegments] = useState<Segment[]>(
@@ -354,8 +360,10 @@ export default function DragToGapEditorPage({
   const handleSave = useCallback(() => {
     if (!canSave) return;
     const synced = syncFromDOM(segments);
-    onSave({ title, segments: synced, gaps });
-  }, [canSave, segments, gaps, title, syncFromDOM, onSave]);
+    const data: DragToGapData & { _persistedBlockId?: string } = { title, segments: synced, gaps };
+    if (persistedBlockId) data._persistedBlockId = persistedBlockId;
+    onSave(data);
+  }, [canSave, segments, gaps, title, persistedBlockId, syncFromDOM, onSave]);
 
   const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
     if (block.kind !== exerciseType || !block.data || typeof block.data !== 'object') return;
@@ -370,7 +378,12 @@ export default function DragToGapEditorPage({
     setActiveGapId(null);
     setAnswerDraft('');
     setInsertMode(false);
-  }, []);
+    // Capture the server-assigned block id so handleSave can reuse it,
+    // preventing a duplicate block from being appended on the segment.
+    if (typeof block.id === 'string' && block.id.length > 0) {
+      setPersistedBlockId(block.id);
+    }
+  }, [exerciseType]);
 
   // ── Root blur handling ────────────────────────────────────────────────────────
 
@@ -442,12 +455,12 @@ export default function DragToGapEditorPage({
 
       {/* ── Student-facing preview: how the title + instruction look in the block */}
       <div className="dtg-editor-title-preview">
-        <span className="dtg-editor-title-preview__label">Student view</span>
+        {/* <span className="dtg-editor-title-preview__label">Student view</span>
         <div className="dtg-exercise-title" style={{ fontSize: 14 }}>
           {title || <span style={{ color: '#94a3b8', fontWeight: 400 }}>No title yet — type one above</span>}
-        </div>
+        </div> */}
         <div className="dtg-exercise-instruction">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8L6 12M6 12L18 16M6 12H22M2 12H4"/></svg>
+          {/* <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8L6 12M6 12L18 16M6 12H22M2 12H4"/></svg> */}
           Drag words into the correct gaps
         </div>
       </div>

@@ -345,14 +345,17 @@ def _build_passage_prompt(
 
     # ── sentence count line ───────────────────────────────────────────────────
     if sentence_count is not None:
+        # Explicit or derived sentence count — enforce strictly.
+        # When derived from gap_count, this produces exactly 1 gap per sentence.
         sentence_line = (
             f"EXACTLY {sentence_count} sentences. "
             f"Spread the {gap_count if gap_count else 'chosen number of'} "
-            "gaps across ALL sentences (roughly one per sentence)."
+            "gaps evenly across ALL sentences — EVERY sentence must contain "
+            "at least one [bracketed] gap."
         )
     else:
-        sent_min = 2 if (gap_count is None or gap_count >= 4) else 1
-        sentence_line = f"AT LEAST {sent_min} complete sentence(s)."
+        # Fully auto: gap_count is also None here.
+        sentence_line = "AT LEAST 2 complete sentences."
 
     # ── gap type constraint ───────────────────────────────────────────────────
     gap_type_block = ""
@@ -374,6 +377,12 @@ def _build_passage_prompt(
         "may contain the same word or phrase (case-insensitive)."
     )
 
+    # ── build a dynamic example that matches the sentence/gap constraint ───────
+    # When sentence_count == gap_count (derived mode), the example must show
+    # ONE gap per sentence — otherwise the model will follow the example and
+    # generate multiple gaps in one sentence while leaving others empty.
+    _example_label, _example_body = _build_dynamic_example(sentence_count, gap_count)
+
     return f"""You are a language-exercise author. Write ONE titled passage for a fill-in-the-gap exercise.
 
 RULES
@@ -387,16 +396,45 @@ RULES
 5. The passage must contain {sentence_line}
 6. Each bracketed answer is the exact word/phrase (≤4 words) the student must fill in.{gap_type_block}{uniqueness_note}
 {lang_block}{hint_block}
-EXAMPLE (3 gaps, 2 sentences):
+EXAMPLE ({_example_label}):
 TITLE: Present Perfect: Travel Experiences
 
-Next summer, they [will open] a new restaurant in Barcelona. She [will finish] the project, and he [will join] the team.
+{_example_body}
 
 SOURCE CONTENT
 --------------
 \"\"\"{unit_content}\"\"\"
 
 Output ONLY the TITLE line + blank line + passage. Nothing else."""
+
+
+def _build_dynamic_example(sentence_count, gap_count):
+    """Generate a prompt example that matches the sentence/gap constraint."""
+    if sentence_count is not None and gap_count is not None and sentence_count == gap_count:
+        n = min(sentence_count, 3)
+        if n >= 3:
+            return (
+                f"{n} gaps, {n} sentences — ONE gap per sentence",
+                "Next summer, they [will open] a new restaurant in the city.\n"
+                "She [finished] the project ahead of schedule.\n"
+                "He [is planning] a trip to Italy next month.",
+            )
+        elif n == 2:
+            return (
+                "2 gaps, 2 sentences — ONE gap per sentence",
+                "They [will travel] to Paris next summer.\n"
+                "She [finished] the report ahead of schedule.",
+            )
+        else:
+            return (
+                "1 gap, 1 sentence",
+                "She [finished] the report ahead of schedule.",
+            )
+    return (
+        "3 gaps, 2 sentences",
+        "Next summer, they [will open] a new restaurant in Barcelona. "
+        "She [will finish] the project, and he [will join] the team.",
+    )
 
 
 def _parse_marked_passage(
@@ -682,6 +720,73 @@ def _extract_json_object(raw: str) -> str:
     json_text = re.sub(r",\s*(\])", r"\1", json_text)
     json_text = re.sub(r",\s*(\})", r"\1", json_text)
     return json_text
+
+
+def _sanitize_json_control_chars(json_str: str) -> str:
+    """Escape unescaped control characters (newline, carriage return, tab)
+    that appear *inside* JSON string values.
+
+    Ollama (and some other local models) sometimes emit literal newlines within
+    a JSON string instead of the escaped ``\\n`` sequence.  This causes
+    ``json.loads`` to fail with "Expecting ',' delimiter" because the parser
+    thinks the string ended at the newline.
+
+    The function walks the JSON character-by-character, tracking whether we are
+    inside a string, and replaces any bare control character it finds there with
+    its proper JSON escape sequence.  It is safe to call on already-valid JSON.
+    """
+    result: list[str] = []
+    in_string = False
+    escape_next = False
+
+    for ch in json_str:
+        if escape_next:
+            result.append(ch)
+            escape_next = False
+            continue
+
+        if ch == "\\" and in_string:
+            result.append(ch)
+            escape_next = True
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+            result.append(ch)
+            continue
+
+        if in_string:
+            if ch == "\n":
+                result.append("\\n")
+            elif ch == "\r":
+                result.append("\\r")
+            elif ch == "\t":
+                result.append("\\t")
+            else:
+                result.append(ch)
+        else:
+            result.append(ch)
+
+    return "".join(result)
+
+
+def _robust_json_loads(raw: str) -> Any:
+    """Parse JSON from a raw LLM response with progressive repair steps.
+
+    1. Extract the first JSON object and strip trailing commas
+       (via ``_extract_json_object``).
+    2. Try ``json.loads`` directly.
+    3. If that fails, sanitize unescaped control characters inside strings
+       (via ``_sanitize_json_control_chars``) and retry.
+
+    Raises ``json.JSONDecodeError`` only when all attempts are exhausted.
+    """
+    extracted = _extract_json_object(raw)
+    try:
+        return json.loads(extracted)
+    except json.JSONDecodeError:
+        sanitized = _sanitize_json_control_chars(extracted)
+        return json.loads(sanitized)
 
 
 def _repair_drag_to_gap(data: Any) -> dict:
@@ -1089,6 +1194,20 @@ async def generate_drag_to_gap_from_unit_content(
                 topic_hint[:120],
             )
 
+    # ── derive effective sentence count ───────────────────────────────────────
+    # When the teacher hasn't specified a sentence count but HAS specified a
+    # gap_count, we target exactly gap_count sentences (one gap per sentence).
+    # This prevents the AI from writing e.g. 10 sentences for a 3-gap exercise,
+    # which produces a confusingly sparse result.
+    effective_sentence_count: int | None = explicit_sentence_count
+    if effective_sentence_count is None and gap_count is not None:
+        effective_sentence_count = gap_count
+        logger.info(
+            "drag_to_gap: derived effective_sentence_count=%d from gap_count "
+            "(one gap per sentence — no explicit sentence count in topic_hint).",
+            effective_sentence_count,
+        )
+
     # ── short content: augment hint ───────────────────────────────────────────
     if len(unit_content.strip()) < 50:
         logger.warning(
@@ -1103,10 +1222,9 @@ async def generate_drag_to_gap_from_unit_content(
             "(e.g. 'will finish', 'had left') — never the auxiliary alone."
         )
         _sent_note = (
-            f"\nPASSAGE LENGTH: Write exactly {explicit_sentence_count} sentences."
-        ) if explicit_sentence_count else (
-            f"\nPASSAGE LENGTH: Write AT LEAST 2 full sentences."
-            if (gap_count is None or gap_count >= 4) else ""
+            f"\nPASSAGE LENGTH: Write exactly {effective_sentence_count} sentences."
+        ) if effective_sentence_count else (
+            "\nPASSAGE LENGTH: Write AT LEAST 2 full sentences."
         )
         topic_hint = (topic_hint or "") + (
             "\nNOTE: Source material is minimal. Generate a GRAMMATICALLY CORRECT "
@@ -1180,7 +1298,7 @@ async def generate_drag_to_gap_from_unit_content(
         prompt = _build_passage_prompt(
             unit_content=unit_content,
             gap_count=gap_count,
-            sentence_count=explicit_sentence_count,
+            sentence_count=effective_sentence_count,  # derived: gap_count when no explicit
             content_language=content_language,
             instruction_language=instruction_language,
             topic_hint=topic_hint,
@@ -1191,12 +1309,12 @@ async def generate_drag_to_gap_from_unit_content(
             logger.debug("Passage-mode raw output (attempt %d):\n%.600s", attempt_n, last_raw)
 
         try:
-            passage_warning = _validate_marked_passage(last_raw, gap_count, explicit_sentence_count)
+            passage_warning = _validate_marked_passage(last_raw, gap_count, effective_sentence_count)
 
             title = _infer_title(topic_hint, instruction_language, gap_type)
             data  = _parse_marked_passage(last_raw.strip(), title)
             data  = _repair_drag_to_gap(data)
-            _validate_drag_to_gap(data, gap_count, explicit_sentence_count)
+            _validate_drag_to_gap(data, gap_count, effective_sentence_count)
 
             actual_gaps = len([s for s in data["segments"] if s.get("type") == "gap"])
             all_warnings: list[str] = []
@@ -1249,7 +1367,7 @@ async def generate_drag_to_gap_from_unit_content(
             json_text = _extract_json_object(last_raw)
             data: Any = json.loads(json_text)
             data = _repair_drag_to_gap(data)
-            _validate_drag_to_gap(data, gap_count, explicit_sentence_count)
+            _validate_drag_to_gap(data, gap_count, effective_sentence_count)
 
             actual_gaps = len([s for s in data.get("segments", []) if s.get("type") == "gap"])
             all_warnings: list[str] = []
@@ -1425,59 +1543,70 @@ def _parse_select_word_form_passage(
     instruction_language: str,
 ) -> dict:
     """
-    Parse a passage like:
-      "She [goes|go|went] to school every [day|days|daily]."
-    into SelectWordFormData.
- 
+    Parse AI output that looks like:
+
+      TITLE: Present simple vs present continuous
+      She [goes|go|went] to school every [day|days|daily].
+
+    The optional ``TITLE:`` line on the first line is extracted as the exercise
+    title.  If absent, a static fallback title is used.
     The first option inside [...] is always the correct answer.
     """
+    # ── Extract AI-generated title from optional first line ───────────────────
+    title = ""
+    lines = passage.splitlines()
+    if lines and lines[0].upper().startswith("TITLE:"):
+        title = lines[0][6:].strip()
+        passage = "\n".join(lines[1:]).strip()
+
+    # ── Fallback static titles (used only when AI did not supply one) ─────────
+    if not title:
+        _FALLBACK_TITLES: dict[str, str] = {
+            "russian":    "Выберите правильную форму",
+            "italian":    "Scegli la forma corretta",
+            "english":    "Select the correct form",
+            "german":     "Wähle die richtige Form",
+            "french":     "Choisissez la bonne forme",
+            "spanish":    "Selecciona la forma correcta",
+        }
+        title = _FALLBACK_TITLES.get(instruction_language.lower(), "Select the correct form")
+
     segments: list[dict] = []
     gaps: dict[str, dict] = {}
     gap_counter = 0
     cursor = 0
- 
+
     for m in re.finditer(r"\[([^\[\]]+)\]", passage):
         # Text before this match
         if m.start() > cursor:
             segments.append({"type": "text", "value": passage[cursor:m.start()]})
- 
+
         options = [o.strip() for o in m.group(1).split("|") if o.strip()]
         if not options:
             cursor = m.end()
             continue
- 
+
         gap_counter += 1
         gap_id = f"swf_g{gap_counter}_{uuid.uuid4().hex[:6]}"
         correct = options[0]  # first = correct answer
         import random
         shuffled = options[:]
         random.shuffle(shuffled)
- 
+
         segments.append({"type": "gap", "id": gap_id})
         gaps[gap_id] = {
             "options": shuffled,
             "correctAnswers": [correct],
         }
         cursor = m.end()
- 
+
     # Remaining text
     if cursor < len(passage):
         segments.append({"type": "text", "value": passage[cursor:]})
- 
+
     if not gaps:
         raise ValueError("No [option|option] markers found in the generated passage.")
- 
-    # Derive title from instruction_language
-    titles = {
-        "russian":    "Выберите правильную форму",
-        "italian":    "Scegli la forma corretta",
-        "english":    "Select the correct form",
-        "german":     "Wähle die richtige Form",
-        "french":     "Choisissez la bonne forme",
-        "spanish":    "Selecciona la forma correcta",
-    }
-    title = titles.get(instruction_language.lower(), "Select the correct form")
- 
+
     return {"title": title, "segments": segments, "gaps": gaps}
  
  
@@ -1494,39 +1623,78 @@ async def generate_select_word_form_from_unit_content(
 ) -> tuple[dict, dict]:
     """
     Generate a select-word-form exercise.
- 
+
     The LLM produces a passage with [correct|distractor|distractor] markers.
     Server-side parsing builds the SelectWordFormData structure.
+
+    Sentence-density fix: effective_sentence_count = effective_gaps so that
+    every sentence contains exactly one gap — avoids AI writing 10 sentences
+    for a 3-gap exercise (the same fix applied to drag_to_gap).
     """
     _provider = provider or _default_provider
+
+    # ── resolve gap count ─────────────────────────────────────────────────────
     effective_gaps = gap_count or _extract_count_from_hint(topic_hint, default=6)
-    lang_hint = f" The passage must be written in {content_language}." if content_language != "auto" else ""
-    gap_type_hint = f" Focus gaps on: {gap_type}." if gap_type else ""
+
+    # ── derive sentence count = gap count (1 gap per sentence) ───────────────
+    # Without an explicit sentence constraint, the AI is free to write many
+    # more sentences than there are gaps, producing a sparse, confusing exercise.
+    effective_sentence_count = effective_gaps
+    logger.info(
+        "select_word_form: effective_gaps=%d, derived effective_sentence_count=%d",
+        effective_gaps, effective_sentence_count,
+    )
+
+    # ── build prompt hints ────────────────────────────────────────────────────
+    lang_hint = (
+        f" The passage must be written in {content_language.upper()}."
+        if content_language and content_language != "auto" else ""
+    )
+    gap_type_hint = f" Focus all gaps on: {gap_type}." if gap_type else ""
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
- 
+    title_lang_hint = (
+        f" Write the TITLE in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
+
     system_prompt = (
         "You are an expert language-exercise designer. "
-        "Your ONLY output is the passage with gap markers — no intro, no explanation."
+        "Your output must be exactly two parts: a TITLE line followed by the exercise passage."
     )
     user_prompt = (
-        f"Create a select-word-form exercise passage with exactly {effective_gaps} word choice gaps.\n"
+        f"Create a select-word-form exercise with EXACTLY {effective_gaps} word-choice gaps "
+        f"and EXACTLY {effective_sentence_count} sentences.\n"
         f"Format each gap as [CORRECT|wrong1|wrong2] where the FIRST word is the correct answer "
         f"and the others are plausible distractors. Use 2–3 real words per gap.{lang_hint}{gap_type_hint}\n\n"
+        "SENTENCE DENSITY RULE (CRITICAL): The passage must contain EXACTLY "
+        f"{effective_sentence_count} sentences. "
+        "EVERY sentence must contain at least one [word|choice|gap] marker — "
+        "a sentence with no gap marker is NOT allowed.\n\n"
         "CRITICAL: Replace CORRECT, wrong1, wrong2 with actual words from the language being practised. "
         "NEVER output the literal words 'correct_answer', 'distractor1', 'distractor2', 'CORRECT', 'wrong1', or 'wrong2'.\n\n"
-        "EXAMPLE (do not copy — use words that fit your passage):\n"
-        "Yesterday, she [went|go|goes] to the market and [bought|buys|buy] some fresh vegetables.\n\n"
+        "OUTPUT FORMAT — strictly two parts, nothing else:\n"
+        f"TITLE: <short descriptive title reflecting the grammar/vocabulary topic>{title_lang_hint}\n"
+        "<the passage with [...|...] gap markers>\n\n"
+        "EXAMPLE output for 3 gaps / 3 sentences (do not copy — write content for your topic):\n"
+        "TITLE: Past simple vs present simple\n"
+        "Yesterday, she [went|go|goes] to the market early in the morning.\n"
+        "She [bought|buys|buy] some fresh vegetables and a bag of rice.\n"
+        "Every weekend she [visits|visited|visit] her grandmother in the village.\n\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
-        "Output ONLY the passage with [...|...] markers. Every word inside [...] must be a real word."
+        "Rules:\n"
+        "- The TITLE must be specific and descriptive (NOT generic like 'Select the correct form').\n"
+        "- Every word inside [...] must be a real word from the language being practised.\n"
+        f"- The passage must have EXACTLY {effective_sentence_count} sentences, each with one gap.\n"
+        "- Output ONLY the TITLE line followed by the passage — no intro, no extra explanation."
     )
 
     prompt = f"{system_prompt}\n\n{user_prompt}"
 
-    # Words that indicate the LLM echoed back our prompt placeholders instead of real words
+    # Words that indicate the LLM echoed back our prompt placeholders
     _PLACEHOLDER_LITERALS = {"correct_answer", "distractor1", "distractor2", "correct", "wrong1", "wrong2"}
 
     def _contains_placeholders(data: dict) -> bool:
-        """Return True if any gap option is a literal prompt placeholder."""
         for gap_config in data.get("gaps", {}).values():
             for opt in gap_config.get("options", []):
                 if opt.strip().lower() in _PLACEHOLDER_LITERALS:
@@ -1536,27 +1704,69 @@ async def generate_select_word_form_from_unit_content(
                     return True
         return False
 
+    def _validate_gap_count(data: dict, expected: int) -> str | None:
+        """
+        Check that the actual number of parsed gaps is close enough to *expected*.
+        Returns a warning string on partial success, raises ValueError on hard failure.
+        """
+        actual = len(data.get("gaps", {}))
+        if actual == expected:
+            return None
+        ratio = actual / expected if expected else 0
+        if ratio < _PARTIAL_SUCCESS_THRESHOLD:
+            raise ValueError(
+                f"Expected {expected} gaps, found only {actual} "
+                f"({ratio:.0%} — below {_PARTIAL_SUCCESS_THRESHOLD:.0%} threshold). Retrying."
+            )
+        return (
+            f"Requested {expected} gaps but the model generated {actual} "
+            f"({ratio:.0%}). This is a model capacity limitation — "
+            "please make another request to get the full exercise."
+        )
+
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
             raw = await _provider.agenerate(prompt)
             data = _parse_select_word_form_passage(raw.strip(), instruction_language)
+
             if _contains_placeholders(data):
                 raise ValueError(
                     "LLM echoed prompt placeholders (e.g. 'correct_answer') instead of real words. "
                     "Retrying."
                 )
-            metadata = {
-                "generation_model":    getattr(_provider, "model", "unknown"),
-                "generation_attempts": attempt + 1,
-                "exercise_type":       "select_word_form",
+
+            gap_warning = _validate_gap_count(data, effective_gaps)
+
+            actual_gaps = len(data.get("gaps", {}))
+            metadata: dict = {
+                "generation_model":     getattr(_provider, "model", "unknown"),
+                "generation_attempts":  attempt + 1,
+                "exercise_type":        "select_word_form",
+                "gap_count_requested":  effective_gaps,
+                "gap_count_actual":     actual_gaps,
+                "sentence_count_target": effective_sentence_count,
+                "content_language":     content_language,
+                "instruction_language": instruction_language,
             }
+            if gap_warning:
+                metadata["warning"] = gap_warning
+                logger.warning("select_word_form gap shortfall (attempt %d): %s", attempt + 1, gap_warning)
+
+            logger.info(
+                "select_word_form succeeded attempt %d/%d — %d gaps%s.",
+                attempt + 1, max_retries + 1, actual_gaps,
+                " [partial]" if gap_warning else "",
+            )
             return data, metadata
+
         except (ValueError, Exception) as exc:
             last_exc = exc
-            logger.warning("select_word_form attempt %d failed: %s", attempt + 1, exc)
+            logger.warning("select_word_form attempt %d/%d failed: %s", attempt + 1, max_retries + 1, exc)
 
-    raise ValueError(f"select_word_form generation failed after {max_retries + 1} attempts: {last_exc}")
+    raise ValueError(
+        f"select_word_form generation failed after {max_retries + 1} attempts: {last_exc}"
+    )
  
  
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1892,17 +2102,19 @@ async def generate_order_paragraphs_from_unit_content(
     }
     fallback_title = fallback_titles.get(instruction_language.lower(), "Put the paragraphs in order")
  
-    system_prompt = "You are a language-exercise designer. Respond ONLY with valid JSON."
+    system_prompt = "You are a language-exercise designer. Respond ONLY with valid JSON. Each JSON string value must be on one line — never include literal newline characters inside a string."
     user_prompt = (
         f"Create an order-paragraphs exercise with exactly {para_count} short paragraphs (2–4 sentences each).{lang_hint}\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
         "Rules:\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name based on the source content.\n"
-        "- Do NOT use generic titles like 'Put the paragraphs in order'.\n\n"
+        "- Do NOT use generic titles like 'Put the paragraphs in order'.\n"
+        "- Each paragraph string must be a single JSON string on one line. Separate sentences with a space, not a newline.\n"
+        "- Output ONLY the JSON object below — no explanation, no markdown fences.\n\n"
         "Respond with this JSON:\n"
         "{\n"
         '  "title": "<descriptive exercise title>",\n'
-        '  "paragraphs": ["First paragraph text.", "Second paragraph text.", ...]\n'
+        '  "paragraphs": ["First sentence. Second sentence.", "Next paragraph text.", ...]\n'
         "}"
     )
  
@@ -1911,23 +2123,27 @@ async def generate_order_paragraphs_from_unit_content(
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
-            import json as _json
             raw = await _provider.agenerate(prompt)
-            cleaned = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-            parsed  = _json.loads(cleaned)
- 
+
+            # _robust_json_loads applies three repair steps in order:
+            #   1. _extract_json_object – strips markdown fences, locates the
+            #      first {...} block, removes trailing commas in arrays/objects.
+            #   2. json.loads – fast path for well-formed output.
+            #   3. _sanitize_json_control_chars + json.loads – handles the most
+            #      common Ollama failure: literal newlines inside string values
+            #      (paragraphs span multiple sentences) produce the
+            #      "Expecting ',' delimiter" error at the first bare \n.
+            parsed = _robust_json_loads(raw)
+
             paragraphs = [str(p) for p in parsed.get("paragraphs", []) if str(p).strip()]
             if not paragraphs:
                 raise ValueError("No paragraphs in LLM output.")
- 
-            shuffled = paragraphs[:]
-            random.shuffle(shuffled)
- 
+
             items = [
                 {"id": f"op_{i}", "text": p, "correct_order": i}
                 for i, p in enumerate(paragraphs, 1)
             ]
- 
+
             data = {
                 "title":    str(parsed.get("title", "")).strip() or fallback_title,
                 "items":    items,
@@ -1942,7 +2158,7 @@ async def generate_order_paragraphs_from_unit_content(
         except Exception as exc:
             last_exc = exc
             logger.warning("order_paragraphs attempt %d failed: %s", attempt + 1, exc)
- 
+
     raise ValueError(f"order_paragraphs generation failed after {max_retries + 1} attempts: {last_exc}")
  
  
@@ -2220,6 +2436,171 @@ async def generate_drag_word_to_image_from_unit_content(
 
     raise ValueError(
         f"drag_word_to_image generation failed after {max_retries + 1} attempts: {last_exc}"
+    )
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# select_form_to_image
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async def generate_select_form_to_image_from_unit_content(
+    unit_content: str,
+    pair_count: int | None = None,
+    content_language: str = "auto",
+    instruction_language: str = "english",
+    topic_hint: str | None = None,
+    provider=None,
+    max_retries: int = 2,
+    **_ignored,
+) -> tuple[dict, dict]:
+    """
+    Generate a select-form-to-image exercise.
+
+    AI produces image-card prompts where each card has:
+      - one or more correct answers
+      - option list used in the dropdown under each image
+
+    imageUrl is left empty ("") so the teacher can upload images afterwards.
+    """
+    # Stores the active AI provider instance for generation calls.
+    _provider = provider or _default_provider
+    # Stores the desired number of cards, inferred from pair_count or hint text.
+    card_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
+    # Stores optional language instruction when caller requests explicit language.
+    lang_hint = f" All words must be in {content_language}." if content_language != "auto" else ""
+    # Stores optional teacher directive appended to the prompt.
+    topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
+
+    # Stores fallback localized instruction title used when model omits title.
+    fallback_titles = {
+        "russian": "Выберите правильную форму по изображению",
+        "italian": "Scegli la forma corretta per ogni immagine",
+        "english": "Select the correct form for each image",
+        "german": "Wähle die richtige Form für jedes Bild",
+        "french": "Choisissez la bonne forme pour chaque image",
+        "spanish": "Selecciona la forma correcta para cada imagen",
+    }
+    # Stores the final fallback title for unsupported instruction languages.
+    fallback_title = fallback_titles.get(
+        instruction_language.lower(),
+        "Select the correct form for each image",
+    )
+
+    # Stores a strict system instruction that forces JSON-only output.
+    system_prompt = (
+        "You are a language-exercise designer. "
+        "Respond ONLY with valid JSON — no markdown, no explanation."
+    )
+    # Stores the full user prompt describing schema and quality constraints.
+    user_prompt = (
+        f"Create a select-form-to-image vocabulary exercise with exactly {card_count} items.{lang_hint}\n"
+        f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
+        "Rules:\n"
+        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name.\n"
+        "- Do NOT use generic titles like 'Select the correct form for each image'.\n"
+        "- Each item must include a concise image description in English.\n"
+        "- Each item must include one correct word form and at least 2 distractors.\n"
+        "- Distractors must be plausible but incorrect for that image.\n\n"
+        "Respond with this JSON structure:\n"
+        "{\n"
+        '  "title": "<descriptive exercise title>",\n'
+        '  "items": [\n'
+        '    {\n'
+        '      "answer": "buono",\n'
+        '      "distractors": ["buona", "buoni"],\n'
+        '      "description": "a single masculine noun context image"\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    # Stores the final prompt passed to the model.
+    prompt = f"{system_prompt}\n\n{user_prompt}"
+
+    # Stores the last generation/parsing error across retry attempts.
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            import json as _json
+            # Stores raw model output before sanitization.
+            raw = await _provider.agenerate(prompt)
+            # Stores cleaned model output suitable for JSON parsing.
+            cleaned = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+            # Stores parsed JSON object returned by the model.
+            parsed = _json.loads(cleaned)
+
+            # Stores unvalidated raw item list returned by the model.
+            items = parsed.get("items", [])
+            if not items:
+                raise ValueError("No items in LLM output.")
+
+            # Stores intermediate normalized cards before option backfilling.
+            cards: list[dict] = []
+            for i, item in enumerate(items, 1):
+                # Stores trimmed primary correct answer for the current card.
+                answer = str(item.get("answer", "")).strip()
+                if not answer:
+                    continue
+                # Stores cleaned and de-duplicated distractors excluding the answer.
+                distractors = [
+                    str(v).strip()
+                    for v in item.get("distractors", [])
+                    if str(v).strip() and str(v).strip().lower() != answer.lower()
+                ]
+                # Stores option list with answer first to guarantee presence.
+                options = [answer] + [d for d in dict.fromkeys(distractors)]
+                cards.append(
+                    {
+                        "id": f"sfi_{i}",
+                        "imageUrl": "",
+                        "options": options,
+                        "answers": [answer],
+                        "description": str(item.get("description", "")).strip(),
+                    }
+                )
+
+            if not cards:
+                raise ValueError("All generated items had empty answers.")
+
+            # Stores answer pool used to backfill missing distractors.
+            answer_pool = [str(card["answers"][0]) for card in cards if card.get("answers")]
+            for card in cards:
+                # Stores current option list for in-place completion.
+                opts = list(card.get("options", []))
+                if len(opts) >= 2:
+                    card["options"] = opts
+                    continue
+                for candidate in answer_pool:
+                    if candidate.lower() == str(card["answers"][0]).lower():
+                        continue
+                    if candidate in opts:
+                        continue
+                    opts.append(candidate)
+                    if len(opts) >= 3:
+                        break
+                card["options"] = opts
+
+            # Stores final exercise payload consumed by SelectFormToImage editor.
+            data = {
+                "title": str(parsed.get("title", "")).strip() or fallback_title,
+                "cards": cards,
+            }
+            # Stores tracing metadata for diagnostics and UX hints.
+            metadata = {
+                "generation_model": getattr(_provider, "model", "unknown"),
+                "generation_attempts": attempt + 1,
+                "exercise_type": "select_form_to_image",
+                "note": (
+                    "imageUrl fields are empty — teacher uploads images in the editor. "
+                    "description fields are hints for which photo to use."
+                ),
+            }
+            return data, metadata
+        except Exception as exc:
+            last_exc = exc
+            logger.warning("select_form_to_image attempt %d failed: %s", attempt + 1, exc)
+
+    raise ValueError(
+        f"select_form_to_image generation failed after {max_retries + 1} attempts: {last_exc}"
     )
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # test_without_timer  (also used for test_with_timer — timer is set in editor)
@@ -2685,6 +3066,7 @@ async def generate_reading_text_from_unit_content(
     content_language: str = "auto",
     instruction_language: str = "english",
     topic_hint: str | None = None,
+    difficulty: str | None = None,
     provider=None,
     max_retries: int = 2,
     **_ignored,
@@ -2706,6 +3088,10 @@ async def generate_reading_text_from_unit_content(
         teacher_title_hint = (
             f"\nThe \"title\" should be clear for teachers using {instruction_language} in the UI."
         )
+    # Stores a normalized teacher-selected difficulty instruction for prompt control.
+    difficulty_hint = ""
+    if difficulty and str(difficulty).strip():
+        difficulty_hint = f"\nDifficulty level: {str(difficulty).strip()}."
 
     system_prompt = (
         "You are an expert language teacher. "
@@ -2714,7 +3100,7 @@ async def generate_reading_text_from_unit_content(
     user_prompt = (
         "Create an engaging reading passage or grammar explanation for a digital lesson. "
         "Ground it in the source material; add brief examples only when the material supports them."
-        f"{lang_rule}\n\n"
+        f"{lang_rule}{difficulty_hint}\n\n"
         f"Source material:\n{unit_content[:6000]}{topic_str}\n\n"
         "Respond with JSON containing exactly:\n"
         '  \"title\": a short, specific section title (max 80 characters) tied to the topic;\n'
@@ -2751,6 +3137,7 @@ async def generate_reading_text_from_unit_content(
                 "generation_model": getattr(_provider, "model", "unknown"),
                 "generation_attempts": attempt + 1,
                 "exercise_type": "text",
+                "difficulty": difficulty,
             }
             return data, metadata
 
@@ -3007,9 +3394,11 @@ EXERCISE_GENERATORS: dict[str, GeneratorFn] = {
     "order_paragraphs":     generate_order_paragraphs_from_unit_content,
     "sort_into_columns":    generate_sort_into_columns_from_unit_content,
     "drag_word_to_image":   generate_drag_word_to_image_from_unit_content,
+    "select_form_to_image": generate_select_form_to_image_from_unit_content,
     "test_without_timer":   generate_test_without_timer_from_unit_content,
     "test_with_timer":      generate_test_without_timer_from_unit_content,  # same shape, timer set by editor
     "true-false":           generate_true_false_from_unit_content,
+    "true_false":           generate_true_false_from_unit_content,
     "text":                 generate_reading_text_from_unit_content,
     "image":                generate_image_block_from_unit_content,
     "image_stacked":        generate_image_stacked_from_unit_content,

@@ -75,11 +75,14 @@ export default function DragWordToImageEditorPage({
     [cards],
   );
 
-  // Require answer on every card; imageUrl is optional so teachers can save
-  // AI-generated cards first and upload images separately.
+  // Require a complete card before saving: each card needs an uploaded image
+  // and a non-empty answer; also block save while an upload is in progress.
   const canSave =
     cards.length > 0 &&
-    cards.every((card) => card.answer.trim() !== '');
+    uploadingCardId === null &&
+    cards.every(
+      (card) => card.imageUrl.trim() !== '' && card.answer.trim() !== '',
+    );
 
   const updateCard = (cardId: string, patch: Partial<DragToImageCard>) => {
     setCards((prev) =>
@@ -190,9 +193,16 @@ export default function DragWordToImageEditorPage({
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
+            placeholder="Exercise title (shown to students)"
             aria-label="Exercise title"
           />
+        </div>
+
+        {/* ── Student-facing preview: instruction shown in the block */}
+        <div className="dtg-editor-title-preview">
+          <div className="dtg-exercise-instruction">
+            Drag words onto the correct images
+          </div>
         </div>
 
         {showWordsBar && (

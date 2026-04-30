@@ -268,15 +268,21 @@ function ResultsPanel({ questions, answers, timerExpired, onReview }: { question
 export default function TestWithTimerBlock({ item, mode, onComplete }: ExerciseBlockProps) {
   const typedItem = item as unknown as TestWithTimerItemData;
   const liveCtx = useContext(LiveSessionContext);
+  // Identifies teacher role to show timer controls only for teachers.
+  const isTeacher = liveCtx?.role === "teacher";
   const teacherAnswerHints = showTeacherExerciseHints(mode, liveCtx?.role);
   const exerciseData: TestWithTimerData = typedItem.data ?? {};
   const questions = useMemo(() => (exerciseData.questions ?? []).map(toRuntimeQuestion), [exerciseData.questions]);
   const totalSeconds = Math.max(0, Math.round((exerciseData.time_limit_minutes ?? 0) * 60));
+  // Sets whether timer should start automatically (students) or wait for manual teacher start.
+  const shouldAutoStartTimer = !isTeacher;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, StudentAnswer>>({});
   const [submitted, setSubmitted] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(totalSeconds);
+  // Tracks whether countdown is actively running.
+  const [isTimerRunning, setIsTimerRunning] = useState(shouldAutoStartTimer && totalSeconds > 0);
   const [reviewMode, setReviewMode] = useState(false);
   const completedRef = useRef(false);
 
@@ -288,8 +294,8 @@ export default function TestWithTimerBlock({ item, mode, onComplete }: ExerciseB
   const timerExpired = totalSeconds > 0 && timeRemaining === 0;
 
   useEffect(() => {
-    setCurrentIndex(0); setAnswers({}); setSubmitted(false); setTimeRemaining(totalSeconds); setReviewMode(false); completedRef.current = false;
-  }, [typedItem.id, totalSeconds]);
+    setCurrentIndex(0); setAnswers({}); setSubmitted(false); setTimeRemaining(totalSeconds); setIsTimerRunning(shouldAutoStartTimer && totalSeconds > 0); setReviewMode(false); completedRef.current = false;
+  }, [shouldAutoStartTimer, totalSeconds, typedItem.id]);
 
   useLiveSyncField(`ex/${typedItem.id}/test_answers`, answers, (remote) => {
     if (remote && typeof remote === "object" && !Array.isArray(remote)) setAnswers(remote as Record<string, StudentAnswer>);
@@ -301,10 +307,10 @@ export default function TestWithTimerBlock({ item, mode, onComplete }: ExerciseB
   }, { bidirectional: true });
 
   useEffect(() => {
-    if (submitted || totalSeconds <= 0 || timerExpired) return undefined;
+    if (submitted || totalSeconds <= 0 || timerExpired || !isTimerRunning) return undefined;
     const id = window.setInterval(() => setTimeRemaining((p) => Math.max(p - 1, 0)), 1000);
     return () => window.clearInterval(id);
-  }, [submitted, timerExpired, totalSeconds]);
+  }, [isTimerRunning, submitted, timerExpired, totalSeconds]);
 
   const finishTest = useCallback(() => {
     if (completedRef.current) return;
@@ -325,6 +331,17 @@ export default function TestWithTimerBlock({ item, mode, onComplete }: ExerciseB
     finishTest();
   }, [allAnswered, finishTest, submitted]);
 
+  // Starts countdown when teacher triggers timer.
+  const handleStartTimer = useCallback(() => {
+    if (submitted || timerExpired || totalSeconds <= 0) return;
+    setIsTimerRunning(true);
+  }, [submitted, timerExpired, totalSeconds]);
+
+  // Stops countdown without resetting remaining time.
+  const handleStopTimer = useCallback(() => {
+    setIsTimerRunning(false);
+  }, []);
+
   if (questions.length === 0) {
     return (
       <div className="dtg-block">
@@ -343,6 +360,27 @@ export default function TestWithTimerBlock({ item, mode, onComplete }: ExerciseB
       {timerExpired ? "Время вышло" : formatRemaining(timeRemaining)}
     </div>
   );
+  // Teacher-only controls to pause/resume timer visibility and behavior.
+  const teacherTimerControls = isTeacher ? (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      <button
+        type="button"
+        className="dtg-btn-save"
+        onClick={handleStartTimer}
+        disabled={submitted || timerExpired || isTimerRunning || totalSeconds <= 0}
+      >
+        Start timer
+      </button>
+      <button
+        type="button"
+        className="dtg-btn-cancel"
+        onClick={handleStopTimer}
+        disabled={submitted || timerExpired || !isTimerRunning}
+      >
+        Stop timer
+      </button>
+    </div>
+  ) : null;
 
   // ── Results summary ────────────────────────────────────────────────────────
   if (submitted && !reviewMode) {
@@ -350,7 +388,10 @@ export default function TestWithTimerBlock({ item, mode, onComplete }: ExerciseB
       <div className="dtg-block">
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: title ? 10 : 0 }}>
           {title && <div className="dtg-block-title" style={{ marginBottom: 0 }}>{title}</div>}
-          {timerChip}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {teacherTimerControls}
+            {timerChip}
+          </div>
         </div>
         <ResultsPanel questions={questions} answers={answers} timerExpired={timerExpired} onReview={(i) => { setCurrentIndex(i); setReviewMode(true); }} />
       </div>
@@ -365,7 +406,10 @@ export default function TestWithTimerBlock({ item, mode, onComplete }: ExerciseB
       <div className="dtg-block">
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: title ? 10 : 0 }}>
           {title && <div className="dtg-block-title" style={{ marginBottom: 0 }}>{title}</div>}
-          {timerChip}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {teacherTimerControls}
+            {timerChip}
+          </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <QuestionRenderer question={currentQuestion} answer={answers[String(currentQuestion.id)] ?? null} onAnswer={() => {}} disabled={true} questionKey={`${typedItem.id}-${currentIndex}-review`} teacherAnswerHints={teacherAnswerHints} />
@@ -406,7 +450,10 @@ export default function TestWithTimerBlock({ item, mode, onComplete }: ExerciseB
     <div className="dtg-block">
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: title ? 10 : 0 }}>
         {title && <div className="dtg-block-title" style={{ marginBottom: 0 }}>{title}</div>}
-        {timerChip}
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {teacherTimerControls}
+          {timerChip}
+        </div>
       </div>
 
       {currentQuestion && (

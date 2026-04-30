@@ -192,6 +192,12 @@ export default function BuildSentenceEditorPage({
           />
         </div>
 
+        <div className="dtg-editor-title-preview">
+          <div className="dtg-exercise-instruction">
+            Build the correct sentence from the words
+          </div>
+        </div>
+
         <QuestionEditorRenderer draft={draft} onChange={(next) => setDraft(next as OrderingWordsDraft)}   onAIGenerate={() => setShowAIModal(true)}  />
 
         <div className="dtg-footer">

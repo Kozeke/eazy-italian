@@ -154,6 +154,12 @@ export default function OrderParagraphsEditorPage({
           />
         </div>
 
+        <div className="dtg-editor-title-preview">
+          <div className="dtg-exercise-instruction">
+            Arrange the paragraphs in the correct order
+          </div>
+        </div>
+
         <QuestionEditorRenderer
           draft={draft}
           onChange={(next) => setDraft(next as OrderingSentencesDraft)}

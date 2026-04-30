@@ -205,7 +205,12 @@ export default function SelectFormToImageBlock({
 
   return (
     <div className="dtg-block sfi-block">
-      {title && <div className="dtg-block-title">{title}</div>}
+      <div className="dtg-exercise-header">
+        {title && <div className="dtg-exercise-title">{title}</div>}
+        <div className="dtg-exercise-instruction">
+          Select the correct form under each image
+        </div>
+      </div>
 
       {!teacherAnswerHints && (
         <div className="swf-helper-bar" aria-hidden="true">

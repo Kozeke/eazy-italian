@@ -311,7 +311,7 @@ export default function DragToGapBlock({
             <div className="dtg-exercise-title">{title}</div>
           )}
           <div className="dtg-exercise-instruction">
-            <MoveHorizontal size={13} />
+            {/* <MoveHorizontal size={13} /> */}
             Drag words into the correct gaps
           </div>
         </div>

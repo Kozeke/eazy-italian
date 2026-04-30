@@ -128,9 +128,19 @@ const EXERCISE_TYPE_CONFIGS: ExerciseTypeConfig[] = [
     icon:           "🔤",
     description:    "Pick the correct word form from a dropdown below each image",
     endpoint:       "select-form-to-image",
-    showGaps:       true,
+    showGaps:       false,
     showPairs:      false,
     defaultGapType: "Mixed (verbs, nouns, adjectives)",
+  },
+  {
+    type:           "type_word_to_image",
+    label:          "Type Word to Image",
+    icon:           "⌨🖼",
+    description:    "Type the correct word for each image card",
+    endpoint:       "drag-word-to-image",
+    showGaps:       false,
+    showPairs:      false,
+    defaultGapType: "",
   },
   {
   type:           "drag_word_to_image",
@@ -237,6 +247,18 @@ const EXERCISE_TYPE_CONFIGS: ExerciseTypeConfig[] = [
 // Map for fast lookup
 const EXERCISE_TYPE_MAP = new Map(EXERCISE_TYPE_CONFIGS.map((c) => [c.type, c]));
 
+// Maps legacy/variant incoming exercise type keys to the canonical modal key.
+const EXERCISE_TYPE_ALIASES: Record<string, string> = {
+  TypeWordToImage: "type_word_to_image",
+};
+
+// Normalizes incoming exercise type prop and applies safe fallback.
+function resolveExerciseType(rawExerciseType: string): string {
+  // Store the canonical key for lookups in config maps and endpoint routing.
+  const canonicalType = EXERCISE_TYPE_ALIASES[rawExerciseType] ?? rawExerciseType;
+  return EXERCISE_TYPE_MAP.has(canonicalType) ? canonicalType : "drag_to_gap";
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface GeneratedBlock {
@@ -275,6 +297,8 @@ const GAP_TYPE_OPTIONS   = [
   "Past tense verbs only",
   "Custom words",
 ];
+// Defines the maximum allowed upload size for source material files in bytes (2 MB).
+const MAX_UPLOAD_SIZE_BYTES = 2 * 1024 * 1024;
 
 /**
  * Suggested prompt starters: three short (lighter output) and two richer (longer
@@ -380,6 +404,17 @@ const EXERCISE_PROMPT_HINTS: Record<string, ExercisePromptHints> = {
     advanced: [
       "6 scene images, drag a short phrase to each, context:",
       "Workplace and profession images with vocabulary for",
+    ],
+  },
+  type_word_to_image: {
+    simple: [
+      "Type the word for 3 pictures:",
+      "4 image cards, learners type each missing label:",
+      "A1 nouns: type the Italian word for each image:",
+    ],
+    advanced: [
+      "6 images with typed answers, mixed vocabulary for",
+      "Typing practice with image prompts and short hints about",
     ],
   },
   drag_to_image: {
@@ -517,6 +552,7 @@ function getDescriptionPlaceholder(exerciseType: string): string {
     test_with_timer:    "Example: 6 quick MCQ, 45 seconds, vocabulary on the office.",
     true_false:         "Example: 5 T/F on Italian geography; one subtle trick statement.",
     drag_word_to_image: "Example: 4 images — cat, dog, fish, bird — with Italian labels to drag.",
+    type_word_to_image: "Example: 4 images — cat, dog, fish, bird — learners type the Italian labels.",
     drag_to_image:      "Example: 4 images — cat, dog, fish, bird — with Italian labels to drag.",
     select_form_to_image: "Example: 3 food photos, choose the correct adjective (gender/number) for each.",
     drag_to_gap:        "Example: 5 gaps, mixed vocabulary, a short text about a train journey.",
@@ -1124,7 +1160,7 @@ function DataPreview({ data, exerciseType }: { data: Record<string, unknown> | n
     );
   }
 
-    if (exerciseType === "drag_word_to_image" || exerciseType === "drag_to_image") {
+    if (exerciseType === "drag_word_to_image" || exerciseType === "drag_to_image" || exerciseType === "type_word_to_image") {
     const cards = data.cards as Array<{ answer: string; imageUrl?: string }> | undefined;
     if (!cards?.length) return null;
     return (
@@ -1155,9 +1191,17 @@ export default function AIExerciseGeneratorModal({
   exerciseType: exerciseTypeProp = "drag_to_gap",
 }: AIExerciseGeneratorModalProps) {
 
-  // exerciseType is set by the opening editor (e.g. DragToGapEditorPage passes "drag_to_gap").
-  // Fall back to drag_to_gap if an unknown type is passed in.
-  const exerciseType = EXERCISE_TYPE_MAP.has(exerciseTypeProp) ? exerciseTypeProp : "drag_to_gap";
+  // Stores the resolved exercise type from the opening editor for modal config routing.
+  const exerciseType = resolveExerciseType(exerciseTypeProp);
+  // Flags exercise types that must be generated only from textual description input.
+  const isDescriptionOnlyType =
+    exerciseType === "image" ||
+    exerciseType === "image_stacked" ||
+    exerciseType === "drag_word_to_image" ||
+    exerciseType === "type_word_to_image" ||
+    exerciseType === "select_form_to_image";
+  // Stores the tab list visible in the tab switcher for the active exercise type.
+  const availableTabs: Tab[] = isDescriptionOnlyType ? ["description"] : ["description", "materials"];
 
   // ── Tab ───────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>("description");
@@ -1172,7 +1216,7 @@ export default function AIExerciseGeneratorModal({
 
   // Derived: gap type default from selected exercise type
   const [gapType, setGapType] = useState(
-    () => EXERCISE_TYPE_MAP.get(exerciseTypeProp)?.defaultGapType
+    () => EXERCISE_TYPE_MAP.get(exerciseType)?.defaultGapType
       ?? EXERCISE_TYPE_MAP.get("drag_to_gap")?.defaultGapType
       ?? "Verbs only"
   );
@@ -1213,11 +1257,41 @@ export default function AIExerciseGeneratorModal({
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
+  // Keeps tab state valid when the active exercise type hides the materials tab.
+  useEffect(() => {
+    if (isDescriptionOnlyType && activeTab === "materials") {
+      setActiveTab("description");
+    }
+  }, [isDescriptionOnlyType, activeTab]);
+
   // Fills the description from a hint chip (trailing space for continued typing)
   const setChipPrompt = useCallback((text: string) => { setPrompt(text + " "); }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUploadedFile(e.target.files?.[0] ?? null);
+    // Stores the first selected file from the hidden file input.
+    const selectedFile = e.target.files?.[0] ?? null;
+    if (!selectedFile) {
+      setUploadedFile(null);
+      setError(null);
+      return;
+    }
+    // Validates file extension so only PDF uploads are allowed for this generator flow.
+    const isPdfExtension = selectedFile.name.toLowerCase().endsWith(".pdf");
+    if (!isPdfExtension) {
+      setUploadedFile(null);
+      setError("Only PDF files are allowed.");
+      e.target.value = "";
+      return;
+    }
+    // Prevents oversized uploads that exceed backend and UX expectations.
+    const isWithinSizeLimit = selectedFile.size <= MAX_UPLOAD_SIZE_BYTES;
+    if (!isWithinSizeLimit) {
+      setUploadedFile(null);
+      setError("File is too large. Maximum allowed size is 2 MB.");
+      e.target.value = "";
+      return;
+    }
+    setUploadedFile(selectedFile);
     setError(null);
   };
 
@@ -1257,9 +1331,14 @@ export default function AIExerciseGeneratorModal({
       if (activeTab === "materials" && uploadedFile) {
         const form = new FormData();
         form.append("file", uploadedFile);
-        form.append("gap_count",            mapCount(cfg.showGaps ? gapCount : "auto"));
+        // Sends gap_count only when it's explicitly numeric because from-file endpoint requires an int.
+        const mappedGapCount = mapCount(gapCount);
+        if (cfg.showGaps && mappedGapCount !== "auto") {
+          form.append("gap_count", mappedGapCount);
+        }
         form.append("content_language",     mapLanguage(language));
         form.append("instruction_language", "english");
+        form.append("difficulty",           difficulty);
         if (prompt.trim()) form.append("block_title", prompt.trim());
 
         const headers: Record<string, string> = {};
@@ -1271,6 +1350,7 @@ export default function AIExerciseGeneratorModal({
         const body: Record<string, unknown> = {
           content_language:     mapLanguage(language),
           instruction_language: "english",
+          difficulty:           difficulty,
           topic_hint:           prompt.trim() || undefined,
           block_title:          prompt.trim() || undefined,
         };
@@ -1306,7 +1386,7 @@ export default function AIExerciseGeneratorModal({
     } finally {
       setLoading(false);
     }
-  }, [activeTab, prompt, uploadedFile, segmentId, exerciseType, language, gapCount, pairCount, gapType, apiBase]);
+  }, [activeTab, prompt, uploadedFile, segmentId, exerciseType, language, difficulty, gapCount, pairCount, gapType, apiBase]);
 
   // ── Review actions ─────────────────────────────────────────────────────
   const handleAddToExercise = useCallback(() => {
@@ -1379,13 +1459,13 @@ export default function AIExerciseGeneratorModal({
                 AI Exercise Generator
               </span>
               {/* Show which exercise type will be generated */}
-              <span style={{
+              {/* <span style={{
                 fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
                 background: C.tint, color: C.primaryDk,
                 border: `1.5px solid ${C.tintDeep}`, letterSpacing: "0.01em",
               }}>
                 {activeCfg.icon} {activeCfg.label}
-              </span>
+              </span> */}
             </div>
             <button type="button" onClick={onClose}
               style={{
@@ -1410,7 +1490,7 @@ export default function AIExerciseGeneratorModal({
                 <div style={{
                   display: "flex", background: C.bg, borderRadius: 10, padding: "3px", gap: 2,
                 }}>
-                  {(["description", "materials"] as Tab[]).map((tab) => {
+                  {availableTabs.map((tab) => {
                     const labels: Record<Tab, string> = { description: "By description", materials: "By materials" };
                     const active = activeTab === tab;
                     return (
@@ -1487,15 +1567,15 @@ export default function AIExerciseGeneratorModal({
                 {activeTab === "description" && (
                   <div>
                     {/* Hint banner */}
-                    <div style={{
+                    {/* <div style={{
                       display: "flex", alignItems: "flex-start", gap: 9,
                       background: C.tint, borderRadius: 10, padding: "10px 13px", marginBottom: 14,
                     }}>
-                      <Sparkles size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0, marginTop: 2 }} />
-                      <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.55 }}>
+                      <Sparkles size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0, marginTop: 2 }} /> */}
+                      {/* <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.55 }}>
                         Enter a description — AI will generate a <strong>{activeCfg.label}</strong> exercise automatically.
-                      </span>
-                    </div>
+                      </span> */}
+                    {/* </div> */}
 
                     {/* Prompt hint chips: three quick, two richer (per exercise type) */}
                     <div style={{ marginBottom: 10 }}>
@@ -1601,7 +1681,7 @@ export default function AIExerciseGeneratorModal({
                     </div>
 
                     {/* Improve prompt */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 7, marginBottom: 16 }}>
+                    {/* <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 7, marginBottom: 16 }}>
                       <button type="button"
                         style={{
                           fontSize: 12, color: C.primary, cursor: "pointer", fontWeight: 500,
@@ -1616,7 +1696,7 @@ export default function AIExerciseGeneratorModal({
                       >
                         ✦ Improve prompt
                       </button>
-                    </div>
+                    </div> */}
 
                     {/* Divider */}
                     <div style={{ height: 1, background: C.borderSoft, margin: "0 0 16px" }} />
@@ -1693,16 +1773,16 @@ export default function AIExerciseGeneratorModal({
                 {activeTab === "materials" && (
                   <div>
                     {/* Hint */}
-                    <div style={{
+                    {/* <div style={{
                       display: "flex", alignItems: "flex-start", gap: 9,
                       background: C.tint, borderRadius: 10, padding: "10px 13px", marginBottom: 14,
-                    }}>
-                      <Upload size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0, marginTop: 2 }} />
-                      <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.55 }}>
-                        Upload a PDF or Word document — AI will generate a{" "}
-                        <strong>{activeCfg.label}</strong> exercise from its content.
-                      </span>
-                    </div>
+                    }}> */}
+                      {/* <Upload size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0, marginTop: 2 }} /> */}
+                      {/* <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.55 }}> */}
+                        {/* Upload a PDF document — AI will generate a{" "} */}
+                        {/* <strong>{activeCfg.label}</strong> exercise from its content. */}
+                      {/* </span> */}
+                    {/* </div> */}
 
                     {/* Drop zone */}
                     <div
@@ -1748,7 +1828,7 @@ export default function AIExerciseGeneratorModal({
                               Click to upload
                             </div>
                             <div style={{ fontSize: 11.5, color: C.sub }}>
-                              PDF or Word (.docx) — max 20 MB
+                              PDF only (.pdf) — max 2 MB
                             </div>
                           </>
                         )}
@@ -1757,7 +1837,7 @@ export default function AIExerciseGeneratorModal({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf,.docx"
+                      accept=".pdf,application/pdf"
                       onChange={handleFileChange}
                       style={{ display: "none" }}
                     />

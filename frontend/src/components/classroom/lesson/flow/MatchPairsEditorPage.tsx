@@ -288,6 +288,12 @@ export default function MatchPairsEditorPage({
           />
         </div>
 
+        <div className="dtg-editor-title-preview">
+          <div className="dtg-exercise-instruction">
+            Match each left word with the correct right word
+          </div>
+        </div>
+
         <div className="mp-editor-card">
           <div className="mp-editor-head">
             <div className="mp-editor-col-label">Left word</div>

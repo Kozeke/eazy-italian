@@ -551,6 +551,18 @@ export default function TypeWordInGapEditorPage({
           />
         </div>
 
+        {/* ── Student-facing preview: how the title + instruction look in the block */}
+        <div className="dtg-editor-title-preview">
+          {/* <span className="dtg-editor-title-preview__label">Student view</span>
+          <div className="dtg-exercise-title" style={{ fontSize: 14 }}>
+            {title || <span style={{ color: '#94a3b8', fontWeight: 400 }}>No title yet — type one above</span>}
+          </div> */}
+          <div className="dtg-exercise-instruction">
+            {/* <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8L6 12M6 12L18 16M6 12H22M2 12H4"/></svg> */}
+            Type words into the correct gaps
+          </div>
+        </div>
+
         {/* ── Typing hint bar — replaces the word-chips bar ─────────────────── */}
         <div className="dtg-words-bar twg-hint-bar">
           <KeyboardIcon

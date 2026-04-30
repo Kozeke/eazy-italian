@@ -274,7 +274,15 @@ export default function DragWordToImageBlock({
 
   return (
     <div className="dtg-block dti-block">
-      {title && <div className="dtg-block-title">{title}</div>}
+      {/* ── Exercise header: title + instruction ─────────────────────────── */}
+      <div className="dtg-exercise-header">
+        {title && (
+          <div className="dtg-exercise-title">{title}</div>
+        )}
+        <div className="dtg-exercise-instruction">
+          Drag words onto the correct images
+        </div>
+      </div>
 
       <div
         className="dtg-pool-bar"

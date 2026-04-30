@@ -442,11 +442,16 @@ export default function BuildSentenceBlock({
 
   return (
     <div className="dtg-block bs-block">
-      {(typedItem.data?.title || typedItem.label) && (
-        <div className="dtg-block-title">
-          {typedItem.data?.title || typedItem.label}
+      <div className="dtg-exercise-header">
+        {(typedItem.data?.title || typedItem.label) && (
+          <div className="dtg-exercise-title">
+            {typedItem.data?.title || typedItem.label}
+          </div>
+        )}
+        <div className="dtg-exercise-instruction">
+          Build the correct sentence from the words
         </div>
-      )}
+      </div>
 
       {showPromptSubline && <div className="bs-prompt">{question.prompt}</div>}
 

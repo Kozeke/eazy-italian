@@ -51,7 +51,7 @@ Blueprint schema the LLM must return  (no "exercises" key)
 
 Supported exercise type values
 ---------------------------------
-drag_to_gap, type_word_in_gap, select_word_form, match_pairs,
+image_stacked, drag_to_gap, type_word_in_gap, select_word_form, match_pairs,
 build_sentence, order_paragraphs, sort_into_columns,
 test_without_timer, test_with_timer, true_false
 """
@@ -78,7 +78,10 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_EXERCISE_TYPES: frozenset[str] = frozenset(
     {
+        "image_stacked",
         "drag_to_gap",
+        "drag_word_to_image",
+        "select_form_to_image",
         "type_word_in_gap",
         "select_word_form",
         "match_pairs",
