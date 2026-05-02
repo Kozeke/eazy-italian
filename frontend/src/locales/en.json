@@ -1093,6 +1093,7 @@
     },
     "errors": {
       "descriptionRequired": "Please enter a description for your exercise.",
+      "segmentMissing": "This block is not linked to a lesson section yet. Close this dialog, open or create a section in the lesson, then try again.",
       "generationFailed": "Generation failed.",
       "network": "Network error. Please try again."
     },
