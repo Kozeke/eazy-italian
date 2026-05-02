@@ -46,7 +46,6 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useCourseGeneration } from "../../hooks/useCourseGeneration";
-import { fetchWithAuth } from "../../services/apiClient";
 
 import ClassroomLayout from "../../components/classroom/ClassroomLayout";
 import ClassroomHeader from "../../components/classroom/ClassroomHeader";
@@ -85,7 +84,6 @@ import type { ClassroomUnit } from "../../hooks/useClassroom";
 import type { StudentTask, StudentTest } from "../../hooks/useStudentUnit";
 
 import {
-  API_BASE_URL,
   tasksApi,
   testsApi,
   unitsApi,
@@ -318,12 +316,12 @@ function EmptyLesson({ unitTitle }: { unitTitle: string }) {
  * Props
  * -----
  * courseId    — numeric course ID, used for the PATCH /courses/{id}/publish call
- * apiBase     — API root (default VITE_API_BASE_URL via API_BASE_URL)
+ * apiBase     — API root (default "/api/v1")
  * onPublished — called after a successful publish so the parent can refresh state
  */
 function DraftCourseBanner({
   courseId,
-  apiBase = API_BASE_URL,
+  apiBase = "/api/v1",
   onPublished,
 }: {
   courseId: number | string;
@@ -348,8 +346,12 @@ function DraftCourseBanner({
     // Loads teacher tariff plan from API to decide if publish action should be gated.
     const fetchPlan = async () => {
       try {
-        // fetchWithAuth injects Authorization and silently refreshes the token on 401
-        const res = await fetchWithAuth(`${apiBase}/admin/tariffs/me`);
+        // Reads auth token from local storage for authorized tariff endpoint requests.
+        const token = localStorage.getItem("token") ?? "";
+        // Requests current teacher tariff details.
+        const res = await fetch(`${apiBase}/admin/tariffs/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) return;
         // Parses tariff payload to extract plan identifier.
         const data = await res.json();
@@ -383,9 +385,15 @@ function DraftCourseBanner({
     setErrorMsg(null);
 
     try {
-      // fetchWithAuth manages Authorization header + silent token refresh on 401
-      const res = await fetchWithAuth(`${apiBase}/courses/${courseId}/publish`, {
+      // Reads auth token from local storage for authorized publish endpoint requests.
+      const token = localStorage.getItem("token") ?? "";
+      // Calls course publish endpoint for current course id.
+      const res = await fetch(`${apiBase}/courses/${courseId}/publish`, {
         method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({}),
       });
 
@@ -1116,6 +1124,56 @@ function ClassroomPageInner({
     ],
   );
 
+  /**
+   * Hides a unit from students by setting is_visible_to_students = false.
+   * The unit remains fully accessible to the teacher.
+   */
+  const handleHideUnit = useCallback(
+    async (unitToHide: ClassroomUnit) => {
+      if (!isTeacher) return;
+      try {
+        const token = localStorage.getItem('access_token') ?? '';
+        const res = await fetch(`/api/v1/admin/units/${unitToHide.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ is_visible_to_students: false }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        reloadUnits();
+        toast.success(`"${unitToHide.title}" hidden from students`);
+      } catch (error) {
+        console.error('[ClassroomPage] Failed to hide unit', error);
+        toast.error('Failed to hide unit');
+      }
+    },
+    [isTeacher, reloadUnits],
+  );
+
+  /**
+   * Duplicates a unit — creates a new unit with the same title (+ " (copy)")
+   * at the end of the course and navigates to it.
+   */
+  const handleCopyUnit = useCallback(
+    async (unitToCopy: ClassroomUnit) => {
+      if (!isTeacher) return;
+      try {
+        const newUnit = await unitsApi.createUnit({
+          title: `${unitToCopy.title} (copy)`,
+          level: (unitToCopy as any).level ?? 'A1',
+          course_id: Number(courseId),
+          order_index: units.length,
+        } as any);
+        reloadUnits();
+        toast.success(`"${unitToCopy.title}" copied`);
+        navigate(`${classroomBasePath}/${courseId}/${newUnit.id}`, { replace: false });
+      } catch (error) {
+        console.error('[ClassroomPage] Failed to copy unit', error);
+        toast.error('Failed to copy unit');
+      }
+    },
+    [isTeacher, units.length, courseId, classroomBasePath, navigate, reloadUnits],
+  );
+
   /** Navigates to a unit URL and resets local lesson progress (shared by selector, finish, and draft confirm). */
   const navigateToUnit = useCallback(
     (unit: ClassroomUnit) => {
@@ -1593,6 +1651,7 @@ function ClassroomPageInner({
           course.status !== "PUBLISHED" && (
             <DraftCourseBanner
               courseId={course.id}
+              apiBase="/api/v1"
               onPublished={reloadUnits}
             />
           )}
@@ -1649,6 +1708,8 @@ function ClassroomPageInner({
         generateUnitTitle={undefined}
         onCreateAndGenerate={handleCreateAndGenerate}
         onDeleteUnit={isTeacher ? handleDeleteUnit : undefined}
+        onHideUnit={isTeacher ? handleHideUnit : undefined}
+        onCopyUnit={isTeacher ? handleCopyUnit : undefined}
         onEditCourse={isTeacher ? handleEditCourse : undefined}
         onDeleteCourse={isTeacher ? handleDeleteCourse : undefined}
         editCourseDescription={editCourseSeed.initialDescription}

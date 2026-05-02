@@ -34,6 +34,7 @@ from app.services.unit_generator import (
     UnitGeneratorService,
     UnitGenerateRequest as _SvcUnitGenerateRequest,
 )
+from app.services.ai.providers.router import get_provider_for_plan
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,7 @@ def _build_segment_summary(seg: Segment) -> SegmentSummary:
 # ── File-upload constants & provider helper ───────────────────────────────────
 
 _MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024   # 20 MB
-_ALLOWED_EXTENSIONS  = {"pdf"}
+_ALLOWED_EXTENSIONS  = {"pdf", "docx"}
 
 
 def _get_ai_provider():
@@ -264,9 +265,16 @@ async def generate_unit_content(
     # Consumes one AI unit-generation credit based on the teacher's active tariff.
     check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
 
-    # Prevent request crash when AI provider cannot be initialized.
+    # Select AI provider based on the teacher's subscription plan:
+    #   free              → Groq  (fast, free-tier)
+    #   standard / pro    → DeepSeek V3  (higher quality)
     try:
-        provider = _get_ai_provider()
+        plan = current_user.subscription or "free"
+        provider = get_provider_for_plan(plan)
+        logger.info(
+            "generate_unit_content: plan=%r provider=%s unit_id=%d teacher_id=%d",
+            plan, type(provider).__name__, unit_id, current_user.id,
+        )
     except Exception as exc:
         logger.error(
             "generate_unit_content: provider init failed unit_id=%d teacher_id=%d: %s",
@@ -337,18 +345,18 @@ async def generate_unit_content(
     response_model=UnitGenerateResponse,
     summary="AI-generate unit segments from an uploaded file",
     description=(
-        "Upload a PDF file. The endpoint extracts its text, derives the topic "
+        "Upload a PDF or DOCX file. The endpoint extracts its text, derives the topic "
         "from the document title (or filename), and runs the full generation pipeline:\n\n"
         "- **Text blocks** — grammar rules, vocabulary, examples in Markdown\n"
         "- **Exercise blocks** — AI-generated interactive exercises\n"
         "- **Image blocks** (optional) — SVG illustrations, enabled with `include_images=true`\n\n"
-        f"**Supported file types:** pdf — max 20 MB"
+        f"**Supported file types:** pdf, docx — max 20 MB"
     ),
     tags=["AI Unit Generation"],
 )
 async def generate_unit_from_file(
     unit_id: int,
-    file: UploadFile = File(..., description="PDF file — max 20 MB"),
+    file: UploadFile = File(..., description="PDF or DOCX file — max 20 MB"),
     level: str = Form(default="A2", description="CEFR level: A1–C2"),
     language: str = Form(default="English", description="Target language of the content"),
     num_segments: int = Form(default=3, ge=1, le=6, description="Number of segments to create (1–6)"),
@@ -434,11 +442,17 @@ async def generate_unit_from_file(
             detail=f"Unknown exercise type(s): {unknown}. Supported: {sorted(SUPPORTED_TYPES)}",
         )
 
-    # ── Run generator ─────────────────────────────────────────────────────────
-    # Consumes one AI unit-generation credit after file/form validation succeeds.
+    # Select AI provider based on the teacher's subscription plan:
+    #   free              → Groq  (fast, free-tier)
+    #   standard / pro    → DeepSeek V3  (higher quality)
     check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
     try:
-        provider = _get_ai_provider()
+        plan = current_user.subscription or "free"
+        provider = get_provider_for_plan(plan)
+        logger.info(
+            "generate_unit_from_file: plan=%r provider=%s unit_id=%d teacher_id=%d",
+            plan, type(provider).__name__, unit_id, current_user.id,
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI provider unavailable: {exc}") from exc
 
