@@ -766,6 +766,10 @@
 }
 
 .dtg-btn-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 9px 26px;
   border-radius: 8px;
   border: none;
@@ -778,6 +782,11 @@
   transition:
     background 0.15s,
     opacity 0.15s;
+}
+
+.dtg-btn-save svg {
+  flex-shrink: 0;
+  display: block;
 }
 
 .dtg-btn-save:hover:not(:disabled) {
@@ -814,7 +823,43 @@
   color: var(--dtg-text);
 }
 
-/* ── Pool bar (top chips in block) ───────────────────────────────────────── */
+/* ── Exercise header (title + instruction row shown to students) ──────────── */
+
+.dtg-exercise-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.dtg-exercise-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dtg-text);
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.dtg-exercise-instruction {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dtg-sub);
+  letter-spacing: 0.01em;
+}
+
+/* ── Editor instruction preview ──────────────────────────────────────────── */
+
+.dtg-editor-title-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 8px;
+}
+
+
 
 .dtg-pool-bar {
   display: flex;
@@ -1759,4 +1804,41 @@
 
 .twg-gap-input--teacher::placeholder {
   color: #a5a8ef;
+}
+
+/* ── TypeWordInGap — teacher-only correct-answer hints ─────────────────────── */
+
+/* Editor (TypeWordInGapEditorPage): column wrapper so the hint sits below       */
+/* the gap chip without breaking the inline text flow.                           */
+.dtg-gap-wrap--typing {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+}
+
+/* "✓ answer" label below each filled gap chip in the EDITOR.                   */
+/* Teacher-only: TypeWordInGapEditorPage is never rendered for students.         */
+.dtg-twg-editor-answer-hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4f52c2;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* "✓ answer" label below each gap input in the BLOCK (lesson canvas / live).   */
+/* showAnswerHints is only true for teacher roles — students receive false.       */
+.twg-teacher-answer-hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4f52c2;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  line-height: 1;
 }

@@ -24,13 +24,27 @@ import { LiveSessionContext } from "../../live/LiveSessionProvider";
 import { showTeacherExerciseHints } from "./showTeacherExerciseHints";
 import "./DragToGap.css";
 
-/** Stable hash for deterministic per-block shuffles (matches MatchPairsBlock). */
+/**
+ * FNV-1a 32-bit hash with finalisation avalanche.
+ * The old polynomial hash (hash * 31 + charCode) produced nearly sequential
+ * output for sequential IDs like tok_0_0, tok_0_1, tok_0_2 — those only differ
+ * in the last character so their hashes differed by exactly 1, meaning the
+ * "shuffle" sorted them back into their original order.
+ * FNV-1a + the avalanche mix makes adjacent inputs diverge strongly.
+ */
 function hashString(value: string): number {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  let h = 2166136261; // FNV-1a offset basis
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619); // FNV prime
+    h >>>= 0;
   }
-  return hash;
+  // Finalisation: mix upper/lower bits so 1-char differences cause large hash differences
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x45d9f3b);
+  h >>>= 0;
+  h ^= h >>> 16;
+  return h >>> 0;
 }
 
 /** Returns a copy of items sorted by seeded pseudo-random scores so pool order is scrambled but stable per seed. */
@@ -47,8 +61,10 @@ function deterministicShuffleById<T extends { id: string }>(
 }
 
 /**
- * Builds draggable bank order for one sentence: if the author's token list order for that
- * row matches reading order, shuffle within the row so the bank is not trivially sorted.
+ * Builds the draggable word bank for one sentence row.
+ * Always shuffles — whether the backend already shuffled the token list or not.
+ * This ensures both newly generated exercises (backend-shuffled) and older saved
+ * exercises (tokens stored in reading order) display a scrambled word bank.
  */
 function wordPoolForSentenceGroup(
   question: OrderingWordsDraft,
@@ -56,34 +72,22 @@ function wordPoolForSentenceGroup(
   blockItemId: string,
   sentenceIndex: number,
 ): SlotInfo[] {
-  // Fast lookup from token id to full token draft while building this row's bank
   const tokenById = new Map(question.tokens.map((token) => [token.id, token]));
-  // Slot ids for this sentence in correct reading order (same ids as draggable chips)
+  // Correct reading order ids for this sentence (used as the shuffle seed base)
   const groupReadingIds = groupSlots.map((slot) => slot.id);
-  // Which token ids belong to this sentence row
   const groupIdSet = new Set(groupReadingIds);
-  // Order those ids appear in the global `tokens` array (author / AI bank order)
-  const bankOrderIds = question.tokens
-    .map((token) => token.id)
-    .filter((id) => groupIdSet.has(id));
-  // True when the saved bank order already matches reading order for this row only
-  const isBankIdenticalToReadingOrder =
-    bankOrderIds.length === groupReadingIds.length &&
-    bankOrderIds.every((id, index) => id === groupReadingIds[index]);
 
-  if (isBankIdenticalToReadingOrder) {
-    const rowTokens: SlotInfo[] = groupReadingIds
-      .map((id) => tokenById.get(id))
-      .filter((t): t is TokenDraft => t != null)
-      .map((t) => ({ id: t.id, text: t.text }));
-    const groupSeed = `${blockItemId}:bs-pool:${sentenceIndex}`;
-    return deterministicShuffleById(rowTokens, groupSeed);
-  }
-
-  return bankOrderIds
+  // Build the word bank tokens for this sentence row
+  const rowTokens: SlotInfo[] = groupReadingIds
     .map((id) => tokenById.get(id))
     .filter((t): t is TokenDraft => t != null)
     .map((t) => ({ id: t.id, text: t.text }));
+
+  // Always apply deterministic shuffle keyed to this block + sentence index.
+  // Using groupReadingIds[0] as an extra seed component means each sentence row
+  // gets a unique shuffle even if blockItemId is the same across exercises.
+  const groupSeed = `${blockItemId}:bs-pool:${sentenceIndex}:${groupReadingIds[0] ?? ""}`;
+  return deterministicShuffleById(rowTokens, groupSeed);
 }
 
 interface BuildSentenceData {
@@ -438,11 +442,16 @@ export default function BuildSentenceBlock({
 
   return (
     <div className="dtg-block bs-block">
-      {(typedItem.data?.title || typedItem.label) && (
-        <div className="dtg-block-title">
-          {typedItem.data?.title || typedItem.label}
+      <div className="dtg-exercise-header">
+        {(typedItem.data?.title || typedItem.label) && (
+          <div className="dtg-exercise-title">
+            {typedItem.data?.title || typedItem.label}
+          </div>
+        )}
+        <div className="dtg-exercise-instruction">
+          Build the correct sentence from the words
         </div>
-      )}
+      </div>
 
       {showPromptSubline && <div className="bs-prompt">{question.prompt}</div>}
 

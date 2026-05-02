@@ -64,10 +64,13 @@ export interface TemplateConfig {
  *   "test_without_timer" → TestWithoutTimerEditorPage
  *   "test_with_timer" → TestWithTimerEditorPage
  *   "true_false" → TrueFalseEditorPage
+ *   "video_block" → VideoEditorPage
+ *   "audio_block" → AudioEditorPage
    */
   customEditor?:
     | "text_block"
     | "image_block"
+    | "image_stacked"
     | "drag_to_gap"
     | "drag_to_image"
     | "type_word_to_image"
@@ -80,7 +83,10 @@ export interface TemplateConfig {
     | "sort_into_columns"
     | "test_without_timer"
     | "test_with_timer"
-    | "true_false";
+    | "true_false"
+    | "gif_animation"
+    | "video_block"
+    | "audio_block";
 }
 
 // --- Design tokens (shared across preview components) -------------------------
@@ -107,16 +113,6 @@ const P = {
 };
 
 // --- Preview components -------------------------------------------------------
-
-function ImgStackPreview() {
-  return (
-    <div style={{ ...P.card, display: "flex", flexDirection: "column", gap: 6 }}>
-      {[{ h: 60, r: 10 }, { h: 28, r: 8 }, { h: 28, r: 8 }].map((b, i) => (
-        <div key={i} style={{ height: b.h, borderRadius: b.r, background: `hsl(${220 + i * 20}, 60%, 90%)`, border: "1px solid #E8EAFD" }} />
-      ))}
-    </div>
-  );
-}
 
 function ImgCarouselPreview() {
   return (
@@ -311,20 +307,20 @@ function OrderTextPreview() {
   );
 }
 
-// function AnagramPreview() {
-//   return (
-//     <div style={{ ...P.card, width: 190, textAlign: "center" }}>
-//       <p style={{ margin: "0 0 8px", fontSize: 11, color: C.sub, fontWeight: 500 }}>Warm Season</p>
-//       <div style={{ display: "flex", justifyContent: "center", gap: 4, marginBottom: 6 }}>
-//         {["S", "_", "_", "_", "_", "r"].map((c, i) => (
-//           <div key={i} style={{ width: 20, height: 22, borderRadius: 5, border: "1.5px solid #E8EAFD", background: c !== "_" ? "#EEF0FE" : "#F7F7FA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: C.primary }}>
-//             {c === "S" || c === "r" ? c : ""}
-//           </div>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// }
+function AnagramPreview() {
+  return (
+    <div style={{ ...P.card, width: 190, textAlign: "center" }}>
+      <p style={{ margin: "0 0 8px", fontSize: 11, color: C.sub, fontWeight: 500 }}>Warm Season</p>
+      <div style={{ display: "flex", justifyContent: "center", gap: 4, marginBottom: 6 }}>
+        {["S", "_", "_", "_", "_", "r"].map((c, i) => (
+          <div key={i} style={{ width: 20, height: 22, borderRadius: 5, border: "1.5px solid #E8EAFD", background: c !== "_" ? "#EEF0FE" : "#F7F7FA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: C.primary }}>
+            {c === "S" || c === "r" ? c : ""}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function MatchingPreview() {
   const pairs: [string, string][] = [["English", "Hello"], ["French", "Salut"], ["Italian", "Ciao"], ["Spanish", "Hola"]];
@@ -529,12 +525,14 @@ export const TEMPLATE_REGISTRY: TemplateConfig[] = [
   { id: "text-block",   section: "Text & Reading", label: "Text block",          preview: <TextBlockPreview />,   customEditor: "text_block" },
   // Images
   { id: "img-block",    section: "Images",       label: "Image block",          preview: <ImageBlockPreview />,  customEditor: "image_block" },
-  { id: "img-stack",    section: "Images",       label: "Images stacked",       preview: <ImgStackPreview />,    mediaKind: "image" },
-  { id: "img-carousel", section: "Images",       label: "Image carousel",       preview: <ImgCarouselPreview />, mediaKind: "image" },
-  { id: "img-gif",      section: "Images",       label: "GIF animation",        preview: <GifPreview />,         mediaKind: "image" },
+  // Keep the old stacked card hidden to avoid confusion with Image carousel.
+  // { id: "img-stack",    section: "Images",       label: "Images stacked",       preview: <ImgStackPreview />,    customEditor: "image_stacked" },
+  // Route Image carousel to the ImageStacked editor/block implementation.
+  { id: "img-carousel", section: "Images",       label: "Image carousel",       preview: <ImgCarouselPreview />, customEditor: "image_stacked" },
+  { id: "img-gif",      section: "Images",       label: "GIF animation",        preview: <GifPreview />,         customEditor: "gif_animation" },
   // Audio & Video
-  { id: "video-embed",  section: "Audio & Video", label: "Embed video",         preview: <VideoPreview />,       mediaKind: "video" },
-  { id: "audio-clip",   section: "Audio & Video", label: "Audio clip",          preview: <AudioPreview />,       mediaKind: "audio" },
+  { id: "video-embed",  section: "Audio & Video", label: "Embed video",         preview: <VideoPreview />,       customEditor: "video_block" },
+  { id: "audio-clip",   section: "Audio & Video", label: "Audio clip",          preview: <AudioPreview />,       customEditor: "audio_block" },
   { id: "audio-repeat", section: "Audio & Video", label: "Listen & repeat",     preview: <AudioRepeatPreview />, combo: { mediaKind: "audio", draftType: "open_answer" } },
   // Words & Gaps
   { id: "drag-to-gap",  section: "Words & Gaps",  label: "Drag word to gap",    preview: <DragToGapPreview />,   customEditor: "drag_to_gap" },
@@ -554,8 +552,7 @@ export const TEMPLATE_REGISTRY: TemplateConfig[] = [
   { id: "order-sentence",section: "Put in Order", label: "Build a sentence",    preview: <OrderSentencePreview />, customEditor: "build_sentence" },
   { id: "sort-columns", section: "Put in Order",  label: "Sort into columns",   preview: <SortColumnsPreview />, customEditor: "sort_into_columns" },
   { id: "order-text",   section: "Put in Order",  label: "Order paragraphs",    preview: <OrderTextPreview />,   customEditor: "order_paragraphs" },
-  // Hidden temporarily: "Make a word" is disabled in the drafts gallery.
-  // { id: "anagram",      section: "Put in Order",  label: "Make a word",         preview: <AnagramPreview />,     draftType: "ordering_words" },
+  { id: "anagram",      section: "Put in Order",  label: "Make a word",         preview: <AnagramPreview />,     draftType: "ordering_words" },
   { id: "matching",     section: "Put in Order",  label: "Match pairs",         preview: <MatchingPreview />,    customEditor: "match_pairs" },
 ];
 
@@ -592,6 +589,10 @@ export const SEGMENT_EDITABLE_EXERCISE_KINDS = new Set<string>([
   "sort_into_columns",
   "test_without_timer",
   "test_with_timer",
+  "image_stacked",
+  "gif_animation",
+  "video_embed",
+  "audio_embed",
 ]);
 
 /**
@@ -616,6 +617,11 @@ export function templateIdForSegmentExerciseKind(kind: string): string | null {
     sort_into_columns: "sort-columns",
     test_without_timer: "mc-no-timer",
     test_with_timer: "mc-timer",
+    // Preserve edit-open behavior for persisted image_stacked blocks.
+    image_stacked: "img-carousel",
+    gif_animation: "img-gif",
+    video_embed: "video-embed",
+    audio_embed: "audio-clip",
   };
   return map[kind] ?? null;
 }

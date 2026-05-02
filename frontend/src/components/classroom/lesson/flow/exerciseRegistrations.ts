@@ -43,6 +43,7 @@ registerExercise("order_paragraphs", () => import("./blocks/OrderParagraphsBlock
 registerExercise("sort_into_columns", () => import("./blocks/SortIntoColumnsBlock"));
 registerExercise("test_without_timer", () => import("./blocks/TestWithoutTimerBlock"));
 registerExercise("test_with_timer", () => import("./blocks/TestWithTimerBlock"));
+registerExercise("true_false", () => import("./TrueFalseBlock"));
 registerExercise("text",  () => import("./TextBlock"));
 // "image" with block.data.src → ImageBlock (SVG / URL illustration cards).
 // Simple teacher URL-images (kind:"image", url:string, no data.src) never
@@ -50,4 +51,8 @@ registerExercise("text",  () => import("./TextBlock"));
 registerExercise("image", () => import("./ImageBlock"));
 // registerExercise("sort_sentence",  () => import("./SortSentenceBlock"));
 // registerExercise("match_pairs",    () => import("./MatchPairsBlock"));
-registerExercise("inline_media", () => import("./homework/HomeworkInlineMediaBlock"));
+registerExercise("inline_media",   () => import("./homework/HomeworkInlineMediaBlock"));
+registerExercise("image_stacked", () => import("./ImageStackedBlock"));
+registerExercise("gif_animation", () => import("./GifAnimationBlock"));
+registerExercise("video_embed", () => import("./VideoBlock"));
+registerExercise("audio_embed", () => import("./AudioBlock"));

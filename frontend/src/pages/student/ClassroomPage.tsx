@@ -57,6 +57,7 @@ import HomeworkPlayer from "../../components/classroom/lesson/flow/homework/Home
 import UnitSelectorModal from "../../components/classroom/unit/UnitSelectorModal";
 import type { CreatingUnitMode } from "../../components/classroom/unit/UnitSelectorModal";
 import AdditionalMaterialsModal from "../../components/classroom/unit/AdditionalMaterialsModal";
+import ConnectPaymentModal from "../admin/components/ConnectPaymentModal";
 import StudentAnswersPanel from "../../components/classroom/unit/StudentAnswersPanel";
 import type { CourseEditData } from "../../components/classroom/unit/EditCourseModal";
 import {
@@ -299,6 +300,247 @@ function EmptyLesson({ unitTitle }: { unitTitle: string }) {
         {t("classroom.page.emptyLessonCheckBackSoon")}
       </p>
     </div>
+  );
+}
+
+/**
+ * DraftCourseBanner
+ *
+ * A persistent sticky strip shown to the teacher when the course has not
+ * been published to students yet (is_visible_to_students=false or status≠PUBLISHED).
+ *
+ * Positioning mirrors LiveSessionBanner: rendered inside ClassroomLayout,
+ * directly after <ClassroomHeader />, so it stays below the sticky header
+ * without covering any scrollable content.
+ *
+ * Props
+ * -----
+ * courseId    — numeric course ID, used for the PATCH /courses/{id}/publish call
+ * apiBase     — API root (default "/api/v1")
+ * onPublished — called after a successful publish so the parent can refresh state
+ */
+function DraftCourseBanner({
+  courseId,
+  apiBase = "/api/v1",
+  onPublished,
+}: {
+  courseId: number | string;
+  apiBase?: string;
+  onPublished?: () => void;
+}) {
+  // Stores the publish interaction state for button/feedback UI transitions.
+  const [publishState, setPublishState] = useState<"idle" | "loading" | "published" | "error">("idle");
+  // Stores the most recent publish error message displayed inline in the banner.
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Stores the teacher plan returned by tariff endpoint to gate publishing for free accounts.
+  const [plan, setPlan] = useState<string | null>(null);
+  // Tracks whether tariff plan lookup is still loading to prevent premature publish clicks.
+  const [planLoading, setPlanLoading] = useState(true);
+  // Controls whether the upgrade/paywall modal is visible for free-plan teachers.
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+
+  // Fetches current teacher plan once when banner mounts.
+  useEffect(() => {
+    // Guards against state updates after unmount while async request is still in flight.
+    let mounted = true;
+    // Loads teacher tariff plan from API to decide if publish action should be gated.
+    const fetchPlan = async () => {
+      try {
+        // Reads auth token from local storage for authorized tariff endpoint requests.
+        const token = localStorage.getItem("token") ?? "";
+        // Requests current teacher tariff details.
+        const res = await fetch(`${apiBase}/admin/tariffs/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        // Parses tariff payload to extract plan identifier.
+        const data = await res.json();
+        if (mounted) setPlan((data.plan as string | null) ?? "free");
+      } catch {
+        // Falls back to free plan on request errors to avoid accidental ungated publishing.
+        if (mounted) setPlan("free");
+      } finally {
+        if (mounted) setPlanLoading(false);
+      }
+    };
+    void fetchPlan();
+    return () => {
+      mounted = false;
+    };
+    // Intentionally runs only once for initial banner mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Flags whether teacher should be treated as free-plan for publish gating logic.
+  const isFreePlan = plan === "free" || plan === null;
+
+  // Handles click on "Publish to students" button with plan gate + API publish flow.
+  const handlePublishClick = async () => {
+    if (isFreePlan) {
+      setUpgradeOpen(true);
+      return;
+    }
+
+    setPublishState("loading");
+    setErrorMsg(null);
+
+    try {
+      // Reads auth token from local storage for authorized publish endpoint requests.
+      const token = localStorage.getItem("token") ?? "";
+      // Calls course publish endpoint for current course id.
+      const res = await fetch(`${apiBase}/courses/${courseId}/publish`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (res.status === 402) {
+        setPublishState("idle");
+        setUpgradeOpen(true);
+        return;
+      }
+
+      if (!res.ok) {
+        // Parses optional API error payload to surface useful failure details.
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { detail?: string }).detail ?? "Publish failed.");
+      }
+
+      setPublishState("published");
+      onPublished?.();
+    } catch (err) {
+      setPublishState("error");
+      setErrorMsg(err instanceof Error ? err.message : "Could not publish the course.");
+    }
+  };
+
+  // Shows one-time success strip while parent refresh hides banner after publish.
+  if (publishState === "published") {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 20px",
+          background: "#ECFDF5",
+          borderBottom: "1px solid #A7F3D0",
+          fontSize: 13,
+          fontWeight: 500,
+          color: "#065F46",
+          fontFamily: "'Inter', system-ui, sans-serif",
+        }}
+      >
+        <span style={{ fontSize: 16 }}>✓</span>
+        Course is now live for students ✓
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        role="status"
+        aria-live="polite"
+        aria-label="This course is a draft — not visible to students"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "10px 20px",
+          background: "#EEF0FE",
+          borderBottom: "1px solid #C7CAFF",
+          fontFamily: "'Inter', system-ui, sans-serif",
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#4F52C2", display: "flex", alignItems: "center", gap: 6 }}>
+          🔒 This course is not visible to students yet
+          {errorMsg && (
+            <span style={{ fontSize: 12, color: "#EF4444", marginLeft: 8 }}>
+              — {errorMsg}
+            </span>
+          )}
+        </span>
+
+        <button
+          type="button"
+          disabled={publishState === "loading" || planLoading}
+          onClick={() => void handlePublishClick()}
+          style={{
+            flexShrink: 0,
+            background: "#6C6FEF",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+            padding: "6px 14px",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: publishState === "loading" || planLoading ? "not-allowed" : "pointer",
+            opacity: publishState === "loading" || planLoading ? 0.7 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontFamily: "'Inter', system-ui, sans-serif",
+            transition: "background .14s",
+          }}
+          onMouseEnter={(e) => {
+            if (publishState !== "loading") e.currentTarget.style.background = "#4F52C2";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "#6C6FEF";
+          }}
+        >
+          {publishState === "loading" ? (
+            <>
+              <span
+                aria-hidden
+                style={{
+                  display: "inline-block",
+                  width: 12,
+                  height: 12,
+                  borderRadius: "50%",
+                  border: "2px solid rgba(255,255,255,0.4)",
+                  borderTopColor: "#fff",
+                  animation: "dcb-spin 0.65s linear infinite",
+                }}
+              />
+              Publishing...
+            </>
+          ) : (
+            "Publish to students ->"
+          )}
+        </button>
+      </div>
+
+      <style>{`@keyframes dcb-spin { to { transform: rotate(360deg); } }`}</style>
+
+      {upgradeOpen && (
+        <ConnectPaymentModal
+          key="draft-banner-upgrade"
+          open
+          onClose={() => setUpgradeOpen(false)}
+          durationLabel="1 mo"
+          planName="Standard"
+          priceLabel="12.00 USD"
+          planTagLabels={[
+            "Publish courses to students: ✓",
+            "AI exercise generations: 100 / mo",
+            "AI unit generations: 20 / mo",
+          ]}
+          yearSavingsLabel="If you pay for 1 year you could save: $29"
+          onPay={async () => {
+            setUpgradeOpen(false);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -1348,6 +1590,18 @@ function ClassroomPageInner({
         />
 
         <LiveSessionBanner />
+
+        {/* Part E: Draft course banner — teacher only, hidden when published */}
+        {isTeacher &&
+          course != null &&
+          course.is_visible_to_students !== true &&
+          (course as { status?: string }).status !== "PUBLISHED" && (
+            <DraftCourseBanner
+              courseId={course.id}
+              apiBase="/api/v1"
+              onPublished={reloadUnits}
+            />
+          )}
 
         {/* Teacher overlay; not the lesson rail (that is lessonRail on ClassroomHeader). */}
         <StudentAnswersPanel

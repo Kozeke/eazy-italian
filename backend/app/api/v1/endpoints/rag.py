@@ -11,6 +11,7 @@ Mount in api_router:
 from __future__ import annotations
 
 import logging
+import os
 import time
 from functools import lru_cache
 from typing import Annotated
@@ -27,22 +28,38 @@ from app.models.unit import Unit
 from app.services.ai.answer_synthesizer import AnswerResponse
 from app.services.ai.providers.base import AIProvider
 from app.services.rag_service import RAGService
-from app.services.ai_test_generator import _default_provider
 
 router = APIRouter()
 
 
 # ── Provider singleton ─────────────────────────────────────────────────────────
 
+# Builds a provider instance from AI_PROVIDER without depending on generator modules.
+def _build_rag_provider() -> AIProvider:
+    # Reads the provider selector from environment with groq as safe default.
+    provider_name = os.environ.get("AI_PROVIDER", "groq").strip().lower()
+
+    if provider_name == "groq":
+        from app.services.ai.providers.groq_provider import GroqProvider
+        return GroqProvider()
+
+    if provider_name == "ollama":
+        from app.services.ai.providers.ollama import LocalLlamaProvider
+        return LocalLlamaProvider()
+
+    raise ValueError(
+        f"Unknown AI_PROVIDER={provider_name!r}. Valid values: 'groq', 'ollama'."
+    )
+
 @lru_cache(maxsize=1)
 def get_ai_provider() -> AIProvider:
     """
-    Module-level provider cache — uses the default provider from ai_test_generator.
+    Module-level provider cache — uses a local provider builder for RAG endpoints.
     This respects the AI_PROVIDER env-var (groq/ollama) set at import time.
     No warm-up needed for Groq (external API), and Ollama warm-up is optional.
     """
-    # Use the same provider instance as test generation
-    provider = _default_provider
+    # Build the default provider from current AI_PROVIDER env configuration.
+    provider = _build_rag_provider()
     # Optional warm-up for Ollama (no-op for Groq)
     if hasattr(provider, 'warm_up'):
         try:

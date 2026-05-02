@@ -29,6 +29,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Keyboard } from "lucide-react";
 import type { ExerciseBlockProps } from "./exerciseBlock.types";
 import type {
   TypeWordInGapData,
@@ -220,34 +221,16 @@ export default function TypeWordInGapBlock({
 
   return (
     <div className="dtg-block twg-block">
-      {/* Teacher guided-fill banner */}
-      {isLiveTeacher && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 12,
-            padding: "6px 12px",
-            background: "#EEF0FE",
-            borderRadius: 10,
-            fontSize: 13,
-            color: "#4F52C2",
-            fontWeight: 500,
-          }}
-        >
-          <span style={{ fontSize: 16 }}>✏️</span>
-          Guided-fill mode — your typing is broadcast live to students
+      {/* ── Exercise header: title + instruction ─────────────────────────── */}
+      <div className="dtg-exercise-header">
+        {title && (
+          <div className="dtg-exercise-title">{title}</div>
+        )}
+        <div className="dtg-exercise-instruction">
+          <Keyboard size={13} />
+          Type the correct word in each gap
         </div>
-      )}
-
-      {title && <div className="dtg-block-title">{title}</div>}
-
-      {!showAnswerHints && (
-        <div className="twg-helper-bar" aria-hidden="true">
-          Type the correct word in each gap.
-        </div>
-      )}
+      </div>
 
       <div
         className="dtg-text twg-text"
@@ -272,20 +255,37 @@ export default function TypeWordInGapBlock({
             !isGapCorrect(gapId);
 
           return (
-            <SyncedGapInput
+            // Column-flex wrapper mirrors the SelectWordFormBlock pattern:
+            // the SyncedGapInput sits in the text flow and the teacher-only
+            // answer hint appears directly below it.
+            <span
               key={gapId}
-              gapId={gapId}
-              itemId={typedItem.id}
-              value={value}
-              expected={expected}
-              showCorrect={showCorrect}
-              showWrong={showWrong}
-              gapIndex={gapIds.indexOf(gapId)}
-              isGuidedLiveTeacher={!!isLiveTeacher}
-              showAnswerHints={showAnswerHints}
-              onChange={handleChange}
-              onBlur={markTouched}
-            />
+              style={{
+                display: "inline-flex",
+                flexDirection: "column",
+                alignItems: "center",
+                verticalAlign: "middle",
+              }}
+            >
+              <SyncedGapInput
+                gapId={gapId}
+                itemId={typedItem.id}
+                value={value}
+                expected={expected}
+                showCorrect={showCorrect}
+                showWrong={showWrong}
+                gapIndex={gapIds.indexOf(gapId)}
+                isGuidedLiveTeacher={!!isLiveTeacher}
+                showAnswerHints={showAnswerHints}
+                onChange={handleChange}
+                onBlur={markTouched}
+              />
+              {/* Teacher-only correct-answer badge — students never see this
+                  because showAnswerHints is false for any student role. */}
+              {showAnswerHints && expected && (
+                <span className="twg-teacher-answer-hint">✓ {expected}</span>
+              )}
+            </span>
           );
         })}
       </div>

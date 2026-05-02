@@ -65,6 +65,11 @@ class ExerciseGenerateRequest(BaseModel):
             "has no textual material. Example: 'Generate text with focus on future simple'."
         ),
     )
+    difficulty: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Optional difficulty preference (for example Beginner, Intermediate, Advanced).",
+    )
 
     # ── Type-specific extras ──────────────────────────────────────────────────
     # Gap-based exercises (drag_to_gap, type_word_in_gap, select_word_form)
@@ -117,6 +122,7 @@ class ExerciseGenerateRequest(BaseModel):
             "gap_count":   resolved_gap_count,
             "gap_type":    self.gap_type,
             "pair_count":  resolved_pair_count,
+            "difficulty":  self.difficulty,
         }
 
 

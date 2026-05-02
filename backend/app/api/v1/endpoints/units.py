@@ -433,9 +433,13 @@ async def publish_unit(
     if publish_data.publish_at:
         unit.status = UnitStatus.SCHEDULED
         unit.publish_at = publish_data.publish_at
+        # Keep scheduled units visible so they become available automatically at publish_at.
+        unit.is_visible_to_students = True
     else:
         unit.status = UnitStatus.PUBLISHED
         unit.publish_at = datetime.utcnow()
+        # Ensure immediately published units are visible in student course views.
+        unit.is_visible_to_students = True
     
     # Publish children if requested
     if publish_data.publish_children:

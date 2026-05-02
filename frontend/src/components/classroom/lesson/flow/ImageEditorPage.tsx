@@ -15,10 +15,14 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import { ImageIcon, Eye, EyeOff, Upload, Link } from "lucide-react";
+import { ImageIcon, Eye, EyeOff, Upload, Link, Sparkles } from "lucide-react";
+import api from "../../../../services/api";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import AIExerciseGeneratorModal, {
+  type GeneratedBlock,
+} from "./AI_generation/AIExerciseGeneratorModal";
 
 // ── Design tokens (mirrors project-wide palette) ───────────────────────────────
 const C = {
@@ -55,8 +59,19 @@ interface Props {
   initialData?: ImageBlockData;
   /** Gallery label forwarded from exerciseTemplateRegistry. */
   label?: string;
-  /** Called when the teacher clicks Save. */
-  onSave: (data: ImageBlockData) => void | Promise<void>;
+  /**
+   * Real API segment id (integer). When present, Save POSTs to
+   * POST /segments/{segmentId}/exercises/image so the block is immediately
+   * persisted server-side — matching the behaviour of AI-generated blocks.
+   * When absent (non-lesson contexts) the caller's onSave handles persistence.
+   */
+  segmentId?: string | number | null;
+  /**
+   * Called when the teacher clicks Save.
+   * `blockId` is the server-assigned id returned by the POST endpoint;
+   * it is undefined when segmentId was not provided.
+   */
+  onSave: (data: ImageBlockData, blockId?: string) => void | Promise<void>;
   /** Called when the teacher clicks × or Cancel. */
   onCancel: () => void;
 }
@@ -67,6 +82,7 @@ export default function ImageEditorPage({
   initialTitle = "",
   initialData,
   label,
+  segmentId,
   onSave,
   onCancel,
 }: Props) {
@@ -88,8 +104,14 @@ export default function ImageEditorPage({
   /** True while the async save is in flight. */
   const [saving, setSaving] = useState(false);
 
+  /** Controls visibility of the AI image generation modal. */
+  const [showAIModal, setShowAIModal] = useState(false);
+
   /** True if the preview img element fires an onError (broken URL). */
   const [imgError, setImgError] = useState(false);
+
+  /** Stores server block id returned by AI generation for direct reuse on save. */
+  const generatedBlockIdRef = useRef<string | null>(null);
 
   /** Whether a src has been provided — gates the Save button. */
   const isDirty = src.trim().length > 0;
@@ -97,19 +119,77 @@ export default function ImageEditorPage({
   /** Hidden file input used by the upload mode. */
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  /** Applies AI-generated image payload into the local editor fields. */
+  const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
+    if (block.kind !== "image" || !block.data || typeof block.data !== "object") return;
+    generatedBlockIdRef.current = block.id;
+    /** Normalized generated data object returned by the AI modal callback. */
+    const generatedData = block.data as Record<string, unknown>;
+    /** Generated image source, trimmed for save and preview consistency. */
+    const generatedSrc =
+      typeof generatedData.src === "string" ? generatedData.src.trim() : "";
+    /** Optional generated alt text to preserve accessibility metadata. */
+    const generatedAltText =
+      typeof generatedData.alt_text === "string" ? generatedData.alt_text : "";
+    /** Generated block title used to seed the editor header title. */
+    const generatedTitle = block.title?.trim() || "";
+    if (!generatedSrc) return;
+    setSrc(generatedSrc);
+    setAltText(generatedAltText);
+    if (generatedTitle) {
+      setTitle(generatedTitle);
+    }
+    setImgError(false);
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (!src.trim() || saving) return;
     setSaving(true);
     try {
-      await onSave({
+      const imageData: ImageBlockData = {
         src: src.trim(),
         alt_text: altText.trim() || undefined,
         title: title.trim() || undefined,
-      });
+      };
+
+      // Reuse server-created block id if content was generated through AI modal.
+      /** Server id assigned during AI generation; reuse it to avoid duplicate POSTs. */
+      const generatedBlockId = generatedBlockIdRef.current;
+      if (generatedBlockId) {
+        await onSave(imageData, generatedBlockId);
+        return;
+      }
+
+      // ── Lesson context: POST to create the block server-side immediately ──
+      // Mirrors the AI-generated image flow (POST /segments/{id}/exercises/image)
+      // so the block gets a stable server-assigned id and is persisted before the
+      // caller navigates back — avoiding the race with the debounced PUT autosave.
+      const numericSegmentId = segmentId != null ? Number(segmentId) : NaN;
+      if (Number.isFinite(numericSegmentId) && numericSegmentId > 0) {
+        try {
+          const response = await api.post<{ block: { id: string } }>(
+            `/segments/${numericSegmentId}/exercises/image`,
+            {
+              title: imageData.title || label || "Image block",
+              data: imageData,
+            },
+          );
+          const blockId: string | undefined = response.data?.block?.id;
+          await onSave(imageData, blockId);
+          return;
+        } catch (err) {
+          // If the POST fails (network error, etc.), fall through to the
+          // caller-managed save so the teacher never loses their work.
+          console.warn("[ImageEditorPage] POST /exercises/image failed, falling back:", err);
+        }
+      }
+
+      // ── Fallback / non-lesson path ────────────────────────────────────────
+      await onSave(imageData);
     } finally {
       setSaving(false);
     }
-  }, [src, altText, title, saving, onSave]);
+  }, [src, altText, title, saving, segmentId, label, onSave]);
 
   /** Reads the selected file and stores it as a data URI in src. */
   const handleFileChange = useCallback(
@@ -194,25 +274,49 @@ export default function ImageEditorPage({
             {showPreview ? "Hide preview" : "Show preview"}
           </button>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!src.trim() || saving}
-            style={{
-              padding: "9px 24px",
-              borderRadius: 9,
-              border: "none",
-              background: !src.trim() || saving ? C.muted : C.primary,
-              color: C.white,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: !src.trim() || saving ? "default" : "pointer",
-              fontFamily: "inherit",
-              transition: "background 0.15s",
-            }}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => setShowAIModal(true)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "9px 14px",
+                borderRadius: 9,
+                border: `1.5px solid ${C.border}`,
+                background: C.white,
+                color: C.primary,
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <Sparkles size={14} strokeWidth={2} />
+              Generate
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!src.trim() || saving}
+              style={{
+                padding: "9px 24px",
+                borderRadius: 9,
+                border: "none",
+                background: !src.trim() || saving ? C.muted : C.primary,
+                color: C.white,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: !src.trim() || saving ? "default" : "pointer",
+                fontFamily: "inherit",
+                transition: "background 0.15s",
+              }}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
         </div>
 
         {/* Input mode tabs: URL vs file upload */}
@@ -441,6 +545,16 @@ export default function ImageEditorPage({
           </div>
         )}
       </div>
+
+      <AIExerciseGeneratorModal
+        exerciseType="image"
+        open={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        segmentId={segmentId}
+        onGenerated={(block) => {
+          applyGeneratedBlock(block);
+        }}
+      />
     </div>
   );
 }

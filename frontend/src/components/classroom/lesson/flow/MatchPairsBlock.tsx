@@ -66,6 +66,8 @@ const MATCH_COLORS = [
   "#eab308",
   "#14b8a6",
 ];
+// Fixed learner-facing instruction for match-pairs blocks to avoid duplicating generated titles.
+const MATCH_PAIRS_PROMPT_TEXT = "Match each item on the left with its correct pair on the right.";
 
 function hashString(value: string): number {
   let hash = 0;
@@ -468,9 +470,7 @@ export default function MatchPairsBlock({
         </div>
       )}
 
-      {question?.prompt?.trim() && (
-        <div className="bs-prompt">{question.prompt}</div>
-      )}
+      <div className="bs-prompt">{MATCH_PAIRS_PROMPT_TEXT}</div>
 
       <div ref={boardRef} className="mp-player-board">
         <div className="mp-player-columns">

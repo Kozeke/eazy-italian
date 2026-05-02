@@ -61,7 +61,7 @@ interface Props {
   typingHintText?: string;
   /** Segment id for POST /segments/{id}/exercises/drag-to-gap (from lesson context). */
   segmentId?: string | number | null;
-  onSave: (data: DragToGapData, blockId?: string) => void;
+  onSave: (data: DragToGapData) => void;
   onCancel: () => void;
 }
 
@@ -84,17 +84,55 @@ const TextSpan = memo(
     initial,
     onFocus,
     divRef,
+    onBracketInsert,
   }: {
     initial: string;
     onFocus: () => void;
     divRef: (el: HTMLSpanElement | null) => void;
+    /** Called when the user types "[]" — parent should insert a gap at cursor. */
+    onBracketInsert?: () => void;
   }) {
     const innerRef = useRef<HTMLSpanElement>(null);
+
+    // Use a ref so the callback is always fresh without triggering re-renders.
+    const onBracketInsertRef = useRef(onBracketInsert);
+    onBracketInsertRef.current = onBracketInsert;
 
     useEffect(() => {
       if (innerRef.current) innerRef.current.textContent = initial;
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // intentionally empty — set once on mount
+
+    // Detect "[]" typed anywhere in this span and convert it into a gap.
+    const handleInput = useCallback(() => {
+      const el = innerRef.current;
+      if (!el) return;
+
+      const text = el.textContent ?? '';
+      const bracketIdx = text.indexOf('[]');
+      if (bracketIdx === -1) return;
+
+      // Strip "[]" from the DOM text.
+      const newText = text.slice(0, bracketIdx) + text.slice(bracketIdx + 2);
+      el.textContent = newText;
+
+      // Restore cursor to the position where "[]" started.
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        if (newText.length > 0 && el.firstChild) {
+          range.setStart(el.firstChild, Math.min(bracketIdx, newText.length));
+        } else {
+          range.setStart(el, 0);
+        }
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      // Delegate gap insertion to the parent (reads cursor pos from Selection API).
+      onBracketInsertRef.current?.();
+    }, []); // intentionally empty — innerRef and ref-callback are stable
 
     return (
       <span
@@ -106,6 +144,7 @@ const TextSpan = memo(
         suppressContentEditableWarning
         className="dtg-text-seg"
         onFocus={onFocus}
+        onInput={handleInput}
       />
     );
   },
@@ -127,6 +166,12 @@ export default function DragToGapEditorPage({
 }: Props) {
   const [title, setTitle] = useState(initialTitle);
   const [showAIModal, setShowAIModal] = useState(false);
+  /**
+   * Server-assigned block id from a previous AI generation POST call.
+   * Carried through handleSave so the parent reuses it instead of minting
+   * a new random id — which would create a duplicate block in media_blocks.
+   */
+  const [persistedBlockId, setPersistedBlockId] = useState<string | null>(null);
 
   // Segment array: alternating TextSeg and GapSeg entries.
   const [segments, setSegments] = useState<Segment[]>(
@@ -161,10 +206,30 @@ export default function DragToGapEditorPage({
   const answerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  // Holds the server-assigned block id when AI generation persisted the block.
-  // Passed to onSave so handleExerciseSave reuses it instead of generating a
-  // new random id that would create a duplicate block on the segment.
-  const generatedBlockIdRef = useRef<string | null>(null);
+
+  // Refs for each gap's DOM element (for popover positioning)
+  const gapRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+
+  // Absolute position of the answer popover relative to dtg-main-editor
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!activeGapId) { setPopoverPos(null); return; }
+    const gapEl = gapRefs.current[activeGapId];
+    const editorEl = editorRef.current;
+    if (!gapEl || !editorEl) return;
+    const gapRect = gapEl.getBoundingClientRect();
+    const editorRect = editorEl.getBoundingClientRect();
+    const PANEL_WIDTH = 264;
+    let left = gapRect.left - editorRect.left;
+    // Keep panel within editor bounds
+    const maxLeft = editorRect.width - PANEL_WIDTH - 8;
+    left = Math.min(Math.max(0, left), Math.max(0, maxLeft));
+    setPopoverPos({
+      top: gapRect.bottom - editorRect.top + 6,
+      left,
+    });
+  }, [activeGapId]);
 
   // ── DOM sync ─────────────────────────────────────────────────────────────────
 
@@ -295,15 +360,13 @@ export default function DragToGapEditorPage({
   const handleSave = useCallback(() => {
     if (!canSave) return;
     const synced = syncFromDOM(segments);
-    // Pass the AI-assigned block id so handleExerciseSave reuses it instead
-    // of generating a fresh random id that would create a duplicate block.
-    onSave({ title, segments: synced, gaps }, generatedBlockIdRef.current ?? undefined);
-  }, [canSave, segments, gaps, title, syncFromDOM, onSave]);
+    const data: DragToGapData & { _persistedBlockId?: string } = { title, segments: synced, gaps };
+    if (persistedBlockId) data._persistedBlockId = persistedBlockId;
+    onSave(data);
+  }, [canSave, segments, gaps, title, persistedBlockId, syncFromDOM, onSave]);
 
   const applyGeneratedBlock = useCallback((block: GeneratedBlock) => {
     if (block.kind !== exerciseType || !block.data || typeof block.data !== 'object') return;
-    // Capture the server-assigned id for use when the user saves the editor.
-    generatedBlockIdRef.current = block.id;
     const d = block.data as DragToGapData;
     setTitle(typeof d.title === 'string' ? d.title : block.title ?? '');
     const nextSegs = Array.isArray(d.segments) && d.segments.length > 0
@@ -315,7 +378,12 @@ export default function DragToGapEditorPage({
     setActiveGapId(null);
     setAnswerDraft('');
     setInsertMode(false);
-  }, []);
+    // Capture the server-assigned block id so handleSave can reuse it,
+    // preventing a duplicate block from being appended on the segment.
+    if (typeof block.id === 'string' && block.id.length > 0) {
+      setPersistedBlockId(block.id);
+    }
+  }, [exerciseType]);
 
   // ── Root blur handling ────────────────────────────────────────────────────────
 
@@ -380,9 +448,21 @@ export default function DragToGapEditorPage({
           className="dtg-title-input"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Название упражнения"
+          placeholder="Exercise title (shown to students)"
           aria-label="Exercise title"
         />
+      </div>
+
+      {/* ── Student-facing preview: how the title + instruction look in the block */}
+      <div className="dtg-editor-title-preview">
+        {/* <span className="dtg-editor-title-preview__label">Student view</span>
+        <div className="dtg-exercise-title" style={{ fontSize: 14 }}>
+          {title || <span style={{ color: '#94a3b8', fontWeight: 400 }}>No title yet — type one above</span>}
+        </div> */}
+        <div className="dtg-exercise-instruction">
+          {/* <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8L6 12M6 12L18 16M6 12H22M2 12H4"/></svg> */}
+          Drag words into the correct gaps
+        </div>
       </div>
 
       {/* ── Words bar — top grey area showing draggable chips ─────────────────── */}
@@ -453,6 +533,7 @@ export default function DragToGapEditorPage({
                     initial={(seg as TextSeg).value}
                     onFocus={() => { lastFocusedIdx.current = idx; }}
                     divRef={(el) => { spanRefs.current[idx] = el; }}
+                    onBracketInsert={insertGap}
                   />
                 );
               }
@@ -464,7 +545,7 @@ export default function DragToGapEditorPage({
               const isActive = activeGapId === gapId;
 
               return (
-                <span key={gapId} className="dtg-gap-wrap">
+                <span key={gapId} className="dtg-gap-wrap" ref={(el) => { gapRefs.current[gapId] = el; }}>
                   <span
                     className={[
                       'dtg-gap-inner',
@@ -551,68 +632,67 @@ export default function DragToGapEditorPage({
             [ ]
           </button>
         )}
-      </div>
 
-      {/* ── Bottom answer panel ───────────────────────────────────────────────── */}
-      {activeGapId && (
-        <div className="dtg-bottom-panel">
-          <div className="dtg-bottom-panel-header">
-            <span className="dtg-bottom-panel-label">Правильный ответ</span>
-            <button
-              type="button"
-              className="dtg-bottom-panel-delete"
-              onClick={() => deleteGap(activeGapId)}
-              title="Удалить пропуск"
-              aria-label="Delete gap"
-            >
-              <Trash2 size={13} />
-              <span>Удалить пропуск</span>
-            </button>
-          </div>
-
-          <div className="dtg-bottom-panel-body">
-            <textarea
-              ref={answerTextareaRef}
-              className="dtg-answer-textarea"
-              placeholder="Введите правильный ответ..."
-              value={answerDraft}
-              rows={2}
-              onChange={(e) => setAnswerDraft(e.target.value)}
-              onKeyDown={(e) => {
-                // Enter (without Shift) confirms the answer
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  confirmAnswer();
-                }
-                if (e.key === 'Escape') {
-                  setActiveGapId(null);
-                }
-              }}
-            />
-            <div className="dtg-bottom-panel-actions">
+        {/* ── Answer popover — floats below the active gap ─────────────────── */}
+        {activeGapId && popoverPos && (
+          <div
+            className="dtg-bottom-panel"
+            style={{ top: popoverPos.top, left: popoverPos.left }}
+          >
+            <div className="dtg-bottom-panel-header">
+              <span className="dtg-bottom-panel-label">Правильный ответ</span>
               <button
                 type="button"
-                className="dtg-bottom-panel-cancel"
-                onClick={() => setActiveGapId(null)}
+                className="dtg-bottom-panel-delete"
+                onClick={() => deleteGap(activeGapId)}
+                title="Удалить пропуск"
+                aria-label="Delete gap"
               >
-                Отмена
-              </button>
-              <button
-                type="button"
-                className={[
-                  'dtg-bottom-panel-confirm',
-                  !answerDraft.trim() ? 'dtg-bottom-panel-confirm--disabled' : '',
-                ].filter(Boolean).join(' ')}
-                onClick={confirmAnswer}
-                disabled={!answerDraft.trim()}
-              >
-                <Check size={13} />
-                Сохранить ответ
+                <Trash2 size={13} />
               </button>
             </div>
+
+            <div className="dtg-bottom-panel-body">
+              <textarea
+                ref={answerTextareaRef}
+                className="dtg-answer-textarea"
+                placeholder="Введите правильный ответ..."
+                value={answerDraft}
+                rows={2}
+                onChange={(e) => setAnswerDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    confirmAnswer();
+                  }
+                  if (e.key === 'Escape') setActiveGapId(null);
+                }}
+              />
+              <div className="dtg-bottom-panel-actions">
+                <button
+                  type="button"
+                  className="dtg-bottom-panel-cancel"
+                  onClick={() => setActiveGapId(null)}
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  className={[
+                    'dtg-bottom-panel-confirm',
+                    !answerDraft.trim() ? 'dtg-bottom-panel-confirm--disabled' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={confirmAnswer}
+                  disabled={!answerDraft.trim()}
+                >
+                  <Check size={13} />
+                  Сохранить ответ
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Generate button ───────────────────────────────────────────────────── */}
       <button

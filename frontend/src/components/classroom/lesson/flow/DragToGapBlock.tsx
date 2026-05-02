@@ -35,7 +35,7 @@ import React, {
 } from "react";
 import type { ExerciseBlockProps } from "./exerciseBlock.types";
 import type { DragToGapData, TextSeg, GapSeg } from "./DragToGapEditorPage";
-import { GripVertical } from "lucide-react";
+import { GripVertical, MoveHorizontal } from "lucide-react";
 import { useLiveSyncField } from "../../../../hooks/useLiveSession";
 import { LiveSessionContext } from "../../live/LiveSessionProvider";
 import { showTeacherExerciseHints } from "./showTeacherExerciseHints";
@@ -304,7 +304,18 @@ export default function DragToGapBlock({
 
   return (
     <div className="dtg-block">
-      {title && <div className="dtg-block-title">{title}</div>}
+      {/* ── Exercise header: title + instruction ─────────────────────────── */}
+      {(title || true) && (
+        <div className="dtg-exercise-header">
+          {title && (
+            <div className="dtg-exercise-title">{title}</div>
+          )}
+          <div className="dtg-exercise-instruction">
+            {/* <MoveHorizontal size={13} /> */}
+            Drag words into the correct gaps
+          </div>
+        </div>
+      )}
 
       {/* ── Word pool (draggable chips) ──────────────────────────────────── */}
       <div

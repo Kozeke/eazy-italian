@@ -5,11 +5,15 @@
  * Tab "Основные" — cover, title, description, language, sections toggle, delete.
  * Tab "Теги"     — age, level, type dropdowns.
  *
- * The modal resizes when switching tabs (Основные is taller, Теги is shorter).
+ * Phase 3 addition: plan-aware Publish button in the footer.
+ * - Free plan  → disabled button with lock icon; click opens ConnectPaymentModal
+ * - Paid plans → PATCH /courses/{courseId}/publish; 402 response also opens modal
+ * - After publish: onPublished() callback and local success banner
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X, Upload, Lock, Send } from 'lucide-react';
+import ConnectPaymentModal from "../../../pages/admin/components/ConnectPaymentModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +35,16 @@ export type EditCourseModalProps = {
   initialAge?: string;
   initialLevel?: string;
   initialType?: string;
+
+  // ── Phase 3: publish props ────────────────────────────────────────────────
+  /** Course ID needed for the PATCH /courses/{id}/publish call. */
+  courseId?: string | number | null;
+  /** Current publish status — used to show "Already published" state. */
+  currentStatus?: string | null;
+  /** Called after a successful publish so the parent can refresh course data. */
+  onPublished?: () => void;
+  /** API base URL — defaults to "/api/v1" */
+  apiBase?: string;
 };
 
 export type CourseEditData = {
@@ -45,17 +59,22 @@ export type CourseEditData = {
 
 type ActiveTab = 'basics' | 'tags';
 
+// Shape returned by GET /admin/tariffs/me
+interface TariffStatus {
+  plan: string; // "free" | "standard" | "pro"
+}
+
 const LANGUAGES = [
-  { value: 'en', label: 'English', flag: '🇬🇧' },
-  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'en', label: 'English',  flag: '🇬🇧' },
+  { value: 'ru', label: 'Русский',  flag: '🇷🇺' },
+  { value: 'de', label: 'Deutsch',  flag: '🇩🇪' },
   { value: 'fr', label: 'Français', flag: '🇫🇷' },
-  { value: 'es', label: 'Español', flag: '🇪🇸' },
+  { value: 'es', label: 'Español',  flag: '🇪🇸' },
 ];
 
-const AGE_OPTIONS = ['3–5', '6–8', '9–11', '12–14', '15–17', '18+'];
+const AGE_OPTIONS   = ['3–5', '6–8', '9–11', '12–14', '15–17', '18+'];
 const LEVEL_OPTIONS = ['Beginner', 'Elementary', 'Intermediate', 'Upper-Intermediate', 'Advanced'];
-const TYPE_OPTIONS = ['Course', 'Workshop', 'Bootcamp', 'Webinar', 'Self-study'];
+const TYPE_OPTIONS  = ['Course', 'Workshop', 'Bootcamp', 'Webinar', 'Self-study'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,8 +85,8 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
       aria-checked={enabled}
       onClick={() => onChange(!enabled)}
       className={[
-        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40',
-        enabled ? 'bg-[#6C6FEF]' : 'bg-slate-300',
+        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',
+        enabled ? 'bg-teal-500' : 'bg-slate-300',
       ].join(' ')}
     >
       <span
@@ -81,17 +100,10 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 }
 
 function SelectField({
-  label,
-  placeholder,
-  value,
-  onChange,
-  options,
+  label, placeholder, value, onChange, options,
 }: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
+  label: string; placeholder: string; value: string;
+  onChange: (v: string) => void; options: string[];
 }) {
   return (
     <div className="flex items-center gap-4 py-4 border-b border-slate-100 last:border-0">
@@ -100,25 +112,18 @@ function SelectField({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
+          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
         >
           <option value="">{placeholder}</option>
           {options.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
+            <option key={o} value={o}>{o}</option>
           ))}
         </select>
         <svg
           className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
-          viewBox="0 0 20 20"
-          fill="currentColor"
+          viewBox="0 0 20 20" fill="currentColor"
         >
-          <path
-            fillRule="evenodd"
-            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-            clipRule="evenodd"
-          />
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
         </svg>
       </div>
     </div>
@@ -139,21 +144,37 @@ export default function EditCourseModal({
   initialAge = '',
   initialLevel = '',
   initialType = '',
+  // ── Phase 3 props ────────────────────────────────────────────────────────
+  courseId,
+  currentStatus,
+  onPublished,
+  apiBase = '/api/v1',
 }: EditCourseModalProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('basics');
-  const [title, setTitle] = useState(initialTitle);
+  const [title, setTitle]         = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
-  const [language, setLanguage] = useState(initialLanguage);
+  const [language, setLanguage]   = useState(initialLanguage);
   const [sectionsEnabled, setSectionsEnabled] = useState(initialSectionsEnabled);
-  const [age, setAge] = useState(initialAge);
+  const [age, setAge]     = useState(initialAge);
   const [level, setLevel] = useState(initialLevel);
-  const [type, setType] = useState(initialType);
-  // True while onSave (API) is in flight — disables actions to avoid double submit
+  const [type, setType]   = useState(initialType);
   const [saveInFlight, setSaveInFlight] = useState(false);
+
+  // ── Phase 3: publish state ────────────────────────────────────────────────
+  /** Teacher's current plan — fetched once when the modal opens. */
+  const [plan, setPlan] = useState<string | null>(null);
+  /** True while PATCH /publish is in flight. */
+  const [publishInFlight, setPublishInFlight] = useState(false);
+  /** Shown as a success strip after a successful publish. */
+  const [publishSuccess, setPublishSuccess] = useState(false);
+  /** Error message from a failed publish (non-402). */
+  const [publishError, setPublishError] = useState<string | null>(null);
+  /** Opens ConnectPaymentModal — set to "free_gate" or "402" to distinguish entry points. */
+  const [upgradeReason, setUpgradeReason] = useState<string | null>(null);
 
   const titleRef = useRef<HTMLInputElement>(null);
 
-  // Sync initial values when modal opens
+  // ── Sync initial values when modal opens ─────────────────────────────────
   useEffect(() => {
     if (open) {
       setActiveTab('basics');
@@ -165,25 +186,41 @@ export default function EditCourseModal({
       setLevel(initialLevel);
       setType(initialType);
       setSaveInFlight(false);
+      setPublishSuccess(false);
+      setPublishError(null);
+      setUpgradeReason(null);
       requestAnimationFrame(() => titleRef.current?.focus());
     }
   }, [
-    open,
-    initialTitle,
-    initialDescription,
-    initialLanguage,
-    initialSectionsEnabled,
-    initialAge,
-    initialLevel,
-    initialType,
+    open, initialTitle, initialDescription, initialLanguage,
+    initialSectionsEnabled, initialAge, initialLevel, initialType,
   ]);
+
+  // ── Phase 3: fetch teacher plan once on open ──────────────────────────────
+  useEffect(() => {
+    if (!open) return;
+    let mounted = true;
+    const fetchPlan = async () => {
+      try {
+        const token = localStorage.getItem('token') ?? '';
+        const res = await fetch(`${apiBase}/admin/tariffs/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data: TariffStatus = await res.json();
+        if (mounted) setPlan(data.plan ?? 'free');
+      } catch {
+        if (mounted) setPlan('free'); // fail-safe: treat as free
+      }
+    };
+    void fetchPlan();
+    return () => { mounted = false; };
+  }, [open, apiBase]);
 
   // Escape closes
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [open, onClose]);
@@ -202,16 +239,59 @@ export default function EditCourseModal({
     }
   };
 
-  // Tab sizes: basics is taller, tags is shorter
+  // ── Phase 3: publish handler ──────────────────────────────────────────────
+  const isFreePlan = plan === 'free' || plan == null;
+  const isAlreadyPublished = currentStatus === 'published';
+
+  const handlePublishClick = async () => {
+    // Free plan → gate behind upgrade modal
+    if (isFreePlan) {
+      setUpgradeReason('free_gate');
+      return;
+    }
+    if (!courseId) return;
+
+    setPublishInFlight(true);
+    setPublishError(null);
+    try {
+      const token = localStorage.getItem('token') ?? '';
+      const res = await fetch(`${apiBase}/courses/${courseId}/publish`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (res.status === 402) {
+        // Safety-net: backend says plan insufficient
+        setUpgradeReason('402');
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setPublishError((body as { detail?: string }).detail ?? 'Publish failed. Please try again.');
+        return;
+      }
+
+      setPublishSuccess(true);
+      onPublished?.();
+    } catch (err) {
+      setPublishError('Network error. Please try again.');
+    } finally {
+      setPublishInFlight(false);
+    }
+  };
+
   const isBasics = activeTab === 'basics';
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[60] bg-[#0F1128]/45 backdrop-blur-md"
-        aria-hidden
+        className="fixed inset-0 z-[59] bg-black/30 backdrop-blur-[2px]"
         onClick={onClose}
+        aria-hidden
       />
 
       {/* Modal */}
@@ -221,7 +301,6 @@ export default function EditCourseModal({
         aria-label="Редактировать материал"
         className={[
           'fixed z-[60] inset-x-4 mx-auto max-w-lg flex flex-col bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200 overflow-hidden transition-all duration-200',
-          // Vertically center with top offset — basics is taller so sits higher
           isBasics ? 'top-[8vh]' : 'top-[16vh]',
         ].join(' ')}
         style={{ maxHeight: isBasics ? '84vh' : '60vh' }}
@@ -232,7 +311,7 @@ export default function EditCourseModal({
           <h2 className="text-lg font-bold text-slate-900">Редактировать материал</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-[#EEF0FE] hover:text-[#6C6FEF] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -242,7 +321,7 @@ export default function EditCourseModal({
         {/* ── Tabs ───────────────────────────────────────────────────────── */}
         <div className="flex border-b border-slate-200 px-6">
           {(['basics', 'tags'] as const).map((tab) => {
-            const label = tab === 'basics' ? 'Основные' : 'Теги';
+            const label  = tab === 'basics' ? 'Основные' : 'Теги';
             const active = activeTab === tab;
             return (
               <button
@@ -251,7 +330,7 @@ export default function EditCourseModal({
                 className={[
                   'mr-6 pb-2.5 pt-1 text-[13px] font-semibold transition-colors focus:outline-none',
                   active
-                    ? 'text-[#6C6FEF] border-b-2 border-[#6C6FEF] -mb-px'
+                    ? 'text-teal-600 border-b-2 border-teal-500 -mb-px'
                     : 'text-slate-400 hover:text-slate-600 border-b-2 border-transparent',
                 ].join(' ')}
               >
@@ -270,17 +349,13 @@ export default function EditCourseModal({
                 <span className="w-28 shrink-0 text-sm font-medium text-slate-700">Обложка</span>
                 <div className="flex items-center gap-3">
                   {initialCoverUrl ? (
-                    <img
-                      src={initialCoverUrl}
-                      alt="Cover"
-                      className="h-10 w-10 rounded-xl object-cover"
-                    />
+                    <img src={initialCoverUrl} alt="Cover" className="h-10 w-10 rounded-xl object-cover" />
                   ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#6C6FEF] text-white font-bold text-lg select-none">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500 text-white font-bold text-lg select-none">
                       {(title[0] ?? 'C').toUpperCase()}
                     </div>
                   )}
-                  <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:border-[#A5A8F5] hover:bg-[#EEF0FE] hover:text-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40">
+                  <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
                     <Upload className="h-3.5 w-3.5" />
                     Загрузить
                   </button>
@@ -289,29 +364,25 @@ export default function EditCourseModal({
 
               {/* Title */}
               <div className="flex items-start gap-4">
-                <span className="w-28 shrink-0 pt-2.5 text-sm font-medium text-slate-700">
-                  Название
-                </span>
+                <span className="w-28 shrink-0 pt-2.5 text-sm font-medium text-slate-700">Название</span>
                 <input
                   ref={titleRef}
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
                   placeholder="Название курса"
                 />
               </div>
 
               {/* Description */}
               <div className="flex items-start gap-4">
-                <span className="w-28 shrink-0 pt-2.5 text-sm font-medium text-slate-700">
-                  Описание
-                </span>
+                <span className="w-28 shrink-0 pt-2.5 text-sm font-medium text-slate-700">Описание</span>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all resize-none"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all resize-none"
                   placeholder="Введите описание"
                 />
               </div>
@@ -323,24 +394,14 @@ export default function EditCourseModal({
                   <select
                     value={language}
                     onChange={(e) => setLanguage(e.target.value)}
-                    className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#6C6FEF]/25 focus:border-[#6C6FEF] transition-all"
+                    className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
                   >
                     {LANGUAGES.map((l) => (
-                      <option key={l.value} value={l.value}>
-                        {l.flag} {l.label}
-                      </option>
+                      <option key={l.value} value={l.value}>{l.flag} {l.label}</option>
                     ))}
                   </select>
-                  <svg
-                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                      clipRule="evenodd"
-                    />
+                  <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                   </svg>
                 </div>
               </div>
@@ -349,82 +410,126 @@ export default function EditCourseModal({
               <div className="flex items-center gap-4">
                 <span className="w-28 shrink-0 text-sm font-medium text-slate-700 flex items-center gap-1">
                   Разделы
-                  <span
-                    title="Группировка уроков по разделам"
-                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold text-slate-400 cursor-help"
-                  >
-                    ?
-                  </span>
+                  <span title="Группировка уроков по разделам" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold text-slate-400 cursor-help">?</span>
                 </span>
                 <Toggle enabled={sectionsEnabled} onChange={setSectionsEnabled} />
               </div>
 
-              {/* Delete */}
-              <div className="flex items-center gap-4 pt-2">
-                {/* <span className="w-28 shrink-0 text-sm font-medium text-slate-700">
-                  Удалить материал
-                </span>
-                <button
-                  onClick={handleDelete}
-                  className={[
-                    'rounded-xl px-5 py-2 text-sm font-semibold text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400',
-                    showDeleteConfirm
-                      ? 'bg-red-700 hover:bg-red-800'
-                      : 'bg-red-500 hover:bg-red-600',
-                  ].join(' ')}
-                >
-                  {showDeleteConfirm ? 'Подтвердить удаление' : 'Удалить'}
-                </button> */}
-              </div>
+              {/* Delete (commented out — kept as-is) */}
+              <div className="flex items-center gap-4 pt-2" />
             </div>
           ) : (
             /* Tags tab */
             <div>
-              <SelectField
-                label="Возраст"
-                placeholder="Выберите возраст"
-                value={age}
-                onChange={setAge}
-                options={AGE_OPTIONS}
-              />
-              <SelectField
-                label="Уровень"
-                placeholder="Выберите уровень"
-                value={level}
-                onChange={setLevel}
-                options={LEVEL_OPTIONS}
-              />
-              <SelectField
-                label="Тип"
-                placeholder="Выберите тип"
-                value={type}
-                onChange={setType}
-                options={TYPE_OPTIONS}
-              />
+              <SelectField label="Возраст"  placeholder="Выберите возраст"  value={age}   onChange={setAge}   options={AGE_OPTIONS}   />
+              <SelectField label="Уровень"  placeholder="Выберите уровень"  value={level} onChange={setLevel} options={LEVEL_OPTIONS} />
+              <SelectField label="Тип"      placeholder="Выберите тип"      value={type}  onChange={setType}  options={TYPE_OPTIONS}  />
             </div>
           )}
         </div>
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">
-          <button
-            type="button"
-            disabled={saveInFlight}
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 hover:border-[#A5A8F5] hover:bg-[#EEF0FE] hover:text-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40 disabled:opacity-50"
-          >
-            Отмена
-          </button>
-          <button
-            type="button"
-            disabled={saveInFlight}
-            onClick={() => void handleSave()}
-            className="rounded-xl bg-[#6C6FEF] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#4F52C2] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]/40 disabled:opacity-50"
-          >
-            {saveInFlight ? 'Сохранение…' : 'Сохранить'}
-          </button>
+        <div className="shrink-0 border-t border-slate-100 px-6 py-4 space-y-2">
+
+          {/* ── Phase 3: publish success banner ────────────────────────── */}
+          {publishSuccess && (
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm text-emerald-700">
+              <span className="text-base">✓</span>
+              Course published — students can now access it.
+            </div>
+          )}
+
+          {/* ── Phase 3: publish error banner ──────────────────────────── */}
+          {publishError && (
+            <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600">
+              <span className="text-base">⚠</span>
+              {publishError}
+            </div>
+          )}
+
+          {/* ── Button row ─────────────────────────────────────────────── */}
+          <div className="flex items-center justify-between gap-3">
+
+            {/* ── Phase 3: Publish button (only when courseId is provided) */}
+            {courseId != null && (
+              isAlreadyPublished ? (
+                <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                  <span className="text-sm">✓</span> Published
+                </span>
+              ) : isFreePlan ? (
+                /* Free plan — locked button */
+                <button
+                  type="button"
+                  title="Upgrade to publish courses to students"
+                  onClick={() => setUpgradeReason('free_gate')}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-400 cursor-pointer hover:bg-[#EEF0FE] hover:border-[#6C6FEF] hover:text-[#6C6FEF] transition-colors"
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  Publish
+                </button>
+              ) : (
+                /* Paid plan — active publish button */
+                <button
+                  type="button"
+                  disabled={publishInFlight || publishSuccess}
+                  onClick={() => void handlePublishClick()}
+                  className="flex items-center gap-2 rounded-xl bg-[#6C6FEF] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4F52C2] disabled:opacity-60 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6C6FEF]"
+                >
+                  {publishInFlight ? (
+                    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                  {publishInFlight ? 'Publishing…' : 'Publish'}
+                </button>
+              )
+            )}
+
+            {/* Save / Cancel — pushed to the right when publish is present */}
+            <div className="flex items-center gap-3 ml-auto">
+              <button
+                type="button"
+                disabled={saveInFlight}
+                onClick={onClose}
+                className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={saveInFlight}
+                onClick={() => void handleSave()}
+                className="rounded-xl bg-teal-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-teal-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50"
+              >
+                {saveInFlight ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* ── Phase 3: ConnectPaymentModal for upgrade flow ──────────────────── */}
+      {upgradeReason && (
+        <ConnectPaymentModal
+          key="publish-upgrade"
+          open
+          onClose={() => setUpgradeReason(null)}
+          durationLabel="1 mo"
+          planName="Standard"
+          priceLabel="12.00 USD"
+          planTagLabels={[
+            'Publish courses to students: ✓',
+            'AI exercise generations: 100 / mo',
+            'AI unit generations: 20 / mo',
+          ]}
+          yearSavingsLabel="If you pay for 1 year you could save: 27 USD"
+          onPay={async () => {
+            /* In production this would record the payment via teacherTariffsApi.
+               Here we just close the upgrade modal and let the teacher re-try publish. */
+            setUpgradeReason(null);
+          }}
+        />
+      )}
     </>
   );
 }

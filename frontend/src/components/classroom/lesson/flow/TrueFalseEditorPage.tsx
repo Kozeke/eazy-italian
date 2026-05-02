@@ -1,5 +1,9 @@
+/**
+ * TrueFalseEditorPage.tsx
+ *
+ * True/False exercise editor page that reuses shared test editor layout and footer actions.
+ */
 import { useMemo, useState } from 'react';
-import { Clock3 } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
@@ -17,20 +21,6 @@ import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
 import './DragToGap.css';
-
-// ── Design tokens (matches project-wide system) ───────────────────────────────
-const C = {
-  primary:   '#6C6FEF',
-  primaryDk: '#4F52C2',
-  tint:      '#EEF0FE',
-  bg:        '#F7F7FA',
-  white:     '#FFFFFF',
-  text:      '#1C1F3A',
-  sub:       '#6B6F8E',
-  muted:     '#A8ABCA',
-  border:    '#E8EAFD',
-  success:   '#10B981',
-};
 
 interface Props {
   initialTitle?: string;
@@ -186,16 +176,6 @@ export default function TrueFalseEditorPage({
     });
   };
 
-  const handleTimeLimitChange = (value: string) => {
-    const parsed = Number(value);
-    setDraft((prev) => ({
-      ...prev,
-      time_limit_minutes: Number.isFinite(parsed)
-        ? clampTimeLimit(parsed)
-        : prev.time_limit_minutes,
-    }));
-  };
-
   const handleSave = async () => {
     if (!canSave) return;
     const resolvedTitle = draft.title.trim() || label;
@@ -238,83 +218,6 @@ export default function TrueFalseEditorPage({
         className="dtg-editor-content"
         style={{ paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14 }}
       >
-        {/* ── Timer control ────────────────────────────────────────────────── */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            marginBottom: 14,
-          }}
-        >
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '10px 14px',
-              borderRadius: 14,
-              border: `1px solid ${C.border}`,
-              background: C.white,
-              boxShadow: '0 1px 2px rgba(28,31,58,0.05)',
-            }}
-          >
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 28,
-                height: 28,
-                borderRadius: 999,
-                background: draft.time_limit_minutes > 0 ? C.tint : '#f8fafc',
-                color: draft.time_limit_minutes > 0 ? C.primary : C.muted,
-                flexShrink: 0,
-                transition: 'background 0.15s, color 0.15s',
-              }}
-            >
-              <Clock3 size={15} strokeWidth={2} />
-            </span>
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: C.sub,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-              }}
-            >
-              Timer
-            </span>
-            <input
-              type="number"
-              min={0}
-              max={180}
-              step={1}
-              value={draft.time_limit_minutes}
-              onChange={(event) => handleTimeLimitChange(event.target.value)}
-              style={{
-                width: 72,
-                padding: '8px 10px',
-                borderRadius: 10,
-                border: `1px solid ${C.border}`,
-                background: C.bg,
-                fontSize: 14,
-                fontWeight: 700,
-                color: C.text,
-                textAlign: 'center',
-                outline: 'none',
-              }}
-            />
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.sub }}>
-              min
-            </span>
-            <span style={{ fontSize: 12, color: C.muted }}>
-              0 = off
-            </span>
-          </label>
-        </div>
-
-        {/* ── Test editor ──────────────────────────────────────────────────── */}
         <TestEditorStep
           draft={draft}
           onChange={handleChange}

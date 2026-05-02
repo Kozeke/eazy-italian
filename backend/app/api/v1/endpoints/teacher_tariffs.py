@@ -1,13 +1,16 @@
-"""Teacher tariff endpoints for plan retrieval and plan switching."""
+"""Teacher tariff endpoints for plan retrieval, plan switching, and Stripe Checkout."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
+import stripe
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
 
 from app.core.auth import get_current_teacher
 from app.core.database import get_db
@@ -56,6 +59,84 @@ class TeacherTariffUpdateRequest(BaseModel):
         default=None,
         description="Plan expiry; omit for Free/Standard to default to 30 days from now. Pro omits open-ended.",
     )
+
+
+# Selects Standard vs Pro when creating a Stripe subscription Checkout Session.
+class StripeCheckoutRequest(BaseModel):
+    plan: str = Field(..., description="standard | pro")
+
+
+# Returns the hosted Checkout URL for the client to redirect to.
+class StripeCheckoutResponse(BaseModel):
+    url: str
+
+
+@router.post("/create-checkout-session", response_model=StripeCheckoutResponse)
+def create_stripe_checkout_session(
+    req: StripeCheckoutRequest,
+    current_user: User = Depends(get_current_teacher),
+) -> StripeCheckoutResponse:
+    # Rejects checkout when Stripe is not configured so the UI gets a clear error instead of a generic Stripe failure.
+    if not settings.STRIPE_SECRET_KEY.strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe is not configured (missing STRIPE_SECRET_KEY).",
+        )
+    # Normalizes plan name before mapping to a Stripe Price id.
+    plan_norm = req.plan.strip().lower()
+    if plan_norm not in ("standard", "pro"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="plan must be 'standard' or 'pro'.",
+        )
+    # Maps UI plan to Dashboard price id; missing ids avoid creating invalid Sessions.
+    price_id = (
+        settings.STRIPE_STANDARD_PRICE_ID.strip()
+        if plan_norm == "standard"
+        else settings.STRIPE_PRO_PRICE_ID.strip()
+    )
+    if not price_id:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe price IDs are not configured (STRIPE_STANDARD_PRICE_ID / STRIPE_PRO_PRICE_ID).",
+        )
+    # Binds each Checkout Session to the signed-in teacher for reconciliation after payment.
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        # Metadata is copied onto the Subscription so cancel/downgrade webhooks can resolve user_id.
+        session_kwargs: dict[str, Any] = {
+            "mode": "subscription",
+            "line_items": [{"price": price_id, "quantity": 1}],
+            "success_url": settings.STRIPE_CHECKOUT_SUCCESS_URL,
+            "cancel_url": settings.STRIPE_CHECKOUT_CANCEL_URL,
+            "client_reference_id": str(current_user.id),
+            "metadata": {
+                "teacher_plan": plan_norm,
+                "user_id": str(current_user.id),
+            },
+            "subscription_data": {
+                "metadata": {
+                    "teacher_plan": plan_norm,
+                    "user_id": str(current_user.id),
+                },
+            },
+        }
+        # Pre-fills customer email in Checkout when available.
+        if getattr(current_user, "email", None):
+            session_kwargs["customer_email"] = current_user.email
+        session = stripe.checkout.Session.create(**session_kwargs)
+    except stripe.StripeError as exc:
+        # Maps Stripe failures to HTTP 502 so the admin UI can show a single error path.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Stripe error: {getattr(exc, 'user_message', None) or str(exc)}",
+        ) from exc
+    if not session.url:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Stripe did not return a checkout URL.",
+        )
+    return StripeCheckoutResponse(url=session.url)
 
 
 @router.get("/payments", response_model=list[TeacherPaymentRead])

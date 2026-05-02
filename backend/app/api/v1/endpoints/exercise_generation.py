@@ -29,6 +29,7 @@ import logging
 from typing import Annotated, Any, Literal, Union
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
@@ -66,7 +67,11 @@ router = APIRouter(prefix="/segments", tags=["exercise-generation"])
 # hyphens with underscores.
 
 SUPPORTED_TYPES: set[str] = {
+    "text",
+    "image-stacked",
     "drag-to-gap",
+    "drag-word-to-image",
+    "select-form-to-image",
     "type-word-in-gap",
     "select-word-form",
     "match-pairs",
@@ -82,6 +87,313 @@ SUPPORTED_TYPES: set[str] = {
 def _slug_to_type(slug: str) -> str:
     """Convert URL slug to registry key.  'drag-to-gap' → 'drag_to_gap'."""
     return slug.replace("-", "_")
+from pydantic import BaseModel as _BaseModel
+
+
+# ── Manual-save request schemas ───────────────────────────────────────────────
+
+class _ImageBlockRequest(_BaseModel):
+    title: str | None = None
+    data: dict
+
+
+class _VideoBlockRequest(_BaseModel):
+    title: str | None = None
+    data: dict
+
+
+class _AudioBlockRequest(_BaseModel):
+    title: str | None = None
+    data: dict
+
+
+class ImageStackedSaveRequest(BaseModel):
+    images: list[dict]
+    title: str | None = None
+
+
+class GifAnimationSaveRequest(BaseModel):
+    src: str
+    alt_text: str | None = None
+    caption: str | None = None
+    loop: bool = True
+    title: str | None = None
+
+
+# ── Dedicated image-block save endpoint ───────────────────────────────────────
+# Must be declared BEFORE the generic /{exercise_slug} route so FastAPI matches
+# the fixed path segment "image" before treating it as a slug parameter.
+
+@router.post(
+    "/{segment_id}/exercises/image",
+    summary="Persist a teacher-created image block for a segment",
+    description=(
+        "Creates an image block from a teacher-supplied URL or data URI and "
+        "appends it to the segment's media_blocks list.  Returns the new block "
+        "in the same shape as AI-generated blocks so the frontend can treat "
+        "both paths identically."
+    ),
+)
+async def create_image_block(
+    segment_id: int,
+    body: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    # Stores whether request payload targets manual image persistence mode.
+    has_manual_data_payload = isinstance(body, dict) and "data" in body
+
+    if has_manual_data_payload:
+        # Parses manual image payload schema to keep backward-compatible validation.
+        parsed_manual_request = _ImageBlockRequest.model_validate(body)
+        # Stores posted image source for required-field validation.
+        src = (parsed_manual_request.data or {}).get("src", "")
+        if not src or not str(src).strip():
+            raise HTTPException(status_code=400, detail="data.src is required and must not be empty.")
+
+        segment = _load_segment(db, segment_id)
+
+        # Stores final title with stable fallback for manually-created image blocks.
+        block_title = (parsed_manual_request.title or "").strip() or "Image block"
+        # Prevent crash if DB write fails while persisting manual image block.
+        try:
+            block = _append_block(
+                db=db,
+                segment=segment,
+                kind="image",
+                block_title=block_title,
+                data=parsed_manual_request.data,
+                created_by=current_user.id,
+            )
+        except Exception as exc:
+            logger.error(
+                "DB error persisting image block for segment_id=%d: %s",
+                segment_id, exc, exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to save the image block. Please try again.",
+            ) from exc
+
+        return {"block": block}
+
+    # Parses AI-generation payload so /exercises/image can generate via HF path.
+    try:
+        parsed_generate_request = ExerciseGenerateRequest.model_validate(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    # Resolves unit id from payload or segment for AI image generation.
+    unit_id = _resolve_unit_id(db, segment_id, parsed_generate_request.unit_id)
+    # Consumes one AI exercise-generation credit for AI image generation requests.
+    check_and_consume_teacher_ai_quota(db, current_user, "exercise_generation")
+
+    # Executes standard segment exercise flow using the registered "image" generator.
+    block, metadata = await generate_exercise_for_segment(
+        exercise_type="image",
+        db=db,
+        segment_id=segment_id,
+        unit_id=unit_id,
+        created_by=current_user.id,
+        block_title=parsed_generate_request.block_title,
+        topic_hint=parsed_generate_request.topic_hint,
+        content_language=parsed_generate_request.content_language,
+        instruction_language=parsed_generate_request.instruction_language,
+        generator_params=parsed_generate_request.build_generator_params(),
+    )
+    return {"block": block, "metadata": metadata}
+
+
+# ── Dedicated video_embed save endpoint ────────────────────────────────────────
+# Must be declared BEFORE the generic /{exercise_slug} route so FastAPI matches
+# the fixed path segment "video_embed" before treating it as a slug parameter.
+
+@router.post(
+    "/{segment_id}/exercises/video_embed",
+    summary="Persist a teacher-created video block for a segment",
+    description=(
+        "Creates a video_embed block from a teacher-supplied URL and "
+        "appends it to the segment's media_blocks list. Returns the new block "
+        "in the same shape as AI-generated blocks."
+    ),
+    include_in_schema=False,
+)
+async def create_video_embed_block(
+    segment_id: int,
+    body: _VideoBlockRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    # Stores posted src value from body.data for required-field validation.
+    src = (body.data or {}).get("src", "")
+    if not src or not str(src).strip():
+        raise HTTPException(status_code=400, detail="data.src is required and must not be empty.")
+
+    segment = _load_segment(db, segment_id)
+
+    # Stores human-readable block title with stable default fallback.
+    block_title = (body.title or "").strip() or "Video block"
+    try:
+        block = _append_block(
+            db=db,
+            segment=segment,
+            kind="video_embed",
+            block_title=block_title,
+            data=body.data,
+            created_by=current_user.id,
+        )
+    except Exception as exc:
+        logger.error(
+            "DB error persisting video_embed block for segment_id=%d: %s",
+            segment_id, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save the video block. Please try again.",
+        ) from exc
+
+    return {"block": block}
+
+
+# ── Dedicated audio_embed save endpoint ────────────────────────────────────────
+# Must be declared BEFORE the generic /{exercise_slug} route so FastAPI matches
+# the fixed path segment "audio_embed" before treating it as a slug parameter.
+
+@router.post(
+    "/{segment_id}/exercises/audio_embed",
+    summary="Persist a teacher-created audio block for a segment",
+    description=(
+        "Creates an audio_embed block from a teacher-supplied URL and "
+        "appends it to the segment's media_blocks list. Returns the new block "
+        "in the same shape as AI-generated blocks."
+    ),
+    include_in_schema=False,
+)
+async def create_audio_embed_block(
+    segment_id: int,
+    body: _AudioBlockRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    # Stores posted src value from body.data for required-field validation.
+    src = (body.data or {}).get("src", "")
+    if not src or not str(src).strip():
+        raise HTTPException(status_code=400, detail="data.src is required and must not be empty.")
+
+    segment = _load_segment(db, segment_id)
+
+    # Stores human-readable block title with stable default fallback.
+    block_title = (body.title or "").strip() or "Audio block"
+    try:
+        block = _append_block(
+            db=db,
+            segment=segment,
+            kind="audio_embed",
+            block_title=block_title,
+            data=body.data,
+            created_by=current_user.id,
+        )
+    except Exception as exc:
+        logger.error(
+            "DB error persisting audio_embed block for segment_id=%d: %s",
+            segment_id, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save the audio block. Please try again.",
+        ) from exc
+
+    return {"block": block}
+
+
+# ── Dedicated image_stacked save endpoint ─────────────────────────────────────
+
+@router.post(
+    "/{segment_id}/exercises/image_stacked",
+    summary="Persist a manually-entered stacked-image block for a segment",
+    include_in_schema=False,
+)
+async def save_image_stacked_block(
+    segment_id: int,
+    body: ImageStackedSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    filled = [img for img in (body.images or []) if str(img.get("src", "")).strip()]
+    if len(filled) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="At least 2 images with a non-empty 'src' are required.",
+        )
+
+    segment = _load_segment(db, segment_id)
+    data: dict = {"images": body.images}
+    if body.title:
+        data["title"] = body.title.strip()
+
+    block = _append_block(
+        db=db,
+        segment=segment,
+        kind="image_stacked",
+        block_title=body.title or "Images stacked",
+        data=data,
+        created_by=current_user.id,
+    )
+    return {"block": block}
+
+
+# ── Dedicated gif_animation save endpoint ─────────────────────────────────────
+# Must be declared BEFORE the generic /{exercise_slug} route.
+
+@router.post(
+    "/{segment_id}/exercises/gif_animation",
+    summary="Persist a teacher-created GIF animation block for a segment",
+    description=(
+        "Creates a gif_animation block from a teacher-supplied URL or data URI and "
+        "appends it to the segment's media_blocks list.  Returns the new block "
+        "in the same shape as AI-generated blocks."
+    ),
+    include_in_schema=False,
+)
+async def create_gif_animation_block(
+    segment_id: int,
+    body: GifAnimationSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> dict:
+    if not body.src or not str(body.src).strip():
+        raise HTTPException(status_code=400, detail="src is required and must not be empty.")
+
+    segment = _load_segment(db, segment_id)
+
+    block_title = (body.title or body.caption or "").strip() or "GIF animation"
+    data: dict = {"src": body.src.strip()}
+    if body.alt_text:
+        data["alt_text"] = body.alt_text.strip()
+    if body.caption:
+        data["caption"] = body.caption.strip()
+    data["loop"] = body.loop
+
+    try:
+        block = _append_block(
+            db=db,
+            segment=segment,
+            kind="gif_animation",
+            block_title=block_title,
+            data=data,
+            created_by=current_user.id,
+        )
+    except Exception as exc:
+        logger.error(
+            "DB error persisting gif_animation block for segment_id=%d: %s",
+            segment_id, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save the GIF animation block. Please try again.",
+        ) from exc
+
+    return {"block": block}
 
 
 # ── Generic endpoint ──────────────────────────────────────────────────────────
@@ -150,9 +462,10 @@ async def generate_exercise_from_file(
     segment_id: int,
     exercise_slug: str,
     file: UploadFile = File(...),
-    gap_count: int = Form(default=5),
+    gap_count: str | None = Form(default="auto"),
     content_language: str = Form(default="auto"),
     instruction_language: str = Form(default="english"),
+    difficulty: str | None = Form(default=None),
     block_title: str | None = Form(default=None),
     gap_type: str | None = Form(default=None),
     db: Session = Depends(get_db),
@@ -165,6 +478,8 @@ async def generate_exercise_from_file(
         )
 
     exercise_type = _slug_to_type(exercise_slug)
+    # Converts multipart gap_count input into the normalized value expected by generators.
+    resolved_gap_count = _parse_gap_count_form_value(gap_count)
 
     # ── Validate file ─────────────────────────────────────────────────────────
     filename = file.filename or ""
@@ -185,9 +500,9 @@ async def generate_exercise_from_file(
     # ── Parse file → text ─────────────────────────────────────────────────────
     try:
         if ext == "pdf":
-            parsed = PDFParser().parse_bytes(raw, filename=filename)
+            parsed = PDFParser().parse(raw, filename=filename)
         elif ext == "docx":
-            parsed = DocxParser().parse_bytes(raw, filename=filename)
+            parsed = DocxParser().parse(raw, filename=filename)
         else:
             raise HTTPException(
                 status_code=400,
@@ -217,8 +532,9 @@ async def generate_exercise_from_file(
             content_language=(content_language or "auto").strip().lower(),
             instruction_language=(instruction_language or "english").strip().lower(),
             topic_hint=None,
-            gap_count=max(1, min(gap_count, 15)),
+            gap_count=resolved_gap_count,
             gap_type=gap_type,
+            difficulty=difficulty,
         )
     except NotImplementedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -293,7 +609,7 @@ async def generate_drag_to_gap_from_file_compat(
     segment_id: int,
     exercise_slug: str = "drag-to-gap",
     file: UploadFile = File(...),
-    gap_count: int = Form(default=5),
+    gap_count: str | None = Form(default="auto"),
     content_language: str = Form(default="auto"),
     instruction_language: str = Form(default="english"),
     block_title: str | None = Form(default=None),
@@ -337,3 +653,26 @@ def _resolve_unit_id(db: Session, segment_id: int, hint_unit_id: int | None) -> 
             detail="Cannot determine unit_id for this segment. Pass it explicitly in the request body.",
         )
     return unit_id
+
+
+def _parse_gap_count_form_value(gap_count: str | None) -> int | None:
+    # Treats omitted or "auto" multipart values as dynamic gap generation mode.
+    if gap_count is None:
+        return None
+
+    # Normalizes whitespace and case for robust form-field handling.
+    normalized_gap_count = str(gap_count).strip().lower()
+    if normalized_gap_count in {"", "auto", "none", "null"}:
+        return None
+
+    # Prevents malformed gap_count values from reaching deeper generation logic.
+    try:
+        parsed_gap_count = int(normalized_gap_count)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="gap_count must be an integer between 1 and 15 or 'auto'.",
+        ) from exc
+
+    # Clamps explicit gap_count values into the supported backend range.
+    return max(1, min(parsed_gap_count, 15))

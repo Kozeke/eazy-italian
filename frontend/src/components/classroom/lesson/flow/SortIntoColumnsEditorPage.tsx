@@ -10,7 +10,6 @@ import {
 } from '../editors/QuestionEditorRenderer';
 import { draftToApiPayload, validateDraft } from '../editors/questionPayload';
 import './DragToGap.css';
-// After the existing imports, add:
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';

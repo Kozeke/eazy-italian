@@ -31,10 +31,24 @@ function BlockSkeleton() {
 
 export function FlowItemRenderer(props: ExerciseBlockProps) {
   const { item } = props;
+  // Enables targeted runtime tracing for the image_stacked renderer path.
+  const isImageStackedType = item.type === "image_stacked";
 
   // Create the lazy component once per type string, not per render.
   const Block = useMemo(() => {
     const loader = getExerciseLoader(item.type);
+    if (isImageStackedType) {
+      console.log("[FlowItemRenderer] resolving image_stacked loader", {
+        itemId: item.id,
+        itemType: item.type,
+        hasLoader: Boolean(loader),
+        label: item.label,
+        dataKeys:
+          item.data && typeof item.data === "object"
+            ? Object.keys(item.data as Record<string, unknown>)
+            : [],
+      });
+    }
     if (!loader) {
       console.warn(
         `[FlowItemRenderer] No renderer for type "${item.type}". ` +

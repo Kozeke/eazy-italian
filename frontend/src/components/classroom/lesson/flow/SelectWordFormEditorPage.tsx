@@ -165,16 +165,53 @@ const TextSpan = memo(
     initial,
     onFocus,
     divRef,
+    onBracketInsert,
   }: {
     initial: string;
     onFocus: () => void;
     divRef: (el: HTMLSpanElement | null) => void;
+    /** Called when the user types "[]" so parent can insert a gap at cursor. */
+    onBracketInsert?: () => void;
   }) {
     const innerRef = useRef<HTMLSpanElement>(null);
+    // Keeps the latest callback without causing TextSpan re-renders.
+    const onBracketInsertRef = useRef(onBracketInsert);
+    onBracketInsertRef.current = onBracketInsert;
 
     useEffect(() => {
       if (innerRef.current) innerRef.current.textContent = initial;
     }, [initial]);
+
+    // Converts typed "[]" into an actual gap token at the current cursor.
+    const handleInput = useCallback(() => {
+      const editableElement = innerRef.current;
+      if (!editableElement) return;
+      const editableText = editableElement.textContent ?? '';
+      const bracketIndex = editableText.indexOf('[]');
+      if (bracketIndex === -1) return;
+
+      const textWithoutBrackets =
+        editableText.slice(0, bracketIndex) + editableText.slice(bracketIndex + 2);
+      editableElement.textContent = textWithoutBrackets;
+
+      const selection = window.getSelection();
+      if (selection) {
+        const caretRange = document.createRange();
+        if (textWithoutBrackets.length > 0 && editableElement.firstChild) {
+          caretRange.setStart(
+            editableElement.firstChild,
+            Math.min(bracketIndex, textWithoutBrackets.length),
+          );
+        } else {
+          caretRange.setStart(editableElement, 0);
+        }
+        caretRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(caretRange);
+      }
+
+      onBracketInsertRef.current?.();
+    }, []);
 
     return (
       <span
@@ -186,6 +223,7 @@ const TextSpan = memo(
         suppressContentEditableWarning
         className="dtg-text-seg"
         onFocus={onFocus}
+        onInput={handleInput}
       />
     );
   },
@@ -220,6 +258,12 @@ export default function SelectWordFormEditorPage({
   const lastFocusedIdx = useRef<number | null>(null);
   const variantInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const rootRef = useRef<HTMLDivElement>(null);
+  // Tracks editor DOM node for anchoring the floating gap editor panel.
+  const editorRef = useRef<HTMLDivElement>(null);
+  // Stores each rendered gap element to position the floating panel under active gap.
+  const gapRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  // Stores floating panel coordinates relative to dtg-main-editor.
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
   // Holds the server-assigned block id when AI generation persisted the block.
   // Passed to onSave so handleExerciseSave reuses it instead of generating a
   // new random id that would create a duplicate block on the segment.
@@ -232,6 +276,7 @@ export default function SelectWordFormEditorPage({
 
   const closeGapEditor = useCallback(() => {
     setActiveGapId(null);
+    setPopoverPos(null);
     setVariantRows(createVariantDrafts(normaliseGapConfig()));
   }, []);
 
@@ -239,6 +284,27 @@ export default function SelectWordFormEditorPage({
     setActiveGapId(gapId);
     setVariantRows(createVariantDrafts(gapConfig));
   }, []);
+
+  // Recomputes the floating panel position every time a different gap is opened.
+  useEffect(() => {
+    if (!activeGapId) {
+      setPopoverPos(null);
+      return;
+    }
+    const gapElement = gapRefs.current[activeGapId];
+    const editorElement = editorRef.current;
+    if (!gapElement || !editorElement) return;
+    const gapRect = gapElement.getBoundingClientRect();
+    const editorRect = editorElement.getBoundingClientRect();
+    const panelWidth = editorRect.width * 0.45;
+    let nextLeft = gapRect.left - editorRect.left;
+    const maxLeft = editorRect.width - panelWidth - 8;
+    nextLeft = Math.min(Math.max(0, nextLeft), Math.max(0, maxLeft));
+    setPopoverPos({
+      top: gapRect.bottom - editorRect.top + 6,
+      left: nextLeft,
+    });
+  }, [activeGapId]);
 
   const syncFromDOM = useCallback(
     (segs: Segment[]): Segment[] =>
@@ -436,12 +502,20 @@ export default function SelectWordFormEditorPage({
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
+            placeholder="Exercise title (shown to students)"
             aria-label="Exercise title"
           />
         </div>
 
+        {/* ── Student-facing preview: instruction shown in the block */}
+        <div className="dtg-editor-title-preview">
+          <div className="dtg-exercise-instruction">
+            Select the correct word form in each gap
+          </div>
+        </div>
+
         <div
+          ref={editorRef}
           className={[
             'dtg-main-editor',
             isEditorFocused ? 'dtg-main-editor--focused' : '',
@@ -489,6 +563,7 @@ export default function SelectWordFormEditorPage({
                       divRef={(el) => {
                         spanRefs.current[idx] = el;
                       }}
+                      onBracketInsert={insertGap}
                     />
                   );
                 }
@@ -500,7 +575,13 @@ export default function SelectWordFormEditorPage({
                 const isActive = activeGapId === gapId;
 
                 return (
-                  <span key={gapId} className="dtg-gap-wrap">
+                  <span
+                    key={gapId}
+                    className="dtg-gap-wrap"
+                    ref={(el) => {
+                      gapRefs.current[gapId] = el;
+                    }}
+                  >
                     <span
                       className={[
                         'dtg-gap-inner',
@@ -584,128 +665,129 @@ export default function SelectWordFormEditorPage({
               [ ]
             </button>
           )}
-        </div>
+          {activeGapId && popoverPos && (
+            <div
+              className="dtg-bottom-panel"
+              style={{ top: popoverPos.top, left: popoverPos.left }}
+            >
+              <div className="dtg-bottom-panel-header">
+                <span className="dtg-bottom-panel-label">Правильные формы</span>
+                <button
+                  type="button"
+                  className="dtg-bottom-panel-delete"
+                  onClick={() => deleteGap(activeGapId)}
+                  title="Удалить пропуск"
+                  aria-label="Delete gap"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
 
-        {activeGapId && (
-          <div className="dtg-bottom-panel">
-            <div className="dtg-bottom-panel-header">
-              <span className="dtg-bottom-panel-label">Правильные формы</span>
-              <button
-                type="button"
-                className="dtg-bottom-panel-delete"
-                onClick={() => deleteGap(activeGapId)}
-                title="Удалить пропуск"
-                aria-label="Delete gap"
-              >
-                <Trash2 size={13} />
-                <span>Удалить пропуск</span>
-              </button>
-            </div>
-
-            <div className="dtg-bottom-panel-body">
-              <span className="dtg-bottom-panel-hint">
-                Отметьте галочками правильные формы и добавьте новые варианты ниже.
-              </span>
-              <div className="dtg-variant-list">
-                {variantRows.map((row, index) => (
-                  <div key={row.id} className="dtg-variant-row">
-                    <label className="dtg-variant-check" aria-label={`Mark variant ${index + 1} as correct`}>
+              <div className="dtg-bottom-panel-body">
+                <span className="dtg-bottom-panel-hint">
+                  Отметьте галочками правильные формы и добавьте новые варианты ниже.
+                </span>
+                <div className="dtg-variant-list">
+                  {variantRows.map((row, index) => (
+                    <div key={row.id} className="dtg-variant-row">
+                      <label className="dtg-variant-check" aria-label={`Mark variant ${index + 1} as correct`}>
+                        <input
+                          type="checkbox"
+                          checked={row.checked}
+                          onChange={(e) => {
+                            setVariantRows((prev) =>
+                              prev.map((variant) =>
+                                variant.id === row.id
+                                  ? { ...variant, checked: e.target.checked }
+                                  : variant,
+                              ),
+                            );
+                          }}
+                        />
+                      </label>
                       <input
-                        type="checkbox"
-                        checked={row.checked}
+                        ref={(el) => {
+                          variantInputRefs.current[row.id] = el;
+                        }}
+                        className="dtg-variant-input"
+                        placeholder={`Вариант ${index + 1}`}
+                        value={row.value}
                         onChange={(e) => {
+                          const value = e.target.value;
                           setVariantRows((prev) =>
                             prev.map((variant) =>
-                              variant.id === row.id
-                                ? { ...variant, checked: e.target.checked }
-                                : variant,
+                              variant.id === row.id ? { ...variant, value } : variant,
                             ),
                           );
                         }}
-                      />
-                    </label>
-                    <input
-                      ref={(el) => {
-                        variantInputRefs.current[row.id] = el;
-                      }}
-                      className="dtg-variant-input"
-                      placeholder={`Вариант ${index + 1}`}
-                      value={row.value}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setVariantRows((prev) =>
-                          prev.map((variant) =>
-                            variant.id === row.id ? { ...variant, value } : variant,
-                          ),
-                        );
-                      }}
-                      onKeyDown={(e) => {
-                        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                          e.preventDefault();
-                          confirmAnswer();
-                        }
-                        if (e.key === 'Escape') {
-                          closeGapEditor();
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="dtg-variant-remove"
-                      onClick={() => {
-                        setVariantRows((prev) => {
-                          if (prev.length === 1) {
-                            return createVariantDrafts({ options: [], correctAnswers: [] });
+                        onKeyDown={(e) => {
+                          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                            e.preventDefault();
+                            confirmAnswer();
                           }
-                          return prev.filter((variant) => variant.id !== row.id);
-                        });
-                      }}
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="dtg-variant-add"
-                onClick={() => {
-                  const newRow = createVariantDraft();
-                  setVariantRows((prev) => [...prev, newRow]);
-                  setTimeout(() => variantInputRefs.current[newRow.id]?.focus(), 30);
-                }}
-              >
-                <Plus size={14} />
-                Добавить вариант
-              </button>
-              <div className="dtg-bottom-panel-actions">
+                          if (e.key === 'Escape') {
+                            closeGapEditor();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="dtg-variant-remove"
+                        onClick={() => {
+                          setVariantRows((prev) => {
+                            if (prev.length === 1) {
+                              return createVariantDrafts({ options: [], correctAnswers: [] });
+                            }
+                            return prev.filter((variant) => variant.id !== row.id);
+                          });
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
+                </div>
                 <button
                   type="button"
-                  className="dtg-bottom-panel-cancel"
-                  onClick={closeGapEditor}
+                  className="dtg-variant-add"
+                  onClick={() => {
+                    const newRow = createVariantDraft();
+                    setVariantRows((prev) => [...prev, newRow]);
+                    setTimeout(() => variantInputRefs.current[newRow.id]?.focus(), 30);
+                  }}
                 >
-                  Отмена
+                  <Plus size={14} />
+                  Добавить вариант
                 </button>
-                <button
-                  type="button"
-                  className={[
-                    'dtg-bottom-panel-confirm',
-                    selectedVariants.length === 0
-                      ? 'dtg-bottom-panel-confirm--disabled'
-                      : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onClick={confirmAnswer}
-                  disabled={selectedVariants.length === 0}
-                >
-                  <Check size={13} />
-                  Сохранить формы
-                </button>
+                <div className="dtg-bottom-panel-actions">
+                  <button
+                    type="button"
+                    className="dtg-bottom-panel-cancel"
+                    onClick={closeGapEditor}
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    className={[
+                      'dtg-bottom-panel-confirm',
+                      selectedVariants.length === 0
+                        ? 'dtg-bottom-panel-confirm--disabled'
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={confirmAnswer}
+                    disabled={selectedVariants.length === 0}
+                  >
+                    <Check size={13} />
+                    Сохранить формы
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <button type="button" className="dtg-generate-btn" onClick={() => setShowAIModal(true)}>
           <Sparkles size={13} />

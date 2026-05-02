@@ -44,7 +44,6 @@ from app.models.unit import Unit
 from app.models.video import Video, VideoStatus
 from app.models.task import Task as TaskModel, TaskStatus
 from app.services.ai.providers.base import AIProviderError
-from app.services.ai_task_generator import generate_tasks_from_unit_content
 
 logger = logging.getLogger(__name__)
 
@@ -329,6 +328,12 @@ async def generate_tasks_for_unit(
     logger.info(
         "Assembled unit content — %d chars from unit_id=%d",
         len(unit_content), unit_id,
+    )
+
+    # Temporarily disable legacy AI task generation path until module is restored.
+    raise HTTPException(
+        status_code=503,
+        detail="AI task generation is temporarily disabled in this build.",
     )
 
     # ── 3. Generate tasks via LLM ─────────────────────────────────────────────

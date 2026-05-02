@@ -320,7 +320,11 @@ async def regenerate_question(
     for full traceability.
     """
     from datetime import datetime, timezone
-    from app.services.ai_test_generator import regenerate_single_question
+    # Temporarily disable legacy single-question regeneration until module is restored.
+    raise HTTPException(
+        status_code=503,
+        detail="AI question regeneration is temporarily disabled in this build.",
+    )
     from app.services.ai.providers.base import AIProviderError
     from app.services.test_generation_flow import (
         _load_unit_with_content,

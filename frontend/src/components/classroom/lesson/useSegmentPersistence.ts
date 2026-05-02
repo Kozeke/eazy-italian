@@ -38,7 +38,11 @@ export interface InlineMediaBlock {
     | "test_without_timer"
     | "test_with_timer"
     | "true_false"
-    | "text";      // AI-generated text/explanation blocks (markdown content)
+    | "text"      // AI-generated text/explanation blocks (markdown content)
+    | "image_stacked"
+    | "gif_animation"
+    | "video_embed"
+    | "audio_embed";
   url?: string;
   caption?: string;
   slides?: Array<{ id: string; [k: string]: unknown }>;
@@ -89,6 +93,10 @@ export function normaliseInlineMediaBlocks(blocks: unknown): InlineMediaBlock[] 
           "order_paragraphs", "sort_into_columns", "test_without_timer", "test_with_timer",
           "true_false",
           "text",  // AI-generated text/explanation blocks
+          "image_stacked", // Stacked image exercise blocks
+          "gif_animation", // GIF animation exercise blocks
+          "video_embed", // Custom video exercise blocks
+          "audio_embed", // Custom audio exercise blocks
         ].includes(b.kind),
     );
 }

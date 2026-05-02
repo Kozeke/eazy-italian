@@ -16,6 +16,18 @@
     "search": "Поиск...",
     "filters": "Фильтры"
   },
+  "subscriptionCheckout": {
+    "successTitle": "Добро пожаловать в LinguAI Pro",
+    "successSubtitle": "Подписка активна. Новые лимиты доступны сразу.",
+    "successHint": "Если данные не обновились, обновите страницу или откройте «Тариф и оплата».",
+    "goToCourses": "Мои курсы",
+    "goToPlans": "Тариф и оплата",
+    "backHome": "На главную",
+    "cancelTitle": "Оплата отменена",
+    "cancelSubtitle": "Платёж не выполнен. Аккаунт без изменений.",
+    "cancelHint": "Оформить подписку можно в любой момент в разделе админки.",
+    "viewPlans": "К тарифам"
+  },
   "nav": {
     "login": "Войти",
     "register": "Зарегистрироваться",
@@ -410,7 +422,82 @@
       "dark": "Темная тема"
     },
     "tariffs": {
-      "title": "Тарифы"
+      "title": "Тарифы",
+      "tabs": {
+        "tariffs": "Тарифы",
+        "payments": "Платежи",
+        "bonuses": "Бонусы и промо",
+        "certificates": "Подарочные сертификаты"
+      },
+      "currentPlan": "Ваш текущий тариф",
+      "courses": "Курсы",
+      "loadingShort": "…",
+      "dash": "—",
+      "billingHeading": "Оплата (Standard и Pro)",
+      "billingPeriod": {
+        "1m": "1 мес",
+        "3m": "3 мес",
+        "6m": "6 мес",
+        "12m": "1 год"
+      },
+      "plans": {
+        "free": "Free",
+        "standard": "Standard",
+        "pro": "Pro"
+      },
+      "planSubtitles": {
+        "free": "Старт с ИИ",
+        "standard": "Рост с ИИ",
+        "pro": "Без лимитов на генерацию ИИ"
+      },
+      "featureLabels": {
+        "aiExerciseGenerations": "ИИ‑генерация упражнений",
+        "aiUnitGenerations": "ИИ‑генерация юнитов",
+        "aiCourseGenerations": "ИИ‑генерация курсов",
+        "publishToStudents": "Публикация для студентов"
+      },
+      "featureValues": {
+        "tenPerMo": "10 / мес",
+        "threePerMo": "3 / мес",
+        "oneTotal": "1 всего",
+        "hundredPerMo": "100 / мес",
+        "twentyPerMo": "20 / мес",
+        "fivePerMo": "5 / мес",
+        "unlimited": "Безлимит",
+        "check": "✓",
+        "dash": "—"
+      },
+      "hints": {
+        "freeQuota": "Максимум созданий на бесплатном тарифе.",
+        "standardQuota": "Квота, включённая в этот тариф.",
+        "proUnlimited": "Безлимитные создания на тарифе Pro.",
+        "addonPlaceholder": "Подробности доп. опций можно расширить позже."
+      },
+      "forever": "Навсегда",
+      "zeroUsd": "0 USD",
+      "connect": "Подключить",
+      "current": "Текущий",
+      "freeTierNote": "Включено — без оплаты",
+      "subscribe": "Оформить {{plan}} ({{price}} USD)",
+      "stripeCheckoutError": "Не удалось открыть оплату. Проверьте настройки Stripe или попробуйте снова.",
+      "perPeriod": "за {{period}}",
+      "saveAmount": "экономия ${{amount}}",
+      "yearSavingsHint": "При оплате за год можно сэкономить: ${{saved}}",
+      "status": {
+        "expired": "Истекла",
+        "until": "До {{date}}",
+        "aiUsagePeriod": "ИИ · {{period}}"
+      },
+      "addons": {
+        "title": "Дополнительные возможности",
+        "aiAssistant": "ИИ‑ассистент",
+        "tokensPerMo": "Токенов / мес",
+        "included": "Включено",
+        "perMonth": "в месяц",
+        "details": "Подробнее"
+      },
+      "placeholderSection": "Этот раздел пока в разработке.",
+      "checkoutDescription": "Оплата — {{plan}} ({{duration}})"
     },
     "supportChat": {
       "title": "Чат поддержки",
@@ -870,6 +957,116 @@
       "blog": "Блог",
       "careers": "Карьера",
       "copyright": "© 2024 EZ Italian. Все права защищены."
+    }
+  },
+  "aiExerciseGenerator": {
+    "title": "ИИ‑генератор упражнений",
+    "tabs": {
+      "describe": "Описание",
+      "materials": "По материалам"
+    },
+    "topicLabel": "Тема или запрос",
+    "topicPlaceholder": "Опишите, что хотите отработать…",
+    "languageField": "Язык",
+    "difficultyField": "Уровень",
+    "advancedSettings": "Дополнительные настройки",
+    "gapsLabel": "Пропуски",
+    "gapTypeLabel": "Тип пропусков",
+    "pairsLabel": "Пары",
+    "contentLanguage": {
+      "detectAuto": "Определить автоматически",
+      "english": "Английский"
+    },
+    "difficulty": {
+      "beginner": "Начальный (A1–A2)",
+      "intermediate": "Средний (B1–B2)",
+      "advanced": "Продвинутый (C1–C2)"
+    },
+    "countAuto": "Авто",
+    "gapType": {
+      "verbsOnly": "Только глаголы",
+      "nounsOnly": "Только существительные",
+      "adjectivesOnly": "Только прилагательные",
+      "mixed": "Смешанно (глаголы + существительные)",
+      "prepositionsOnly": "Только предлоги",
+      "irregularVerbs": "Неправильные глаголы",
+      "phrasalVerbs": "Фразовые глаголы"
+    },
+    "types": {
+      "drag_to_gap": {
+        "label": "Перетащить в пропуск",
+        "description": "Перетащите слова в пропуски в предложении"
+      },
+      "type_word_in_gap": {
+        "label": "Ввести слово в пропуск",
+        "description": "Введите пропущенное слово"
+      },
+      "select_word_form": {
+        "label": "Выбрать форму",
+        "description": "Выберите правильную форму слова"
+      },
+      "match_pairs": {
+        "label": "Сопоставить пары",
+        "description": "Сопоставьте термины и определения"
+      },
+      "build_sentence": {
+        "label": "Собрать предложение",
+        "description": "Расставьте перемешанные слова по порядку"
+      },
+      "order_paragraphs": {
+        "label": "Упорядочить абзацы",
+        "description": "Расставьте абзацы в логическом порядке"
+      },
+      "sort_into_columns": {
+        "label": "Разложить по колонкам",
+        "description": "Отнесите элементы к двум категориям"
+      },
+      "true_false": {
+        "label": "Верно / неверно",
+        "description": "Отметьте утверждения как верные или ложные"
+      },
+      "select_form_to_image": {
+        "label": "Картинка + выбор",
+        "description": "Выберите слово, которое соответствует картинке"
+      },
+      "type_word_to_image": {
+        "label": "Картинка + ввод",
+        "description": "Введите слово, которое соответствует картинке"
+      }
+    },
+    "quota": {
+      "unlimited": "Безлимитная генерация упражнений",
+      "atLimit": "Достигнут месячный лимит",
+      "usedThisMonth": "Использовано {{used}} из {{limit}} генераций упражнений в этом месяце",
+      "upgrade": "Улучшить →"
+    },
+    "review": {
+      "success": "Упражнение успешно сгенерировано!",
+      "generatedFallback": "Сгенерированное упражнение",
+      "ratePrompt": "Оцените результат:",
+      "regenerate": "Сгенерировать снова",
+      "addToExercise": "Добавить в упражнение"
+    },
+    "materials": {
+      "dropHint": "Перетащите PDF или Word сюда или нажмите для выбора файла",
+      "fileTypes": ".pdf, .docx — до 10 МБ"
+    },
+    "errors": {
+      "descriptionRequired": "Введите описание упражнения.",
+      "generationFailed": "Не удалось сгенерировать.",
+      "network": "Ошибка сети. Попробуйте ещё раз."
+    },
+    "generate": "Сгенерировать: {{label}}",
+    "generating": "Генерация…",
+    "limitCta": "Месячный лимит · Улучшить тариф",
+    "upgradeModal": {
+      "durationLabel": "1 мес",
+      "planName": "Standard",
+      "priceLabel": "12.00 USD",
+      "planTag1": "ИИ‑генерация упражнений: 100 / мес",
+      "planTag2": "ИИ‑генерация юнитов: 20 / мес",
+      "planTag3": "Публикация для студентов: ✓",
+      "yearSavings": "При оплате за год можно сэкономить: 27 USD"
     }
   }
 }

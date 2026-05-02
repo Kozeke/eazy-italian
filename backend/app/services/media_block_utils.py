@@ -18,6 +18,7 @@ RICH_MEDIA_KINDS: set = {"carousel_slides"}
 # Rich-text content blocks authored in the lesson editor
 TEXT_KINDS: set = {"text"}
 CUSTOM_EXERCISE_KINDS: set = {
+    "image_stacked",
     "drag_to_gap",
     "drag_to_image",
     "type_word_to_image",

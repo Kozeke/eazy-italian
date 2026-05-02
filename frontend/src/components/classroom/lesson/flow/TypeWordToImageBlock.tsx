@@ -183,10 +183,11 @@ export default function TypeWordToImageBlock({
 
   return (
     <div className="dtg-block twi-block">
-      {title && <div className="dtg-block-title">{title}</div>}
-
-      <div className="twi-helper-bar" aria-hidden="true">
-        Type the correct word under each image.
+      <div className="dtg-exercise-header">
+        {title && <div className="dtg-exercise-title">{title}</div>}
+        <div className="dtg-exercise-instruction">
+          Type the correct word under each image
+        </div>
       </div>
 
       <div

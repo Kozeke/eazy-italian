@@ -23,6 +23,9 @@ import { LiveSessionContext } from "../../live/LiveSessionProvider";
 import { showTeacherExerciseHints } from "./showTeacherExerciseHints";
 import "./DragToGap.css";
 
+// Fixed learner-facing instruction for sort-into-columns blocks to keep prompt independent from generated titles.
+const SORT_INTO_COLUMNS_PROMPT_TEXT = "Drag each word from the pool into the correct column.";
+
 /** Raw column entry produced by the unit-generator (pre-question-hydration path). */
 interface RawColumnEntry {
   title: string;
@@ -229,6 +232,9 @@ export default function SortIntoColumnsBlock({
   const columnVisualFeedback = useCallback(
     (columnIndex: number): "correct" | "wrong" | undefined => {
       if (suppressAnswerFeedback) return undefined;
+      // While a drag is active, hide all feedback so stale colors don't
+      // obscure the teacher hint and the UX feels fresh on every drag.
+      if (draggingId !== null) return undefined;
       const direct = feedbackByColumn[columnIndex];
       if (direct) return direct;
       for (const token of wordPool) {
@@ -254,6 +260,7 @@ export default function SortIntoColumnsBlock({
     },
     [
       suppressAnswerFeedback,
+      draggingId,
       feedbackByColumn,
       wordPool,
       placements,
@@ -295,6 +302,9 @@ export default function SortIntoColumnsBlock({
   const handleChipDragStart = useCallback(
     (wordId: string, e: React.DragEvent) => {
       setDraggingId(wordId);
+      // Reset column feedback so stale green/red borders don't persist
+      // across drags and the teacher hint can be shown again cleanly.
+      setFeedbackByColumn({});
       e.dataTransfer.setData("text/plain", wordId);
       e.dataTransfer.effectAllowed = "move";
     },
@@ -380,9 +390,7 @@ export default function SortIntoColumnsBlock({
         </div>
       )}
 
-      {question.prompt?.trim() && (
-        <div className="bs-prompt">{question.prompt}</div>
-      )}
+      <div className="bs-prompt">{SORT_INTO_COLUMNS_PROMPT_TEXT}</div>
 
       <div
         className="dtg-pool-bar"
@@ -497,6 +505,7 @@ export default function SortIntoColumnsBlock({
                   flexWrap: "wrap",
                   gap: 8,
                   alignContent: "flex-start",
+                  width: "100%",
                   minHeight: 120,
                 }}
               >
@@ -523,9 +532,9 @@ export default function SortIntoColumnsBlock({
                     </button>
                   ))
                 ) : (
-                  <span className="dtg-drop-placeholder" aria-hidden="true">
+                  <div className="bs-drop-placeholder" aria-hidden="true">
                     Drop words here
-                  </span>
+                  </div>
                 )}
               </div>
             </div>

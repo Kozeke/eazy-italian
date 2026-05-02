@@ -70,7 +70,10 @@ function extractSvgMarkup(src: string): string | null {
 
 export default function ImageBlock({ item }: ExerciseBlockProps) {
   const data    = (item as any).data as { src?: string; alt_text?: string } | undefined;
-  const src     = data?.src ?? "";
+  // Resolve source: prefer data.src (set by ImageEditorPage for device upload,
+  // URL input, and AI generation), then fall back to block.url so legacy
+  // inline-media blocks that pre-date the custom editor also render here.
+  const src     = (data?.src ?? "").trim() || ((item as any).url ?? "").trim();
   const altText = data?.alt_text ?? (item as any).label ?? "Educational illustration";
   const title   = (item as any).label ?? "";
 
@@ -107,14 +110,17 @@ export default function ImageBlock({ item }: ExerciseBlockProps) {
             dangerouslySetInnerHTML={{ __html: svgMarkup }}
           />
         ) : (
-          // Regular URL or non-SVG data URI — plain <img> works fine.
+          // Regular URL or non-SVG data URI (JPEG/PNG/WEBP device upload) — plain <img>.
           <img
             src={src}
             alt={altText}
             style={{
               maxWidth: "100%",
+              maxHeight: 480,
+              width: "100%",
               height: "auto",
               display: "block",
+              objectFit: "contain",
             }}
           />
         )}
