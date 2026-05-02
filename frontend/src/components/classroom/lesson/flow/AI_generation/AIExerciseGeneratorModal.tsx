@@ -15,6 +15,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   X, Sparkles, Wand2, Upload, ChevronDown, ChevronUp,
   ThumbsUp, ThumbsDown, ArrowLeft, Send, CheckCircle,
@@ -26,6 +27,7 @@ import ConnectPaymentModal from "../../../../../pages/admin/components/ConnectPa
 import { aiLimitFromMe } from "../../../../../utils/teacherTariffMe";
 import { fetchWithAuth } from "../../../../../services/apiClient";
 import { API_BASE_URL } from "../../../../../services/api";
+import { SOMETHING_WENT_WRONG_PATH } from "../../../../../pages/SomethingWentWrongPage";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -269,6 +271,20 @@ const DIFFICULTY_VALUES = [
 // Parallel i18n keys for DIFFICULTY_VALUES (aiExerciseGenerator.difficulty.*).
 const DIFFICULTY_LABEL_KEYS = ["beginner", "intermediate", "advanced"] as const;
 
+/**
+ * True when segmentId is safe to embed in POST /segments/{id}/exercises/...
+ * (avoids literal "null" in the URL from missing React state).
+ */
+function isValidSegmentId(segmentId: string | number | null | undefined): boolean {
+  if (segmentId == null) return false;
+  const trimmed = String(segmentId).trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (lower === "null" || lower === "undefined") return false;
+  const asNum = Number(trimmed);
+  return Number.isInteger(asNum) && asNum > 0;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AIExerciseGeneratorModal({
   open, onClose, segmentId, onGenerated, apiBase = API_BASE_URL,
@@ -276,6 +292,8 @@ export default function AIExerciseGeneratorModal({
 }: AIExerciseGeneratorModalProps) {
 
   const { t, i18n } = useTranslation();
+  // Sends the user to the full-page error state when the segment is missing or the API returns 422.
+  const navigate = useNavigate();
   const exerciseType = EXERCISE_TYPE_MAP.has(exerciseTypeProp) ? exerciseTypeProp : "drag_to_gap";
 
   // ── Tab ───────────────────────────────────────────────────────────────────
@@ -385,6 +403,12 @@ export default function AIExerciseGeneratorModal({
       return;
     }
 
+    if (!isValidSegmentId(segmentId)) {
+      onClose();
+      navigate(SOMETHING_WENT_WRONG_PATH, { replace: true });
+      return;
+    }
+
     setLoading(true);
     try {
       const cfg  = EXERCISE_TYPE_MAP.get(exerciseType) ?? EXERCISE_TYPE_CONFIGS[0];
@@ -413,6 +437,11 @@ export default function AIExerciseGeneratorModal({
       });
 
       if (res.status === 402) { setShowUpgrade(true); setLoading(false); return; }
+      if (res.status === 422) {
+        onClose();
+        navigate(SOMETHING_WENT_WRONG_PATH, { replace: true });
+        return;
+      }
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         setError((errBody as { detail?: string }).detail ?? t("aiExerciseGenerator.errors.generationFailed"));
@@ -427,7 +456,7 @@ export default function AIExerciseGeneratorModal({
     } finally {
       setLoading(false);
     }
-  }, [activeTab, prompt, language, difficulty, gapCount, pairCount, gapType, exerciseType, apiBase, segmentId, t, i18n.language]);
+  }, [activeTab, prompt, language, difficulty, gapCount, pairCount, gapType, exerciseType, apiBase, segmentId, t, i18n.language, navigate, onClose]);
 
   const handleAddToExercise = useCallback(() => {
     if (generatedBlock) onGenerated?.(generatedBlock);
