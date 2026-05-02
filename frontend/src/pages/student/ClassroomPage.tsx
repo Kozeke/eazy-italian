@@ -535,6 +535,9 @@ function DraftCourseBanner({
             "AI unit generations: 20 / mo",
           ]}
           yearSavingsLabel="If you pay for 1 year you could save: $29"
+          amountUsd={12}
+          planCode="standard"
+          billingPeriod="1m"
           onPay={async () => {
             setUpgradeOpen(false);
           }}
@@ -1595,7 +1598,7 @@ function ClassroomPageInner({
         {isTeacher &&
           course != null &&
           course.is_visible_to_students !== true &&
-          (course as { status?: string }).status !== "PUBLISHED" && (
+          course.status !== "PUBLISHED" && (
             <DraftCourseBanner
               courseId={course.id}
               apiBase="/api/v1"

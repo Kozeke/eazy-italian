@@ -523,6 +523,9 @@ export default function EditCourseModal({
             'AI unit generations: 20 / mo',
           ]}
           yearSavingsLabel="If you pay for 1 year you could save: 27 USD"
+          amountUsd={12}
+          planCode="standard"
+          billingPeriod="1m"
           onPay={async () => {
             /* In production this would record the payment via teacherTariffsApi.
                Here we just close the upgrade modal and let the teacher re-try publish. */

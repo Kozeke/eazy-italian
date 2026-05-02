@@ -29,6 +29,10 @@ export interface ClassroomCourse {
   thumbnail_url?: string | null;
   /** JSON settings from API — merged when saving course edits (sections, language, tags UI) */
   settings?: Record<string, unknown> | null;
+  /** False until teacher publishes — used for draft banner and student locks. */
+  is_visible_to_students?: boolean;
+  /** Course lifecycle from API (e.g. PUBLISHED) — draft banner compares this too. */
+  status?: string;
 }
 
 export interface ClassroomUnit {
@@ -117,6 +121,8 @@ export function useClassroom(
             !Array.isArray(courseResponse.settings)
               ? (courseResponse.settings as Record<string, unknown>)
               : null,
+          is_visible_to_students: courseResponse.is_visible_to_students,
+          status: courseResponse.status,
         };
 
         // Step 2: Extract and sort units from the response

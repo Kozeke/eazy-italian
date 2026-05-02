@@ -303,10 +303,11 @@ export default function AIExerciseGeneratorModal({
   const [step,              setStep]              = useState<Step>("configure");
   const [generatedBlock,    setGeneratedBlock]    = useState<GeneratedBlock | null>(null);
   const [generationWarning, setGenerationWarning] = useState<string | null>(null);
-  const [rating,            setRating]            = useState<"like" | "dislike" | null>(null);
-  const [correctionText,    setCorrectionText]    = useState("");
-  const [showCorrection,    setShowCorrection]    = useState(false);
-  const [correctionSent,    setCorrectionSent]    = useState(false);
+  const [rating, setRating] = useState<"like" | "dislike" | null>(null);
+  // Review-step correction UI state — only setters run on reset (values unused until wired to UI).
+  const [, setCorrectionText] = useState("");
+  const [, setShowCorrection] = useState(false);
+  const [, setCorrectionSent] = useState(false);
 
   // ── Phase 3: quota state ──────────────────────────────────────────────────
   /** "idle" | "loading" | "ok" | "error" */
@@ -360,8 +361,6 @@ export default function AIExerciseGeneratorModal({
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
-
-  const setChipPrompt = useCallback((text: string) => { setPrompt(text + " "); }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUploadedFile(e.target.files?.[0] ?? null);
@@ -431,8 +430,6 @@ export default function AIExerciseGeneratorModal({
     if (generatedBlock) onGenerated?.(generatedBlock);
     onClose();
   }, [generatedBlock, onGenerated, onClose]);
-
-  const handleSendCorrection = useCallback(() => { setCorrectionSent(true); }, []);
 
   const handleBackFromReview = useCallback(() => {
     setStep("configure"); setGeneratedBlock(null); setGenerationWarning(null);

@@ -75,7 +75,6 @@ function wordPoolForSentenceGroup(
   const tokenById = new Map(question.tokens.map((token) => [token.id, token]));
   // Correct reading order ids for this sentence (used as the shuffle seed base)
   const groupReadingIds = groupSlots.map((slot) => slot.id);
-  const groupIdSet = new Set(groupReadingIds);
 
   // Build the word bank tokens for this sentence row
   const rowTokens: SlotInfo[] = groupReadingIds

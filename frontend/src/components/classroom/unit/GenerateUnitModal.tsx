@@ -16,8 +16,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   X, Sparkles, Layers, CheckCircle, AlertCircle,
-  ChevronDown, ChevronUp, Upload, FileText, Trash2,
-  Image as ImageIcon, BookOpen, Zap,
+  ChevronDown, ChevronUp, Upload, FileText, Trash2, Zap,
 } from "lucide-react";
 import ConnectPaymentModal from "../../../pages/admin/components/ConnectPaymentModal";
 
@@ -900,6 +899,9 @@ export default function GenerateUnitModal({
             "Publish to students: ✓",
           ]}
           yearSavingsLabel="If you pay for 1 year you could save: 27 USD"
+          amountUsd={12}
+          planCode="standard"
+          billingPeriod="1m"
           onPay={async () => {
             setShowUpgrade(false);
           }}
