@@ -292,7 +292,7 @@ export default function AIExerciseGeneratorModal({
 }: AIExerciseGeneratorModalProps) {
 
   const { t, i18n } = useTranslation();
-  // Sends the user to the full-page error state when the segment is missing or the API returns 422.
+  // Full-page fallback when the API returns 422 (unexpected validation state after a request).
   const navigate = useNavigate();
   const exerciseType = EXERCISE_TYPE_MAP.has(exerciseTypeProp) ? exerciseTypeProp : "drag_to_gap";
 
@@ -404,8 +404,7 @@ export default function AIExerciseGeneratorModal({
     }
 
     if (!isValidSegmentId(segmentId)) {
-      onClose();
-      navigate(SOMETHING_WENT_WRONG_PATH, { replace: true });
+      setError(t("aiExerciseGenerator.errors.segmentMissing"));
       return;
     }
 
