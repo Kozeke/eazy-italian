@@ -11,10 +11,11 @@
  *   onGenerate — called with File[] when user clicks Generate
  */
 
-import React, {
+  import React, {
     useCallback, useEffect, useRef, useState,
   } from 'react';
   import { createPortal } from 'react-dom';
+  import { useTranslation } from 'react-i18next';
   
   // ─── Design tokens ────────────────────────────────────────────────────────────
   
@@ -102,6 +103,8 @@ import React, {
   // ─── FileRow ──────────────────────────────────────────────────────────────────
   
   function FileRow({ file, onRemove }) {
+    // Localized tooltip for the per-file remove control.
+    const { t } = useTranslation();
     return (
       <div style={{
         display: 'flex',
@@ -140,7 +143,7 @@ import React, {
   
         <button
           onClick={onRemove}
-          title="Remove file"
+          title={t('admin.createCourseModal.fileUpload.removeFileTitle')}
           style={{
             flexShrink: 0,
             background: 'none',
@@ -167,6 +170,8 @@ import React, {
   // ─── DropZone ─────────────────────────────────────────────────────────────────
   
   function DropZone({ onFiles, disabled }) {
+    // Copy for the drag-and-drop hint and accepted-format footnote.
+    const { t } = useTranslation();
     const [over, setOver] = useState(false);
     const inputRef = useRef(null);
   
@@ -218,10 +223,11 @@ import React, {
         </svg>
   
         <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.text, fontFamily: FONT_BODY }}>
-          Drop files here or <span style={{ color: C.primary }}>browse</span>
+          {t('admin.createCourseModal.fileUpload.dropLine')}{' '}
+          <span style={{ color: C.primary }}>{t('admin.createCourseModal.fileUpload.browse')}</span>
         </p>
         <p style={{ margin: 0, fontSize: 11, color: C.muted, fontFamily: FONT_BODY, textAlign: 'center' }}>
-          PDF, DOCX, TXT, images, video, subtitles · up to {MAX_MB} MB each · max {MAX_FILES} files
+          {t('admin.createCourseModal.fileUpload.formatsHint', { maxMb: MAX_MB, maxFiles: MAX_FILES })}
         </p>
   
         <input
@@ -239,6 +245,8 @@ import React, {
   // ─── Main component ───────────────────────────────────────────────────────────
   
   export default function CourseFileUploadModal({ open, onClose, onSkip, onGenerate }) {
+    // Shared namespace with CreateCourseModal for en/ru file-enrichment step.
+    const { t } = useTranslation();
     const [files, setFiles] = useState([]);
     const [error, setError] = useState(null);
   
@@ -266,11 +274,11 @@ import React, {
   
         for (const f of incoming) {
           if (combined.length >= MAX_FILES) {
-            setError(`Maximum ${MAX_FILES} files allowed.`);
+            setError(t('admin.createCourseModal.fileUpload.errorMaxFiles', { max: MAX_FILES }));
             break;
           }
           if (f.size > MAX_MB * 1024 * 1024) {
-            setError(`"${f.name}" exceeds ${MAX_MB} MB.`);
+            setError(t('admin.createCourseModal.fileUpload.errorFileTooBig', { name: f.name, maxMb: MAX_MB }));
             continue;
           }
           if (!names.has(f.name)) {
@@ -280,7 +288,7 @@ import React, {
         }
         return combined;
       });
-    }, []);
+    }, [t]);
   
     const removeFile = useCallback((idx) => {
       setFiles(prev => prev.filter((_, i) => i !== idx));
@@ -360,7 +368,7 @@ import React, {
                 fontFamily: FONT_DISPLAY,
                 lineHeight: 1.3,
               }}>
-                Enrich with your materials
+                {t('admin.createCourseModal.fileUpload.headerTitle')}
               </h2>
               <p style={{
                 margin: '3px 0 0',
@@ -369,7 +377,7 @@ import React, {
                 fontFamily: FONT_BODY,
                 lineHeight: 1.45,
               }}>
-                Upload files to give the AI more context. This step is optional.
+                {t('admin.createCourseModal.fileUpload.headerSubtitle')}
               </p>
             </div>
   
@@ -441,7 +449,7 @@ import React, {
                   <circle cx="8" cy="8" r="7" stroke={C.muted} strokeWidth="1.3"/>
                   <path d="M8 7v4M8 5.5v.5" stroke={C.muted} strokeWidth="1.3" strokeLinecap="round"/>
                 </svg>
-                {files.length} / {MAX_FILES} files added
+                {t('admin.createCourseModal.fileUpload.filesAdded', { count: files.length, max: MAX_FILES })}
               </p>
             )}
           </div>
@@ -479,7 +487,7 @@ import React, {
                 e.currentTarget.style.color = C.sub;
               }}
             >
-              Skip for now
+              {t('admin.createCourseModal.fileUpload.skipForNow')}
             </button>
   
             {/* Generate */}
@@ -508,7 +516,9 @@ import React, {
                 <path d="M8 1.5l1.91 3.87L14 6.35l-3 2.93.71 4.15L8 11.5l-3.71 1.93.71-4.15L2 6.35l4.09-.98L8 1.5z"
                   fill="currentColor" strokeWidth="0.6" strokeLinejoin="round"/>
               </svg>
-              Generate{files.length > 0 ? ` with ${files.length} file${files.length > 1 ? 's' : ''}` : ''}
+              {files.length === 0
+                ? t('admin.createCourseModal.fileUpload.generate')
+                : t('admin.createCourseModal.fileUpload.generateWithCount', { count: files.length })}
             </button>
           </div>
         </div>

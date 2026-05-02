@@ -17,6 +17,7 @@ import React, {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useTeacherClassroomTransition } from '../../../contexts/TeacherClassroomTransitionContext';
 // Optional second step: teacher attaches PDFs/docs before outline generation.
 import CourseFileUploadModal from './CourseFileUploadModal.legacy';
@@ -169,6 +170,8 @@ const ThumbnailPlaceholder = () => (
 );
 
 const ThumbnailZone = ({ preview, onPick, onClear, disabled }) => {
+  // Resolves admin create-course strings for the shared thumbnail drop zone.
+  const { t } = useTranslation();
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -182,7 +185,7 @@ const ThumbnailZone = ({ preview, onPick, onClear, disabled }) => {
   return (
     <div style={{ position: 'relative' }}>
       <div
-        role="button" tabIndex={0} aria-label="Click or drag to upload thumbnail"
+        role="button" tabIndex={0} aria-label={t('admin.createCourseModal.thumbnailZoneAria')}
         onClick={() => !disabled && inputRef.current?.click()}
         onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !disabled) inputRef.current?.click(); }}
         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -200,7 +203,7 @@ const ThumbnailZone = ({ preview, onPick, onClear, disabled }) => {
         }}
       >
         {preview ? (
-          <img src={preview} alt="Course thumbnail"
+          <img src={preview} alt={t('admin.createCourseModal.thumbnailAlt')}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         ) : (
           <ThumbnailPlaceholder />
@@ -218,7 +221,7 @@ const ThumbnailZone = ({ preview, onPick, onClear, disabled }) => {
                 strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <span style={{ fontSize: 12, fontWeight: 700, color: preview ? '#fff' : C.primary, fontFamily: FONT_BODY }}>
-              {preview ? 'Change photo' : 'Upload photo'}
+              {preview ? t('admin.createCourseModal.changePhoto') : t('admin.createCourseModal.uploadPhoto')}
             </span>
           </div>
         )}
@@ -227,7 +230,7 @@ const ThumbnailZone = ({ preview, onPick, onClear, disabled }) => {
       {preview && !disabled && (
         <button
           onClick={(e) => { e.stopPropagation(); onClear(); }}
-          aria-label="Remove thumbnail"
+          aria-label={t('admin.createCourseModal.removeThumbnailAria')}
           style={{
             position: 'absolute', top: 7, right: 7,
             width: 24, height: 24, borderRadius: 6,
@@ -275,10 +278,12 @@ const SparkleIcon = () => (
 );
 
 const GeneratingSteps = ({ step }) => {
+  // Localized labels for the three-phase AI outline progress UI.
+  const { t } = useTranslation();
   const steps = [
-    'Crafting course outline…',
-    'Building course structure…',
-    'Almost ready…',
+    t('admin.createCourseModal.genStepOutline'),
+    t('admin.createCourseModal.genStepStructure'),
+    t('admin.createCourseModal.genStepAlmost'),
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -326,6 +331,8 @@ const GeneratingSteps = ({ step }) => {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CreateCourseModal({ open, onClose, onCreated }) {
+  // i18n for all user-visible copy (en / ru via profile or app language).
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { startTeacherClassroomOpen } = useTeacherClassroomTransition();
 
@@ -421,7 +428,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   const handleQuickCreate = useCallback(async () => {
     const title = quickTitle.trim();
     if (!title) {
-      setError('Please enter a course title.');
+      setError(t('admin.createCourseModal.errorTitleRequired'));
       quickInputRef.current?.focus();
       return;
     }
@@ -435,7 +442,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       }
       let firstUnitId = null;
       try {
-        const unit = await apiCreateUnit(course.id, 'Unit 1', 0);
+        const unit = await apiCreateUnit(course.id, t('admin.createCourseModal.defaultUnitTitle', { n: 1 }), 0);
         firstUnitId = unit.id;
       } catch (e) {
         console.warn('[CreateCourseModal] First unit failed, continuing.', e);
@@ -443,10 +450,10 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       onCreated?.(course);
       goToClassroom(course.id, firstUnitId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create course.');
+      setError(err instanceof Error ? err.message : t('admin.createCourseModal.errorCreateFailed'));
       setLoading(false);
     }
-  }, [quickTitle, onCreated, goToClassroom, thumbFile]);
+  }, [quickTitle, onCreated, goToClassroom, thumbFile, t]);
 
   // ── AI GENERATE — Step 2: outline + course creation (was also Step 2 for CourseFileUploadModal.legacy) ──
   //
@@ -477,7 +484,10 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
           );
         } catch (aiErr) {
           console.warn('[CreateCourseModal] Outline-from-files failed, falling back.', aiErr);
-          outline = { title: desc.slice(0, 80), units: [{ title: 'Unit 1', description: '', sections: [] }] };
+          outline = {
+            title: desc.slice(0, 80),
+            units: [{ title: t('admin.createCourseModal.defaultUnitTitle', { n: 1 }), description: '', sections: [] }],
+          };
         }
       } else {
         // Fast path — no files
@@ -485,7 +495,10 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
           outline = await apiGenerateOutline(desc, level);
         } catch (aiErr) {
           console.warn('[CreateCourseModal] Outline generation failed, falling back.', aiErr);
-          outline = { title: desc.slice(0, 80), units: [{ title: 'Unit 1', description: '', sections: [] }] };
+          outline = {
+            title: desc.slice(0, 80),
+            units: [{ title: t('admin.createCourseModal.defaultUnitTitle', { n: 1 }), description: '', sections: [] }],
+          };
         }
       }
 
@@ -505,7 +518,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       const unitTitles = outline.units ?? [];
 
       for (let i = 0; i < Math.max(1, unitTitles.length); i++) {
-        const u = unitTitles[i] ?? { title: `Unit ${i + 1}`, description: '' };
+        const u = unitTitles[i] ?? { title: t('admin.createCourseModal.defaultUnitTitle', { n: i + 1 }), description: '' };
         try {
           const unit = await apiCreateUnit(course.id, u.title, i, u.description ?? '');
           if (i === 0) firstUnitId = unit.id;
@@ -532,23 +545,23 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       goToClassroom(course.id, firstUnitId, { level, sourceToken });
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setError(err instanceof Error ? err.message : t('admin.createCourseModal.errorGeneric'));
       setLoading(false);
       setGenStep(0);
     }
-  }, [description, level, thumbFile, onCreated, goToClassroom]);
+  }, [description, level, thumbFile, onCreated, goToClassroom, t]);
 
   // ── AI GENERATE — Step 1: validate, then open file-enrichment modal (Skip → JSON outline; files → multipart).
   const handleGenerate = useCallback(() => {
     const desc = description.trim();
     if (!desc) {
-      setError('Please describe your course.');
+      setError(t('admin.createCourseModal.errorDescRequired'));
       descRef.current?.focus();
       return;
     }
     setError(null);
     setFileModalOpen(true);
-  }, [description]);
+  }, [description, t]);
 
   const handleBackdrop = useCallback((e) => {
     if (e.target === e.currentTarget && !loading) onClose();
@@ -646,7 +659,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
         onClick={handleBackdrop}
         role="dialog"
         aria-modal="true"
-        aria-label="Create Course"
+        aria-label={t('admin.createCourseModal.ariaDialog')}
         style={{
           position: 'fixed', inset: 0, zIndex: 9999,
           background: 'rgba(26,26,48,.5)',
@@ -673,13 +686,13 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
           {/* ── Header ── */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
             <span style={{ fontSize: 17, fontWeight: 800, color: C.text, fontFamily: FONT_DISPLAY, letterSpacing: '-.3px' }}>
-              New Course
+              {t('admin.createCourseModal.title')}
             </span>
             <button
               className="ccm2-close"
               onClick={() => !loading && onClose()}
               disabled={loading}
-              aria-label="Close"
+              aria-label={t('common.close')}
               style={{
                 width: 28, height: 28, borderRadius: 8,
                 border: 'none', background: C.bg, cursor: 'pointer',
@@ -696,8 +709,8 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
           {/* ── Mode toggle ── */}
           <div style={{ display: 'flex', gap: 3, padding: 3, background: C.bg, borderRadius: 12, marginBottom: 20 }}>
             {[
-              { id: 'quick',    label: 'Quick',    icon: null },
-              { id: 'generate', label: 'Generate', icon: <SparkleIcon /> },
+              { id: 'quick',    label: t('admin.createCourseModal.tabQuick'),    icon: null },
+              { id: 'generate', label: t('admin.createCourseModal.tabGenerate'), icon: <SparkleIcon /> },
             ].map(({ id, label, icon }) => (
               <button
                 key={id}
@@ -727,7 +740,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                 ref={quickInputRef}
                 className="ccm2-input"
                 type="text"
-                placeholder="e.g. English for Business B2"
+                placeholder={t('admin.createCourseModal.quickPlaceholder')}
                 value={quickTitle}
                 onChange={e => { setQuickTitle(e.target.value); setError(null); }}
                 onKeyDown={e => { if (e.key === 'Enter') handleQuickCreate(); }}
@@ -751,7 +764,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                     ref={descRef}
                     className="ccm2-input"
                     rows={3}
-                    placeholder="e.g. A B2 business English course for professionals, covering emails, negotiations, and presentations."
+                    placeholder={t('admin.createCourseModal.descPlaceholder')}
                     value={description}
                     onChange={e => { setDescription(e.target.value); setError(null); }}
                     disabled={loading}
@@ -759,7 +772,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                   />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '.4px', textTransform: 'uppercase', flexShrink: 0 }}>
-                      Level
+                      {t('admin.createCourseModal.level')}
                     </span>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       {CEFR_LEVELS.map(l => (
@@ -798,7 +811,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                 disabled={loading}
                 type="button"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             )}
             <button
@@ -813,11 +826,11 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
               type="button"
             >
               {loading ? (
-                <><Spinner />{isGenerate ? 'Generating…' : 'Creating…'}</>
+                <><Spinner />{isGenerate ? t('admin.createCourseModal.generating') : t('admin.createCourseModal.creating')}</>
               ) : isGenerate ? (
-                <><SparkleIcon />Generate Course</>
+                <><SparkleIcon />{t('admin.createCourseModal.generateCourse')}</>
               ) : (
-                'Create Course'
+                t('admin.createCourseModal.createCourse')
               )}
             </button>
           </div>

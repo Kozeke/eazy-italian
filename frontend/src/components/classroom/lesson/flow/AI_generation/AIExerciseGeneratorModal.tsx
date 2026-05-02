@@ -403,6 +403,11 @@ export default function AIExerciseGeneratorModal({
       return;
     }
 
+    if (activeTab === "materials" && !uploadedFile) {
+      setError(t("aiExerciseGenerator.errors.fileRequired"));
+      return;
+    }
+
     if (!isValidSegmentId(segmentId)) {
       setError(t("aiExerciseGenerator.errors.segmentMissing"));
       return;
@@ -411,29 +416,55 @@ export default function AIExerciseGeneratorModal({
     setLoading(true);
     try {
       const cfg  = EXERCISE_TYPE_MAP.get(exerciseType) ?? EXERCISE_TYPE_CONFIGS[0];
+      // Both paths resolve the base URL the same way — from the env-supplied prop (API_BASE_URL).
       const base = apiBase || API_BASE_URL;
-      const url   = `${base}/segments/${segmentId}/exercises/${cfg.endpoint}`;
 
       // Aligns exercise titles/UI language with the teacher's interface language (e.g. Russian).
       const instructionLang = i18n.language?.toLowerCase().startsWith("ru") ? "russian" : "english";
       const contentLang     = language === "Detect automatically" ? "auto" : "english";
 
-      const body: Record<string, unknown> = {
-        topic_hint: prompt.trim() || undefined,
-        content_language: contentLang,
-        instruction_language: instructionLang,
-        difficulty,
-        gap_count:  gapCount  === "auto" ? "auto" : parseInt(gapCount,  10),
-        pair_count: pairCount === "auto" ? "auto" : parseInt(pairCount, 10),
-        gap_type:   cfg.showGaps ? gapType : undefined,
-      };
+      let res: Response;
 
-      // fetchWithAuth automatically refreshes the access token on 401 and retries,
-      // so a mid-session token expiry is handled transparently without user action.
-      const res = await fetchWithAuth(url, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      if (activeTab === "materials" && uploadedFile) {
+        // ── File upload path — multipart/form-data ──────────────────────────
+        // Endpoint: POST /segments/{id}/exercises/{type}/from-file
+        // Uses the same base URL from env as the description path.
+        const url  = `${base}/segments/${segmentId}/exercises/${cfg.endpoint}/from-file`;
+        const form = new FormData();
+        form.append("file",                 uploadedFile);
+        form.append("content_language",     contentLang);
+        form.append("instruction_language", instructionLang);
+        form.append("difficulty",           difficulty);
+        if (cfg.showGaps) {
+          form.append("gap_count", gapCount === "auto" ? "auto" : String(parseInt(gapCount, 10)));
+          form.append("gap_type",  gapType);
+        }
+        if (cfg.showPairs) {
+          form.append("pair_count", pairCount === "auto" ? "auto" : String(parseInt(pairCount, 10)));
+        }
+        // fetchWithAuth handles token refresh on 401; do NOT set Content-Type —
+        // the browser sets it automatically with the correct multipart boundary.
+        res = await fetchWithAuth(url, { method: "POST", body: form });
+      } else {
+        // ── Description path — JSON ─────────────────────────────────────────
+        // Endpoint: POST /segments/{id}/exercises/{type}
+        const url  = `${base}/segments/${segmentId}/exercises/${cfg.endpoint}`;
+        const body: Record<string, unknown> = {
+          topic_hint:           prompt.trim() || undefined,
+          content_language:     contentLang,
+          instruction_language: instructionLang,
+          difficulty,
+          gap_count:  gapCount  === "auto" ? "auto" : parseInt(gapCount,  10),
+          pair_count: pairCount === "auto" ? "auto" : parseInt(pairCount, 10),
+          gap_type:   cfg.showGaps ? gapType : undefined,
+        };
+        // fetchWithAuth automatically refreshes the access token on 401 and retries,
+        // so a mid-session token expiry is handled transparently without user action.
+        res = await fetchWithAuth(url, {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      }
 
       if (res.status === 402) { setShowUpgrade(true); setLoading(false); return; }
       if (res.status === 422) {
@@ -455,7 +486,7 @@ export default function AIExerciseGeneratorModal({
     } finally {
       setLoading(false);
     }
-  }, [activeTab, prompt, language, difficulty, gapCount, pairCount, gapType, exerciseType, apiBase, segmentId, t, i18n.language, navigate, onClose]);
+  }, [activeTab, prompt, uploadedFile, language, difficulty, gapCount, pairCount, gapType, exerciseType, apiBase, segmentId, t, i18n.language, navigate, onClose]);
 
   const handleAddToExercise = useCallback(() => {
     if (generatedBlock) onGenerated?.(generatedBlock);
