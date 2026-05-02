@@ -24,6 +24,8 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import ConnectPaymentModal from "../../../../../pages/admin/components/ConnectPaymentModal";
 import { aiLimitFromMe } from "../../../../../utils/teacherTariffMe";
+import { fetchWithAuth } from "../../../../../services/apiClient";
+import { API_BASE_URL } from "../../../../../services/api";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -269,7 +271,7 @@ const DIFFICULTY_LABEL_KEYS = ["beginner", "intermediate", "advanced"] as const;
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AIExerciseGeneratorModal({
-  open, onClose, segmentId, onGenerated, apiBase = "",
+  open, onClose, segmentId, onGenerated, apiBase = API_BASE_URL,
   exerciseType: exerciseTypeProp = "drag_to_gap",
 }: AIExerciseGeneratorModalProps) {
 
@@ -339,11 +341,10 @@ export default function AIExerciseGeneratorModal({
 
     const doFetch = async () => {
       try {
-        const token = localStorage.getItem("token") ?? "";
-        const base  = apiBase || "/api/v1";
-        const res = await fetch(`${base}/admin/tariffs/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const base = apiBase || API_BASE_URL;
+        // fetchWithAuth automatically refreshes the access token on 401
+        // so this request never fails silently due to an expired token.
+        const res = await fetchWithAuth(`${base}/admin/tariffs/me`);
         if (!res.ok) throw new Error("quota fetch failed");
         const data: TariffStatus = await res.json();
         if (mounted) { setTariffData(data); setQuotaStatus("ok"); }
@@ -386,9 +387,8 @@ export default function AIExerciseGeneratorModal({
 
     setLoading(true);
     try {
-      const token = localStorage.getItem("token") ?? "";
-      const cfg   = EXERCISE_TYPE_MAP.get(exerciseType) ?? EXERCISE_TYPE_CONFIGS[0];
-      const base  = apiBase || "/api/v1";
+      const cfg  = EXERCISE_TYPE_MAP.get(exerciseType) ?? EXERCISE_TYPE_CONFIGS[0];
+      const base = apiBase || API_BASE_URL;
       const url   = `${base}/segments/${segmentId}/exercises/${cfg.endpoint}`;
 
       // Aligns exercise titles/UI language with the teacher's interface language (e.g. Russian).
@@ -405,9 +405,10 @@ export default function AIExerciseGeneratorModal({
         gap_type:   cfg.showGaps ? gapType : undefined,
       };
 
-      const res = await fetch(url, {
+      // fetchWithAuth automatically refreshes the access token on 401 and retries,
+      // so a mid-session token expiry is handled transparently without user action.
+      const res = await fetchWithAuth(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
 

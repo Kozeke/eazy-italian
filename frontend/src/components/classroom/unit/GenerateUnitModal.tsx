@@ -448,16 +448,16 @@ function SuccessView({
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
-// Resolve the API base from the build-time env var so that production static
-// deployments (where Vite's dev-server proxy is not running) reach the real
-// backend instead of hitting the static host's catch-all rewrite.
+// Resolve the API base from the build-time env (same default as services/api.ts).
 const DEFAULT_API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "/api/v1";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 
 export default function GenerateUnitModal({
   unitId, unitTitle, apiBase = DEFAULT_API_BASE, onClose, onSuccess,
 }: Props) {
   const { t } = useTranslation();
+  // Strips trailing slashes so fetch URLs never contain "//" after the host.
+  const apiBaseNormalized = useMemo(() => apiBase.replace(/\/+$/, ""), [apiBase]);
   // Tab
   const [activeTab, setActiveTab] = useState<Tab>("ai");
 
@@ -512,7 +512,7 @@ export default function GenerateUnitModal({
     const doFetch = async () => {
       try {
         const token = localStorage.getItem("token") ?? "";
-        const res = await fetch(`${apiBase}/admin/tariffs/me`, {
+        const res = await fetch(`${apiBaseNormalized}/admin/tariffs/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error("quota fetch failed");
@@ -524,8 +524,7 @@ export default function GenerateUnitModal({
     };
     void doFetch();
     return () => { mounted = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [apiBaseNormalized]);
 
   // ── Derived quota values ──────────────────────────────────────────────────
   const unitLimit  = aiLimitFromMe(tariffData?.ai_limits, "unit_generation", "unit_generations");
@@ -559,7 +558,7 @@ export default function GenerateUnitModal({
     setLoading(true);
     try {
       const token = localStorage.getItem("token") ?? "";
-      const res = await fetch(`${apiBase}/units/${unitId}/generate`, {
+      const res = await fetch(`${apiBaseNormalized}/units/${unitId}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -608,7 +607,7 @@ export default function GenerateUnitModal({
       form.append("instruction_language", instructionLang);
       form.append("include_images", String(includeImages));
 
-      const res = await fetch(`${apiBase}/units/${unitId}/generate/from-file`, {
+      const res = await fetch(`${apiBaseNormalized}/units/${unitId}/generate/from-file`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: form,
