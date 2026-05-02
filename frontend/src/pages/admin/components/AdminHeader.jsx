@@ -23,6 +23,9 @@ import { useTranslation } from "react-i18next";
 import { SHELL_HEADER_HEIGHT } from "../../../components/layout/shellDimensions";
 import { aiLimitFromMe } from "../../../utils/teacherTariffMe";
 
+// Resolves tariff fetches to the FastAPI host (port 8000) instead of the Vite dev origin (:3000)
+const API_V1_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+
 const T = {
   violet:  "#6C6FEF",
   violetL: "#EDE9FF",
@@ -364,7 +367,7 @@ function LimitsTab({ visible }) {
     const doFetch = async () => {
       try {
         const token = localStorage.getItem("token") ?? "";
-        const res = await fetch("/api/v1/admin/tariffs/me", { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`${API_V1_BASE}/admin/tariffs/me`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error("fetch failed");
         const data = await res.json();
         if (!cancelled) { setTariffData(data); setStatus("ok"); }
@@ -502,7 +505,7 @@ export default function AdminHeader({
     const fetchStatus = async () => {
       try {
         const token = localStorage.getItem("token") ?? "";
-        const res   = await fetch("/api/v1/admin/tariffs/me", {
+        const res   = await fetch(`${API_V1_BASE}/admin/tariffs/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) return;   // fail-safe: never show banner on error
