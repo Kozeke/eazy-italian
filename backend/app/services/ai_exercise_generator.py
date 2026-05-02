@@ -180,15 +180,22 @@ def _extract_word_count_from_hint(topic_hint: str | None) -> tuple[int | None, i
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _build_ollama_provider() -> "AIProvider | None":
-    """Try to build a LocalLlamaProvider; return None if unavailable."""
-    try:
-        from app.services.ai.providers.ollama import LocalLlamaProvider
-        p = LocalLlamaProvider()
-        logger.info("AI exercise fallback provider: LocalLlamaProvider (model=%s)", p.model)
-        return p
-    except Exception as exc:
-        logger.warning("Could not initialise Ollama fallback provider: %s", exc)
-        return None
+    """
+    Ollama local fallback — DISABLED.
+
+    Ollama is not available in this deployment.  Always return None so the
+    caller falls through to the rate-limit error path instead of attempting
+    a connection to localhost:11434 and crashing.
+    """
+    # try:
+    #     from app.services.ai.providers.ollama import LocalLlamaProvider
+    #     p = LocalLlamaProvider()
+    #     logger.info("AI exercise fallback provider: LocalLlamaProvider (model=%s)", p.model)
+    #     return p
+    # except Exception as exc:
+    #     logger.warning("Could not initialise Ollama fallback provider: %s", exc)
+    #     return None
+    return None
 
 
 class _WithOllamaFallback(AIProvider):
@@ -256,11 +263,12 @@ def _build_default_provider() -> AIProvider:
             return _WithOllamaFallback(primary=p, fallback=fallback)
         return p
 
-    if provider_name == "ollama":
-        from app.services.ai.providers.ollama import LocalLlamaProvider
-        p = LocalLlamaProvider()
-        logger.info("AI exercise provider: LocalLlamaProvider (model=%s)", p.model)
-        return p
+    # Ollama is not available in this deployment — disabled.
+    # if provider_name == "ollama":
+    #     from app.services.ai.providers.ollama import LocalLlamaProvider
+    #     p = LocalLlamaProvider()
+    #     logger.info("AI exercise provider: LocalLlamaProvider (model=%s)", p.model)
+    #     return p
 
     if provider_name == "anthropic":
         from app.services.ai.providers.anthropic_provider import AnthropicProvider
@@ -1515,9 +1523,12 @@ async def generate_drag_to_gap_from_unit_content(
         "Last error: %s\nLast raw output:\n%s",
         strategy, model_name, last_error, last_raw,
     )
+    # Ollama local fallback is disabled in this deployment.
+    # Surface a clear, user-friendly message instead of a raw internal error.
     raise ValueError(
-        f"drag_to_gap generation failed after all attempts "
-        f"(strategy={strategy}). Last error: {last_error}"
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_error})"
     ) from last_error
 
 
@@ -1791,8 +1802,11 @@ async def generate_select_word_form_from_unit_content(
             last_exc = exc
             logger.warning("select_word_form attempt %d/%d failed: %s", attempt + 1, max_retries + 1, exc)
 
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
     raise ValueError(
-        f"select_word_form generation failed after {max_retries + 1} attempts: {last_exc}"
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
     )
  
  
@@ -1902,7 +1916,14 @@ async def generate_match_pairs_from_unit_content(
             last_exc = exc
             logger.warning("match_pairs attempt %d failed: %s", attempt + 1, exc)
 
-    raise ValueError(f"match_pairs generation failed after {max_retries + 1} attempts: {last_exc}")
+    # All attempts exhausted — surface a clear, user-friendly message.
+    # The most common root cause is an API rate limit (Groq 429).
+    # Ollama local fallback is disabled in this deployment.
+    raise ValueError(
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
+    )
  
  
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2097,7 +2118,12 @@ async def generate_build_sentence_from_unit_content(
             last_exc = exc
             logger.warning("build_sentence attempt %d failed: %s", attempt + 1, exc)
 
-    raise ValueError(f"build_sentence generation failed after {max_retries + 1} attempts: {last_exc}")
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
+    raise ValueError(
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
+    )
  
  
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2186,7 +2212,12 @@ async def generate_order_paragraphs_from_unit_content(
             last_exc = exc
             logger.warning("order_paragraphs attempt %d failed: %s", attempt + 1, exc)
 
-    raise ValueError(f"order_paragraphs generation failed after {max_retries + 1} attempts: {last_exc}")
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
+    raise ValueError(
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
+    )
  
  
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2343,8 +2374,11 @@ async def generate_sort_into_columns_from_unit_content(
             last_exc = exc
             logger.warning("sort_into_columns attempt %d failed: %s", attempt + 1, exc)
 
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
     raise ValueError(
-        f"sort_into_columns generation failed after {max_retries + 1} attempts: {last_exc}"
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
     )
  
  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2461,8 +2495,11 @@ async def generate_drag_word_to_image_from_unit_content(
             last_exc = exc
             logger.warning("drag_word_to_image attempt %d failed: %s", attempt + 1, exc)
 
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
     raise ValueError(
-        f"drag_word_to_image generation failed after {max_retries + 1} attempts: {last_exc}"
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
     )
 
 
@@ -2626,8 +2663,11 @@ async def generate_select_form_to_image_from_unit_content(
             last_exc = exc
             logger.warning("select_form_to_image attempt %d failed: %s", attempt + 1, exc)
 
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
     raise ValueError(
-        f"select_form_to_image generation failed after {max_retries + 1} attempts: {last_exc}"
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
     )
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # test_without_timer  (also used for test_with_timer — timer is set in editor)
@@ -2949,8 +2989,11 @@ async def generate_test_without_timer_from_unit_content(
             last_exc = exc
             logger.warning("test_without_timer attempt %d failed: %s", attempt + 1, exc)
 
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
     raise ValueError(
-        f"test_without_timer generation failed after {max_retries + 1} attempts: {last_exc}"
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
     )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3078,8 +3121,11 @@ async def generate_true_false_from_unit_content(
             last_exc = exc
             logger.warning("true_false attempt %d failed: %s", attempt + 1, exc)
  
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
     raise ValueError(
-        f"true_false generation failed after {max_retries + 1} attempts: {last_exc}"
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
     )
 
 
@@ -3172,8 +3218,11 @@ async def generate_reading_text_from_unit_content(
             last_exc = exc
             logger.warning("text block attempt %d failed: %s", attempt + 1, exc)
 
+    # All attempts exhausted — Ollama local fallback is disabled in this deployment.
     raise ValueError(
-        f"text generation failed after {max_retries + 1} attempts: {last_exc}"
+        "Exercise generation limit reached. The AI provider has been rate-limited "
+        "and no local fallback is available. Please wait a moment and try again. "
+        f"(Last error: {last_exc})"
     )
 
 
