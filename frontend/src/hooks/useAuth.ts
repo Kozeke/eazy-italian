@@ -2,11 +2,23 @@
  * useAuth.ts
  *
  * Central auth context provider that manages current user session state and role helpers.
+ *
+ * Changes (token-refresh update):
+ *   - checkAuth on mount now tries POST /auth/refresh before giving up and clearing tokens.
+ *     Previously, any failure on GET /users/me (including a simple 401 from an expired
+ *     access token) would immediately wipe localStorage and send the user to the login page.
+ *     Now it attempts to exchange the refresh_token for a new access_token first.
+ *   - Listens for the "auth:logout" window event dispatched by fetchWithAuth (apiClient.ts)
+ *     when a refresh call itself fails (i.e. the refresh token is also expired or missing).
+ *     This resets user state in React without requiring a page reload.
  */
 import React, { useState, createContext, useContext, useEffect, useCallback } from 'react';
 import { User } from '../types';
-import { authApi } from '../services/api';
+import { authApi, API_BASE_URL } from '../services/api';
 import i18n, { normalizeInterfaceLanguage } from '../i18n';
+
+// Matches axios baseURL and fetchWithAuth refresh target (VITE_API_BASE_URL).
+const API_BASE = API_BASE_URL;
 
 interface AuthContextType {
   user: User | null;
@@ -27,27 +39,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check for existing token on mount
+  // ── Check for existing session on mount ────────────────────────────────────
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const currentUser = await authApi.getCurrentUser();
-          setUser(currentUser);
-        } catch (error) {
-          console.error('Failed to get current user:', error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('refresh_token');
-        }
+      if (!token) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        // Happy path: access token is still valid.
+        const currentUser = await authApi.getCurrentUser();
+        setUser(currentUser);
+      } catch {
+        // Access token may be expired — try to refresh before logging the user out.
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (refreshToken) {
+          try {
+            const res = await fetch(`${API_BASE}/auth/refresh`, {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ refresh_token: refreshToken }),
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              localStorage.setItem('token', data.access_token);
+              // Retry /users/me with the new token.
+              const currentUser = await authApi.getCurrentUser();
+              setUser(currentUser);
+            } else {
+              // Refresh token is also invalid — clear everything.
+              throw new Error('Refresh failed');
+            }
+          } catch {
+            console.error('Session could not be restored — clearing stored tokens.');
+            localStorage.removeItem('token');
+            localStorage.removeItem('refresh_token');
+          }
+        } else {
+          // No refresh token stored — nothing we can do.
+          console.error('No refresh token available — clearing access token.');
+          localStorage.removeItem('token');
+        }
+      } finally {
+        setLoading(false);
+      }
     };
 
     checkAuth();
   }, []);
 
-  // Re-fetches the current user from the API when local state may be stale.
+  // ── Listen for forced logout from fetchWithAuth (apiClient.ts) ─────────────
+  // When the refresh token itself is expired or absent, fetchWithAuth dispatches
+  // "auth:logout" so we can reset React state without a full page reload.
+  useEffect(() => {
+    const handleForcedLogout = () => {
+      setUser(null);
+      // Redirect to login. Use replace so the browser back-button doesn't
+      // return to a protected page that would immediately redirect again.
+      window.location.replace('/login');
+    };
+
+    window.addEventListener('auth:logout', handleForcedLogout);
+    return () => window.removeEventListener('auth:logout', handleForcedLogout);
+  }, []);
+
+  // ── Re-fetches the current user from the API when local state may be stale ─
   const refreshUser = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -96,9 +155,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await authApi.register(userData);
       // Automatically log in the user after registration
-      const response = await authApi.login({ 
-        email: userData.email, 
-        password: userData.password 
+      const response = await authApi.login({
+        email:    userData.email,
+        password: userData.password,
       });
       localStorage.setItem('token', response.access_token);
       if (response.refresh_token) {
@@ -122,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(event);
       return false; // Don't logout yet, wait for confirmation
     }
-    
+
     // Call logout API endpoint BEFORE clearing tokens (non-blocking - logout should work even if it fails)
     const token = localStorage.getItem('token');
     if (token) {
@@ -133,7 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Logout API call failed:', error);
       }
     }
-    
+
     // Normal logout if no test is active
     localStorage.removeItem('token');
     localStorage.removeItem('refresh_token');
@@ -148,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authApi.logout().catch((error) => {
         console.error('Logout API call failed:', error);
       });
-      
+
       localStorage.removeItem('token');
       localStorage.removeItem('refresh_token');
       setUser(null);
@@ -173,8 +232,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     refreshUser,
     isAuthenticated: !!user,
-    isTeacher: user?.role === 'teacher',
-    isStudent: user?.role === 'student',
+    isTeacher:       user?.role === 'teacher',
+    isStudent:       user?.role === 'student',
   };
 
   return React.createElement(AuthContext.Provider, { value }, children);

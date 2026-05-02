@@ -4,7 +4,7 @@
  * Two modes in one compact modal:
  *   • Quick    — single title input → create course immediately
  *   • Generate — describe your course → AI builds title + units (JSON POST /generate-outline).
- *                Optional file enrichment via CourseFileUploadModal.legacy.jsx is disabled; re-import that modal to restore multipart /generate-outline-from-files.
+ *                Optional file enrichment: CourseFileUploadModal.legacy.jsx (multipart /generate-outline-from-files).
  *
  * Props:
  *   open       — controls visibility
@@ -18,8 +18,8 @@ import React, {
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useTeacherClassroomTransition } from '../../../contexts/TeacherClassroomTransitionContext';
-// Legacy file-enrichment step (optional second modal) — see CourseFileUploadModal.legacy.jsx
-// import CourseFileUploadModal from './CourseFileUploadModal.legacy';
+// Optional second step: teacher attaches PDFs/docs before outline generation.
+import CourseFileUploadModal from './CourseFileUploadModal.legacy';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -52,8 +52,8 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// Resolves API base URL for admin create flows across local/prod environments.
-const ADMIN_API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
+// Resolves API base URL for admin create flows (same default as services/api.ts).
+const ADMIN_API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1').replace(/\/+$/, '');
 
 // Builds an absolute API URL from the configured base and a relative endpoint path.
 function buildAdminApiUrl(endpointPath) {
@@ -538,7 +538,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
     }
   }, [description, level, thumbFile, onCreated, goToClassroom]);
 
-  // ── AI GENERATE — Step 1: validate, then run outline without file modal (CourseFileUploadModal.legacy disabled)
+  // ── AI GENERATE — Step 1: validate, then open file-enrichment modal (Skip → JSON outline; files → multipart).
   const handleGenerate = useCallback(() => {
     const desc = description.trim();
     if (!desc) {
@@ -547,8 +547,8 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       return;
     }
     setError(null);
-    void handleGenerateWithFiles([]);
-  }, [description, handleGenerateWithFiles]);
+    setFileModalOpen(true);
+  }, [description]);
 
   const handleBackdrop = useCallback((e) => {
     if (e.target === e.currentTarget && !loading) onClose();
@@ -697,8 +697,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
           <div style={{ display: 'flex', gap: 3, padding: 3, background: C.bg, borderRadius: 12, marginBottom: 20 }}>
             {[
               { id: 'quick',    label: 'Quick',    icon: null },
-              // AI-generated course flow is temporarily disabled.
-              // { id: 'generate', label: 'Generate', icon: <SparkleIcon /> },
+              { id: 'generate', label: 'Generate', icon: <SparkleIcon /> },
             ].map(({ id, label, icon }) => (
               <button
                 key={id}
@@ -825,13 +824,13 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
         </div>
       </div>
 
-      {/* ── File enrichment modal (Generate mode, step 2) — legacy: CourseFileUploadModal.legacy.jsx ── */}
-      {/* <CourseFileUploadModal
+      {/* ── File enrichment modal (Generate mode, step 2) ── */}
+      <CourseFileUploadModal
         open={fileModalOpen}
         onClose={() => setFileModalOpen(false)}
         onSkip={() => handleGenerateWithFiles([])}
         onGenerate={handleGenerateWithFiles}
-      /> */}
+      />
     </>,
     document.body,
   );
