@@ -123,10 +123,14 @@ const MEDIA_META: Record<MediaBlockType, {
 
 export interface ExerciseEditorWorkspaceProps {
   initialTitle?: string;
+  /** Template label from the gallery — improves header help tooltip (“exercise type”). */
+  headerLabel?: string;
   initialQuestions?: QuestionDraft[];
   initialMediaBlocks?: MediaBlock[];
   mode?: 'standalone' | 'embedded';
   onCancel?: () => void;
+  /** Cog in header: return to ExerciseDraftsPage gallery when embedded there. */
+  onSettingsClick?: () => void;
   onSave?: (
     title: string,
     payloads: Record<string, unknown>[],
@@ -142,10 +146,12 @@ function makeId() {
 
 export default function ExerciseEditorWorkspace({
   initialTitle = '',
+  headerLabel,
   initialQuestions,
   initialMediaBlocks,
   mode = 'standalone',
   onCancel,
+  onSettingsClick,
   onSave,
 }: ExerciseEditorWorkspaceProps) {
   const navigate = useNavigate();
@@ -264,8 +270,10 @@ export default function ExerciseEditorWorkspace({
       {/* Fixed header */}
       <ExerciseHeader
         title={title}
+        headerLabel={headerLabel}
         isDirty={isDirty}
         isSaveSuccess={saveSuccess}
+        onSettingsClick={onSettingsClick}
         onClose={handleCancel}
         onTitleChange={handleTitleChange}
       />

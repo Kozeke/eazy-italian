@@ -17,6 +17,7 @@ from .presentation import Presentation, PresentationSlide
 from .live_session import LiveSession
 from .homework_submission import UnitHomeworkSubmission, HomeworkSubmissionStatus
 from .teacher_payment import TeacherPayment, TeacherPaymentStatus
+from .teacher_ai_usage import TeacherAIUsage
 
 __all__ = [
     "User",
@@ -52,4 +53,5 @@ __all__ = [
     "HomeworkSubmissionStatus",
     "TeacherPayment",
     "TeacherPaymentStatus",
+    "TeacherAIUsage",
 ]

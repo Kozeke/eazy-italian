@@ -18,7 +18,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   ChevronDown, ChevronUp,
-  Plus, Sparkles, X, Info,
+  Plus, X, Info,
 } from 'lucide-react';
 
 // Phase-4: typed question editor dispatcher
@@ -27,6 +27,7 @@ import QuestionEditorRenderer, {
   type QuestionDraft,
   emptyDraftFor,
 } from './QuestionEditorRenderer';
+import AIExerciseGenerateButton from '../flow/AI_generation/AIExerciseGenerateButton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -444,6 +445,15 @@ export default function TestEditorStep({
         onChange={(v) => update('title', v)}
       />
 
+      {onAIGenerate ? (
+        <div className="flex flex-wrap items-center justify-end gap-2.5">
+          <AIExerciseGenerateButton
+            onClick={() => onAIGenerate()}
+            style={{ margin: 0 }}
+          />
+        </div>
+      ) : null}
+
       {/* ── B. Questions ────────────────────────────────────────────────── */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         {draft.questions.map((q, idx) => (
@@ -479,20 +489,6 @@ export default function TestEditorStep({
         >
           <Plus className="h-4 w-4" />
           Добавить вопрос
-        </button>
-
-        <button
-          type="button"
-          className={[
-            'inline-flex items-center gap-1.5 text-[13px] font-medium text-cyan-600',
-            'hover:text-cyan-700 transition-colors focus:outline-none',
-          ].join(' ')}
-          aria-label="AI generate questions"
-          onClick={onAIGenerate}
-          disabled={!onAIGenerate}
-        >
-          <Sparkles className="h-4 w-4" />
-          Сгенерировать
         </button>
       </div>
 

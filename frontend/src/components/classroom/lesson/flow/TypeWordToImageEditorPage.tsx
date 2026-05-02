@@ -10,6 +10,8 @@ interface Props {
   onSave: (data: TypeWordToImageData, blockId?: string) => void;
   onCancel: () => void;
   segmentId?: string | number | null;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 export type { TypeWordToImageCard, TypeWordToImageData };
@@ -20,7 +22,8 @@ export default function TypeWordToImageEditorPage({
   label = 'Вписать слово к изображению',
   onSave,
   onCancel,
-  segmentId
+  segmentId,
+  onSettingsClick,
 }: Props) {
   return (
     <DragWordToImageEditorPage
@@ -32,6 +35,7 @@ export default function TypeWordToImageEditorPage({
       onCancel={onCancel}
       exerciseType='type_word_to_image'
       segmentId={segmentId}
+      onSettingsClick={onSettingsClick}
     />
   );
 }

@@ -11,11 +11,13 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Link, Upload, Video } from "lucide-react";
 import api from "../../../../services/api";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import "./DragToGap.css";
 
 // Stores design tokens shared across this editor page.
 const C = {
@@ -54,6 +56,8 @@ interface Props {
   onSave: (data: VideoBlockData, blockId?: string) => void | Promise<void>;
   // Stores callback invoked when teacher cancels editing.
   onCancel: () => void;
+  // Header cog: return to exercise template gallery (ExerciseDraftsPage).
+  onSettingsClick?: () => void;
 }
 
 // Extracts YouTube id from known public YouTube URL formats.
@@ -79,7 +83,10 @@ export default function VideoEditorPage({
   segmentId,
   onSave,
   onCancel,
+  onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+
   // Stores the editable title mapped to block.data.title.
   const [title, setTitle] = useState(initialTitle || initialData?.title || "");
   // Stores current video URL value.
@@ -155,7 +162,7 @@ export default function VideoEditorPage({
           const response = await api.post<{ block: { id: string } }>(
             `/segments/${numericSegmentId}/exercises/video_embed`,
             {
-              title: videoData.title || label || "Video block",
+              title: videoData.title || label || t("mediaEditor.videoBlockFallback"),
               data: videoData,
             },
           );
@@ -174,47 +181,40 @@ export default function VideoEditorPage({
     } finally {
       setSaving(false);
     }
-  }, [src, title, caption, saving, segmentId, label, onSave]);
+  }, [src, title, caption, saving, segmentId, label, onSave, t]);
 
   return (
     <div
+      className="dtg-editor-root"
       style={{
         minHeight: "100vh",
         background: C.bg,
         fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif",
-        display: "flex",
-        flexDirection: "column",
       }}
     >
       <ExerciseHeader
         title={title}
-        headerLabel={label ?? "Video block"}
+        headerLabel={label ?? t("mediaEditor.videoBlockFallback")}
         editableTitleInHeader
         isDirty={isDirty}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
         onTitleChange={setTitle}
       />
 
       <div
+        className="dtg-editor-content"
         style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          padding: "32px 24px",
+          paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14,
+          paddingLeft: 24,
+          paddingRight: 24,
           maxWidth: 860,
           width: "100%",
-          margin: `${EXERCISE_HEADER_HEIGHT_PX}px auto 0`,
+          margin: "0 auto",
           boxSizing: "border-box",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 20,
-          }}
-        >
+        <div style={{ marginBottom: 20 }}>
           <button
             type="button"
             onClick={() => setShowPreview((v) => !v)}
@@ -234,32 +234,13 @@ export default function VideoEditorPage({
             }}
           >
             {showPreview ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
-            {showPreview ? "Hide preview" : "Show preview"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!src.trim() || saving}
-            style={{
-              padding: "9px 24px",
-              borderRadius: 9,
-              border: "none",
-              background: !src.trim() || saving ? C.muted : C.primary,
-              color: C.white,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: !src.trim() || saving ? "default" : "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {saving ? "Saving…" : "Save"}
+            {showPreview ? t("mediaEditor.hidePreview") : t("mediaEditor.showPreview")}
           </button>
         </div>
 
         <label style={{ display: "block", marginBottom: 14 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: C.sub, display: "block", marginBottom: 8 }}>
-            Video source
+            {t("mediaEditor.videoSource")}
           </span>
           <div style={{
             display: "flex",
@@ -271,7 +252,7 @@ export default function VideoEditorPage({
             width: "fit-content",
           }}>
             {(
-              [["url", "Video URL", Link], ["upload", "Upload file", Upload]] as const
+              [["url", t("mediaEditor.videoUrl"), Link], ["upload", t("mediaEditor.uploadFile"), Upload]] as const
             ).map(([mode, modeLabel, Icon]) => (
               <button
                 key={mode}
@@ -304,7 +285,7 @@ export default function VideoEditorPage({
                 type="url"
                 value={src}
                 onChange={(e) => { setSrc(e.target.value); setVideoError(false); }}
-                placeholder="https://youtube.com/watch?v=... or direct .mp4 URL"
+                placeholder={t("mediaEditor.urlPlaceholderVideo")}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -349,8 +330,8 @@ export default function VideoEditorPage({
                 }}
               >
                 <Upload size={24} color={C.muted} strokeWidth={1.5} />
-                <span style={{ fontWeight: 600 }}>Click to upload a video</span>
-                <span style={{ fontSize: 11, color: C.muted }}>MP4, WEBM, MOV, OGG</span>
+                <span style={{ fontWeight: 600 }}>{t("mediaEditor.clickUploadVideo")}</span>
+                <span style={{ fontSize: 11, color: C.muted }}>{t("mediaEditor.formatsVideo")}</span>
               </button>
             </div>
           )}
@@ -358,13 +339,14 @@ export default function VideoEditorPage({
 
         <label style={{ display: "block", marginBottom: 14 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: C.sub, display: "block", marginBottom: 6 }}>
-            Caption <span style={{ fontWeight: 400, color: C.muted }}>(optional)</span>
+            {t("mediaEditor.captionLabel")}{" "}
+            <span style={{ fontWeight: 400, color: C.muted }}>{t("mediaEditor.optionalShort")}</span>
           </span>
           <input
             type="text"
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
-            placeholder="e.g. Watch the dialogue and repeat the expressions"
+            placeholder={t("mediaEditor.videoCaptionPlaceholder")}
             style={{
               width: "100%",
               boxSizing: "border-box",
@@ -392,7 +374,7 @@ export default function VideoEditorPage({
                 letterSpacing: "0.06em",
               }}
             >
-              Preview
+              {t("mediaEditor.preview")}
             </p>
 
             <div
@@ -426,7 +408,7 @@ export default function VideoEditorPage({
                       style={{ width: "100%", height: "100%", border: "none", display: "block" }}
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
-                      title={title.trim() || "Video preview"}
+                      title={title.trim() || t("mediaEditor.videoIframeTitle")}
                     />
                   </div>
                 ) : !videoError ? (
@@ -445,7 +427,7 @@ export default function VideoEditorPage({
                       fontSize: 12,
                     }}
                   >
-                    Video could not be loaded. Check URL or uploaded file.
+                    {t("mediaEditor.videoLoadError")}
                   </div>
                 )}
               </div>
@@ -483,12 +465,34 @@ export default function VideoEditorPage({
             }}
           >
             <Video size={26} strokeWidth={1.6} style={{ marginBottom: 8 }} />
-            <div style={{ fontSize: 12.5, color: C.sub }}>Paste a video URL to preview</div>
+            <div style={{ fontSize: 12.5, color: C.sub }}>{t("mediaEditor.emptyVideoPreview")}</div>
             <div style={{ marginTop: 4, fontSize: 11, color: C.danger }}>
-              YouTube, Vimeo, and direct video links are supported.
+              {t("mediaEditor.emptyVideoHint")}
             </div>
           </div>
         )}
+
+        <div className="dtg-footer">
+          <div className="dtg-footer-btns">
+            <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
+              {t("mediaEditor.cancel")}
+            </button>
+            <button
+              type="button"
+              className={[
+                "dtg-btn-save",
+                !src.trim() || saving ? "dtg-btn-save--disabled" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={handleSave}
+              disabled={!src.trim() || saving}
+              title={!src.trim() ? t("mediaEditor.saveNeedVideo") : t("mediaEditor.save")}
+            >
+              {saving ? t("mediaEditor.saving") : t("mediaEditor.save")}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

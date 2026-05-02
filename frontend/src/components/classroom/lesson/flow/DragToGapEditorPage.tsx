@@ -29,11 +29,11 @@ import React, {
 } from 'react';
 import {
   GripVertical,
-  Sparkles,
   Trash2,
   Check,
 } from 'lucide-react';
 import ExerciseHeader, { EXERCISE_HEADER_HEIGHT_PX } from '../exercise/ExerciseHeader';
+import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
@@ -63,6 +63,8 @@ interface Props {
   segmentId?: string | number | null;
   onSave: (data: DragToGapData) => void;
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -163,6 +165,7 @@ export default function DragToGapEditorPage({
   segmentId,
   onSave,
   onCancel,
+  onSettingsClick,
 }: Props) {
   const [title, setTitle] = useState(initialTitle);
   const [showAIModal, setShowAIModal] = useState(false);
@@ -435,6 +438,7 @@ export default function DragToGapEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -463,6 +467,22 @@ export default function DragToGapEditorPage({
           {/* <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8L6 12M6 12L18 16M6 12H22M2 12H4"/></svg> */}
           Drag words into the correct gaps
         </div>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          flexWrap: 'wrap',
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
+        <AIExerciseGenerateButton
+          onClick={() => setShowAIModal(true)}
+          style={{ margin: 0 }}
+        />
       </div>
 
       {/* ── Words bar — top grey area showing draggable chips ─────────────────── */}
@@ -694,16 +714,6 @@ export default function DragToGapEditorPage({
         )}
       </div>
 
-      {/* ── Generate button ───────────────────────────────────────────────────── */}
-      <button
-        type="button"
-        className="dtg-generate-btn"
-        onClick={() => setShowAIModal(true)}
-      >
-        <Sparkles size={13} />
-        Сгенерировать
-      </button>
-
       <AIExerciseGeneratorModal
         exerciseType={exerciseType}
         open={showAIModal}
@@ -716,10 +726,12 @@ export default function DragToGapEditorPage({
 
       {/* ── Footer ────────────────────────────────────────────────────────────── */}
       <div className="dtg-footer">
+        {/*
         <label className="dtg-pro-toggle">
           Pro
           <input type="checkbox" style={{ marginLeft: 6 }} />
         </label>
+        */}
 
         <div className="dtg-footer-btns">
           <button type="button" className="dtg-btn-cancel" onClick={onCancel}>

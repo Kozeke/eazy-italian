@@ -34,6 +34,8 @@ interface Props {
   onCancel: () => void;
   segmentId?: string | number | null;
   exerciseType?: 'true_false';
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 function makeId(): string {
@@ -141,6 +143,7 @@ export default function TrueFalseEditorPage({
   onCancel,
   segmentId,
   exerciseType = 'true_false',
+  onSettingsClick,
 }: Props) {
   const [draft, setDraft] = useState<TestDraft>(() =>
     normaliseDraft(initialTitle, initialDraft),
@@ -211,6 +214,7 @@ export default function TrueFalseEditorPage({
         title={draft.title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -237,10 +241,12 @@ export default function TrueFalseEditorPage({
 
         {/* ── Footer ────────────────────────────────────────────────────────── */}
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             <button

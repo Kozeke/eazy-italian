@@ -581,6 +581,8 @@ async def generate_drag_to_gap_compat(
     current_user: User = Depends(get_current_teacher),
 ) -> dict:
     unit_id = _resolve_unit_id(db, segment_id, body.unit_id)
+    # Same quota gate as POST /exercises/{exercise_slug} — compat route must not bypass it.
+    check_and_consume_teacher_ai_quota(db, current_user, "exercise_generation")
 
     block, metadata = await generate_exercise_for_segment(
         exercise_type="drag_to_gap",

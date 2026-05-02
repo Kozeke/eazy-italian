@@ -6,14 +6,17 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import { Plus, Sparkles, Trash2, Upload, Link, Eye, EyeOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Plus, Trash2, Upload, Link, Eye, EyeOff } from "lucide-react";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import AIExerciseGenerateButton from "./AI_generation/AIExerciseGenerateButton";
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from "./AI_generation/AIExerciseGeneratorModal";
 import api from "../../../../services/api";
+import "./DragToGap.css";
 
 const C = {
   primary: "#6C6FEF",
@@ -66,6 +69,8 @@ interface Props {
   segmentId?: string | number | null;
   onSave: (data: ImageStackedData, blockId?: string) => void | Promise<void>;
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 export default function ImageStackedEditorPage({
@@ -75,7 +80,10 @@ export default function ImageStackedEditorPage({
   segmentId,
   onSave,
   onCancel,
+  onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+
   /** Section title stored in block.data.title and shown above the stack in the player. */
   const [title, setTitle] = useState(initialTitle || initialData?.title || "");
 
@@ -195,32 +203,32 @@ export default function ImageStackedEditorPage({
 
   return (
     <div
+      className="dtg-editor-root"
       style={{
         minHeight: "100vh",
         background: C.bg,
         fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif",
-        display: "flex",
-        flexDirection: "column",
       }}
     >
       <ExerciseHeader
         title={title}
-        headerLabel={label ?? "Image carousel"}
+        headerLabel={label ?? t("mediaEditor.imageCarouselFallback")}
         editableTitleInHeader
         isDirty={canSave}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
         onTitleChange={setTitle}
       />
 
       <div
+        className="dtg-editor-content"
         style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          padding: "32px 24px",
+          paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14,
+          paddingLeft: 24,
+          paddingRight: 24,
           maxWidth: 860,
           width: "100%",
-          margin: `${EXERCISE_HEADER_HEIGHT_PX}px auto 0`,
+          margin: "0 auto",
           boxSizing: "border-box",
         }}
       >
@@ -230,6 +238,8 @@ export default function ImageStackedEditorPage({
             alignItems: "center",
             justifyContent: "space-between",
             marginBottom: 20,
+            flexWrap: "wrap",
+            gap: 10,
           }}
         >
           <button
@@ -251,52 +261,10 @@ export default function ImageStackedEditorPage({
             }}
           >
             {showPreview ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
-            {showPreview ? "Hide preview" : "Show preview"}
+            {showPreview ? t("mediaEditor.hidePreview") : t("mediaEditor.showPreview")}
           </button>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => setShowAIModal(true)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "9px 14px",
-                borderRadius: 9,
-                border: `1.5px solid ${C.border}`,
-                background: C.white,
-                color: C.primary,
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              <Sparkles size={14} />
-              Generate
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={!canSave || saving}
-              style={{
-                padding: "9px 24px",
-                borderRadius: 9,
-                border: "none",
-                background: !canSave || saving ? C.muted : C.primary,
-                color: C.white,
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: !canSave || saving ? "default" : "pointer",
-                fontFamily: "inherit",
-              }}
-              title={!canSave ? "Need at least 2 images" : "Save"}
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </div>
+          <AIExerciseGenerateButton onClick={() => setShowAIModal(true)} style={{ margin: 0 }} />
         </div>
 
         <div
@@ -309,7 +277,7 @@ export default function ImageStackedEditorPage({
           }}
         >
           <p style={{ margin: "0 0 12px", fontSize: 12, color: C.muted }}>
-            Add at least two images for the carousel. Each row becomes one slide.
+            {t("mediaEditor.stackedIntro")}
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -324,7 +292,9 @@ export default function ImageStackedEditorPage({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.sub }}>Image {idx + 1}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.sub }}>
+                    {t("mediaEditor.imageRow", { n: idx + 1 })}
+                  </span>
                   <button
                     type="button"
                     onClick={() => removeRow(row.id)}
@@ -339,10 +309,10 @@ export default function ImageStackedEditorPage({
                       gap: 4,
                       fontSize: 12,
                     }}
-                    title={rows.length <= 2 ? "At least 2 rows required" : "Delete"}
+                    title={rows.length <= 2 ? t("mediaEditor.atLeastTwoRows") : t("mediaEditor.delete")}
                   >
                     <Trash2 size={14} />
-                    Delete
+                    {t("mediaEditor.delete")}
                   </button>
                 </div>
 
@@ -368,7 +338,7 @@ export default function ImageStackedEditorPage({
                       }}
                     >
                       {mode === "url" ? <Link size={12} /> : <Upload size={12} />}
-                      {mode === "url" ? "URL" : "File"}
+                      {mode === "url" ? t("mediaEditor.tabUrl") : t("mediaEditor.tabFile")}
                     </button>
                   ))}
                 </div>
@@ -389,7 +359,7 @@ export default function ImageStackedEditorPage({
                     type="url"
                     value={row.src}
                     onChange={(e) => updateRow(row.id, { src: e.target.value })}
-                    placeholder="https://…"
+                    placeholder={t("mediaEditor.urlShortPlaceholder")}
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
@@ -418,7 +388,7 @@ export default function ImageStackedEditorPage({
                       fontFamily: "inherit",
                     }}
                   >
-                    Select file...
+                    {t("mediaEditor.selectFile")}
                   </button>
                 )}
 
@@ -426,7 +396,7 @@ export default function ImageStackedEditorPage({
                   type="text"
                   value={row.alt_text}
                   onChange={(e) => updateRow(row.id, { alt_text: e.target.value })}
-                  placeholder="Alt text (accessibility)"
+                  placeholder={t("mediaEditor.altShortPlaceholder")}
                   style={{
                     width: "100%",
                     boxSizing: "border-box",
@@ -488,8 +458,30 @@ export default function ImageStackedEditorPage({
             }}
           >
             <Plus size={15} />
-            Add image
+            {t("mediaEditor.addImage")}
           </button>
+        </div>
+
+        <div className="dtg-footer">
+          <div className="dtg-footer-btns">
+            <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
+              {t("mediaEditor.cancel")}
+            </button>
+            <button
+              type="button"
+              className={[
+                "dtg-btn-save",
+                !canSave || saving ? "dtg-btn-save--disabled" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={handleSave}
+              disabled={!canSave || saving}
+              title={!canSave ? t("mediaEditor.needTwoImagesTitle") : t("mediaEditor.save")}
+            >
+              {saving ? t("mediaEditor.saving") : t("mediaEditor.save")}
+            </button>
+          </div>
         </div>
       </div>
 

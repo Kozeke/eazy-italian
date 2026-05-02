@@ -659,6 +659,8 @@ function ClassroomPageInner({
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   // True while POST …/publish is in flight so the lesson footer cannot double-submit.
   const [publishBusy, setPublishBusy] = useState(false);
+  // Opens the upgrade-required modal when the server returns 402 on publish.
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   // When the teacher picks another unit while the current unit is still a draft, we confirm first.
   const [draftSwitchModalOpen, setDraftSwitchModalOpen] = useState(false);
   // Target unit for the draft switch confirmation modal (null when the modal is closed).
@@ -1010,41 +1012,53 @@ function ClassroomPageInner({
     }
   }, [units.length, courseId, classroomBasePath, navigate]);
 
-  // Creates a unit from the data the teacher filled in CreateUnitModal, seeds it
-  // with a default segment so the lesson workspace is ready immediately, then
-  // navigates to the new unit's classroom page.
-  const handleCreateUnitData = useCallback(async (data: import('../../components/classroom/unit/CreateUnitModal').CreateUnitData) => {
-    try {
+  // Creates a unit from CreateUnitModal. POST /units/admin/units already adds the
+  // first segment ("Section 1", draft); do not call createSegment here or you get duplicates.
+  const handleCreateUnitData = useCallback(
+    async (data: import('../../components/classroom/unit/CreateUnitModal').CreateUnitData) => {
       const nextOrderIndex = units.length;
       // Use the user-supplied title; fall back to a default if left blank.
       const title = data.title.trim() || `Unit ${nextOrderIndex + 1}`;
-      const newUnit = await unitsApi.createUnit({
-        title,
-        description: data.description || undefined,
-        level: 'A1',
-        course_id: Number(courseId),
-        order_index: nextOrderIndex,
-      } as any);
-
-      // Seed the new unit with one default segment so the editor opens with
-      // something to work with rather than showing an empty state.
+      let newUnit: Awaited<ReturnType<typeof unitsApi.createUnit>>;
       try {
-        await segmentsApi.createSegment(newUnit.id, {
-          title: 'Section 1',
-          order_index: 0,
-          status: 'draft',
-          is_visible_to_students: false,
-        });
-      } catch (segErr) {
-        // Non-fatal — the teacher can add sections manually if this fails.
-        console.warn('[handleCreateUnitData] could not create default segment:', segErr);
+        newUnit = await unitsApi.createUnit({
+          title,
+          description: data.description || undefined,
+          level: 'A1',
+          course_id: Number(courseId),
+          order_index: nextOrderIndex,
+        } as any);
+      } catch (err) {
+        console.error('[handleCreateUnitData] failed to create unit:', err);
+        toast.error(t('classroom.page.createUnitFailed'));
+        throw err;
       }
 
-      navigate(`${classroomBasePath}/${courseId}/${newUnit.id}`, { replace: false });
-    } catch (err) {
-      console.error('[handleCreateUnitData] failed to create unit:', err);
-    }
-  }, [units.length, courseId, classroomBasePath, navigate]);
+      // Dismiss the unit list overlay so the classroom workspace is visible.
+      setUnitSelectorOpen(false);
+      // Minimal row shape so selectUnit matches ClassroomUnit until reloadUnits finishes.
+      const createdClassroomUnit: ClassroomUnit = {
+        id: newUnit.id,
+        title: (newUnit as { title?: string }).title ?? title,
+        order_index: nextOrderIndex,
+        level: (newUnit as { level?: string }).level ?? 'A1',
+      };
+      selectUnit(createdClassroomUnit);
+      dispatch({ type: 'RESET' });
+      setActiveTab('lesson');
+      reloadUnits();
+      navigate(`${classroomBasePath}/${courseId}/${newUnit.id}`, { replace: true });
+    },
+    [
+      units.length,
+      courseId,
+      classroomBasePath,
+      navigate,
+      selectUnit,
+      reloadUnits,
+      t,
+    ],
+  );
 
   const generatingUnitIdRef = useRef<number | null>(null);
 
@@ -1184,15 +1198,19 @@ function ClassroomPageInner({
         toast.success(t("classroom.page.unitPublished"));
         await Promise.all([reloadUnit(), reloadUnits()]);
       } catch (err: unknown) {
-        const ax = err as { response?: { data?: { detail?: unknown } } };
-        const detail = ax.response?.data?.detail;
-        const msg =
-          typeof detail === "string"
-            ? detail
-            : Array.isArray(detail)
-              ? JSON.stringify(detail)
-              : t("classroom.page.unitPublishFailed");
-        toast.error(msg);
+        const ax = err as { response?: { status?: number; data?: { detail?: unknown } } };
+        if (ax.response?.status === 402) {
+          setUpgradeModalOpen(true);
+        } else {
+          const detail = ax.response?.data?.detail;
+          const msg =
+            typeof detail === "string"
+              ? detail
+              : Array.isArray(detail)
+                ? JSON.stringify(detail)
+                : t("classroom.page.unitPublishFailed");
+          toast.error(msg);
+        }
       } finally {
         setPublishBusy(false);
       }
@@ -1790,6 +1808,99 @@ function ClassroomPageInner({
                 }}
               >
                 {t("classroom.page.leave")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade required — shown when 402 is returned from POST …/publish */}
+      {upgradeModalOpen && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+          style={{ background: "rgba(15, 17, 35, 0.45)", backdropFilter: "blur(6px)" }}
+          role="presentation"
+          onClick={() => setUpgradeModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upgrade-modal-title"
+            className="w-full max-w-sm p-8"
+            style={{
+              background: DS.white,
+              borderRadius: "20px",
+              boxShadow: "0 12px 40px rgba(108, 111, 239, 0.18), 0 2px 10px rgba(0,0,0,0.08)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Icon */}
+            <div
+              className="mx-auto mb-5 flex h-14 w-14 items-center justify-center"
+              style={{ background: DS.tint, borderRadius: "16px" }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                  stroke={DS.primary}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            {/* Heading */}
+            <h2
+              id="upgrade-modal-title"
+              className="text-center text-lg font-semibold"
+              style={{ color: "#0F1123" }}
+            >
+              {t("classroom.page.upgradeRequired")}
+            </h2>
+
+            {/* Body */}
+            <p
+              className="mt-2 text-center text-sm leading-relaxed"
+              style={{ color: "#64748B" }}
+            >
+              {t("classroom.page.upgradeRequiredDescription")}
+            </p>
+
+            {/* Actions */}
+            <div className="mt-7 flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setUpgradeModalOpen(false);
+                  navigate("/admin/tariffs");
+                }}
+                className="w-full rounded-xl py-3 text-sm font-semibold text-white shadow-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2"
+                style={{
+                  background: DS.primary,
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  "--tw-ring-color": DS.tint,
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = DS.primaryDark; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = DS.primary; }}
+              >
+                {t("classroom.page.viewPlans")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setUpgradeModalOpen(false)}
+                className="w-full rounded-xl py-3 text-sm font-semibold transition-all hover:opacity-70 focus:outline-none focus-visible:ring-2"
+                style={{
+                  background: DS.bg,
+                  color: "#64748B",
+                  border: "1.5px solid #E5E7EB",
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  "--tw-ring-color": DS.tint,
+                }}
+              >
+                {t("classroom.page.maybeLater")}
               </button>
             </div>
           </div>

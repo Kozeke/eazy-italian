@@ -10,6 +10,7 @@ import QuestionEditorRenderer, {
 } from '../editors/QuestionEditorRenderer';
 import { draftToApiPayload, validateDraft } from '../editors/questionPayload';
 import './DragToGap.css';
+import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
@@ -25,6 +26,8 @@ interface Props {
     drafts: QuestionDraft[],
   ) => void | Promise<void>;
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 function applyGeneratedBlock(block: GeneratedBlock): {
@@ -82,6 +85,7 @@ export default function OrderParagraphsEditorPage({
   onSave,
   onCancel,
   segmentId,
+  onSettingsClick,
 }: Props) {
   const [title, setTitle] = useState(initialTitle);
   const [draft, setDraft] = useState<OrderingSentencesDraft>(() =>
@@ -137,6 +141,7 @@ export default function OrderParagraphsEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -160,17 +165,34 @@ export default function OrderParagraphsEditorPage({
           </div>
         </div>
 
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <AIExerciseGenerateButton
+            onClick={() => setShowAIModal(true)}
+            style={{ margin: 0 }}
+          />
+        </div>
+
         <QuestionEditorRenderer
           draft={draft}
           onChange={(next) => setDraft(next as OrderingSentencesDraft)}
-          onAIGenerate={() => setShowAIModal(true)}
         />
 
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             <button

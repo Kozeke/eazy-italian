@@ -15,14 +15,17 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import { ImageIcon, Eye, EyeOff, Upload, Link, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { ImageIcon, Eye, EyeOff, Upload, Link } from "lucide-react";
 import api from "../../../../services/api";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import AIExerciseGenerateButton from "./AI_generation/AIExerciseGenerateButton";
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from "./AI_generation/AIExerciseGeneratorModal";
+import "./DragToGap.css";
 
 // ── Design tokens (mirrors project-wide palette) ───────────────────────────────
 const C = {
@@ -74,6 +77,8 @@ interface Props {
   onSave: (data: ImageBlockData, blockId?: string) => void | Promise<void>;
   /** Called when the teacher clicks × or Cancel. */
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 // ── ImageEditorPage component ──────────────────────────────────────────────────
@@ -85,7 +90,10 @@ export default function ImageEditorPage({
   segmentId,
   onSave,
   onCancel,
+  onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+
   /** Caption/title shown in the caption strip of the rendered ImageBlock. */
   const [title, setTitle] = useState(initialTitle || initialData?.title || "");
 
@@ -170,7 +178,7 @@ export default function ImageEditorPage({
           const response = await api.post<{ block: { id: string } }>(
             `/segments/${numericSegmentId}/exercises/image`,
             {
-              title: imageData.title || label || "Image block",
+              title: imageData.title || label || t("mediaEditor.imageBlockFallback"),
               data: imageData,
             },
           );
@@ -189,7 +197,7 @@ export default function ImageEditorPage({
     } finally {
       setSaving(false);
     }
-  }, [src, altText, title, saving, segmentId, label, onSave]);
+  }, [src, altText, title, saving, segmentId, label, onSave, t]);
 
   /** Reads the selected file and stores it as a data URI in src. */
   const handleFileChange = useCallback(
@@ -214,42 +222,46 @@ export default function ImageEditorPage({
     src.startsWith("data:image/svg+xml") || src.startsWith("data:image/svg");
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: C.bg,
-      fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif",
-      display: "flex",
-      flexDirection: "column",
-    }}>
-      {/* ── Fixed top header bar ──────────────────────────────────────────── */}
+    <div
+      className="dtg-editor-root"
+      style={{
+        minHeight: "100vh",
+        background: C.bg,
+        fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif",
+      }}
+    >
       <ExerciseHeader
         title={title}
-        headerLabel={label ?? "Image block"}
+        headerLabel={label ?? t("mediaEditor.imageBlockFallback")}
         editableTitleInHeader
         isDirty={isDirty}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
         onTitleChange={setTitle}
       />
 
-      {/* ── Editor body (below the fixed header) ─────────────────────────── */}
-      <div style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        padding: "32px 24px",
-        maxWidth: 860,
-        width: "100%",
-        margin: `${EXERCISE_HEADER_HEIGHT_PX}px auto 0`,
-        boxSizing: "border-box",
-      }}>
-
-        {/* Toolbar row: preview toggle + save button */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 20,
-        }}>
+      <div
+        className="dtg-editor-content"
+        style={{
+          paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14,
+          paddingLeft: 24,
+          paddingRight: 24,
+          maxWidth: 860,
+          width: "100%",
+          margin: "0 auto",
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 20,
+            flexWrap: "wrap",
+            gap: 10,
+          }}
+        >
           <button
             type="button"
             onClick={() => setShowPreview((v) => !v)}
@@ -268,55 +280,11 @@ export default function ImageEditorPage({
               fontFamily: "inherit",
             }}
           >
-            {showPreview
-              ? <Eye size={14} strokeWidth={2} />
-              : <EyeOff size={14} strokeWidth={2} />}
-            {showPreview ? "Hide preview" : "Show preview"}
+            {showPreview ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
+            {showPreview ? t("mediaEditor.hidePreview") : t("mediaEditor.showPreview")}
           </button>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => setShowAIModal(true)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "9px 14px",
-                borderRadius: 9,
-                border: `1.5px solid ${C.border}`,
-                background: C.white,
-                color: C.primary,
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              <Sparkles size={14} strokeWidth={2} />
-              Generate
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={!src.trim() || saving}
-              style={{
-                padding: "9px 24px",
-                borderRadius: 9,
-                border: "none",
-                background: !src.trim() || saving ? C.muted : C.primary,
-                color: C.white,
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: !src.trim() || saving ? "default" : "pointer",
-                fontFamily: "inherit",
-                transition: "background 0.15s",
-              }}
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
+          <AIExerciseGenerateButton onClick={() => setShowAIModal(true)} style={{ margin: 0 }} />
         </div>
 
         {/* Input mode tabs: URL vs file upload */}
@@ -329,7 +297,7 @@ export default function ImageEditorPage({
           alignSelf: "flex-start",
         }}>
           {(
-            [["url", "Image URL", Link], ["upload", "Upload file", Upload]] as const
+            [["url", t("mediaEditor.imageUrl"), Link], ["upload", t("mediaEditor.uploadFile"), Upload]] as const
           ).map(([mode, modeLabel, Icon]) => (
             <button
               key={mode}
@@ -362,7 +330,7 @@ export default function ImageEditorPage({
             type="url"
             value={src}
             onChange={(e) => { setSrc(e.target.value); setImgError(false); }}
-            placeholder="https://example.com/image.png"
+            placeholder={t("mediaEditor.urlPlaceholderImage")}
             style={{
               width: "100%",
               boxSizing: "border-box",
@@ -416,14 +384,14 @@ export default function ImageEditorPage({
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
             >
               <Upload size={26} color={C.muted} strokeWidth={1.5} />
-              <span style={{ fontWeight: 600 }}>Click to upload an image</span>
-              <span style={{ fontSize: 11, color: C.muted }}>PNG, JPG, GIF, SVG, WEBP</span>
+              <span style={{ fontWeight: 600 }}>{t("mediaEditor.clickUploadImage")}</span>
+              <span style={{ fontSize: 11, color: C.muted }}>{t("mediaEditor.formatsImage")}</span>
             </button>
 
             {/* Confirmation that a file has been loaded */}
             {src && (
               <p style={{ margin: "8px 0 0", fontSize: 12, color: C.success }}>
-                Image loaded — see preview below.
+                {t("mediaEditor.imageLoadedHint")}
               </p>
             )}
           </div>
@@ -438,13 +406,14 @@ export default function ImageEditorPage({
             display: "block",
             marginBottom: 6,
           }}>
-            Alt text <span style={{ fontWeight: 400, color: C.muted }}>(accessibility description)</span>
+            {t("mediaEditor.altTextLabel")}{" "}
+            <span style={{ fontWeight: 400, color: C.muted }}>{t("mediaEditor.altTextHint")}</span>
           </span>
           <input
             type="text"
             value={altText}
             onChange={(e) => setAltText(e.target.value)}
-            placeholder="e.g. A diagram showing Italian verb conjugation"
+            placeholder={t("mediaEditor.altPlaceholderImage")}
             style={{
               width: "100%",
               boxSizing: "border-box",
@@ -474,7 +443,7 @@ export default function ImageEditorPage({
               textTransform: "uppercase",
               letterSpacing: "0.06em",
             }}>
-              Preview
+              {t("mediaEditor.preview")}
             </p>
 
             <div style={{
@@ -497,7 +466,7 @@ export default function ImageEditorPage({
                   <img
                     key={src}
                     src={src}
-                    alt={altText || "Educational illustration"}
+                    alt={altText || t("mediaEditor.previewAltImage")}
                     style={{
                       width: isSvgDataUri ? "100%" : undefined,
                       maxWidth: "100%",
@@ -518,9 +487,9 @@ export default function ImageEditorPage({
                     textAlign: "center",
                   }}>
                     <ImageIcon size={40} color={C.muted} strokeWidth={1.5} />
-                    <span style={{ fontSize: 13 }}>Image could not be loaded</span>
+                    <span style={{ fontSize: 13 }}>{t("mediaEditor.imageLoadError")}</span>
                     <span style={{ fontSize: 11, color: C.danger }}>
-                      Check that the URL is correct and publicly accessible.
+                      {t("mediaEditor.imageLoadErrorHint")}
                     </span>
                   </div>
                 )}
@@ -544,6 +513,28 @@ export default function ImageEditorPage({
             </div>
           </div>
         )}
+
+        <div className="dtg-footer">
+          <div className="dtg-footer-btns">
+            <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
+              {t("mediaEditor.cancel")}
+            </button>
+            <button
+              type="button"
+              className={[
+                "dtg-btn-save",
+                !src.trim() || saving ? "dtg-btn-save--disabled" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={handleSave}
+              disabled={!src.trim() || saving}
+              title={!src.trim() ? t("mediaEditor.saveNeedImage") : t("mediaEditor.save")}
+            >
+              {saving ? t("mediaEditor.saving") : t("mediaEditor.save")}
+            </button>
+          </div>
+        </div>
       </div>
 
       <AIExerciseGeneratorModal

@@ -16,6 +16,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   X,
@@ -26,6 +27,7 @@ import {
   Wand2,
   Heart,
   ChevronRight,
+  HelpCircle,
 } from "lucide-react";
 import ExerciseEditorWorkspace from "../../components/classroom/lesson/exercise/ExerciseEditorWorkspace";
 import type { MediaBlock, MediaBlockType } from "../../components/classroom/lesson/exercise/ExerciseEditorWorkspace";
@@ -448,9 +450,163 @@ function GallerySectionGroup({
   );
 }
 
+/**
+ * Help control beside the gallery title: click opens a dialog with general exercise
+ * context and how AI generation works (localized via exerciseDrafts.* keys).
+ */
+function GalleryTemplateHelpControl() {
+  const { t } = useTranslation();
+  /** True while the help overlay and panel are shown. */
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHelpOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [helpOpen]);
+
+  return (
+    <div style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        type="button"
+        title={t("exerciseDrafts.galleryHelpHover")}
+        aria-label={t("exerciseDrafts.galleryHelpAria")}
+        aria-expanded={helpOpen}
+        onClick={() => setHelpOpen((o) => !o)}
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 8,
+          border: "none",
+          background: helpOpen ? C.tint : "transparent",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: C.muted,
+          flexShrink: 0,
+          padding: 0,
+        }}
+      >
+        <HelpCircle size={18} strokeWidth={2} />
+      </button>
+      {helpOpen && (
+        <>
+          <button
+            type="button"
+            aria-label={t("exerciseHeader.closeHelp")}
+            onClick={() => setHelpOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 199,
+              border: "none",
+              padding: 0,
+              margin: 0,
+              background: "rgba(28,31,58,0.12)",
+              cursor: "default",
+            }}
+          />
+          <div
+            role="dialog"
+            aria-labelledby="gallery-template-help-title"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 8px)",
+              left: 0,
+              zIndex: 200,
+              width: "min(400px, calc(100vw - 48px))",
+              maxHeight: "min(70vh, 440px)",
+              overflowY: "auto",
+              background: C.white,
+              border: `1px solid ${C.border}`,
+              borderRadius: 12,
+              boxShadow: "0 12px 40px rgba(28,31,58,0.18)",
+              padding: "14px 16px 16px",
+              fontFamily: "inherit",
+              textAlign: "left",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                marginBottom: 10,
+              }}
+            >
+              <span
+                id="gallery-template-help-title"
+                style={{ fontSize: 14, fontWeight: 700, color: C.text }}
+              >
+                {t("exerciseDrafts.galleryHelpDialogTitle")}
+              </span>
+              <button
+                type="button"
+                onClick={() => setHelpOpen(false)}
+                style={{
+                  border: "none",
+                  background: C.bg,
+                  borderRadius: 6,
+                  width: 28,
+                  height: 28,
+                  cursor: "pointer",
+                  color: C.sub,
+                  fontSize: 16,
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <p
+              style={{
+                margin: "0 0 12px",
+                fontSize: 13,
+                lineHeight: 1.55,
+                color: C.sub,
+              }}
+            >
+              {t("exerciseDrafts.galleryHelpAboutExercises")}
+            </p>
+            <p
+              style={{
+                margin: "12px 0 6px",
+                fontSize: 13,
+                lineHeight: 1.4,
+                fontWeight: 600,
+                color: C.text,
+              }}
+            >
+              {t("exerciseDrafts.galleryHelpAiHeading")}
+            </p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                lineHeight: 1.55,
+                color: C.sub,
+              }}
+            >
+              {t("exerciseDrafts.galleryHelpAboutAi")}
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── AIBanner ─────────────────────────────────────────────────────────────────
 
 function AIBanner({ onGenerateAI }: { onGenerateAI?: () => void }) {
+  const { t } = useTranslation();
   if (!onGenerateAI) return null;
   return (
     <div
@@ -464,8 +620,8 @@ function AIBanner({ onGenerateAI }: { onGenerateAI?: () => void }) {
         <Wand2 size={18} color="#fff" strokeWidth={2} />
       </div>
       <div>
-        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: C.text }}>Generate with AI</p>
-        <p style={{ margin: "2px 0 0", fontSize: 12, color: C.sub }}>Describe your exercise and let AI build it for you</p>
+        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: C.text }}>{t("exerciseDrafts.aiBannerTitle")}</p>
+        <p style={{ margin: "2px 0 0", fontSize: 12, color: C.sub }}>{t("exerciseDrafts.aiBannerSubtitle")}</p>
       </div>
       <ChevronRight size={16} color={C.muted} strokeWidth={2} style={{ marginLeft: "auto" }} />
     </div>
@@ -483,6 +639,7 @@ function Gallery({
   onGenerateAI?: () => void;
   onSelect: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [view, setView]     = useState<"grid" | "list">("grid");
   const [creating, setCreating] = useState<string | null>(null);
@@ -526,11 +683,12 @@ function Gallery({
               <Sparkles size={15} color={C.primary} strokeWidth={2} />
             </div>
             <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.text, letterSpacing: "-0.02em" }}>
-              Choose exercise template
+              {t("exerciseDrafts.galleryTitle")}
             </h1>
+            <GalleryTemplateHelpControl />
           </div>
           {onClose && (
-            <button type="button" onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted }}>
+            <button type="button" onClick={onClose} aria-label={t("exerciseDrafts.closeGalleryAria")} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted }}>
               <X size={16} strokeWidth={2} />
             </button>
           )}
@@ -546,7 +704,7 @@ function Gallery({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search templates…"
+              placeholder={t("exerciseDrafts.searchPlaceholder")}
               style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, color: C.text, flex: 1, fontFamily: "inherit" }}
             />
             {search && (
@@ -571,7 +729,7 @@ function Gallery({
         <div style={{ paddingBottom: 40 }}>
           {Object.keys(bySection).length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: C.muted, fontSize: 13 }}>
-              No templates match "{search}"
+              {t("exerciseDrafts.noTemplatesMatch", { query: search })}
             </div>
           ) : (
             Object.entries(bySection).map(([sec, items]) => (
@@ -841,6 +999,13 @@ export default function ExerciseDraftsPage({
     setSelected(null);
     setInlineEditSeed(null);
   }, [inlineEditSeed, lessonReturnTo, navigate, onClose]);
+
+  /** Header cog: return to template gallery (stay on ExerciseDraftsPage). */
+  const handleBackToTemplateGallery = useCallback(() => {
+    setPageMode("gallery");
+    setSelected(null);
+    setInlineEditSeed(null);
+  }, []);
 
   const handleSave = useCallback(
     async (title: string, payloads: Record<string, unknown>[], drafts: QuestionDraft[]) => {
@@ -1355,9 +1520,11 @@ export default function ExerciseDraftsPage({
               <ExerciseEditorWorkspace
                 mode="embedded"
                 initialTitle=""
+                headerLabel={selected.label}
                 initialQuestions={selected.initialQuestions}
                 initialMediaBlocks={selected.initialMediaBlocks}
                 onCancel={handleCancelEditor}
+                onSettingsClick={handleBackToTemplateGallery}
                 onSave={handleSave}
               />
             </div>
@@ -1388,6 +1555,7 @@ export default function ExerciseDraftsPage({
               label={selected?.label}
               segmentId={effectiveSegmentId}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleTextBlockSave}
             />
           </div>
@@ -1417,6 +1585,7 @@ export default function ExerciseDraftsPage({
               label={selected?.label}
               segmentId={effectiveSegmentId}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleImageBlockSave}
             />
           </div>
@@ -1447,6 +1616,7 @@ export default function ExerciseDraftsPage({
               label={selected?.label}
               segmentId={effectiveSegmentId}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleImageStackedSave}
             />
           </div>
@@ -1478,6 +1648,7 @@ export default function ExerciseDraftsPage({
               label={selected?.label}
               segmentId={effectiveSegmentId}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleGifAnimationSave}
             />
           </div>
@@ -1509,6 +1680,7 @@ export default function ExerciseDraftsPage({
               label={selected?.label}
               segmentId={effectiveSegmentId}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleVideoBlockSave}
             />
           </div>
@@ -1540,6 +1712,7 @@ export default function ExerciseDraftsPage({
               label={selected?.label}
               segmentId={effectiveSegmentId}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleAudioBlockSave}
             />
           </div>
@@ -1566,6 +1739,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleDragToGapSave}    
               segmentId={effectiveSegmentId}
             />
@@ -1598,6 +1772,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleDragToImageSave}
               segmentId={effectiveSegmentId}
               exerciseType="drag_to_image"
@@ -1627,6 +1802,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleTypeWordToImageSave}
               segmentId={effectiveSegmentId}
             />
@@ -1655,6 +1831,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSelectFormToImageSave}
               segmentId={effectiveSegmentId}
             />
@@ -1683,6 +1860,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleTypeWordInGapSave}
               segmentId={effectiveSegmentId}
             />
@@ -1711,6 +1889,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSelectWordFormSave}
               segmentId={effectiveSegmentId}
             />
@@ -1741,6 +1920,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSave}
               segmentId={effectiveSegmentId}
             />
@@ -1770,6 +1950,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSave}
               segmentId={effectiveSegmentId}
             />
@@ -1800,6 +1981,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSave}
               segmentId={effectiveSegmentId}
             />
@@ -1830,6 +2012,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSave}
               segmentId={effectiveSegmentId}
             />
@@ -1861,6 +2044,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSave}
               segmentId={effectiveSegmentId}
             />
@@ -1892,6 +2076,7 @@ export default function ExerciseDraftsPage({
               }
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSave}
               segmentId={effectiveSegmentId}
             />
@@ -1913,6 +2098,7 @@ export default function ExerciseDraftsPage({
               initialTitle=""
               label={selected?.label}
               onCancel={handleCancelEditor}
+              onSettingsClick={handleBackToTemplateGallery}
               onSave={handleSave}
               segmentId={effectiveSegmentId}
             />

@@ -329,15 +329,28 @@ def _build_passage_prompt(
         sentence_count * avg_words_per_sentence(15) ≈ 150 tokens for 10 sentences
         vs. full JSON ≈ 60 tokens * gap_count + overhead ≈ 650 tokens for 10 gaps
     """
+    # Passage + gap answers follow content_language; instruction_language affects only the TITLE line.
     lang_lines: list[str] = []
     if content_language and content_language != "auto":
         lang_lines.append(
-            f"The SOURCE CONTENT is in {content_language.upper()}. "
-            "Read and understand it in that language."
+            f"The exercise passage (all plain text and every [bracketed] answer) MUST be "
+            f"entirely in {content_language.upper()}. "
+            f"The SOURCE CONTENT is in {content_language.upper()} — use it as reference; "
+            "do not write the passage in any other language."
         )
-    if instruction_language:
+    else:
         lang_lines.append(
-            f"Write the passage in {instruction_language.upper()}."
+            "Write the passage in the same primary language as the SOURCE CONTENT below."
+        )
+    # Optional UI locale for teachers: title only, never the gap text.
+    # Normalized instruction locale for comparison with content_language
+    _instr = (instruction_language or "").strip().lower()
+    # Normalized target language for the passage body
+    _content = (content_language or "").strip().lower()
+    if _instr and _instr != "auto" and (_content == "auto" or _instr != _content):
+        lang_lines.append(
+            f'Write only the "TITLE:" line in {_instr.upper()}; keep the passage in the '
+            "exercise language stated above."
         )
     lang_block = ("\n" + "\n".join(lang_lines)) if lang_lines else ""
 
@@ -598,11 +611,18 @@ def _build_drag_to_gap_prompt(
     if content_language and content_language != "auto":
         lang_block += (
             f"\n- The SOURCE CONTENT is written in {content_language.upper()}. "
-            "Read and understand it in that language."
+            f"Every TextSeg \"value\" and every string in \"gaps\" MUST be in "
+            f"{content_language.upper()} — not in any other language."
+        )
+    else:
+        lang_block += (
+            "\n- Match the primary language of the SOURCE CONTENT for all segment text "
+            "and gap answers."
         )
     if instruction_language:
         lang_block += (
-            f'\n- Write the "title" in {instruction_language.upper()}.'
+            f'\n- Write only the JSON "title" field in {instruction_language.upper()}; '
+            "do not put that language into segments or gap answers."
         )
 
     hint_block = ""
@@ -1133,7 +1153,8 @@ async def generate_drag_to_gap_from_unit_content(
     content_language
         Language the source content is written in ("auto" = let LLM infer).
     instruction_language
-        Language for the exercise title / UI labels (e.g. "russian").
+        Language for the exercise title only. Passage and gap answers always
+        follow ``content_language`` (not this field).
     gap_type
         Optional word-class constraint: "Verbs only", "Nouns only", etc.
     provider

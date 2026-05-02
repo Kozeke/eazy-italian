@@ -9,6 +9,7 @@ import QuestionEditorRenderer, {
 } from '../editors/QuestionEditorRenderer';
 import { draftToApiPayload, validateDraft } from '../editors/questionPayload';
 import './DragToGap.css';
+import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
@@ -25,6 +26,8 @@ interface Props {
     drafts: QuestionDraft[],
   ) => void | Promise<void>;
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 // ── Shuffle helpers (mirrors BuildSentenceBlock.tsx) ─────────────────────────
@@ -120,6 +123,7 @@ export default function BuildSentenceEditorPage({
   onSave,
   onCancel,
   segmentId,
+  onSettingsClick,
 }: Props) {
   const [title, setTitle] = useState(initialTitle);
   const [draft, setDraft] = useState<OrderingWordsDraft>(() =>
@@ -175,6 +179,7 @@ export default function BuildSentenceEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -198,13 +203,34 @@ export default function BuildSentenceEditorPage({
           </div>
         </div>
 
-        <QuestionEditorRenderer draft={draft} onChange={(next) => setDraft(next as OrderingWordsDraft)}   onAIGenerate={() => setShowAIModal(true)}  />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <AIExerciseGenerateButton
+            onClick={() => setShowAIModal(true)}
+            style={{ margin: 0 }}
+          />
+        </div>
+
+        <QuestionEditorRenderer
+          draft={draft}
+          onChange={(next) => setDraft(next as OrderingWordsDraft)}
+        />
 
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             

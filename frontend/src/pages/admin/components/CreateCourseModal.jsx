@@ -94,10 +94,10 @@ async function apiCreateUnit(courseId, title, orderIndex = 0, description = '') 
       title,
       description,
       level: 'A1',
-      status: 'published',
+      status: 'draft',
       order_index: orderIndex,
       course_id: courseId,
-      is_visible_to_students: true,
+      is_visible_to_students: false,
     }),
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));

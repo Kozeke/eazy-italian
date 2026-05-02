@@ -36,10 +36,11 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  Plus, Trash2, Tag, Code2, GripVertical, X, Sparkles,
+  Plus, Trash2, Tag, Code2, GripVertical, X,
   Info, ArrowRight,
   CheckCircle2,
-} from 'lucide-react';import '../exercise/exercise-design-system.css';
+} from 'lucide-react';
+import '../exercise/exercise-design-system.css';
 import '../flow/DragToGap.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1308,11 +1309,9 @@ function PairConnectorRow({ letter, leftText, pairedRightId, rightItems, onChang
 function BuildSentenceQuestionEditor({
   draft,
   onChange,
-  onAIGenerate, 
 }: {
   draft: OrderingWordsDraft;
   onChange: (d: OrderingWordsDraft) => void;
-  onAIGenerate?: () => void
 }) {
   const groups = useMemo(() => getOrderingWordsSentenceGroups(draft), [draft]);
   const [draggingSentenceIndex, setDraggingSentenceIndex] = useState<number | null>(null);
@@ -1657,27 +1656,16 @@ function BuildSentenceQuestionEditor({
           Добавить предложение
         </button>
       </div>
-
-      <button
-        type="button"
-        className="dtg-generate-btn"
-        onClick={onAIGenerate}           // ← WAS: nothing
-        style={{ display: onAIGenerate ? undefined : 'none' }}  // hide if not provided
-      >
-    <Sparkles size={13} />
-        Сгенерировать
-      </button>
     </div>
   );
 }
 
 function OrderingSentencesEditor({
-  label, draft, onChangeRaw, onAIGenerate,
+  label, draft, onChangeRaw,
 }: {
   label: string;
   draft: OrderingSentencesDraft;
   onChangeRaw: (d: OrderingSentencesDraft) => void;
-  onAIGenerate?: () => void;
 }) {
   const orderedItems = useMemo(() => getOrderingSentencesItems(draft), [draft]);
   const [draggingSentenceIndex, setDraggingSentenceIndex] = useState<number | null>(null);
@@ -1838,10 +1826,6 @@ function OrderingSentencesEditor({
           Add sentence
         </button>
 
-        <button type="button" className="dtg-generate-btn" onClick={onAIGenerate} style={{ display: onAIGenerate ? undefined : 'none' }}>
-          <Sparkles size={13} />
-          Сгенерировать
-        </button>
       </div>
     </div>
   );
@@ -1871,15 +1855,15 @@ function InlineHint({ icon, color, children }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function OrderingWordsQuestionEditor({
-  draft, onChange, onAIGenerate,
-}: { draft: OrderingWordsDraft; onChange: (d: OrderingWordsDraft) => void; onAIGenerate?: () => void }) {
-  return <BuildSentenceQuestionEditor draft={draft} onChange={onChange} onAIGenerate={onAIGenerate} />;
+  draft, onChange,
+}: { draft: OrderingWordsDraft; onChange: (d: OrderingWordsDraft) => void }) {
+  return <BuildSentenceQuestionEditor draft={draft} onChange={onChange} />;
 }
 
 export function OrderingSentencesQuestionEditor({
-  draft, onChange, onAIGenerate
-}: { draft: OrderingSentencesDraft; onChange: (d: OrderingSentencesDraft) => void; onAIGenerate?: () => void  }) {
-  return <OrderingSentencesEditor label="Sentence" draft={draft} onChangeRaw={onChange as any}  onAIGenerate={onAIGenerate}  />;
+  draft, onChange,
+}: { draft: OrderingSentencesDraft; onChange: (d: OrderingSentencesDraft) => void }) {
+  return <OrderingSentencesEditor label="Sentence" draft={draft} onChangeRaw={onChange as any} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1889,10 +1873,9 @@ export function OrderingSentencesQuestionEditor({
 export interface QuestionEditorRendererProps {
   draft: QuestionDraft;
   onChange: (draft: QuestionDraft) => void;
-  onAIGenerate?: () => void; 
 }
 
-export default function QuestionEditorRenderer({ draft, onChange, onAIGenerate }: QuestionEditorRendererProps) {
+export default function QuestionEditorRenderer({ draft, onChange }: QuestionEditorRendererProps) {
     switch (draft.type) {
     case 'multiple_choice':    return <MultipleChoiceQuestionEditor    draft={draft} onChange={onChange as any} />;
     case 'true_false':         return <TrueFalseQuestionEditor         draft={draft} onChange={onChange as any} />;
@@ -1900,7 +1883,7 @@ export default function QuestionEditorRenderer({ draft, onChange, onAIGenerate }
     case 'cloze_input':        return <ClozeInputQuestionEditor        draft={draft} onChange={onChange as any} />;
     case 'cloze_drag':         return <ClozeDragQuestionEditor         draft={draft} onChange={onChange as any} />;
     case 'matching_pairs':     return <MatchingPairsQuestionEditor     draft={draft} onChange={onChange as any} />;
-    case 'ordering_words':     return <OrderingWordsQuestionEditor     draft={draft} onChange={onChange as any} onAIGenerate={onAIGenerate}  />;
-    case 'ordering_sentences': return <OrderingSentencesQuestionEditor draft={draft} onChange={onChange as any} onAIGenerate={onAIGenerate}  />;
+    case 'ordering_words':     return <OrderingWordsQuestionEditor     draft={draft} onChange={onChange as any} />;
+    case 'ordering_sentences': return <OrderingSentencesQuestionEditor draft={draft} onChange={onChange as any} />;
   }
 }

@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Check, Plus, Sparkles, Upload, X } from 'lucide-react';
+import { Check, Plus, Upload, X } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
 import api from '../../../../services/api';
 import './DragToGap.css';
+import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, { GeneratedBlock } from './AI_generation/AIExerciseGeneratorModal';
 
 export interface DragToImageCard {
@@ -29,6 +30,8 @@ interface Props {
   onCancel: () => void;
   segmentId?: string | number | null;
   exerciseType?: 'drag_to_image' | 'type_word_to_image';
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 let cardCounter = 0;
@@ -53,6 +56,7 @@ export default function DragWordToImageEditorPage({
   onSave,
   onCancel,
   segmentId,
+  onSettingsClick,
 }: Props) {
   const [title, setTitle] = useState(initialData?.title ?? initialTitle);
   const [cards, setCards] = useState<DragToImageCard[]>(
@@ -180,6 +184,7 @@ export default function DragWordToImageEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -203,6 +208,22 @@ export default function DragWordToImageEditorPage({
           <div className="dtg-exercise-instruction">
             Drag words onto the correct images
           </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <AIExerciseGenerateButton
+            onClick={() => setShowAIModal(true)}
+            style={{ margin: 0 }}
+          />
         </div>
 
         {showWordsBar && (
@@ -325,16 +346,6 @@ export default function DragWordToImageEditorPage({
             <Plus size={18} />
           </button>
         </div>
-
-        {/* FIX 2: onClick was missing — button rendered but never set showAIModal to true */}
-        <button
-          type="button"
-          className="dtg-generate-btn"
-          onClick={() => setShowAIModal(true)}
-        >
-          <Sparkles size={13} />
-          Сгенерировать
-        </button>
 
         <AIExerciseGeneratorModal
           exerciseType={exerciseType}

@@ -23,6 +23,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import ConnectPaymentModal from "../../../../../pages/admin/components/ConnectPaymentModal";
+import { aiLimitFromMe } from "../../../../../utils/teacherTariffMe";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -98,6 +99,11 @@ const EXERCISE_TYPE_CONFIGS: ExerciseTypeConfig[] = [
     type: "type_word_to_image", icon: "🖼⌨", endpoint: "type-word-to-image",
     showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
   },
+  // Markdown reading / grammar block — POST .../exercises/text; TextEditorPage passes exerciseType="text".
+  {
+    type: "text", icon: "¶", endpoint: "text",
+    showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
+  },
 ];
 
 // Maps API gap_type strings (English, backend contract) to i18n keys under aiExerciseGenerator.gapType.
@@ -128,11 +134,7 @@ const EXERCISE_TYPE_MAP = new Map(EXERCISE_TYPE_CONFIGS.map((c) => [c.type, c]))
 // ── Quota types ───────────────────────────────────────────────────────────────
 interface TariffStatus {
   plan: string;
-  ai_limits: {
-    exercise_generations: number | null;
-    unit_generations: number | null;
-    course_generations: number | null;
-  };
+  ai_limits: Record<string, number | null | undefined>;
   ai_usage: {
     exercise_generations: number;
     unit_generations: number;
@@ -368,7 +370,7 @@ export default function AIExerciseGeneratorModal({
   };
 
   // ── Derived quota values ──────────────────────────────────────────────────
-  const exerciseLimit = tariffData?.ai_limits?.exercise_generations ?? null;
+  const exerciseLimit = aiLimitFromMe(tariffData?.ai_limits, "exercise_generation", "exercise_generations");
   const exerciseUsed  = tariffData?.ai_usage?.exercise_generations  ?? 0;
   const isAtLimit     = exerciseLimit !== null && exerciseUsed >= exerciseLimit;
 

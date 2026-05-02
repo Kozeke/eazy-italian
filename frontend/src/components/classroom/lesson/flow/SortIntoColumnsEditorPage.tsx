@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
@@ -10,6 +10,7 @@ import {
 } from '../editors/QuestionEditorRenderer';
 import { draftToApiPayload, validateDraft } from '../editors/questionPayload';
 import './DragToGap.css';
+import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
@@ -25,6 +26,8 @@ interface Props {
     drafts: OrderingWordsDraft[],
   ) => void | Promise<void>;
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 interface ColumnDraft {
@@ -150,6 +153,7 @@ export default function SortIntoColumnsEditorPage({
   onSave,
   segmentId,          // ← ADD
   onCancel,
+  onSettingsClick,
 }: Props) {
   const baseDraft = useMemo(() => normaliseDraft(initialDraft), [initialDraft]);
   const [title, setTitle] = useState(initialTitle);
@@ -282,6 +286,7 @@ export default function SortIntoColumnsEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -315,6 +320,22 @@ export default function SortIntoColumnsEditorPage({
               </span>
             ))
           )}
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <AIExerciseGenerateButton
+            onClick={() => setShowAIModal(true)}
+            style={{ margin: 0 }}
+          />
         </div>
 
         <div
@@ -524,25 +545,17 @@ export default function SortIntoColumnsEditorPage({
                 <Plus size={16} />
                 Add column
               </button>
-
-              <button
-                type="button"
-                className="dtg-generate-btn"
-                style={{ width: '100%', justifyContent: 'center', margin: 0 }}
-                onClick={() => setShowAIModal(true)}
-              >
-                <Sparkles size={13} />
-                Сгенерировать
-              </button>
             </div>
           </div>
         </div>
 
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             <button

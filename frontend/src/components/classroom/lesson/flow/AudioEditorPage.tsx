@@ -11,11 +11,13 @@
  */
 
 import { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Link, Music2, Upload } from "lucide-react";
 import api from "../../../../services/api";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import "./DragToGap.css";
 
 // Stores design tokens shared across this editor page.
 const C = {
@@ -54,6 +56,8 @@ interface Props {
   onSave: (data: AudioBlockData, blockId?: string) => void | Promise<void>;
   // Stores callback invoked when teacher cancels editing.
   onCancel: () => void;
+  // Header cog: return to exercise template gallery (ExerciseDraftsPage).
+  onSettingsClick?: () => void;
 }
 
 export default function AudioEditorPage({
@@ -63,7 +67,10 @@ export default function AudioEditorPage({
   segmentId,
   onSave,
   onCancel,
+  onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+
   // Stores the editable title mapped to block.data.title.
   const [title, setTitle] = useState(initialTitle || initialData?.title || "");
   // Stores current audio URL value.
@@ -126,7 +133,7 @@ export default function AudioEditorPage({
           const response = await api.post<{ block: { id: string } }>(
             `/segments/${numericSegmentId}/exercises/audio_embed`,
             {
-              title: audioData.title || label || "Audio block",
+              title: audioData.title || label || t("mediaEditor.audioBlockFallback"),
               data: audioData,
             },
           );
@@ -145,47 +152,40 @@ export default function AudioEditorPage({
     } finally {
       setSaving(false);
     }
-  }, [src, title, caption, saving, segmentId, label, onSave]);
+  }, [src, title, caption, saving, segmentId, label, onSave, t]);
 
   return (
     <div
+      className="dtg-editor-root"
       style={{
         minHeight: "100vh",
         background: C.bg,
         fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif",
-        display: "flex",
-        flexDirection: "column",
       }}
     >
       <ExerciseHeader
         title={title}
-        headerLabel={label ?? "Audio block"}
+        headerLabel={label ?? t("mediaEditor.audioBlockFallback")}
         editableTitleInHeader
         isDirty={isDirty}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
         onTitleChange={setTitle}
       />
 
       <div
+        className="dtg-editor-content"
         style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          padding: "32px 24px",
+          paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14,
+          paddingLeft: 24,
+          paddingRight: 24,
           maxWidth: 860,
           width: "100%",
-          margin: `${EXERCISE_HEADER_HEIGHT_PX}px auto 0`,
+          margin: "0 auto",
           boxSizing: "border-box",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 20,
-          }}
-        >
+        <div style={{ marginBottom: 20 }}>
           <button
             type="button"
             onClick={() => setShowPreview((v) => !v)}
@@ -205,32 +205,13 @@ export default function AudioEditorPage({
             }}
           >
             {showPreview ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
-            {showPreview ? "Hide preview" : "Show preview"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!src.trim() || saving}
-            style={{
-              padding: "9px 24px",
-              borderRadius: 9,
-              border: "none",
-              background: !src.trim() || saving ? C.muted : C.primary,
-              color: C.white,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: !src.trim() || saving ? "default" : "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {saving ? "Saving…" : "Save"}
+            {showPreview ? t("mediaEditor.hidePreview") : t("mediaEditor.showPreview")}
           </button>
         </div>
 
         <label style={{ display: "block", marginBottom: 14 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: C.sub, display: "block", marginBottom: 8 }}>
-            Audio source
+            {t("mediaEditor.audioSource")}
           </span>
           <div style={{
             display: "flex",
@@ -242,7 +223,7 @@ export default function AudioEditorPage({
             width: "fit-content",
           }}>
             {(
-              [["url", "Audio URL", Link], ["upload", "Upload file", Upload]] as const
+              [["url", t("mediaEditor.audioUrl"), Link], ["upload", t("mediaEditor.uploadFile"), Upload]] as const
             ).map(([mode, modeLabel, Icon]) => (
               <button
                 key={mode}
@@ -275,7 +256,7 @@ export default function AudioEditorPage({
                 type="url"
                 value={src}
                 onChange={(e) => { setSrc(e.target.value); setAudioError(false); }}
-                placeholder="https://example.com/audio.mp3"
+                placeholder={t("mediaEditor.urlPlaceholderAudio")}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -320,8 +301,8 @@ export default function AudioEditorPage({
                 }}
               >
                 <Upload size={24} color={C.muted} strokeWidth={1.5} />
-                <span style={{ fontWeight: 600 }}>Click to upload audio</span>
-                <span style={{ fontSize: 11, color: C.muted }}>MP3, WAV, OGG, AAC, M4A</span>
+                <span style={{ fontWeight: 600 }}>{t("mediaEditor.clickUploadAudio")}</span>
+                <span style={{ fontSize: 11, color: C.muted }}>{t("mediaEditor.formatsAudio")}</span>
               </button>
             </div>
           )}
@@ -329,13 +310,14 @@ export default function AudioEditorPage({
 
         <label style={{ display: "block", marginBottom: 14 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: C.sub, display: "block", marginBottom: 6 }}>
-            Caption <span style={{ fontWeight: 400, color: C.muted }}>(optional)</span>
+            {t("mediaEditor.captionLabel")}{" "}
+            <span style={{ fontWeight: 400, color: C.muted }}>{t("mediaEditor.optionalShort")}</span>
           </span>
           <input
             type="text"
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
-            placeholder="e.g. Listen and repeat each sentence"
+            placeholder={t("mediaEditor.audioCaptionPlaceholder")}
             style={{
               width: "100%",
               boxSizing: "border-box",
@@ -363,7 +345,7 @@ export default function AudioEditorPage({
                 letterSpacing: "0.06em",
               }}
             >
-              Preview
+              {t("mediaEditor.preview")}
             </p>
 
             <div
@@ -399,7 +381,7 @@ export default function AudioEditorPage({
                   />
                 ) : (
                   <div style={{ color: C.muted, fontSize: 12, textAlign: "center", padding: "12px 4px" }}>
-                    Audio could not be loaded. Check URL or uploaded file.
+                    {t("mediaEditor.audioLoadError")}
                   </div>
                 )}
               </div>
@@ -437,12 +419,34 @@ export default function AudioEditorPage({
             }}
           >
             <Music2 size={26} strokeWidth={1.6} style={{ marginBottom: 8 }} />
-            <div style={{ fontSize: 12.5, color: C.sub }}>Paste an audio URL to preview</div>
+            <div style={{ fontSize: 12.5, color: C.sub }}>{t("mediaEditor.emptyAudioPreview")}</div>
             <div style={{ marginTop: 4, fontSize: 11, color: C.danger }}>
-              Direct audio file links are supported.
+              {t("mediaEditor.emptyAudioHint")}
             </div>
           </div>
         )}
+
+        <div className="dtg-footer">
+          <div className="dtg-footer-btns">
+            <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
+              {t("mediaEditor.cancel")}
+            </button>
+            <button
+              type="button"
+              className={[
+                "dtg-btn-save",
+                !src.trim() || saving ? "dtg-btn-save--disabled" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={handleSave}
+              disabled={!src.trim() || saving}
+              title={!src.trim() ? t("mediaEditor.saveNeedAudio") : t("mediaEditor.save")}
+            >
+              {saving ? t("mediaEditor.saving") : t("mediaEditor.save")}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
