@@ -17,11 +17,8 @@ Quick start
 provider = GroqProvider()
 answer   = provider.generate("Explain RAG in one sentence.")
 
-# or pass it explicitly to the MCQ generator
-from app.services.ai_test_generator import generate_mcq_from_unit_content
-questions = await generate_mcq_from_unit_content(
-    ..., provider=GroqProvider()
-)
+# or pass it explicitly to your test generator service
+# questions = await your_generate_mcq_function(..., provider=GroqProvider())
 
 Available fast models (as of 2025)
 ------------------------------------

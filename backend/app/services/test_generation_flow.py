@@ -39,7 +39,6 @@ from app.models.unit import Unit
 from app.models.video import Video, VideoStatus
 from app.models.task import Task, TaskStatus
 from app.services.ai.providers.base import AIProviderError
-from app.services.ai_test_generator import generate_mcq_from_unit_content
 from app.services.test_builder import create_ai_generated_test
 
 logger = logging.getLogger(__name__)
@@ -264,6 +263,12 @@ async def generate_test_for_unit(
 
     content_chars = len(unit_content)
     logger.info("Assembled unit content — %d chars from unit_id=%d", content_chars, unit_id)
+
+    # Temporarily disable legacy AI test generation path until module is restored.
+    raise HTTPException(
+        status_code=503,
+        detail="AI test generation is temporarily disabled in this build.",
+    )
 
     # ── 3. Generate MCQs via LLM ──────────────────────────────────────────────
     try:

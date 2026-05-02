@@ -87,7 +87,7 @@ class TestBuildPrompt(unittest.TestCase):
 
     def setUp(self):
         # Inline the function so tests run without the full app installed
-        from app.services.ai_test_generator import _build_prompt
+        # from app.services.ai_test_generator import _build_prompt
         self.build = _build_prompt
 
     def test_contains_mcq_count(self):
@@ -122,7 +122,7 @@ class TestExtractJsonArray(unittest.TestCase):
     """_extract_json_array must handle all LLaMA output quirks."""
 
     def setUp(self):
-        from app.services.ai_test_generator import _extract_json_array
+        # from app.services.ai_test_generator import _extract_json_array
         self.extract = _extract_json_array
 
     def _make_valid_json(self) -> str:
@@ -175,7 +175,7 @@ class TestExtractJsonArray(unittest.TestCase):
         json.loads(result)
 
     def test_raises_when_no_array(self):
-        from app.services.ai_test_generator import _extract_json_array
+        # from app.services.ai_test_generator import _extract_json_array
         with self.assertRaises(ValueError):
             self.extract("This is just plain text with no JSON.")
 
@@ -191,7 +191,7 @@ class TestValidate(unittest.TestCase):
     """_validate must accept good data and reject every malformed shape."""
 
     def setUp(self):
-        from app.services.ai_test_generator import _validate
+        # from app.services.ai_test_generator import _validate
         self.validate = _validate
 
     def _good_question(self, options=None, correct=None):
@@ -288,7 +288,7 @@ class TestGenerateMcq(unittest.IsolatedAsyncioTestCase):
         ]
 
     async def test_happy_path(self):
-        from app.services.ai_test_generator import generate_mcq_from_unit_content
+        # from app.services.ai_test_generator import generate_mcq_from_unit_content
 
         questions = self._make_questions(3, 4)
         mock_provider = MagicMock()
@@ -307,7 +307,7 @@ class TestGenerateMcq(unittest.IsolatedAsyncioTestCase):
 
     async def test_retries_on_bad_first_output(self):
         """First call returns garbage; second call returns valid JSON."""
-        from app.services.ai_test_generator import generate_mcq_from_unit_content
+        # from app.services.ai_test_generator import generate_mcq_from_unit_content
 
         questions = self._make_questions(2, 4)
         mock_provider = MagicMock()
@@ -328,7 +328,7 @@ class TestGenerateMcq(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(mock_provider.agenerate.call_count, 2)
 
     async def test_raises_after_all_retries(self):
-        from app.services.ai_test_generator import generate_mcq_from_unit_content
+        # from app.services.ai_test_generator import generate_mcq_from_unit_content
 
         mock_provider = MagicMock()
         mock_provider.agenerate = AsyncMock(return_value="no json here")
@@ -345,7 +345,7 @@ class TestGenerateMcq(unittest.IsolatedAsyncioTestCase):
         self.assertIn("failed after", str(ctx.exception))
 
     async def test_raises_on_empty_content(self):
-        from app.services.ai_test_generator import generate_mcq_from_unit_content
+        # from app.services.ai_test_generator import generate_mcq_from_unit_content
 
         mock_provider = MagicMock()
         with self.assertRaises(ValueError):
@@ -358,7 +358,7 @@ class TestGenerateMcq(unittest.IsolatedAsyncioTestCase):
             )
 
     async def test_raises_on_invalid_mcq_count(self):
-        from app.services.ai_test_generator import generate_mcq_from_unit_content
+        # from app.services.ai_test_generator import generate_mcq_from_unit_content
 
         mock_provider = MagicMock()
         with self.assertRaises(ValueError):
@@ -371,7 +371,7 @@ class TestGenerateMcq(unittest.IsolatedAsyncioTestCase):
             )
 
     async def test_provider_called_with_prompt_containing_content(self):
-        from app.services.ai_test_generator import generate_mcq_from_unit_content
+        # from app.services.ai_test_generator import generate_mcq_from_unit_content
 
         content = "Essere means to be in Italian."
         questions = self._make_questions(1, 2)

@@ -16,6 +16,18 @@
     "search": "Search...",
     "filters": "Filters"
   },
+  "subscriptionCheckout": {
+    "successTitle": "Welcome to LinguAI Pro",
+    "successSubtitle": "Your subscription is active. You can use your new limits right away.",
+    "successHint": "If something looks out of date, refresh the page or open Plan & billing.",
+    "goToCourses": "Go to my courses",
+    "goToPlans": "Plan & billing",
+    "backHome": "Back to home",
+    "cancelTitle": "Checkout cancelled",
+    "cancelSubtitle": "No payment was completed. Your account is unchanged.",
+    "cancelHint": "You can subscribe anytime from the admin area.",
+    "viewPlans": "View plans"
+  },
   "nav": {
     "login": "Login",
     "register": "Register",
@@ -410,7 +422,82 @@
       "dark": "Dark theme"
     },
     "tariffs": {
-      "title": "Tariffs"
+      "title": "Tariffs",
+      "tabs": {
+        "tariffs": "Tariffs",
+        "payments": "Payments",
+        "bonuses": "Bonuses & promos",
+        "certificates": "Gift certificates"
+      },
+      "currentPlan": "Your current plan",
+      "courses": "Courses",
+      "loadingShort": "…",
+      "dash": "—",
+      "billingHeading": "Billing (Standard & Pro)",
+      "billingPeriod": {
+        "1m": "1 mo",
+        "3m": "3 mo",
+        "6m": "6 mo",
+        "12m": "1 yr"
+      },
+      "plans": {
+        "free": "Free",
+        "standard": "Standard",
+        "pro": "Pro"
+      },
+      "planSubtitles": {
+        "free": "AI starter",
+        "standard": "AI growth",
+        "pro": "No caps on AI generation"
+      },
+      "featureLabels": {
+        "aiExerciseGenerations": "AI exercise generations",
+        "aiUnitGenerations": "AI unit generations",
+        "aiCourseGenerations": "AI course generations",
+        "publishToStudents": "Publish to students"
+      },
+      "featureValues": {
+        "tenPerMo": "10 / mo",
+        "threePerMo": "3 / mo",
+        "oneTotal": "1 total",
+        "hundredPerMo": "100 / mo",
+        "twentyPerMo": "20 / mo",
+        "fivePerMo": "5 / mo",
+        "unlimited": "Unlimited",
+        "check": "✓",
+        "dash": "—"
+      },
+      "hints": {
+        "freeQuota": "Maximum creations included on the free tier.",
+        "standardQuota": "Included quota for this plan.",
+        "proUnlimited": "Unlimited creations on the Pro plan.",
+        "addonPlaceholder": "Add-on details can be expanded later."
+      },
+      "forever": "Forever",
+      "zeroUsd": "0 USD",
+      "connect": "Connect",
+      "current": "Current",
+      "freeTierNote": "Included — no checkout",
+      "subscribe": "Subscribe {{plan}} ({{price}} USD)",
+      "stripeCheckoutError": "Could not start checkout. Check that Stripe is configured or try again.",
+      "perPeriod": "per {{period}}",
+      "saveAmount": "save ${{amount}}",
+      "yearSavingsHint": "If you pay for 1 year you could save: ${{saved}}",
+      "status": {
+        "expired": "Expired",
+        "until": "Until {{date}}",
+        "aiUsagePeriod": "AI usage · {{period}}"
+      },
+      "addons": {
+        "title": "Additional features",
+        "aiAssistant": "AI Assistant",
+        "tokensPerMo": "Tokens / mo",
+        "included": "Included",
+        "perMonth": "per month",
+        "details": "Details"
+      },
+      "placeholderSection": "This section is not implemented yet.",
+      "checkoutDescription": "Checkout — {{plan}} ({{duration}})"
     },
     "supportChat": {
       "title": "Support Chat",
@@ -870,6 +957,116 @@
       "blog": "Blog",
       "careers": "Careers",
       "copyright": "© 2024 EZ Italian. All rights reserved."
+    }
+  },
+  "aiExerciseGenerator": {
+    "title": "AI Exercise Generator",
+    "tabs": {
+      "describe": "Describe",
+      "materials": "From materials"
+    },
+    "topicLabel": "Topic or prompt",
+    "topicPlaceholder": "Describe what you want to practise…",
+    "languageField": "Language",
+    "difficultyField": "Difficulty",
+    "advancedSettings": "Advanced settings",
+    "gapsLabel": "Gaps",
+    "gapTypeLabel": "Gap type",
+    "pairsLabel": "Pairs",
+    "contentLanguage": {
+      "detectAuto": "Detect automatically",
+      "english": "English"
+    },
+    "difficulty": {
+      "beginner": "Beginner (A1–A2)",
+      "intermediate": "Intermediate (B1–B2)",
+      "advanced": "Advanced (C1–C2)"
+    },
+    "countAuto": "Auto",
+    "gapType": {
+      "verbsOnly": "Verbs only",
+      "nounsOnly": "Nouns only",
+      "adjectivesOnly": "Adjectives only",
+      "mixed": "Mixed (verbs + nouns)",
+      "prepositionsOnly": "Prepositions only",
+      "irregularVerbs": "Irregular verbs",
+      "phrasalVerbs": "Phrasal verbs"
+    },
+    "types": {
+      "drag_to_gap": {
+        "label": "Drag to Gap",
+        "description": "Drag word chips into sentence gaps"
+      },
+      "type_word_in_gap": {
+        "label": "Type in Gap",
+        "description": "Type the missing word"
+      },
+      "select_word_form": {
+        "label": "Select Form",
+        "description": "Pick the correct word form"
+      },
+      "match_pairs": {
+        "label": "Match Pairs",
+        "description": "Match terms to definitions"
+      },
+      "build_sentence": {
+        "label": "Build Sentence",
+        "description": "Rearrange shuffled words"
+      },
+      "order_paragraphs": {
+        "label": "Order Paragraphs",
+        "description": "Sort scrambled paragraphs"
+      },
+      "sort_into_columns": {
+        "label": "Sort into Columns",
+        "description": "Sort items into two categories"
+      },
+      "true_false": {
+        "label": "True / False",
+        "description": "Mark statements as true or false"
+      },
+      "select_form_to_image": {
+        "label": "Image + Select",
+        "description": "Pick the word that matches the image"
+      },
+      "type_word_to_image": {
+        "label": "Image + Type",
+        "description": "Type the word that matches the image"
+      }
+    },
+    "quota": {
+      "unlimited": "Unlimited exercise generations",
+      "atLimit": "Monthly limit reached",
+      "usedThisMonth": "{{used}} of {{limit}} exercise generations used this month",
+      "upgrade": "Upgrade →"
+    },
+    "review": {
+      "success": "Exercise generated successfully!",
+      "generatedFallback": "Generated exercise",
+      "ratePrompt": "Rate this result:",
+      "regenerate": "Regenerate",
+      "addToExercise": "Add to exercise"
+    },
+    "materials": {
+      "dropHint": "Drop a PDF or Word document, or click to browse",
+      "fileTypes": ".pdf, .docx — max 10 MB"
+    },
+    "errors": {
+      "descriptionRequired": "Please enter a description for your exercise.",
+      "generationFailed": "Generation failed.",
+      "network": "Network error. Please try again."
+    },
+    "generate": "Generate {{label}}",
+    "generating": "Generating…",
+    "limitCta": "Monthly limit reached · Upgrade",
+    "upgradeModal": {
+      "durationLabel": "1 mo",
+      "planName": "Standard",
+      "priceLabel": "12.00 USD",
+      "planTag1": "AI exercise generations: 100 / mo",
+      "planTag2": "AI unit generations: 20 / mo",
+      "planTag3": "Publish to students: ✓",
+      "yearSavings": "If you pay for 1 year you could save: 27 USD"
     }
   }
 }

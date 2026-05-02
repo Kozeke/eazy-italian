@@ -274,8 +274,14 @@ def _build_default_provider() -> AIProvider:
         logger.info("AI exercise provider: OpenAIProvider (model=%s)", p.model)
         return p
 
+    if provider_name == "deepseek":
+        from app.services.ai.providers.deepseek_provider import DeepSeekProvider
+        p = DeepSeekProvider()
+        logger.info("AI exercise provider: DeepSeekProvider (model=%s)", p.model)
+        return p
+
     raise ValueError(
-        f"Unknown AI_PROVIDER={provider_name!r}. Valid values: 'groq', 'ollama', 'anthropic', 'openai'."
+        f"Unknown AI_PROVIDER={provider_name!r}. Valid values: 'groq', 'ollama', 'anthropic', 'openai', 'deepseek'."
     )
 
 

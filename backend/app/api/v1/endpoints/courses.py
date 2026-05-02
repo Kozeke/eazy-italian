@@ -534,6 +534,63 @@ async def delete_course(
     
     return None
 
+# @router.patch("/admin/courses/{course_id}/publish", response_model=CourseResponse)
+# async def publish_course(
+#     course_id: int,
+#     publish_data: CoursePublishRequest,
+#     current_user: User = Depends(get_current_teacher),
+#     db: Session = Depends(get_db)
+# ):
+#     """Publish a course - only if created by current teacher"""
+    
+#     course = db.query(Course).filter(
+#         Course.id == course_id,
+#         Course.created_by == current_user.id
+#     ).first()
+#     if not course:
+#         raise HTTPException(status_code=404, detail="Course not found")
+    
+#     can_publish, reason = course.can_publish()
+#     if not can_publish:
+#         raise HTTPException(status_code=400, detail=reason)
+    
+#     course.status = CourseStatus.PUBLISHED
+#     if publish_data.publish_at:
+#         course.publish_at = publish_data.publish_at
+#     else:
+#         course.publish_at = datetime.utcnow()
+    
+#     course.updated_by = current_user.id
+#     db.commit()
+#     db.refresh(course)
+    
+#     return CourseResponse(
+#         id=course.id,
+#         title=course.title,
+#         description=course.description,
+#         level=course.level,
+#         status=course.status,
+#         publish_at=course.publish_at,
+#         order_index=course.order_index,
+#         thumbnail_url=course.thumbnail_url,
+#         thumbnail_path=getattr(course, 'thumbnail_path', None),
+#         duration_hours=course.duration_hours,
+#         tags=course.tags,
+#         meta_title=course.meta_title,
+#         meta_description=course.meta_description,
+#         is_visible_to_students=course.is_visible_to_students,
+#         settings=course.settings,
+#         slug=course.slug,
+#         created_by=course.created_by,
+#         updated_by=course.updated_by,
+#         created_at=course.created_at,
+#         updated_at=course.updated_at,
+#         units_count=course.units_count,
+#         published_units_count=course.published_units_count,
+#         content_summary=course.content_summary
+#     )
+
+
 @router.patch("/admin/courses/{course_id}/publish", response_model=CourseResponse)
 async def publish_course(
     course_id: int,
@@ -541,29 +598,50 @@ async def publish_course(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Publish a course - only if created by current teacher"""
-    
+    """Publish a course — only if created by current teacher.
+ 
+    Visibility contract
+    -------------------
+    Published state persists independently of the teacher's subscription.
+    Expiry only blocks new AI actions, not existing content.
+ 
+    A course that is set to is_visible_to_students=True will remain visible
+    to enrolled students even if the teacher's plan later expires.
+    Unpublishing is always an explicit teacher action (PATCH …/unpublish);
+    it is NEVER triggered automatically by plan expiry or quota exhaustion.
+    """
+    from app.core.teacher_tariffs import (
+        check_and_consume_teacher_ai_quota,
+        get_teacher_tariff_display_state,
+    )
+ 
     course = db.query(Course).filter(
         Course.id == course_id,
         Course.created_by == current_user.id
     ).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    
+ 
+    # ── Plan gate: free-tier teachers cannot publish to students. ─────────────
+    # check_and_consume_teacher_ai_quota checks period_expired FIRST, then
+    # plan-level blocks, then quota — matching the documented call order.
+    check_and_consume_teacher_ai_quota(db, current_user, "course_publish")
+ 
     can_publish, reason = course.can_publish()
     if not can_publish:
         raise HTTPException(status_code=400, detail=reason)
-    
-    course.status = CourseStatus.PUBLISHED
+ 
+    course.status                 = CourseStatus.PUBLISHED
+    course.is_visible_to_students = True   # explicit: students can now access it
     if publish_data.publish_at:
         course.publish_at = publish_data.publish_at
     else:
         course.publish_at = datetime.utcnow()
-    
+ 
     course.updated_by = current_user.id
     db.commit()
     db.refresh(course)
-    
+ 
     return CourseResponse(
         id=course.id,
         title=course.title,
@@ -589,7 +667,7 @@ async def publish_course(
         published_units_count=course.published_units_count,
         content_summary=course.content_summary
     )
-
+ 
 @router.post("/admin/courses/reorder", response_model=Dict[str, str])
 async def reorder_courses(
     reorder_data: CourseReorderRequest,
@@ -639,43 +717,51 @@ def get_user_subscription_name(db: Session, user: User) -> str:
     
     return "free"
 
-# Student endpoints
 @router.get("/courses", response_model=List[CourseListResponse])
 async def get_courses(
     level: Optional[CourseLevel] = Query(None, description="Filter by level"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get published courses available to students"""
-    
+    """Get published courses available to students.
+ 
+    Visibility contract
+    -------------------
+    This endpoint filters ONLY on is_visible_to_students and the course's own
+    publish date — it does NOT check the creating teacher's subscription status.
+ 
+    A course published while the teacher had an active plan remains visible
+    after that plan expires.  The teacher must call PATCH …/unpublish
+    explicitly to remove student access.  Plan expiry is a generation gate,
+    not a visibility gate.
+    """
     query_builder = db.query(Course).filter(
-        and_(
-            # Course.is_visible_to_students == True,
-            # Course.status == CourseStatus.PUBLISHED
-        )
+        # Filter strictly on the course-level visibility flag set at publish time.
+        # Teacher subscription status is intentionally NOT checked here.
+        Course.is_visible_to_students == True,  # noqa: E712
+        Course.status == CourseStatus.PUBLISHED,
     )
-    
+ 
     if level:
         query_builder = query_builder.filter(Course.level == level)
-    
+ 
     courses = query_builder.order_by(asc(Course.order_index)).all()
-    
-    # Filter to only show courses that are available (published and past publish date)
+ 
+    # Filter to only show courses that are available (published and past publish date).
     available_courses = [c for c in courses if c.is_available]
-    
-    # Get user's subscription type
+ 
+    # Get user's subscription type.
     subscription_name = get_user_subscription_name(db, current_user)
-    
-    # Get enrolled courses from enrollment table
-    enrolled_course_ids = get_user_enrolled_courses(db, current_user.id)
+ 
+    # Get enrolled courses from enrollment table.
+    enrolled_course_ids    = get_user_enrolled_courses(db, current_user.id)
     enrolled_courses_count = len(enrolled_course_ids)
-    
+ 
     result = []
     for course in available_courses:
-        # Handle thumbnail_path gracefully in case column doesn't exist yet
         thumbnail_path = getattr(course, 'thumbnail_path', None)
-        is_enrolled = course.id in enrolled_course_ids
-        
+        is_enrolled    = course.id in enrolled_course_ids
+ 
         result.append(CourseListResponse(
             id=course.id,
             title=course.title,
@@ -695,8 +781,66 @@ async def get_courses(
             user_subscription=subscription_name,
             enrolled_courses_count=enrolled_courses_count
         ))
-    
+ 
     return result
+# Student endpoints
+# @router.get("/courses", response_model=List[CourseListResponse])
+# async def get_courses(
+#     level: Optional[CourseLevel] = Query(None, description="Filter by level"),
+#     current_user: User = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """Get published courses available to students"""
+    
+#     query_builder = db.query(Course).filter(
+#         and_(
+#             # Course.is_visible_to_students == True,
+#             # Course.status == CourseStatus.PUBLISHED
+#         )
+#     )
+    
+#     if level:
+#         query_builder = query_builder.filter(Course.level == level)
+    
+#     courses = query_builder.order_by(asc(Course.order_index)).all()
+    
+#     # Filter to only show courses that are available (published and past publish date)
+#     available_courses = [c for c in courses if c.is_available]
+    
+#     # Get user's subscription type
+#     subscription_name = get_user_subscription_name(db, current_user)
+    
+#     # Get enrolled courses from enrollment table
+#     enrolled_course_ids = get_user_enrolled_courses(db, current_user.id)
+#     enrolled_courses_count = len(enrolled_course_ids)
+    
+#     result = []
+#     for course in available_courses:
+#         # Handle thumbnail_path gracefully in case column doesn't exist yet
+#         thumbnail_path = getattr(course, 'thumbnail_path', None)
+#         is_enrolled = course.id in enrolled_course_ids
+        
+#         result.append(CourseListResponse(
+#             id=course.id,
+#             title=course.title,
+#             description=course.description,
+#             level=course.level,
+#             status=course.status,
+#             publish_at=course.publish_at,
+#             order_index=course.order_index,
+#             thumbnail_url=course.thumbnail_url,
+#             thumbnail_path=thumbnail_path,
+#             created_by=course.created_by,
+#             created_at=course.created_at,
+#             updated_at=course.updated_at,
+#             units_count=course.units_count,
+#             published_units_count=course.published_units_count,
+#             is_enrolled=is_enrolled,
+#             user_subscription=subscription_name,
+#             enrolled_courses_count=enrolled_courses_count
+#         ))
+    
+#     return result
 
 @router.get("/courses/{course_id}", response_model=CourseDetailResponse)
 async def get_course(

@@ -23,8 +23,16 @@ class Settings(BaseSettings):
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
 
-    # Stripe secret key used by backend payment endpoints.
+    # Stripe (set in .env / environment; same names as fields, e.g. STRIPE_SECRET_KEY).
     STRIPE_SECRET_KEY: str = ""
+    # Subscription Price IDs from Stripe Dashboard → Products.
+    STRIPE_STANDARD_PRICE_ID: str = ""
+    STRIPE_PRO_PRICE_ID: str = ""
+    # Hosted Checkout return URLs (override for local dev, e.g. http://localhost:3000/success).
+    STRIPE_CHECKOUT_SUCCESS_URL: str = "https://linguai.net/success"
+    STRIPE_CHECKOUT_CANCEL_URL: str = "https://linguai.net/cancel"
+    # Signing secret from Stripe Dashboard → Developers → Webhooks (whsec_...).
+    STRIPE_WEBHOOK_SECRET: str = ""
 
     # Telegram bot token used to forward support chat messages to Telegram.
     TELEGRAM_BOT_TOKEN: str = ""
@@ -41,7 +49,7 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = False
     
     # CORS - Frontend URLs that are allowed to access the API
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://eazy-italian-frontend.onrender.com"
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://linguai.net,https://www.linguai.net,https://eazy-italian-frontend.onrender.com"
     
     @property
     def cors_origins_list(self) -> List[str]:
@@ -98,6 +106,11 @@ class Settings(BaseSettings):
     HF_MODEL: str = "black-forest-labs/FLUX.1-schnell"
     HF_WIDTH: int = 512
     HF_HEIGHT: int = 384
+
+    # DeepSeek Configuration
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+    DEEPSEEK_TIMEOUT: int = 90
     
     class Config:
         env_file = ".env"

@@ -212,10 +212,23 @@ def _get_ai_provider():
         logger.info("Unit-gen AI provider: LocalLlamaProvider (model=%s)", p.model)
         return p
 
+    if provider_name == "deepseek":
+        from app.services.ai.providers.deepseek_provider import DeepSeekProvider
+        p = DeepSeekProvider(max_tokens=8000, json_mode=True)
+        logger.info("Unit-gen AI provider: DeepSeekProvider (model=%s)", p.model)
+        return p
+
     raise ValueError(
         f"Unknown AI_PROVIDER={provider_name!r}. "
-        "Valid values: 'groq' (default), 'ollama'."
+        "Valid values: 'groq' (default), 'ollama', 'deepseek'."
     )
+
+
+
+
+
+
+
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────

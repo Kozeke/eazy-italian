@@ -19,7 +19,7 @@ emails==0.6.0
 python-dotenv==1.0.0
 httpx==0.25.2
 pgvector==0.2.4
-stripe
+stripe>=15.1,<16
 # Optional RAG stack (disabled to keep Docker image small).
 # Re-enable these when you need local embeddings/document ingestion again.
 # sentence-transformers pulls heavy transitive dependencies (torch/nvidia/triton).

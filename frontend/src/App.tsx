@@ -36,6 +36,8 @@ import ClassroomPage from './pages/student/ClassroomPage.tsx';
 // import AiBuilderPage from './pages/admin/courses/AiBuilderPage.legacy';
 import LoadingScreen from './components/global/LoadingScreen';
 import { useTeacherClassroomTransition } from './contexts/TeacherClassroomTransitionContext';
+import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
+import CheckoutCancelPage from './pages/CheckoutCancelPage';
 
 // Sends /teacher/.../ai-builder to the unit classroom (AiBuilderPage.legacy.tsx route disabled).
 function AiBuilderLegacyRedirect() {
@@ -69,6 +71,8 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/register/teacher" element={<TeacherRegisterFlow />} />
       <Route path="/join-classroom" element={<JoinClassroomPage />} />
+      <Route path="/success" element={<CheckoutSuccessPage />} />
+      <Route path="/cancel" element={<CheckoutCancelPage />} />
 
       {/* Student app shell (with sidebar) */}
       <Route

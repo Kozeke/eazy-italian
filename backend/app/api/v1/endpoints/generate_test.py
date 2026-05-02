@@ -35,7 +35,6 @@ from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota
 from app.models.test import Test, TestQuestion, TestStatus
 from app.models.user import User
 from app.services.ai.providers.base import AIProviderError
-from app.services.ai_test_generator import generate_mcq_from_unit_content
 from app.services.test_generation_flow import _assemble_unit_content, _load_unit_with_content
 
 logger = logging.getLogger(__name__)
@@ -150,6 +149,9 @@ async def _run_generation(
             raise ValueError(
                 f"Unit '{unit.title}' has no textual content to generate questions from."
             )
+
+        # Temporarily disable legacy AI test generation path until module is restored.
+        raise ValueError("AI test generation is temporarily disabled in this build.")
 
         # ── LLM call ──────────────────────────────────────────────────────────
         questions_data, gen_metadata = await generate_mcq_from_unit_content(
