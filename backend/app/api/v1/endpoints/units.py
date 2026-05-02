@@ -24,6 +24,13 @@ from app.schemas.unit import (
     UnitBulkAction, UnitSummaryResponse
 )
 from app.services.media_block_utils import normalise_media_blocks
+from app.services.segment_publication_policy import (
+    maybe_consume_course_publish_for_new_live_segment,
+)
+from app.core.teacher_tariffs import (
+    get_teacher_tariff_display_state,
+    get_teacher_tariff_limits,
+)
 
 router = APIRouter()
 
@@ -34,8 +41,8 @@ def _create_default_segment(db: Session, unit_id: int, created_by: int) -> Segme
     Create the first segment for a freshly-created unit.
  
     Name    : "Section 1"
-    Status  : published
-    Visible : True
+    Status  : draft (teachers publish via segment UI; quota applies there)
+    Visible : False
  
     Called immediately after unit creation so the teacher can add content
     without having to manually create a segment first.
@@ -44,8 +51,8 @@ def _create_default_segment(db: Session, unit_id: int, created_by: int) -> Segme
         unit_id=unit_id,
         title="Section 1",
         order_index=0,
-        status=SegmentStatus.PUBLISHED,
-        is_visible_to_students=True,
+        status=SegmentStatus.DRAFT,
+        is_visible_to_students=False,
         created_by=created_by,
     )
     db.add(seg)
@@ -183,8 +190,8 @@ async def create_unit(
     """
     Create a new unit.
  
-    ✅ v19: Also creates a default Segment ("Section 1", published,
-    visible to students) so the teacher can add content immediately.
+    ✅ v19: Also creates a default Segment ("Section 1", draft, hidden)
+    so the teacher can add content; publishing the segment applies quota rules.
     """
  
     # Validate course_id if provided
@@ -201,7 +208,7 @@ async def create_unit(
                 status_code=403,
                 detail="You can only add units to courses you created"
             )
- 
+
     # Generate slug
     slug = unit_data.title.lower().replace(' ', '-')
  
@@ -428,7 +435,52 @@ async def publish_unit(
     can_publish, reason = unit.can_publish()
     if not can_publish:
         raise HTTPException(status_code=400, detail=reason)
-    
+
+    # ── Quota gate ────────────────────────────────────────────────────────────
+    # Two-phase check is required because maybe_consume_course_publish_for_new_live_segment
+    # returns early (without calling check_and_consume_teacher_ai_quota) when the course
+    # already has student-available segments — bypassing the free-tier block entirely.
+    #
+    # Phase 1 — hard plan/expiry check (always runs, no early-exit)
+    #   Blocks free-tier (action_limit == 0) and expired subscriptions unconditionally.
+    #
+    # Phase 2 — idempotent consumption (paid tiers only)
+    #   Consumes one course_publish credit the first time this course goes live;
+    #   subsequent publishes of the same course are free (quota flag already set).
+    if unit.course_id:
+        course = db.query(Course).filter(Course.id == unit.course_id).first()
+        if course:
+            plan, period_expired = get_teacher_tariff_display_state(db, current_user)
+
+            # Phase 1: expiry gate
+            if period_expired:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail=(
+                        "Your subscription has expired. "
+                        "Renew your plan to continue publishing content."
+                    ),
+                )
+
+            # Phase 1: plan-level block (free tier has course_publish = 0)
+            limits = get_teacher_tariff_limits(plan)
+            if limits.get("course_publish") == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail=(
+                        "Publishing units is not available on the Free plan. "
+                        "Upgrade to Standard or Pro to unlock this feature."
+                    ),
+                )
+
+            # Phase 2: idempotent credit consumption for paid/pro tiers
+            maybe_consume_course_publish_for_new_live_segment(
+                db,
+                current_user,
+                course,
+                exclude_segment_id=None,
+            )
+
     # Set status and publish date
     if publish_data.publish_at:
         unit.status = UnitStatus.SCHEDULED

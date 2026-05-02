@@ -7,7 +7,6 @@ import React, {
   useMemo,
 } from 'react';
 import {
-  Sparkles,
   Trash2,
   Check,
   Plus,
@@ -15,6 +14,7 @@ import {
 import ExerciseHeader, { EXERCISE_HEADER_HEIGHT_PX } from '../exercise/ExerciseHeader';
 import type { TextSeg, GapSeg, Segment } from './DragToGapEditorPage';
 import './DragToGap.css';
+import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
@@ -45,6 +45,8 @@ interface Props {
   onSave: (data: SelectWordFormData, blockId?: string) => void;
   onCancel: () => void;
   segmentId?: string | number | null;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 let gapCounter = 0;
@@ -237,6 +239,7 @@ export default function SelectWordFormEditorPage({
   onSave,
   segmentId,
   onCancel,
+  onSettingsClick,
 }: Props) {
   const [title, setTitle] = useState(initialData?.title ?? initialTitle);
   const [segments, setSegments] = useState<Segment[]>(
@@ -489,6 +492,7 @@ export default function SelectWordFormEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -512,6 +516,22 @@ export default function SelectWordFormEditorPage({
           <div className="dtg-exercise-instruction">
             Select the correct word form in each gap
           </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <AIExerciseGenerateButton
+            onClick={() => setShowAIModal(true)}
+            style={{ margin: 0 }}
+          />
         </div>
 
         <div
@@ -789,11 +809,7 @@ export default function SelectWordFormEditorPage({
           )}
         </div>
 
-        <button type="button" className="dtg-generate-btn" onClick={() => setShowAIModal(true)}>
-          <Sparkles size={13} />
-          Сгенерировать
-        </button>
-          <AIExerciseGeneratorModal
+        <AIExerciseGeneratorModal
           exerciseType="select_word_form"
           open={showAIModal}
           onClose={() => setShowAIModal(false)}
@@ -803,10 +819,12 @@ export default function SelectWordFormEditorPage({
           }}
         />
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             <button type="button" className="dtg-btn-cancel" onClick={onCancel}>

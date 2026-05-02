@@ -20,10 +20,11 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, memo } from "react";
-import { Sparkles, Trash2, Check, KeyboardIcon } from "lucide-react";
+import { Trash2, Check, KeyboardIcon } from "lucide-react";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import AIExerciseGenerateButton from "./AI_generation/AIExerciseGenerateButton";
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from "./AI_generation/AIExerciseGeneratorModal";
@@ -60,6 +61,8 @@ interface Props {
   segmentId?: string | number | null;
   onSave: (data: TypeWordInGapData, blockId?: string) => void;
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -245,6 +248,7 @@ export default function TypeWordInGapEditorPage({
   segmentId,
   onSave,
   onCancel,
+  onSettingsClick,
 }: Props) {
   const [title, setTitle] = useState(initialData?.title ?? initialTitle);
   const [showAIModal, setShowAIModal] = useState(false);
@@ -532,6 +536,7 @@ export default function TypeWordInGapEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -561,6 +566,22 @@ export default function TypeWordInGapEditorPage({
             {/* <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8L6 12M6 12L18 16M6 12H22M2 12H4"/></svg> */}
             Type words into the correct gaps
           </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            flexWrap: "wrap",
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <AIExerciseGenerateButton
+            onClick={() => setShowAIModal(true)}
+            style={{ margin: 0 }}
+          />
         </div>
 
         {/* ── Typing hint bar — replaces the word-chips bar ─────────────────── */}
@@ -756,16 +777,6 @@ export default function TypeWordInGapEditorPage({
           )}
         </div>
 
-        {/* ── Generate button ───────────────────────────────────────────────── */}
-        <button
-          type="button"
-          className="dtg-generate-btn"
-          onClick={() => setShowAIModal(true)}
-        >
-          <Sparkles size={13} />
-          Сгенерировать
-        </button>
-
         <AIExerciseGeneratorModal
           exerciseType="type_word_in_gap"
           open={showAIModal}
@@ -778,10 +789,12 @@ export default function TypeWordInGapEditorPage({
 
         {/* ── Footer ────────────────────────────────────────────────────────── */}
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             <button type="button" className="dtg-btn-cancel" onClick={onCancel}>

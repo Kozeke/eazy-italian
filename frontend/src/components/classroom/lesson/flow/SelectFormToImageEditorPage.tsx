@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from 'react';
-import { Check, Plus, Sparkles, Upload, X } from 'lucide-react';
+import { Check, Plus, Upload, X } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
 import api from '../../../../services/api';
+import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
@@ -29,6 +30,8 @@ interface Props {
   onCancel: () => void;
   segmentId?: string | number | null;
   exerciseType?: 'select_form_to_image';
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 interface OptionDraft {
@@ -144,6 +147,7 @@ export default function SelectFormToImageEditorPage({
   onSave,
   onCancel,
   segmentId,
+  onSettingsClick,
 }: Props) {
   const [showAIModal, setShowAIModal] = useState(false);
 
@@ -319,6 +323,7 @@ export default function SelectFormToImageEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -341,6 +346,22 @@ export default function SelectFormToImageEditorPage({
           <div className="dtg-exercise-instruction">
             Select the correct form under each image
           </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <AIExerciseGenerateButton
+            onClick={() => setShowAIModal(true)}
+            style={{ margin: 0 }}
+          />
         </div>
 
         <div className="dti-editor-board" aria-label="Image cards with selectable forms">
@@ -507,11 +528,6 @@ export default function SelectFormToImageEditorPage({
             <Plus size={18} />
           </button>
         </div>
-
-        <button type="button" className="dtg-generate-btn" onClick={() => setShowAIModal(true)}>
-          <Sparkles size={13} />
-          Сгенерировать
-        </button>
 
         <div className="dtg-footer">
           <div className="dtg-footer-btns">

@@ -70,6 +70,7 @@ _ACTION_USAGE_KEYS: dict[str, str] = {
     "unit_generation":     "unit_generations",
     "course_generation":   "course_generations",
     "task_generation":     "exercise_generations",   # mapped to same bucket
+    "course_publish":      "course_publishes",
 }
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -216,18 +217,21 @@ def get_teacher_ai_usage(db: Session, user: User) -> dict[str, int]:
         usage: dict[str, int] = {}
         for row in rows:
             usage[row.action] = row.count
-        # Normalise keys to the public-facing names.
+        # Normalise keys to the public-facing names (task_generation shares exercise bucket).
         return {
-            "exercise_generations": usage.get("exercise_generation", 0),
+            "exercise_generations": usage.get("exercise_generation", 0)
+            + usage.get("task_generation", 0),
             "unit_generations":     usage.get("unit_generation", 0),
             "course_generations":   usage.get("course_generation", 0),
+            "course_publishes":     usage.get("course_publish", 0),
         }
     except Exception:
-        # Model not yet migrated — return zeroes so the UI still renders.
+        # Model/table missing or DB error — return zeroes so the UI still renders.
         return {
             "exercise_generations": 0,
             "unit_generations":     0,
             "course_generations":   0,
+            "course_publishes":     0,
         }
 
 
@@ -264,7 +268,8 @@ def _increment_usage(db: Session, user: User, action: str) -> None:
             )
         db.commit()
     except Exception as exc:
-        logger.warning("Usage increment failed (non-fatal): %s", exc)
+        # Table missing, connection loss, etc. — generation must still succeed.
+        logger.warning("Usage increment failed (non-fatal): %s", exc, exc_info=True)
         db.rollback()
 
 
@@ -287,7 +292,8 @@ def check_and_consume_teacher_ai_quota(
     user   : the authenticated teacher
     action : quota bucket slug — one of:
              "exercise_generation", "unit_generation", "course_generation",
-             "course_publish", "task_generation"
+             "course_publish" (first student-visible segment per course),
+             "task_generation"
 
     Raises
     ------
@@ -336,8 +342,13 @@ def check_and_consume_teacher_ai_quota(
 
     # ── Step 3: quota check ───────────────────────────────────────────────────
     if action_limit is None:
-        # Unlimited plan (Pro) — skip counting entirely.
-        logger.debug("Unlimited quota for action '%s' (plan: %s).", action, plan)
+        # Unlimited plan (Pro): no cap, but still bump usage so GET /admin/tariffs/me reflects activity.
+        _increment_usage(db, user, action)
+        logger.debug(
+            "Unlimited quota for action '%s' (plan: %s); usage counter updated.",
+            action,
+            plan,
+        )
         return
 
     # Read current usage for this period.

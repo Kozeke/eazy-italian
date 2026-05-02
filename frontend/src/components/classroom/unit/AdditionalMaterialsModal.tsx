@@ -6,13 +6,14 @@
  */
 
 import { useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { FileText, Download, Upload, X } from "lucide-react";
 import { resolveStaticAssetUrl, type UnitMaterialAttachment } from "../../../services/api";
 
-// Converts bytes to a user-friendly text label for UI display.
-function formatMaterialType(type: string): string {
+// Maps stored attachment type strings to display labels; genericLabel covers empty/unknown types.
+function formatMaterialType(type: string, genericLabel: string): string {
   const normalizedType = String(type || "").toLowerCase();
-  if (!normalizedType) return "File";
+  if (!normalizedType) return genericLabel;
   if (normalizedType === "pdf") return "PDF";
   if (normalizedType === "docx") return "DOCX";
   if (normalizedType === "doc") return "DOC";
@@ -42,6 +43,8 @@ export default function AdditionalMaterialsModal({
   onClose,
   onUploadFiles,
 }: AdditionalMaterialsModalProps) {
+  // Provides localized copy for the materials modal (en / ru).
+  const { t } = useTranslation();
   // Stores hidden input ref so the styled upload button can trigger the native picker.
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -80,17 +83,19 @@ export default function AdditionalMaterialsModal({
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 id="additional-materials-title" className="text-lg font-semibold text-slate-900">
-              Additional materials
+              {t("classroom.additionalMaterialsModal.title")}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              {unitTitle ? `Unit: ${unitTitle}` : "Unit materials"}
+              {unitTitle
+                ? t("classroom.additionalMaterialsModal.unitLabel", { title: unitTitle })
+                : t("classroom.additionalMaterialsModal.unitMaterialsFallback")}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-            aria-label="Close materials modal"
+            aria-label={t("classroom.additionalMaterialsModal.closeAria")}
           >
             <X size={16} />
           </button>
@@ -119,8 +124,12 @@ export default function AdditionalMaterialsModal({
             />
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-700">Upload documents for this unit</p>
-                <p className="mt-1 text-xs text-slate-500">PDF, DOC, DOCX, TXT, RTF</p>
+                <p className="text-sm font-semibold text-slate-700">
+                  {t("classroom.additionalMaterialsModal.uploadTitle")}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {t("classroom.additionalMaterialsModal.uploadFormats")}
+                </p>
               </div>
               <button
                 type="button"
@@ -130,7 +139,11 @@ export default function AdditionalMaterialsModal({
                 style={{ background: "#6C6FEF" }}
               >
                 <Upload size={14} />
-                {uploading ? "Uploading..." : loading ? "Refreshing..." : "Upload files"}
+                {uploading
+                  ? t("classroom.additionalMaterialsModal.uploading")
+                  : loading
+                    ? t("classroom.additionalMaterialsModal.refreshing")
+                    : t("classroom.additionalMaterialsModal.uploadFiles")}
               </button>
             </div>
           </div>
@@ -139,13 +152,17 @@ export default function AdditionalMaterialsModal({
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {loading && (
             <div className="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              Loading latest materials...
+              {t("classroom.additionalMaterialsModal.loading")}
             </div>
           )}
           {sortedMaterials.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center">
-              <p className="text-sm font-medium text-slate-600">No materials uploaded yet.</p>
-              {!isTeacher && <p className="mt-1 text-xs text-slate-500">Your teacher will add files here.</p>}
+              <p className="text-sm font-medium text-slate-600">{t("classroom.additionalMaterialsModal.empty")}</p>
+              {!isTeacher && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {t("classroom.additionalMaterialsModal.emptyStudentHint")}
+                </p>
+              )}
             </div>
           ) : (
             <ul className="space-y-2">
@@ -166,7 +183,9 @@ export default function AdditionalMaterialsModal({
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-800">{material.name}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">{formatMaterialType(material.type)}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {formatMaterialType(material.type, t("classroom.additionalMaterialsModal.fileTypeGeneric"))}
+                        </p>
                       </div>
                     </div>
                     <a
@@ -178,7 +197,7 @@ export default function AdditionalMaterialsModal({
                       style={{ color: "#4F52C2" }}
                     >
                       <Download size={13} />
-                      Download
+                      {t("classroom.additionalMaterialsModal.download")}
                     </a>
                   </li>
                 );

@@ -58,7 +58,8 @@ export type UnitSelectorModalProps = {
    * The `unit` argument is the original unit object so callers can identify it.
    */
   onEditUnit?: (unit: any, data: UnitEditData) => void;
-  onCreateUnitData?: (data: CreateUnitData) => void;
+  /** Persist new unit from CreateUnitModal — may be async; errors should reject so the modal stays open. */
+  onCreateUnitData?: (data: CreateUnitData) => void | Promise<void>;
   onHideUnit?: (unit: any) => void;
   onCopyUnit?: (unit: any) => void;
   onDeleteUnit?: (unit: any) => void;
@@ -1215,10 +1216,14 @@ export default function UnitSelectorModal({
       <CreateUnitModal
         open={createUnitOpen}
         onClose={() => setCreateUnitOpen(false)}
-        onCreate={(data) => {
-          onCreateUnitData?.(data);
-          onCreateUnit?.(null);
-          setCreateUnitOpen(false);
+        onCreate={async (data) => {
+          try {
+            await onCreateUnitData?.(data);
+            onCreateUnit?.(null);
+            setCreateUnitOpen(false);
+          } catch {
+            // Error toast lives in ClassroomPage; keep CreateUnitModal open for retry.
+          }
         }}
       />
 

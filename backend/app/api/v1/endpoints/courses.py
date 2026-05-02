@@ -610,23 +610,15 @@ async def publish_course(
     Unpublishing is always an explicit teacher action (PATCH …/unpublish);
     it is NEVER triggered automatically by plan expiry or quota exhaustion.
     """
-    from app.core.teacher_tariffs import (
-        check_and_consume_teacher_ai_quota,
-        get_teacher_tariff_display_state,
-    )
- 
     course = db.query(Course).filter(
         Course.id == course_id,
         Course.created_by == current_user.id
     ).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
- 
-    # ── Plan gate: free-tier teachers cannot publish to students. ─────────────
-    # check_and_consume_teacher_ai_quota checks period_expired FIRST, then
-    # plan-level blocks, then quota — matching the documented call order.
-    check_and_consume_teacher_ai_quota(db, current_user, "course_publish")
- 
+
+    # Student-facing content is gated per-segment (see segment_publication_policy);
+    # course-level PATCH publish only flips catalog visibility for the shell.
     can_publish, reason = course.can_publish()
     if not can_publish:
         raise HTTPException(status_code=400, detail=reason)

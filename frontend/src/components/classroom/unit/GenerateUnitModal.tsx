@@ -3,7 +3,7 @@
  *
  * Full-unit AI generation modal.
  * Tab 1 — "AI Generate":  POST /units/{unit_id}/generate  (topic + description)
- * Tab 2 — "From File":    POST /units/{unit_id}/generate/from-file  (multipart)
+ * Tab 2 — "From File":    POST /units/{unit_id}/generate/from-file  (PDF only)
  *
  * Phase 3 addition: unit-generation quota badge.
  * - Fetches GET /admin/tariffs/me once when the modal opens.
@@ -13,12 +13,14 @@
  * - Upgrade click opens ConnectPaymentModal (imported below).
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   X, Sparkles, Layers, CheckCircle, AlertCircle,
   ChevronDown, ChevronUp, Upload, FileText, Trash2, Zap,
 } from "lucide-react";
 import ConnectPaymentModal from "../../../pages/admin/components/ConnectPaymentModal";
+import { aiLimitFromMe } from "../../../utils/teacherTariffMe";
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const C = {
@@ -41,33 +43,29 @@ const C = {
   amberBg:    "#FFFBEB",
 };
 
-// ── Constants (unchanged) ──────────────────────────────────────────────────────
-interface ExerciseOption { value: string; label: string; icon: string; description: string; }
+// ── Constants (exercise value + icon; labels come from i18n) ───────────────────
+interface ExerciseTypeDef { value: string; icon: string; }
 
-const EXERCISE_OPTIONS: ExerciseOption[] = [
-  { value: "drag_to_gap",      label: "Drag to Gap",    icon: "✦", description: "Drag word chips into gaps" },
-  { value: "type_word_in_gap", label: "Type in Gap",    icon: "⌨", description: "Type the missing word"    },
-  { value: "select_word_form", label: "Select Form",    icon: "▾", description: "Pick the correct word form" },
-  { value: "match_pairs",      label: "Match Pairs",    icon: "⇌", description: "Match terms to definitions" },
-  { value: "build_sentence",   label: "Build Sentence", icon: "⬛", description: "Rearrange shuffled words"  },
-  { value: "order_paragraphs", label: "Order Paragraphs", icon: "↕", description: "Sort scrambled paragraphs" },
-  { value: "sort_into_columns", label: "Sort Columns",  icon: "⊞", description: "Sort items into categories" },
-  { value: "true_false",       label: "True/False",     icon: "✓✗", description: "Mark statements"         },
+const EXERCISE_TYPE_DEFS: ExerciseTypeDef[] = [
+  { value: "drag_to_gap", icon: "✦" },
+  { value: "type_word_in_gap", icon: "⌨" },
+  { value: "select_word_form", icon: "▾" },
+  { value: "match_pairs", icon: "⇌" },
+  { value: "build_sentence", icon: "⬛" },
+  { value: "order_paragraphs", icon: "↕" },
+  { value: "sort_into_columns", icon: "⊞" },
+  { value: "true_false", icon: "✓✗" },
 ];
 
-const LEVEL_OPTIONS       = ["A1", "A2", "B1", "B2", "C1", "C2"];
-const LANGUAGE_OPTIONS    = ["English", "Russian", "German", "French", "Spanish"];
-const INSTRUCTION_LANGS   = [{ value: "english", label: "English" }, { value: "russian", label: "Russian" }];
-const SEGMENT_OPTIONS     = [1, 2, 3, 4, 5, 6];
+const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const COURSE_LANGUAGE_VALUES = ["English", "Russian", "German", "French", "Spanish"] as const;
+const INSTRUCTION_LANG_VALUES = ["english", "russian"] as const;
+const SEGMENT_OPTIONS = [1, 2, 3, 4, 5, 6];
 
 // ── Quota types ───────────────────────────────────────────────────────────────
 interface TariffStatus {
   plan: string;
-  ai_limits: {
-    exercise_generations: number | null;
-    unit_generations:     number | null;
-    course_generations:   number | null;
-  };
+  ai_limits: Record<string, number | null | undefined>;
   ai_usage: {
     exercise_generations: number;
     unit_generations:     number;
@@ -107,6 +105,12 @@ async function parseJsonPayload<T>(response: Response, fallbackMessage: string):
   if (!responseBodyText || !responseBodyText.trim()) throw new Error(fallbackMessage);
   try { return JSON.parse(responseBodyText) as T; }
   catch { throw new Error(responseBodyText || fallbackMessage); }
+}
+
+// True when the browser file is a PDF (MIME type or .pdf extension for empty-type cases).
+function isPdfFile(file: File): boolean {
+  const lowerName = file.name.toLowerCase();
+  return file.type === "application/pdf" || lowerName.endsWith(".pdf");
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -166,6 +170,7 @@ function UnitQuotaBadge({
   limit: number | null;
   onUpgrade: () => void;
 }) {
+  const { t } = useTranslation();
   const isUnlimited = limit === null;
   const isAtLimit   = !isUnlimited && used >= limit!;
   const pct         = isUnlimited ? 0 : Math.min(100, Math.round((used / Math.max(1, limit!)) * 100));
@@ -188,11 +193,10 @@ function UnitQuotaBadge({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 500, color: textColor }}>
             {isUnlimited
-              ? "Unlimited unit generations"
+              ? t("classroom.generateUnitModal.quotaUnlimited")
               : isAtLimit
-                ? "Monthly limit reached"
-                : `${used} of ${limit} unit generations used this month`
-            }
+                ? t("classroom.generateUnitModal.quotaAtLimit")
+                : t("classroom.generateUnitModal.quotaUsed", { used, limit })}
           </span>
           {isAtLimit && (
             <button
@@ -208,7 +212,7 @@ function UnitQuotaBadge({
               onMouseEnter={(e) => { e.currentTarget.style.background = C.primaryDk; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = C.primary;   }}
             >
-              Upgrade →
+              {t("classroom.generateUnitModal.quotaUpgrade")}
             </button>
           )}
         </div>
@@ -245,27 +249,45 @@ function AdvancedPanel({
   instructionLang: string; setInstructionLang: (v: string) => void;
   includeImages: boolean; setIncludeImages: (v: boolean) => void;
 }) {
+  const { t } = useTranslation();
+  const courseLanguageOptions = useMemo(
+    () =>
+      COURSE_LANGUAGE_VALUES.map((lang) => ({
+        value: lang,
+        label: t(`classroom.generateUnitModal.courseLanguages.${lang}`),
+      })),
+    [t],
+  );
+  const instructionLangOptions = useMemo(
+    () =>
+      INSTRUCTION_LANG_VALUES.map((lang) => ({
+        value: lang,
+        label: t(`classroom.generateUnitModal.instructionLang.${lang}`),
+      })),
+    [t],
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column" as const, gap: 16, marginTop: 4 }}>
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <Label>Level</Label>
+          <Label>{t("classroom.generateUnitModal.labelLevel")}</Label>
           <Select value={level} onChange={setLevel} options={LEVEL_OPTIONS} />
         </div>
         <div style={{ flex: 1 }}>
-          <Label>Language</Label>
-          <Select value={language} onChange={setLanguage} options={LANGUAGE_OPTIONS} />
+          <Label>{t("classroom.generateUnitModal.labelLanguage")}</Label>
+          <Select value={language} onChange={setLanguage} options={courseLanguageOptions} />
         </div>
         <div style={{ flex: 1 }}>
-          <Label>Segments</Label>
+          <Label>{t("classroom.generateUnitModal.labelSegments")}</Label>
           <Select value={String(numSegments)} onChange={(v) => setNumSegments(Number(v))} options={SEGMENT_OPTIONS.map(String)} />
         </div>
       </div>
 
       <div>
-        <Label>Exercise types</Label>
+        <Label>{t("classroom.generateUnitModal.labelExerciseTypes")}</Label>
         <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 7 }}>
-          {EXERCISE_OPTIONS.map((opt) => {
+          {EXERCISE_TYPE_DEFS.map((opt) => {
             const sel = selectedTypes.has(opt.value);
             return (
               <button key={opt.value} type="button" onClick={() => toggleType(opt.value)}
@@ -278,33 +300,41 @@ function AdvancedPanel({
                 }}
               >
                 <span style={{ fontSize: 13 }}>{opt.icon}</span>
-                {opt.label}
+                {t(`classroom.generateUnitModal.exerciseTypes.${opt.value}`)}
               </button>
             );
           })}
         </div>
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
-          All selected types will be distributed across segments.
+          {t("classroom.generateUnitModal.exerciseTypesHint")}
           {selectedTypes.size > 0 && (
             <span style={{ color: C.sub, fontWeight: 600 }}>
-              {" "}({selectedTypes.size} type{selectedTypes.size > 1 ? "s" : ""} × {numSegments} segment{numSegments > 1 ? "s" : ""})
+              {" "}
+              {t("classroom.generateUnitModal.exerciseTypesCounts", {
+                types: selectedTypes.size,
+                segments: numSegments,
+              })}
             </span>
           )}
         </div>
       </div>
 
       <div>
-        <Label>Instruction Language</Label>
-        <Select value={instructionLang} onChange={setInstructionLang} options={INSTRUCTION_LANGS} />
+        <Label>{t("classroom.generateUnitModal.labelInstructionLanguage")}</Label>
+        <Select value={instructionLang} onChange={setInstructionLang} options={instructionLangOptions} />
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
-          Language used for exercise titles and UI labels shown to students.
+          {t("classroom.generateUnitModal.instructionLangHint")}
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Include Images</div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Adds SVG illustrations (+30–60 s)</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+            {t("classroom.generateUnitModal.includeImagesTitle")}
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+            {t("classroom.generateUnitModal.includeImagesHint")}
+          </div>
         </div>
         <button type="button" role="switch" aria-checked={includeImages}
           onClick={() => setIncludeImages(!includeImages)}
@@ -334,6 +364,13 @@ function SuccessView({
   onClose: () => void;
   onGenerateMore: () => void;
 }) {
+  const { t } = useTranslation();
+  const successSubtitle =
+    t("classroom.generateUnitModal.successSegmentsCreated", { count: result.segments_created }) +
+    (result.images_generated
+      ? t("classroom.generateUnitModal.successImagesCreated", { count: result.images_generated })
+      : "");
+
   return (
     <div style={{ padding: "24px 22px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
@@ -344,10 +381,11 @@ function SuccessView({
           <CheckCircle size={20} color={C.success} strokeWidth={2} />
         </div>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Generation complete!</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+            {t("classroom.generateUnitModal.generationComplete")}
+          </div>
           <div style={{ fontSize: 12.5, color: C.sub, marginTop: 1 }}>
-            {result.segments_created} segment{result.segments_created !== 1 ? "s" : ""} created
-            {result.images_generated ? ` · ${result.images_generated} image${result.images_generated !== 1 ? "s" : ""}` : ""}
+            {successSubtitle}
           </div>
         </div>
       </div>
@@ -382,7 +420,7 @@ function SuccessView({
                 {seg.title}
               </div>
               <div style={{ fontSize: 11.5, color: C.muted }}>
-                {seg.blocks_created} block{seg.blocks_created !== 1 ? "s" : ""}
+                {t("classroom.generateUnitModal.successBlocks", { count: seg.blocks_created })}
               </div>
             </div>
           </div>
@@ -395,14 +433,14 @@ function SuccessView({
           border: `1.5px solid ${C.border}`, background: C.white,
           color: C.sub, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
         }}>
-          Generate more
+          {t("classroom.generateUnitModal.generateMore")}
         </button>
         <button onClick={onClose} style={{
           flex: 2, padding: "11px", borderRadius: 10, border: "none",
           background: C.primary, color: C.white, fontSize: 13, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit",
         }}>
-          Done
+          {t("classroom.generateUnitModal.done")}
         </button>
       </div>
     </div>
@@ -419,6 +457,7 @@ const DEFAULT_API_BASE =
 export default function GenerateUnitModal({
   unitId, unitTitle, apiBase = DEFAULT_API_BASE, onClose, onSuccess,
 }: Props) {
+  const { t } = useTranslation();
   // Tab
   const [activeTab, setActiveTab] = useState<Tab>("ai");
 
@@ -489,15 +528,31 @@ export default function GenerateUnitModal({
   }, []);
 
   // ── Derived quota values ──────────────────────────────────────────────────
-  const unitLimit  = tariffData?.ai_limits?.unit_generations ?? null;
+  const unitLimit  = aiLimitFromMe(tariffData?.ai_limits, "unit_generation", "unit_generations");
   const unitUsed   = tariffData?.ai_usage?.unit_generations  ?? 0;
   const isAtLimit  = unitLimit !== null && unitUsed >= unitLimit;
   const showQuota  = quotaStatus === "ok" && tariffData !== null;
 
+  const generatingBannerText = useMemo(() => {
+    const segmentPhrase =
+      numSegments === 1
+        ? t("classroom.generateUnitModal.oneSegmentPhrase")
+        : t("classroom.generateUnitModal.nSegmentsPhrase", { n: numSegments });
+    const imagesNote = includeImages ? t("classroom.generateUnitModal.generatingImagesNote") : "";
+    const duration = includeImages
+      ? t("classroom.generateUnitModal.durationLong")
+      : t("classroom.generateUnitModal.durationShort");
+    return t("classroom.generateUnitModal.generatingFull", {
+      segments: segmentPhrase,
+      imagesNote,
+      duration,
+    });
+  }, [numSegments, includeImages, t]);
+
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
     if (!topic.trim()) {
-      setError("Please enter a topic before generating.");
+      setError(t("classroom.generateUnitModal.errorTopicRequired"));
       return;
     }
     setError(null);
@@ -518,21 +573,28 @@ export default function GenerateUnitModal({
       });
       if (res.status === 402) { setShowUpgrade(true); return; }
       if (!res.ok) {
-        const data = await parseJsonPayload<{ detail?: string }>(res, "Generation failed.");
-        throw new Error(data.detail ?? "Generation failed.");
+        const failMsg = t("classroom.generateUnitModal.errorGenerationFailed");
+        const data = await parseJsonPayload<{ detail?: string }>(res, failMsg);
+        throw new Error(data.detail ?? failMsg);
       }
-      const data = await parseJsonPayload<GenerateResult>(res, "Unexpected empty response.");
+      const data = await parseJsonPayload<GenerateResult>(
+        res,
+        t("classroom.generateUnitModal.errorEmptyResponse"),
+      );
       setResult(data);
       onSuccess?.(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "An unexpected error occurred.");
+      setError(e instanceof Error ? e.message : t("classroom.generateUnitModal.errorUnexpected"));
     } finally {
       setLoading(false);
     }
   };
 
   const handleGenerateFromFile = async () => {
-    if (!file) { setError("Please select a file."); return; }
+    if (!file) {
+      setError(t("classroom.generateUnitModal.errorFileRequired"));
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -553,14 +615,18 @@ export default function GenerateUnitModal({
       });
       if (res.status === 402) { setShowUpgrade(true); return; }
       if (!res.ok) {
-        const data = await parseJsonPayload<{ detail?: string }>(res, "Generation failed.");
-        throw new Error(data.detail ?? "Generation failed.");
+        const failMsg = t("classroom.generateUnitModal.errorGenerationFailed");
+        const data = await parseJsonPayload<{ detail?: string }>(res, failMsg);
+        throw new Error(data.detail ?? failMsg);
       }
-      const data = await parseJsonPayload<GenerateResult>(res, "Unexpected empty response.");
+      const data = await parseJsonPayload<GenerateResult>(
+        res,
+        t("classroom.generateUnitModal.errorEmptyResponse"),
+      );
       setResult(data);
       onSuccess?.(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "An unexpected error occurred.");
+      setError(e instanceof Error ? e.message : t("classroom.generateUnitModal.errorUnexpected"));
     } finally {
       setLoading(false);
     }
@@ -607,7 +673,7 @@ export default function GenerateUnitModal({
               </div>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.25 }}>
-                  Generate Unit
+                  {t("classroom.generateUnitModal.title")}
                 </div>
                 {unitTitle && (
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>
@@ -643,7 +709,10 @@ export default function GenerateUnitModal({
                   borderRadius: 10, padding: 3, marginBottom: 18,
                 }}>
                   {(["ai", "file"] as const).map((tab) => {
-                    const labels: Record<typeof tab, string> = { ai: "AI Generate", file: "From File" };
+                    const labels: Record<typeof tab, string> = {
+                      ai: t("classroom.generateUnitModal.tabAi"),
+                      file: t("classroom.generateUnitModal.tabFile"),
+                    };
                     const active = activeTab === tab;
                     return (
                       <button key={tab} type="button" onClick={() => { setActiveTab(tab); setError(null); }}
@@ -689,12 +758,12 @@ export default function GenerateUnitModal({
                 {activeTab === "ai" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <div>
-                      <Label>Topic *</Label>
+                      <Label>{t("classroom.generateUnitModal.labelTopic")}</Label>
                       <input
                         type="text"
                         value={topic}
                         onChange={(e) => setTopic(e.target.value)}
-                        placeholder="e.g. Present Perfect Tense, Vocabulary: Travel"
+                        placeholder={t("classroom.generateUnitModal.topicPlaceholder")}
                         style={{
                           width: "100%", padding: "10px 12px", borderRadius: 10,
                           border: `1.5px solid ${C.border}`, background: C.white,
@@ -706,11 +775,11 @@ export default function GenerateUnitModal({
                       />
                     </div>
                     <div>
-                      <Label>Description (optional)</Label>
+                      <Label>{t("classroom.generateUnitModal.labelDescription")}</Label>
                       <textarea
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Extra context, focus areas, student level details…"
+                        placeholder={t("classroom.generateUnitModal.descriptionPlaceholder")}
                         rows={2}
                         style={{
                           width: "100%", padding: "10px 12px", borderRadius: 10,
@@ -733,8 +802,16 @@ export default function GenerateUnitModal({
                       onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                       onDragLeave={() => setIsDragging(false)}
                       onDrop={(e) => {
-                        e.preventDefault(); setIsDragging(false);
-                        setFile(e.dataTransfer.files?.[0] ?? null);
+                        e.preventDefault();
+                        setIsDragging(false);
+                        const dropped = e.dataTransfer.files?.[0] ?? null;
+                        if (!dropped) return;
+                        if (!isPdfFile(dropped)) {
+                          setError(t("classroom.generateUnitModal.errorFilePdfOnly"));
+                          return;
+                        }
+                        setError(null);
+                        setFile(dropped);
                       }}
                       style={{
                         border: `2px dashed ${isDragging ? C.primary : C.border}`,
@@ -750,6 +827,7 @@ export default function GenerateUnitModal({
                           <button type="button"
                             onClick={(e) => { e.stopPropagation(); setFile(null); }}
                             style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 2 }}
+                            aria-label={t("classroom.generateUnitModal.removeFileAria")}
                           >
                             <Trash2 size={13} />
                           </button>
@@ -758,16 +836,32 @@ export default function GenerateUnitModal({
                         <>
                           <Upload size={22} color={C.muted} strokeWidth={1.8} />
                           <p style={{ marginTop: 8, fontSize: 13, color: C.sub }}>
-                            Drop a PDF or Word document, or click to browse
+                            {t("classroom.generateUnitModal.fileDropHint")}
                           </p>
                           <p style={{ marginTop: 3, fontSize: 11.5, color: C.muted }}>
-                            .pdf, .docx — max 20 MB
+                            {t("classroom.generateUnitModal.fileFormatsHint")}
                           </p>
                         </>
                       )}
                     </div>
-                    <input ref={fileInputRef} type="file" accept=".pdf,.docx"
-                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={(e) => {
+                        const picked = e.target.files?.[0] ?? null;
+                        e.currentTarget.value = "";
+                        if (!picked) {
+                          setFile(null);
+                          return;
+                        }
+                        if (!isPdfFile(picked)) {
+                          setError(t("classroom.generateUnitModal.errorFilePdfOnly"));
+                          return;
+                        }
+                        setError(null);
+                        setFile(picked);
+                      }}
                       style={{ display: "none" }}
                     />
                   </div>
@@ -785,7 +879,7 @@ export default function GenerateUnitModal({
                     }}
                   >
                     {showAdvanced ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    Advanced settings
+                    {t("classroom.generateUnitModal.advancedSettings")}
                   </button>
 
                   {showAdvanced && (
@@ -813,9 +907,7 @@ export default function GenerateUnitModal({
                   }}>
                     <Layers size={14} color={C.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: 12.5, color: C.primaryDk, lineHeight: 1.5 }}>
-                      Generating <strong>{numSegments} segment{numSegments > 1 ? "s" : ""}</strong>
-                      {" "}with text blocks, exercises{includeImages ? ", and illustrations" : ""}.
-                      {" "}This may take {includeImages ? "60–120" : "20–60"} seconds.
+                      {generatingBannerText}
                     </span>
                   </div>
                 )}
@@ -838,7 +930,7 @@ export default function GenerateUnitModal({
                     onMouseLeave={(e) => { e.currentTarget.style.background = "#F3F4F6"; e.currentTarget.style.color = C.sub; }}
                   >
                     <Zap size={15} strokeWidth={2.2} />
-                    Monthly limit reached · Upgrade
+                    {t("classroom.generateUnitModal.limitReachedUpgrade")}
                   </button>
                 ) : (
                   /* Normal generate button */
@@ -862,7 +954,7 @@ export default function GenerateUnitModal({
                     {loading ? (
                       <>
                         <Spinner size={16} color={C.white} />
-                        Generating content…
+                        {t("classroom.generateUnitModal.generatingButton")}
                       </>
                     ) : (
                       <>
@@ -871,9 +963,10 @@ export default function GenerateUnitModal({
                             fill="white" stroke="white" strokeWidth="0.5" />
                         </svg>
                         {activeTab === "ai"
-                          ? `Generate ${numSegments} Segment${numSegments > 1 ? "s" : ""}`
-                          : "Generate from File"
-                        }
+                          ? (numSegments === 1
+                            ? t("classroom.generateUnitModal.generateOneSegment")
+                            : t("classroom.generateUnitModal.generateNSegments", { n: numSegments }))
+                          : t("classroom.generateUnitModal.generateFromFileButton")}
                       </>
                     )}
                   </button>

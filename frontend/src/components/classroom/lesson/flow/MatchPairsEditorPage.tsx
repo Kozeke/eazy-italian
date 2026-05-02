@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Sparkles, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
@@ -10,6 +10,7 @@ import {
 } from '../editors/QuestionEditorRenderer';
 import { draftToApiPayload, validateDraft } from '../editors/questionPayload';
 import './DragToGap.css';
+import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
@@ -25,6 +26,8 @@ interface Props {
     drafts: MatchingPairsDraft[],
   ) => void | Promise<void>;
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 interface PairRowDraft {
@@ -186,6 +189,7 @@ export default function MatchPairsEditorPage({
   onSave,
   onCancel,
   segmentId,          // ← ADD THIS
+  onSettingsClick,
 }: Props) {
   const baseDraft = useMemo(() => normaliseDraft(initialDraft), [initialDraft]);
   const [title, setTitle] = useState(initialTitle);
@@ -271,6 +275,7 @@ export default function MatchPairsEditorPage({
         title={title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -292,6 +297,22 @@ export default function MatchPairsEditorPage({
           <div className="dtg-exercise-instruction">
             Match each left word with the correct right word
           </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <AIExerciseGenerateButton
+            onClick={() => setShowAIModal(true)}
+            style={{ margin: 0 }}
+          />
         </div>
 
         <div className="mp-editor-card">
@@ -340,24 +361,16 @@ export default function MatchPairsEditorPage({
               <Plus size={15} />
               Add couple
             </button>
-
-            <button
-              type="button"
-              className="dtg-generate-btn"
-              style={{ margin: 0 }}
-              onClick={() => setShowAIModal(true)}   // ← ADD onClick
-            >
-              <Sparkles size={13} />
-              Сгенерировать
-            </button>
           </div>
         </div>
 
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             <button

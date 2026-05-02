@@ -15,11 +15,13 @@
  */
 
 import { useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Upload, Link, RefreshCw } from "lucide-react";
 import api from "../../../../services/api";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import "./DragToGap.css";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -70,6 +72,8 @@ interface Props {
    */
   onSave: (data: GifAnimationData, blockId?: string) => void | Promise<void>;
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 // ── Small reusable field label ─────────────────────────────────────────────────
@@ -93,15 +97,19 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 function PreviewPlayPause({
   playing,
   onClick,
+  pauseAriaLabel,
+  playAriaLabel,
 }: {
   playing: boolean;
   onClick: () => void;
+  pauseAriaLabel: string;
+  playAriaLabel: string;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
       type="button"
-      aria-label={playing ? "Pause preview" : "Play preview"}
+      aria-label={playing ? pauseAriaLabel : playAriaLabel}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -149,7 +157,10 @@ export default function GifAnimationEditorPage({
   segmentId,
   onSave,
   onCancel,
+  onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+
   const [caption, setCaption] = useState(
     initialTitle || initialData?.caption || "",
   );
@@ -220,7 +231,7 @@ export default function GifAnimationEditorPage({
               alt_text: gifData.alt_text ?? null,
               caption:  gifData.caption ?? null,
               loop:     gifData.loop !== false,
-              title:    caption.trim() || label || "GIF animation",
+              title:    caption.trim() || label || t("mediaEditor.gifAnimationFallback"),
             },
           );
           const blockId: string | undefined = response.data?.block?.id;
@@ -236,7 +247,7 @@ export default function GifAnimationEditorPage({
     } finally {
       setSaving(false);
     }
-  }, [src, altText, caption, loop, saving, segmentId, label, onSave]);
+  }, [src, altText, caption, loop, saving, segmentId, label, onSave, t]);
 
   // ── File upload ──────────────────────────────────────────────────────────────
   const handleFileChange = useCallback(
@@ -279,42 +290,37 @@ export default function GifAnimationEditorPage({
   };
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: C.bg,
-      fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif",
-      display: "flex",
-      flexDirection: "column",
-    }}>
-      {/* ── Fixed top header ──────────────────────────────────────────────── */}
+    <div
+      className="dtg-editor-root"
+      style={{
+        minHeight: "100vh",
+        background: C.bg,
+        fontFamily: "'Inter','Helvetica Neue',system-ui,sans-serif",
+      }}
+    >
       <ExerciseHeader
         title={caption}
-        headerLabel={label ?? "GIF animation"}
+        headerLabel={label ?? t("mediaEditor.gifAnimationFallback")}
         editableTitleInHeader
         isDirty={isDirty}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
         onTitleChange={setCaption}
       />
 
-      {/* ── Editor body ───────────────────────────────────────────────────── */}
-      <div style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        padding: "32px 24px",
-        maxWidth: 860,
-        width: "100%",
-        margin: `${EXERCISE_HEADER_HEIGHT_PX}px auto 0`,
-        boxSizing: "border-box",
-      }}>
-
-        {/* Toolbar: preview toggle + save */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 20,
-        }}>
+      <div
+        className="dtg-editor-content"
+        style={{
+          paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14,
+          paddingLeft: 24,
+          paddingRight: 24,
+          maxWidth: 860,
+          width: "100%",
+          margin: "0 auto",
+          boxSizing: "border-box",
+        }}
+      >
+        <div style={{ marginBottom: 20 }}>
           <button
             type="button"
             onClick={() => setShowPreview((v) => !v)}
@@ -333,30 +339,8 @@ export default function GifAnimationEditorPage({
               fontFamily: "inherit",
             }}
           >
-            {showPreview
-              ? <Eye size={14} strokeWidth={2} />
-              : <EyeOff size={14} strokeWidth={2} />}
-            {showPreview ? "Hide preview" : "Show preview"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!isDirty || saving}
-            style={{
-              padding: "9px 24px",
-              borderRadius: 9,
-              border: "none",
-              background: !isDirty || saving ? C.muted : C.primary,
-              color: C.white,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: !isDirty || saving ? "default" : "pointer",
-              fontFamily: "inherit",
-              transition: "background 0.15s",
-            }}
-          >
-            {saving ? "Saving…" : "Save"}
+            {showPreview ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
+            {showPreview ? t("mediaEditor.hidePreview") : t("mediaEditor.showPreview")}
           </button>
         </div>
 
@@ -370,7 +354,7 @@ export default function GifAnimationEditorPage({
           alignSelf: "flex-start",
         }}>
           {(
-            [["url", "GIF URL", Link], ["upload", "Upload .gif", Upload]] as const
+            [["url", t("mediaEditor.gifUrl"), Link], ["upload", t("mediaEditor.uploadGif"), Upload]] as const
           ).map(([mode, modeLabel, Icon]) => (
             <button
               key={mode}
@@ -410,14 +394,14 @@ export default function GifAnimationEditorPage({
                 setFrameSrc(null);
                 setPreviewPlaying(true);
               }}
-              placeholder="https://example.com/animation.gif"
+              placeholder={t("mediaEditor.urlPlaceholderGif")}
               style={inputStyle}
               onFocus={(e) => { e.currentTarget.style.borderColor = C.primary; }}
               onBlur={(e)  => { e.currentTarget.style.borderColor = C.border; }}
             />
             {src.trim() && !isGifSrc && (
               <p style={{ margin: "6px 0 0", fontSize: 11.5, color: C.warn }}>
-                ⚠ URL doesn't look like a .gif — check that it's an animated GIF.
+                ⚠ {t("mediaEditor.gifUrlWarning")}
               </p>
             )}
           </div>
@@ -467,15 +451,15 @@ export default function GifAnimationEditorPage({
               }}>
                 🎞️
               </div>
-              <span style={{ fontWeight: 600 }}>Click to upload a GIF</span>
+              <span style={{ fontWeight: 600 }}>{t("mediaEditor.clickUploadGif")}</span>
               <span style={{ fontSize: 11.5, color: C.muted }}>
-                Accepts .gif files — animated GIFs recommended
+                {t("mediaEditor.formatsGifHelp")}
               </span>
             </button>
 
             {src && (
               <p style={{ margin: "8px 0 0", fontSize: 12, color: C.success }}>
-                ✓ GIF loaded — see preview below.
+                ✓ {t("mediaEditor.gifLoadedHint")}
               </p>
             )}
           </div>
@@ -484,16 +468,16 @@ export default function GifAnimationEditorPage({
         {/* Alt text */}
         <label style={{ display: "block", marginBottom: 16 }}>
           <FieldLabel>
-            Alt text{" "}
+            {t("mediaEditor.altTextLabel")}{" "}
             <span style={{ fontWeight: 400, color: C.muted }}>
-              (accessibility description)
+              {t("mediaEditor.altTextHint")}
             </span>
           </FieldLabel>
           <input
             type="text"
             value={altText}
             onChange={(e) => setAltText(e.target.value)}
-            placeholder="e.g. Animation showing verb conjugation steps"
+            placeholder={t("mediaEditor.altPlaceholderGif")}
             style={inputStyle}
             onFocus={(e) => { e.currentTarget.style.borderColor = C.primary; }}
             onBlur={(e)  => { e.currentTarget.style.borderColor = C.border; }}
@@ -535,10 +519,10 @@ export default function GifAnimationEditorPage({
             </div>
             <div>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.text }}>
-                Loop animation
+                {t("mediaEditor.loopAnimation")}
               </p>
               <p style={{ margin: 0, fontSize: 11.5, color: C.muted }}>
-                {loop ? "GIF will play on repeat" : "GIF plays once then stops"}
+                {loop ? t("mediaEditor.loopOnHint") : t("mediaEditor.loopOffHint")}
               </p>
             </div>
           </div>
@@ -578,7 +562,7 @@ export default function GifAnimationEditorPage({
               textTransform: "uppercase",
               letterSpacing: "0.06em",
             }}>
-              Preview
+              {t("mediaEditor.preview")}
             </p>
 
             <div style={{
@@ -614,7 +598,7 @@ export default function GifAnimationEditorPage({
                     fontWeight: 800,
                     letterSpacing: "0.07em",
                   }}>
-                    GIF
+                    {t("mediaEditor.gifBadge")}
                   </div>
                 )}
 
@@ -631,7 +615,7 @@ export default function GifAnimationEditorPage({
                     justifyContent: "center",
                   }}>
                     <span style={{ fontSize: 13, color: C.sub, fontWeight: 600 }}>
-                      Paused
+                      {t("mediaEditor.paused")}
                     </span>
                   </div>
                 )}
@@ -650,7 +634,7 @@ export default function GifAnimationEditorPage({
                     fontSize: 10,
                     fontWeight: 700,
                   }}>
-                    NO LOOP
+                    {t("mediaEditor.noLoopBadge")}
                   </div>
                 )}
 
@@ -659,7 +643,7 @@ export default function GifAnimationEditorPage({
                     ref={previewImgRef}
                     key={previewDisplaySrc}
                     src={previewDisplaySrc}
-                    alt={altText || "Animated illustration"}
+                    alt={altText || t("mediaEditor.previewAltGif")}
                     onLoad={handlePreviewLoad}
                     onError={() => setImgError(true)}
                     style={{
@@ -682,9 +666,9 @@ export default function GifAnimationEditorPage({
                     textAlign: "center",
                   }}>
                     <span style={{ fontSize: 36 }}>🎞️</span>
-                    <span style={{ fontSize: 13 }}>Could not load animation</span>
+                    <span style={{ fontSize: 13 }}>{t("mediaEditor.gifLoadError")}</span>
                     <span style={{ fontSize: 11, color: C.danger }}>
-                      Check the URL is correct and publicly accessible.
+                      {t("mediaEditor.gifLoadErrorHint")}
                     </span>
                   </div>
                 )}
@@ -694,6 +678,8 @@ export default function GifAnimationEditorPage({
                   <PreviewPlayPause
                     playing={previewPlaying}
                     onClick={() => setPreviewPlaying((v) => !v)}
+                    pauseAriaLabel={t("mediaEditor.pausePreviewAria")}
+                    playAriaLabel={t("mediaEditor.playPreviewAria")}
                   />
                 )}
               </div>
@@ -722,10 +708,32 @@ export default function GifAnimationEditorPage({
               color: C.muted,
               textAlign: "center",
             }}>
-              Students will see the play/pause button to control the animation.
+              {t("mediaEditor.studentPlayPauseHint")}
             </p>
           </div>
         )}
+
+        <div className="dtg-footer">
+          <div className="dtg-footer-btns">
+            <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
+              {t("mediaEditor.cancel")}
+            </button>
+            <button
+              type="button"
+              className={[
+                "dtg-btn-save",
+                !isDirty || saving ? "dtg-btn-save--disabled" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={handleSave}
+              disabled={!isDirty || saving}
+              title={!isDirty ? t("mediaEditor.saveNeedGif") : t("mediaEditor.save")}
+            >
+              {saving ? t("mediaEditor.saving") : t("mediaEditor.save")}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

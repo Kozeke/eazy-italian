@@ -13,10 +13,15 @@
  *   • Header shifts down by 40px via the "with-banner" class so content
  *     never sits behind the banner.
  *   • "Renew plan →" calls the existing onTariffs() prop (navigates to /admin/tariffs).
+ *
+ * UI strings: `admin.header.*`, plus `admin.help`, `admin.subscription`,
+ * `admin.tariffs`, `admin.userMenu`, `admin.theme`, and root `nav.logout`.
  */
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { SHELL_HEADER_HEIGHT } from "../../../components/layout/shellDimensions";
+import { aiLimitFromMe } from "../../../utils/teacherTariffMe";
 
 const T = {
   violet:  "#6C6FEF",
@@ -278,9 +283,13 @@ const IcoSchool  = () => (<svg width="16" height="16" viewBox="0 0 20 20" fill="
 const IcoChatBubble = () => (<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M3 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H7l-4 3V4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function formatTrialDate(isoStr) {
+/** Formats trial end date using the active UI locale when possible. */
+function formatTrialDate(isoStr, lang) {
   if (!isoStr) return null;
-  try { return new Date(isoStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+  try {
+    const locale = lang && String(lang).toLowerCase().startsWith("ru") ? "ru-RU" : undefined;
+    return new Date(isoStr).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" });
+  }
   catch { return null; }
 }
 function getTrialDaysLeft(isoStr) {
@@ -312,10 +321,13 @@ function usePopover(ref, onClose) {
 
 // ── Phase 5: QuotaRow / LimitsTab ────────────────────────────────────────────
 function QuotaRow({ label, used, limit }) {
+  const { t } = useTranslation();
+  // Limit 0 means the feature is disabled on this plan (not "0 credits").
+  const isBlocked   = limit === 0;
   const isUnlimited = limit === null || limit === undefined;
-  const pct         = isUnlimited ? 0 : Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
-  const isWarning   = !isUnlimited && pct >= 70 && pct < 90;
-  const isDanger    = !isUnlimited && pct >= 90;
+  const pct         = isUnlimited || isBlocked ? 0 : Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
+  const isWarning   = !isUnlimited && !isBlocked && pct >= 70 && pct < 90;
+  const isDanger    = !isUnlimited && !isBlocked && pct >= 90;
   const barClass    = isDanger ? "ah-tp-quota-bar-fill ah-tp-quota-bar-fill--danger" :
                       isWarning ? "ah-tp-quota-bar-fill ah-tp-quota-bar-fill--warning" :
                                   "ah-tp-quota-bar-fill";
@@ -325,10 +337,11 @@ function QuotaRow({ label, used, limit }) {
       <div className="ah-tp-quota-label-row">
         <span className="ah-tp-quota-label">{label}</span>
         <span className={valueClass}>
-          {isUnlimited ? <span title="Unlimited" style={{ color: "#6C6FEF" }}>∞</span> : `${used} / ${limit}`}
+          {isBlocked ? t("admin.header.quotaNotOnPlan")
+            : isUnlimited ? <span title={t("admin.tariffs.featureValues.unlimited")} style={{ color: "#6C6FEF" }}>∞</span> : `${used} / ${limit}`}
         </span>
       </div>
-      {!isUnlimited && (
+      {!isUnlimited && !isBlocked && (
         <div className="ah-tp-quota-bar-bg">
           <div className={barClass} style={{ width: `${pct}%` }} />
         </div>
@@ -338,12 +351,15 @@ function QuotaRow({ label, used, limit }) {
 }
 
 function LimitsTab({ visible }) {
+  const { t } = useTranslation();
   const [status,     setStatus]    = useState("idle");
   const [tariffData, setTariffData] = useState(null);
+  // Fetch only when the Limits tab is shown. Do not put `status` in deps — setting
+  // `loading` re-ran the effect, the prior cleanup set mounted=false, and the
+  // in-flight request never applied (spinner stuck forever).
   useEffect(() => {
     if (!visible) return;
-    if (status === "ok" || status === "loading") return;
-    let mounted = true;
+    let cancelled = false;
     setStatus("loading");
     const doFetch = async () => {
       try {
@@ -351,51 +367,66 @@ function LimitsTab({ visible }) {
         const res = await fetch("/api/v1/admin/tariffs/me", { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error("fetch failed");
         const data = await res.json();
-        if (mounted) { setTariffData(data); setStatus("ok"); }
-      } catch { if (mounted) setStatus("error"); }
+        if (!cancelled) { setTariffData(data); setStatus("ok"); }
+      } catch {
+        if (!cancelled) setStatus("error");
+      }
     };
     void doFetch();
-    return () => { mounted = false; };
-  }, [visible, status]);
+    return () => { cancelled = true; };
+  }, [visible]);
   if (!visible) return null;
-  if (status === "loading" || status === "idle") return <div className="ah-tp-limits-spinner"><div className="ah-spinner" aria-label="Loading…" /></div>;
-  if (status === "error" || !tariffData) return <div className="ah-tp-limits-body"><p className="ah-tp-limits-error">Could not load usage.</p></div>;
+  if (status === "loading" || status === "idle") return <div className="ah-tp-limits-spinner"><div className="ah-spinner" aria-label={t("common.loading")} /></div>;
+  if (status === "error" || !tariffData) return <div className="ah-tp-limits-body"><p className="ah-tp-limits-error">{t("admin.header.limitsLoadError")}</p></div>;
   const limits = tariffData.ai_limits ?? {};
   const usage  = tariffData.ai_usage  ?? {};
+  const exLimit = aiLimitFromMe(limits, "exercise_generation", "exercise_generations");
+  const unLimit = aiLimitFromMe(limits, "unit_generation", "unit_generations");
+  const coLimit = aiLimitFromMe(limits, "course_generation", "course_generations");
+  const pubLimit = aiLimitFromMe(limits, "course_publish", "course_publishes");
   return (
     <div className="ah-tp-limits-body">
-      <QuotaRow label="Exercise generations" used={usage.exercise_generations ?? 0} limit={limits.exercise_generations ?? null} />
-      <QuotaRow label="Unit generations"     used={usage.unit_generations ?? 0}     limit={limits.unit_generations ?? null} />
-      <QuotaRow label="Course generations"   used={usage.course_generations ?? 0}   limit={limits.course_generations ?? null} />
+      <QuotaRow label={t("admin.header.quotaExercises")} used={usage.exercise_generations ?? 0} limit={exLimit} />
+      <QuotaRow label={t("admin.header.quotaUnits")}     used={usage.unit_generations ?? 0}     limit={unLimit} />
+      <QuotaRow label={t("admin.header.quotaCourses")}   used={usage.course_generations ?? 0}   limit={coLimit} />
+      <QuotaRow label={t("admin.tariffs.featureLabels.publishToStudents")} used={usage.course_publishes ?? 0} limit={pubLimit} />
     </div>
   );
 }
 
 // ── TrialPopover ──────────────────────────────────────────────────────────────
 function TrialPopover({ trialUntil, onClose, onTariffs }) {
+  const { t, i18n } = useTranslation();
   const ref       = useRef(null);
   usePopover(ref, onClose);
   const [tab, setTab] = useState("plan");
-  const trialDate = formatTrialDate(trialUntil);
+  const trialDate = formatTrialDate(trialUntil, i18n.language);
   const daysLeft  = getTrialDaysLeft(trialUntil);
   const isPaid    = trialUntil != null;
+  const paidNote  = isPaid && trialDate
+    ? (daysLeft == null
+        ? t("admin.header.trialPopover.paidDateOnly", { date: trialDate })
+        : daysLeft === 1
+          ? t("admin.header.trialPopover.paidOneDayLeft", { date: trialDate })
+          : t("admin.header.trialPopover.paidManyDaysLeft", { date: trialDate, days: daysLeft }))
+    : null;
   return (
-    <div className="ah-dropdown ah-trial-pop" ref={ref} role="dialog" aria-label="Subscription info">
+    <div className="ah-dropdown ah-trial-pop" ref={ref} role="dialog" aria-label={t("admin.header.trialPopover.aria")}>
       <div className="ah-tp-tabs">
-        <button className={`ah-tp-tab ${tab === "plan" ? "active" : ""}`} onClick={() => setTab("plan")}>Plan</button>
-        <button className={`ah-tp-tab ${tab === "limits" ? "active" : ""}`} onClick={() => setTab("limits")}>Limits</button>
+        <button type="button" className={`ah-tp-tab ${tab === "plan" ? "active" : ""}`} onClick={() => setTab("plan")}>{t("admin.subscription.planTab")}</button>
+        <button type="button" className={`ah-tp-tab ${tab === "limits" ? "active" : ""}`} onClick={() => setTab("limits")}>{t("admin.subscription.limitsTab")}</button>
       </div>
       {tab === "plan" && (
         <div className="ah-tp-body">
           <div className="ah-tp-plan-row">
-            <span className="ah-tp-plan-name">{isPaid ? "Standard" : "Free"}</span>
-            <span className="ah-tp-badge">{isPaid ? "Active" : "Free"}</span>
+            <span className="ah-tp-plan-name">{isPaid ? t("admin.tariffs.plans.standard") : t("admin.tariffs.plans.free")}</span>
+            <span className="ah-tp-badge">{isPaid ? t("admin.subscription.active") : t("admin.tariffs.plans.free")}</span>
           </div>
-          {isPaid && trialDate
-            ? <p className="ah-tp-note">Paid until {trialDate}{daysLeft != null ? ` · ${daysLeft} day${daysLeft !== 1 ? "s" : ""} left` : ""}</p>
-            : <p className="ah-tp-note">Upgrade to unlock all features</p>
+          {paidNote
+            ? <p className="ah-tp-note">{paidNote}</p>
+            : <p className="ah-tp-note">{t("admin.subscription.upgradeHint")}</p>
           }
-          <button className="ah-tp-cta" onClick={() => { onClose(); onTariffs?.(); }}>Go to plans</button>
+          <button type="button" className="ah-tp-cta" onClick={() => { onClose(); onTariffs?.(); }}>{t("admin.subscription.goToPlans")}</button>
         </div>
       )}
       <LimitsTab visible={tab === "limits"} />
@@ -405,49 +436,51 @@ function TrialPopover({ trialUntil, onClose, onTariffs }) {
 
 // ── UserDropdown ──────────────────────────────────────────────────────────────
 function UserDropdown({ userName, userEmail, darkMode, onToggleDark, onLogout, onClose, onProfileSettings, onTariffs }) {
+  const { t } = useTranslation();
   const ref         = useRef(null);
   usePopover(ref, onClose);
   const handle       = (fn) => (e) => { e.stopPropagation(); fn?.(); };
   const runThenClose = (fn) => (e) => { e.stopPropagation(); onClose(); fn?.(); };
   return (
-    <div className="ah-dropdown ah-user-drop" ref={ref} role="menu" aria-label="User menu">
+    <div className="ah-dropdown ah-user-drop" ref={ref} role="menu" aria-label={t("admin.userMenu.label")}>
       <div className="ah-dd-identity">
-        <div className="ah-dd-name">{userName || "Teacher"}</div>
+        <div className="ah-dd-name">{userName || t("admin.header.defaultDisplayName")}</div>
         {userEmail && <div className="ah-dd-email">{userEmail}</div>}
       </div>
-      <button className="ah-dd-item" role="menuitem" onClick={runThenClose(onProfileSettings)}><span className="ah-dd-ico"><IcoSettings /></span>Profile settings</button>
-      <button className="ah-dd-item" role="menuitem" onClick={runThenClose(onTariffs)}><span className="ah-dd-ico"><IcoStar /></span>Tariffs</button>
-      <button className="ah-dd-item" role="menuitemcheckbox" aria-checked={darkMode} onClick={handle(onToggleDark)}>
-        <span className="ah-dd-ico"><IcoMoon /></span>Dark theme
+      <button type="button" className="ah-dd-item" role="menuitem" onClick={runThenClose(onProfileSettings)}><span className="ah-dd-ico"><IcoSettings /></span>{t("admin.header.profileSettings")}</button>
+      <button type="button" className="ah-dd-item" role="menuitem" onClick={runThenClose(onTariffs)}><span className="ah-dd-ico"><IcoStar /></span>{t("admin.tariffs.tabs.tariffs")}</button>
+      <button type="button" className="ah-dd-item" role="menuitemcheckbox" aria-checked={darkMode} onClick={handle(onToggleDark)}>
+        <span className="ah-dd-ico"><IcoMoon /></span>{t("admin.theme.dark")}
         <div className={`ah-toggle ${darkMode ? "ah-toggle--on" : ""}`} aria-hidden="true"><div className="ah-toggle-thumb" /></div>
       </button>
       <div className="ah-dd-sep" role="separator" />
-      <button className="ah-dd-item ah-dd-item--danger" role="menuitem" onClick={handle(onLogout)}><span className="ah-dd-ico"><IcoLogout /></span>Logout</button>
+      <button type="button" className="ah-dd-item ah-dd-item--danger" role="menuitem" onClick={handle(onLogout)}><span className="ah-dd-ico"><IcoLogout /></span>{t("nav.logout")}</button>
     </div>
   );
 }
 
 // ── HelpDropdown ──────────────────────────────────────────────────────────────
 function HelpDropdown({ onClose }) {
+  const { t } = useTranslation();
   const ref = useRef(null);
   usePopover(ref, onClose);
   return (
-    <div className="ah-dropdown ah-help-drop" ref={ref} role="menu" aria-label="Help menu">
-      <div className="ah-help-section"><div className="ah-help-section-ico" aria-hidden="true"><IcoSchool /></div><span className="ah-help-section-title">Getting started</span></div>
-      <button className="ah-help-item" role="menuitem" onClick={onClose}>Tutorial articles</button>
-      <button className="ah-help-item" role="menuitem" onClick={onClose}>Updates <span className="ah-help-dot" aria-label="New" /></button>
+    <div className="ah-dropdown ah-help-drop" ref={ref} role="menu" aria-label={t("admin.help.menuLabel")}>
+      <div className="ah-help-section"><div className="ah-help-section-ico" aria-hidden="true"><IcoSchool /></div><span className="ah-help-section-title">{t("admin.help.gettingStarted")}</span></div>
+      <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.tutorialArticles")}</button>
+      <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.updates")} <span className="ah-help-dot" aria-label={t("admin.header.updatesNewAria")} /></button>
       <div className="ah-help-sep" role="separator" />
-      <button className="ah-help-item" role="menuitem" onClick={onClose}>Blog</button>
-      <button className="ah-help-item" role="menuitem" onClick={onClose}>YouTube channel</button>
+      <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.blog")}</button>
+      <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.youtube")}</button>
       <div className="ah-help-sep" role="separator" />
-      <div className="ah-help-section"><div className="ah-help-support-ico" aria-hidden="true"><IcoChatBubble /></div><span className="ah-help-section-title">Support service</span></div>
+      <div className="ah-help-section"><div className="ah-help-support-ico" aria-hidden="true"><IcoChatBubble /></div><span className="ah-help-section-title">{t("admin.help.support")}</span></div>
     </div>
   );
 }
 
 // ── AdminHeader ───────────────────────────────────────────────────────────────
 export default function AdminHeader({
-  userName          = "Teacher",
+  userName          = "",
   userEmail         = "",
   trialUntil        = null,
   darkMode          = false,
@@ -456,6 +489,7 @@ export default function AdminHeader({
   onProfileSettings = () => {},
   onTariffs         = () => {},
 }) {
+  const { t } = useTranslation();
   const [userOpen,  setUserOpen]  = useState(false);
   const [trialOpen, setTrialOpen] = useState(false);
   const [helpOpen,  setHelpOpen]  = useState(false);
@@ -512,18 +546,18 @@ export default function AdminHeader({
           className="ah-expired-banner"
           role="alert"
           aria-live="polite"
-          aria-label="Subscription expired notice"
+          aria-label={t("admin.header.expiredAria")}
         >
           <span className="ah-expired-msg">
-            <strong>Your plan has expired</strong> — your students can still access existing
-            courses, but AI generation is paused.
+            <strong>{t("admin.header.expiredTitle")}</strong>{t("admin.header.expiredMessage")}
           </span>
           <button
+            type="button"
             className="ah-expired-cta"
             onClick={() => onTariffs?.()}
-            aria-label="Go to tariffs page to renew plan"
+            aria-label={t("admin.header.renewAria")}
           >
-            Renew plan →
+            {t("admin.header.renewCta")}
           </button>
         </div>
       )}
@@ -531,7 +565,7 @@ export default function AdminHeader({
       <header className={`ah-root${periodExpired ? " with-banner" : ""}`} role="banner">
 
         {/* Logo */}
-        <a className="ah-logo" href="/admin" aria-label="LinguAI home">
+        <a className="ah-logo" href="/admin" aria-label={t("admin.header.logoAria")}>
           <svg width="180" height="40" viewBox="0 0 180 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <circle cx="20" cy="20" r="17" stroke="#6C6FEF" strokeWidth="1.6"/>
             <circle cx="20" cy="20" r="9"  stroke="#6C6FEF" strokeWidth="1.1" opacity="0.4"/>
@@ -549,8 +583,8 @@ export default function AdminHeader({
         <div className="ah-actions">
           {/* Help */}
           <div style={{ position: "relative" }}>
-            <button className="ah-help-btn" onClick={openHelp} aria-haspopup="menu" aria-expanded={helpOpen} aria-label="Help menu">
-              <IcoHelp />Help
+            <button type="button" className="ah-help-btn" onClick={openHelp} aria-haspopup="menu" aria-expanded={helpOpen} aria-label={t("admin.help.menuLabel")}>
+              <IcoHelp />{t("admin.help.button")}
             </button>
             {helpOpen && <HelpDropdown onClose={closeHelp} />}
           </div>
@@ -559,12 +593,13 @@ export default function AdminHeader({
           {showTrial && (
             <div style={{ position: "relative" }} ref={trialBtnRef}>
               <button
+                type="button"
                 className="ah-trial-btn"
                 onClick={openTrial}
                 aria-haspopup="dialog"
                 aria-expanded={trialOpen}
-                aria-label={trialDaysLeft != null ? `Subscription: ${trialDaysLeft} days left` : "Subscription plan"}
-                title={trialDaysLeft != null ? `${trialDaysLeft} days left` : "Free plan – click to upgrade"}
+                aria-label={trialDaysLeft != null ? t("admin.subscription.daysLeftAria", { days: trialDaysLeft }) : t("admin.subscription.planAria")}
+                title={trialDaysLeft != null ? t("admin.subscription.daysLeftTitle", { days: trialDaysLeft }) : t("admin.subscription.freePlanTitle")}
               >
                 <span className="ah-trial-ring" aria-hidden="true" />
                 <IcoTrial />
@@ -579,12 +614,13 @@ export default function AdminHeader({
           {/* Avatar */}
           <div className="ah-avatar-wrap" ref={avatarRef}>
             <button
+              type="button"
               className="ah-avatar"
               onClick={openUser}
               aria-haspopup="menu"
               aria-expanded={userOpen}
-              aria-label={`Open user menu for ${userName}`}
-              title={userName}
+              aria-label={t("admin.userMenu.openForUser", { userName: userName || t("admin.header.defaultDisplayName") })}
+              title={userName || t("admin.header.defaultDisplayName")}
             >
               {initial}
             </button>

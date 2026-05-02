@@ -35,11 +35,12 @@ PATCH  /admin/videos/{video_id}/segment
 
 # ── stdlib ────────────────────────────────────────────────────────────────────
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 # ── third-party ───────────────────────────────────────────────────────────────
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -52,6 +53,12 @@ from app.models.segment import Segment, SegmentStatus
 from app.models.presentation import Presentation, PresentationStatus
 from app.models.test import Test, TestStatus
 from app.models.video import Video, VideoStatus, VideoSourceType
+from app.models.course import Course
+from app.services.segment_publication_policy import (
+    maybe_consume_course_publish_for_new_live_segment,
+    promote_unit_for_live_segment,
+    segment_state_is_student_available,
+)
 
 # ── shared media-block helpers (moved from this file in refactor) ─────────────
 from app.services.media_block_utils import (
@@ -71,6 +78,22 @@ router = APIRouter()
 
 # ─── Private helpers ──────────────────────────────────────────────────────────
 
+def _parse_optional_datetime(value: Any) -> datetime | None:
+    """Parse JSON/string publish_at into datetime for availability checks."""
+    if value is None or isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return None
+
+
+def _coerce_segment_status(value: Any) -> SegmentStatus:
+    """Normalise API status (string or enum) to SegmentStatus."""
+    if isinstance(value, SegmentStatus):
+        return value
+    return SegmentStatus(str(value).lower())
+
+
 def _get_segment_or_404(db: Session, segment_id: int, teacher_id: int) -> Segment:
     seg = db.query(Segment).options(
         joinedload(Segment.unit),
@@ -80,7 +103,6 @@ def _get_segment_or_404(db: Session, segment_id: int, teacher_id: int) -> Segmen
         raise HTTPException(status_code=404, detail="Segment not found")
 
     # Verify the segment's unit belongs to the teacher (via course)
-    from app.models.course import Course
     unit = seg.unit
     if unit and unit.course_id:
         course = db.query(Course).filter(Course.id == unit.course_id).first()
@@ -206,6 +228,7 @@ async def list_segments_student(
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
 
+    now = datetime.now(timezone.utc)
     segments = (
         db.query(Segment)
         .options(
@@ -216,8 +239,17 @@ async def list_segments_student(
         )
         .filter(
             Segment.unit_id == unit_id,
-            # Segment.is_visible_to_students == True,   # noqa: E712
-            # Segment.status == SegmentStatus.PUBLISHED,
+            Segment.is_visible_to_students == True,  # noqa: E712
+            Segment.status != SegmentStatus.DRAFT,
+            Segment.status != SegmentStatus.ARCHIVED,
+            or_(
+                Segment.status == SegmentStatus.PUBLISHED,
+                and_(
+                    Segment.status == SegmentStatus.SCHEDULED,
+                    Segment.publish_at.isnot(None),
+                    Segment.publish_at <= now,
+                ),
+            ),
         )
         .order_by(Segment.order_index)
         .all()
@@ -273,17 +305,37 @@ async def create_segment(
             body.get("carousel_slides"),
         )
 
+    # Parsed schedule time for quota / availability (draft segments ignore it).
+    publish_at = _parse_optional_datetime(body.get("publish_at"))
+    visible = bool(body.get("is_visible_to_students", False))
+    will_be_live = segment_state_is_student_available(
+        segment_status, visible, publish_at
+    )
+
+    if will_be_live and unit.course_id:
+        course = db.query(Course).filter(Course.id == unit.course_id).first()
+        if course:
+            maybe_consume_course_publish_for_new_live_segment(
+                db,
+                current_user,
+                course,
+                exclude_segment_id=None,
+            )
+
     seg = Segment(
         unit_id=unit_id,
         title=title,
         description=body.get("description"),
         order_index=order_index,
         status=segment_status,
-        is_visible_to_students=body.get("is_visible_to_students", False),
+        is_visible_to_students=visible,
+        publish_at=publish_at,
         media_blocks=media_blocks,
         created_by=current_user.id,
     )
     db.add(seg)
+    if will_be_live:
+        promote_unit_for_live_segment(db, unit)
     db.commit()
     db.refresh(seg)
     return _segment_detail(seg)
@@ -368,11 +420,55 @@ async def update_segment(
     db: Session = Depends(get_db),
 ):
     seg = _get_segment_or_404(db, segment_id, current_user.id)
+    unit = seg.unit
+
+    old_live = segment_state_is_student_available(
+        seg.status, seg.is_visible_to_students, seg.publish_at
+    )
+
+    pending_status = (
+        _coerce_segment_status(body["status"]) if "status" in body else seg.status
+    )
+    pending_visible = (
+        bool(body["is_visible_to_students"])
+        if "is_visible_to_students" in body
+        else seg.is_visible_to_students
+    )
+    pending_publish = (
+        _parse_optional_datetime(body["publish_at"])
+        if "publish_at" in body
+        else seg.publish_at
+    )
+    new_live = segment_state_is_student_available(
+        pending_status, pending_visible, pending_publish
+    )
+
+    if (
+        not old_live
+        and new_live
+        and unit
+        and unit.course_id
+    ):
+        course = db.query(Course).filter(Course.id == unit.course_id).first()
+        if course:
+            maybe_consume_course_publish_for_new_live_segment(
+                db,
+                current_user,
+                course,
+                exclude_segment_id=seg.id,
+            )
 
     allowed = {"title", "description", "order_index", "status", "is_visible_to_students", "publish_at"}
     for field in allowed:
         if field in body:
-            setattr(seg, field, body[field])
+            val = body[field]
+            if field == "status":
+                val = _coerce_segment_status(val)
+            elif field == "publish_at":
+                val = _parse_optional_datetime(val)
+            elif field == "is_visible_to_students":
+                val = bool(val)
+            setattr(seg, field, val)
 
     if "media_blocks" in body or "carousel_slides" in body:
         if "carousel_slides" in body:
@@ -387,6 +483,12 @@ async def update_segment(
         flag_modified(seg, "media_blocks")
 
     seg.updated_by = current_user.id
+
+    if unit and segment_state_is_student_available(
+        seg.status, seg.is_visible_to_students, seg.publish_at
+    ):
+        promote_unit_for_live_segment(db, unit)
+
     db.commit()
     db.refresh(seg)
     return _segment_detail(seg)

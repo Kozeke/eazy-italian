@@ -54,6 +54,12 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    # Per-period AI quota counters (exercise / unit / course generation).
+    teacher_ai_usage_rows = relationship(
+        "TeacherAIUsage",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def full_name(self) -> str:

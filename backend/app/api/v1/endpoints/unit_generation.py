@@ -179,7 +179,7 @@ def _build_segment_summary(seg: Segment) -> SegmentSummary:
 # ── File-upload constants & provider helper ───────────────────────────────────
 
 _MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024   # 20 MB
-_ALLOWED_EXTENSIONS  = {"pdf", "docx"}
+_ALLOWED_EXTENSIONS  = {"pdf"}
 
 
 def _get_ai_provider():
@@ -337,18 +337,18 @@ async def generate_unit_content(
     response_model=UnitGenerateResponse,
     summary="AI-generate unit segments from an uploaded file",
     description=(
-        "Upload a PDF or DOCX file. The endpoint extracts its text, derives the topic "
+        "Upload a PDF file. The endpoint extracts its text, derives the topic "
         "from the document title (or filename), and runs the full generation pipeline:\n\n"
         "- **Text blocks** — grammar rules, vocabulary, examples in Markdown\n"
         "- **Exercise blocks** — AI-generated interactive exercises\n"
         "- **Image blocks** (optional) — SVG illustrations, enabled with `include_images=true`\n\n"
-        f"**Supported file types:** pdf, docx — max 20 MB"
+        f"**Supported file types:** pdf — max 20 MB"
     ),
     tags=["AI Unit Generation"],
 )
 async def generate_unit_from_file(
     unit_id: int,
-    file: UploadFile = File(..., description="PDF or DOCX file — max 20 MB"),
+    file: UploadFile = File(..., description="PDF file — max 20 MB"),
     level: str = Form(default="A2", description="CEFR level: A1–C2"),
     language: str = Form(default="English", description="Target language of the content"),
     num_segments: int = Form(default=3, ge=1, le=6, description="Number of segments to create (1–6)"),

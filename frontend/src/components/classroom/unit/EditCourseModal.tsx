@@ -453,9 +453,14 @@ export default function EditCourseModal({
             {/* ── Phase 3: Publish button (only when courseId is provided) */}
             {courseId != null && (
               isAlreadyPublished ? (
-                <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200">
-                  <span className="text-sm">✓</span> Published
-                </span>
+                <div className="flex flex-col gap-1 max-w-[240px]">
+                  <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                    <span className="text-sm">✓</span> Published
+                  </span>
+                  <p className="text-[11px] leading-snug text-slate-500 pl-0.5">
+                    Курс в каталоге может быть пустым для студентов, пока вы не опубликуете сегменты урока. Первый выход сегмента в эфир на курсе учитывается в лимите «Публикация для студентов».
+                  </p>
+                </div>
               ) : isFreePlan ? (
                 /* Free plan — locked button */
                 <button

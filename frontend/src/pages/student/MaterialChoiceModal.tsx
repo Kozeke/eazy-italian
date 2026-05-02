@@ -11,7 +11,7 @@
  *
  * Behaviour:
  *   1. Teacher clicks Manual or AI.
- *   2. POST /api/v1/admin/units with { course_id, title: "New Unit", status: "draft" }
+ *   2. POST /api/v1/admin/units — backend publishes the unit when the course is already live.
  *   3. onCreated({ unitId: unit.id, mode }) is called — ClassroomPage handles routing.
  *
  * Design: ultra-clean card-picker, consistent with Sora font / white palette.
@@ -49,12 +49,11 @@ async function apiCreateUnit(courseId: number): Promise<{ id: number; title: str
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       title: 'New Unit',
+      level: 'A1',
       course_id: courseId,
-      status: 'draft',
       order_index: 0,
       description: '',
       tags: [],
-      settings: {},
     }),
   });
   if (!res.ok) {

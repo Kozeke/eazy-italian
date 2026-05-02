@@ -14,10 +14,12 @@
  */
 
 import { useState, useCallback, useMemo, useRef } from "react";
-import { BookOpen, Eye, EyeOff, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { BookOpen, Eye, EyeOff } from "lucide-react";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from "../exercise/ExerciseHeader";
+import AIExerciseGenerateButton from "./AI_generation/AIExerciseGenerateButton";
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from "./AI_generation/AIExerciseGeneratorModal";
@@ -63,6 +65,8 @@ interface Props {
   onSave: (data: TextBlockData, blockId?: string) => void | Promise<void>;
   /** Called when the teacher clicks × or Cancel. */
   onCancel: () => void;
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 // ── Minimal Markdown → React renderer (copied from TextBlock for live preview) ─
@@ -198,7 +202,9 @@ export default function TextEditorPage({
   segmentId,
   onSave,
   onCancel,
+  onSettingsClick,
 }: Props) {
+  const { t, i18n } = useTranslation();
   /** Visible block title synced with TextBlock header strip and save payload. */
   const [title, setTitle] = useState(initialTitle || initialData?.title || "");
 
@@ -247,19 +253,36 @@ export default function TextEditorPage({
     }
   }, [content, title, canSave, saving, onSave]);
 
+  /** Header «?» copy: text blocks hold Markdown only; media lives in other block types. */
+  const textBlockHelpTooltip = useMemo(() => {
+    const typeLabel =
+      (label?.trim() || title.trim() || t("exerciseHeader.untitledExercise"));
+    return [
+      t("exerciseHeader.helpLine1", { label: typeLabel }),
+      t("exerciseHeader.textBlockHelpLine2"),
+      t("exerciseHeader.helpLine3"),
+      t("exerciseHeader.helpLine4"),
+    ].join("\n");
+  }, [label, title, t, i18n.language]);
+
+  /** Shown in the fixed header when the gallery label is absent. */
+  const resolvedGalleryLabel = label ?? t("aiExerciseGenerator.types.text.label");
+
   return (
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={title}
-        headerLabel={label ?? "Text block"}
+        headerLabel={resolvedGalleryLabel}
         editableTitleInHeader={false}
+        helpTooltip={textBlockHelpTooltip}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
       <div
         className="dtg-editor-content"
         style={{ paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14 }}
-        aria-label={label ?? "Text block editor"}
+        aria-label={`${resolvedGalleryLabel} editor`}
       >
         <div className="dtg-title-row">
           <input
@@ -303,15 +326,10 @@ export default function TextEditorPage({
               {showPreview ? "Скрыть предпросмотр" : "Показать предпросмотр"}
             </button>
 
-            <button
-              type="button"
-              className="dtg-generate-btn"
-              style={{ margin: 0 }}
+            <AIExerciseGenerateButton
               onClick={() => setShowAIModal(true)}
-            >
-              <Sparkles size={13} />
-              Сгенерировать
-            </button>
+              style={{ margin: 0 }}
+            />
           </div>
 
           <p style={{ margin: 0, fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
@@ -397,10 +415,12 @@ export default function TextEditorPage({
         )}
 
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             <button type="button" className="dtg-btn-cancel" onClick={onCancel}>

@@ -26,6 +26,8 @@ interface Props {
   onCancel: () => void;
   segmentId?: string | number | null;
   exerciseType?: 'test_with_timer';
+  /** Header cog: return to exercise template gallery (ExerciseDraftsPage). */
+  onSettingsClick?: () => void;
 }
 
 const DEFAULT_TIME_LIMIT = 10; // minutes — shown when no existing draft
@@ -142,6 +144,7 @@ export default function TestWithTimerEditorPage({
   onCancel,
   segmentId,
   exerciseType = 'test_with_timer',
+  onSettingsClick,
 }: Props) {
   const [draft, setDraft] = useState<TestDraft>(() =>
     normaliseDraft(initialTitle, initialDraft),
@@ -206,6 +209,7 @@ export default function TestWithTimerEditorPage({
         title={draft.title}
         headerLabel={label}
         editableTitleInHeader={false}
+        onSettingsClick={onSettingsClick}
         onClose={onCancel}
       />
 
@@ -230,10 +234,12 @@ export default function TestWithTimerEditorPage({
 
         {/* ── Footer ────────────────────────────────────────────────────────── */}
         <div className="dtg-footer">
+          {/*
           <label className="dtg-pro-toggle">
             Pro
             <input type="checkbox" style={{ marginLeft: 6 }} />
           </label>
+          */}
 
           <div className="dtg-footer-btns">
             <button
