@@ -865,6 +865,10 @@ export default function UnitSelectorModal({
                         style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#DC2626', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2'; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                        onClick={() => {
+                          setCourseMenuOpen(false);
+                          onDeleteCourse?.();
+                        }}
                       >
                         {t('classroom.unitSelector.deleteCourse')}
                       </button>

@@ -188,6 +188,24 @@ export const authApi = {
     return response.data;
   },
 
+  // Uploads the authenticated user's profile avatar image to /users/me/avatar.
+  uploadCurrentUserAvatar: async (file: File): Promise<User> => {
+    // Stores multipart payload expected by backend avatar upload endpoint.
+    const avatarFormData = new FormData();
+    avatarFormData.append("file", file);
+    // Stores backend response with updated current-user profile avatar fields.
+    const response: AxiosResponse<User> = await api.post(
+      "/users/me/avatar",
+      avatarFormData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      },
+    );
+    return response.data;
+  },
+
   logout: async (): Promise<void> => {
     try {
       await api.post("/auth/logout");
@@ -1646,6 +1664,21 @@ export const teacherTariffsApi = {
       "/admin/tariffs/payments",
       body,
     );
+    return response.data;
+  },
+
+  // Creates a Stripe PaymentIntent on the backend for checkout confirmation.
+  createPaymentIntent: async (body: {
+    amount: number;
+    currency?: string;
+    plan_code?: string;
+    billing_period?: string;
+  }): Promise<{ client_secret: string; payment_intent_id: string }> => {
+    // Stores backend-generated Stripe client secret and payment intent reference.
+    const response: AxiosResponse<{
+      client_secret: string;
+      payment_intent_id: string;
+    }> = await api.post("/admin/tariffs/payments/intent", body);
     return response.data;
   },
 };

@@ -952,6 +952,28 @@ function ClassroomPageInner({
     [courseId, course?.settings, reloadUnits, t],
   );
 
+  /**
+   * Deletes the current teacher course and returns the user to the courses list.
+   */
+  const handleDeleteCourse = useCallback(async () => {
+    if (!isTeacher || !courseId) return;
+    // Stores the irreversible-action confirmation text shown before deleting a full course.
+    const deleteCourseConfirmationMessage = `Delete "${course?.title ?? "this course"}"? This action cannot be undone.`;
+    // Prevents accidental course deletion from the course actions menu.
+    const isDeleteCourseConfirmed = window.confirm(deleteCourseConfirmationMessage);
+    if (!isDeleteCourseConfirmed) return;
+    try {
+      await coursesApi.deleteCourse(Number(courseId));
+      // Shows success feedback before redirecting away from the deleted classroom route.
+      toast.success(`"${course?.title ?? "Course"}" deleted`);
+      navigate("/admin/courses", { replace: true });
+    } catch (error) {
+      console.error("[ClassroomPage] Failed to delete course", error);
+      // Explains that course deletion failed so the teacher can retry safely.
+      toast.error("Failed to delete course");
+    }
+  }, [isTeacher, courseId, course?.title, navigate]);
+
   const handleContentSaved = useCallback(async () => {
     // await Promise.all([reloadSlides(), reloadUnit()]);
     await reloadUnit();
@@ -1047,6 +1069,57 @@ function ClassroomPageInner({
       return null;
     }
   }, [units.length, courseId]);
+
+  /**
+   * Deletes one teacher-selected unit from the course and keeps classroom navigation stable.
+   */
+  const handleDeleteUnit = useCallback(
+    async (unitToDelete: ClassroomUnit) => {
+      if (!isTeacher) return;
+      // Stores the native confirmation copy shown before irreversible unit deletion.
+      const deleteConfirmationMessage = `Delete "${unitToDelete.title}"? This action cannot be undone.`;
+      // Prevents accidental destructive actions from the unit dropdown.
+      const isDeletionConfirmed = window.confirm(deleteConfirmationMessage);
+      if (!isDeletionConfirmed) return;
+      try {
+        await unitsApi.deleteUnit(unitToDelete.id);
+        // Stores the local list that excludes the deleted unit for fallback navigation.
+        const remainingUnits = units
+          .filter((unit) => unit.id !== unitToDelete.id)
+          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+        // Stores the next best unit to open when the current unit was deleted.
+        const fallbackUnit = remainingUnits[0] ?? null;
+        if (currentUnit?.id === unitToDelete.id) {
+          if (fallbackUnit) {
+            selectUnit(fallbackUnit);
+            dispatch({ type: "RESET" });
+            setActiveTab("lesson");
+            navigate(`${classroomBasePath}/${courseId}/${fallbackUnit.id}`, { replace: true });
+          } else {
+            navigate(`${classroomBasePath}/${courseId}`, { replace: true });
+          }
+        }
+        reloadUnits();
+        // Shows success feedback immediately after backend deletion completes.
+        toast.success(`"${unitToDelete.title}" deleted`);
+      } catch (error) {
+        console.error("[ClassroomPage] Failed to delete unit", error);
+        // Explains that delete failed so the teacher can retry from the modal.
+        toast.error("Failed to delete unit");
+      }
+    },
+    [
+      isTeacher,
+      units,
+      currentUnit?.id,
+      selectUnit,
+      navigate,
+      classroomBasePath,
+      courseId,
+      reloadUnits,
+      t,
+    ],
+  );
 
   /** Navigates to a unit URL and resets local lesson progress (shared by selector, finish, and draft confirm). */
   const navigateToUnit = useCallback(
@@ -1581,7 +1654,9 @@ function ClassroomPageInner({
         generateUnitId={undefined}
         generateUnitTitle={undefined}
         onCreateAndGenerate={handleCreateAndGenerate}
+        onDeleteUnit={isTeacher ? handleDeleteUnit : undefined}
         onEditCourse={isTeacher ? handleEditCourse : undefined}
+        onDeleteCourse={isTeacher ? handleDeleteCourse : undefined}
         editCourseDescription={editCourseSeed.initialDescription}
         editCourseLanguage={editCourseSeed.initialLanguage}
         editCourseSectionsEnabled={editCourseSeed.initialSectionsEnabled}

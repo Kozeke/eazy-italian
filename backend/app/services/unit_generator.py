@@ -109,10 +109,12 @@ class TextBlueprint(BaseModel):
     content: str = Field(
         ...,
         min_length=1,
-        max_length=4000,
+        # ~1 500 chars ≈ 300–400 words; enough for grammar rules + examples
+        # without risking token-limit truncation on Groq.
+        max_length=1500,
         description=(
             "Markdown-formatted educational content: grammar explanations, "
-            "vocabulary lists, usage examples, tips."
+            "vocabulary lists, usage examples, tips. Keep it under 150 words."
         ),
     )
 
@@ -218,13 +220,26 @@ class UnitGeneratorService:
         """Full pipeline: prompt → parse → persist → return summary."""
         prompt = self._build_prompt(request)
         logger.info(
-            "UnitGenerator: calling AI provider for unit_id=%d topic=%r",
+            "UnitGenerator: start unit_id=%d teacher_id=%d topic=%r level=%s language=%s segments=%d include_images=%s",
             request.unit_id,
+            request.teacher_id,
             request.topic,
+            request.level,
+            request.language,
+            request.num_segments,
+            request.include_images,
         )
+        # Keep provider errors explicit in logs while preserving API-friendly exceptions.
         try:
             raw_output = await self.provider.agenerate(prompt)
         except AIProviderError as exc:
+            logger.error(
+                "UnitGenerator: provider failed for unit_id=%d teacher_id=%d: %s",
+                request.unit_id,
+                request.teacher_id,
+                exc,
+                exc_info=True,
+            )
             raise RuntimeError(f"AI provider error during unit generation: {exc}") from exc
 
         blueprint = self._parse_blueprint(raw_output)
@@ -683,6 +698,12 @@ Return ONLY the JSON object."""
                     )
 
         for order_idx, seg_bp in enumerate(blueprint.segments):
+            logger.info(
+                "UnitGenerator: segment start unit_id=%d segment_index=%d segment_title=%r",
+                request.unit_id,
+                order_idx,
+                seg_bp.title,
+            )
             # ── Create Segment record ─────────────────────────────────────────
             segment = Segment(
                 unit_id=request.unit_id,
@@ -810,6 +831,14 @@ Return ONLY the JSON object."""
                         "UnitGenerator: flush of text/image blocks for segment id=%d failed: %s",
                         segment.id, exc,
                     )
+
+            logger.info(
+                "UnitGenerator: segment complete unit_id=%d segment_id=%d texts=%d exercises=%d",
+                request.unit_id,
+                segment.id,
+                len(seg_bp.texts),
+                len(seg_bp.exercises),
+            )
 
         # Final commit
         try:

@@ -252,13 +252,29 @@ async def generate_unit_content(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher),
 ) -> UnitGenerateResponse:
+    logger.info(
+        "generate_unit_content: start unit_id=%d teacher_id=%d topic=%r segments=%d include_images=%s",
+        unit_id,
+        current_user.id,
+        body.topic,
+        body.num_segments,
+        body.include_images,
+    )
     _get_unit_or_404(db, unit_id, current_user.id)
     # Consumes one AI unit-generation credit based on the teacher's active tariff.
     check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
 
+    # Prevent request crash when AI provider cannot be initialized.
     try:
         provider = _get_ai_provider()
     except Exception as exc:
+        logger.error(
+            "generate_unit_content: provider init failed unit_id=%d teacher_id=%d: %s",
+            unit_id,
+            current_user.id,
+            exc,
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=f"AI provider unavailable: {exc}") from exc
 
     svc_request = _SvcUnitGenerateRequest(
@@ -276,9 +292,17 @@ async def generate_unit_content(
     )
 
     service = UnitGeneratorService(ai_provider=provider)
+    # Convert generation runtime failures into stable API errors.
     try:
         result = await service.generate(svc_request, db)
     except RuntimeError as exc:
+        logger.error(
+            "generate_unit_content: generation failed unit_id=%d teacher_id=%d: %s",
+            unit_id,
+            current_user.id,
+            exc,
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     segments_summary: list[SegmentSummary] = []
@@ -287,6 +311,16 @@ async def generate_unit_content(
         if seg is not None:
             segments_summary.append(_build_segment_summary(seg))
 
+    logger.info(
+        "generate_unit_content: success unit_id=%d teacher_id=%d segments=%d texts=%d exercises=%d images=%d errors=%d",
+        unit_id,
+        current_user.id,
+        result.segments_created,
+        result.texts_created,
+        result.exercises_created,
+        result.images_created,
+        len(result.errors),
+    )
     return UnitGenerateResponse(
         segments_created=result.segments_created,
         exercises_created=result.exercises_created,

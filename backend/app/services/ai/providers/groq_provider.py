@@ -184,12 +184,24 @@ class GroqProvider(AIProvider):
             ) from exc
 
         data = resp.json()
+        choice = data["choices"][0]
+        # Detect token-limit truncation before handing the partial text to the
+        # caller — this prevents silent JSON-parse failures downstream.
+        finish_reason = choice.get("finish_reason", "")
+        tokens_used   = data.get("usage", {}).get("total_tokens", "?")
         logger.debug(
-            "Groq response — model=%s tokens_used=%s",
+            "Groq response — model=%s tokens_used=%s finish_reason=%s",
             data.get("model"),
-            data.get("usage", {}).get("total_tokens", "?"),
+            tokens_used,
+            finish_reason,
         )
-        return data["choices"][0]["message"]["content"]
+        if finish_reason == "length":
+            raise AIProviderError(
+                f"Groq response was truncated (finish_reason=length, "
+                f"tokens_used={tokens_used}, max_tokens={self.max_tokens}). "
+                "Increase GROQ_MAX_TOKENS or request fewer/shorter segments."
+            )
+        return choice["message"]["content"]
 
     # ── AIProvider: async ─────────────────────────────────────────────────────
 

@@ -19,6 +19,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Crown, HelpCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router-dom";
 import { coursesApi } from "../../services/api";
 import AdminTariffsPaymentHistory from "./components/AdminTariffsPaymentHistory";
 

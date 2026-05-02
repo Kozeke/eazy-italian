@@ -411,8 +411,14 @@ function SuccessView({
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
+// Resolve the API base from the build-time env var so that production static
+// deployments (where Vite's dev-server proxy is not running) reach the real
+// backend instead of hitting the static host's catch-all rewrite.
+const DEFAULT_API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "/api/v1";
+
 export default function GenerateUnitModal({
-  unitId, unitTitle, apiBase = "/api/v1", onClose, onSuccess,
+  unitId, unitTitle, apiBase = DEFAULT_API_BASE, onClose, onSuccess,
 }: Props) {
   // Tab
   const [activeTab, setActiveTab] = useState<Tab>("ai");
