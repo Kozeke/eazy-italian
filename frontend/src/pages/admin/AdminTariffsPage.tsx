@@ -22,6 +22,10 @@ import { useTranslation } from "react-i18next";
 import { coursesApi } from "../../services/api";
 import AdminTariffsPaymentHistory from "./components/AdminTariffsPaymentHistory";
 
+// Same origin as axios in services/api.ts so tariff requests hit :8000, not the Vite dev server
+const API_V1_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+
 type BillingDuration = "1m" | "3m" | "6m" | "12m";
 /** Normalized plan id from GET /admin/tariffs/me `plan`. */
 type TariffPlanId = "free" | "standard" | "pro";
@@ -221,7 +225,7 @@ export default function AdminTariffsPage() {
       setTariffMeLoad("loading");
       try {
         const token = localStorage.getItem("token") ?? "";
-        const res = await fetch("/api/v1/admin/tariffs/me", {
+        const res = await fetch(`${API_V1_BASE}/admin/tariffs/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!mounted) return;
@@ -248,7 +252,7 @@ export default function AdminTariffsPage() {
     const token = localStorage.getItem("token") ?? "";
     setStripeCheckoutLoading(true);
     try {
-      const res = await fetch("/api/v1/admin/tariffs/create-checkout-session", {
+      const res = await fetch(`${API_V1_BASE}/admin/tariffs/create-checkout-session`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
