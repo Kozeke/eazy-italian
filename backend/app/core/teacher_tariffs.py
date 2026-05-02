@@ -330,6 +330,28 @@ def check_and_consume_teacher_ai_quota(
     limits = get_teacher_tariff_limits(plan)
     action_limit = limits.get(action)
 
+    # TEMP: Free-tier course_publish guard disabled for development — re-enable before prod.
+    # if action_limit == 0:
+    #     # Explicitly blocked — not a quota issue, a plan-tier restriction.
+    #     raise HTTPException(
+    #         status_code=status.HTTP_402_PAYMENT_REQUIRED,
+    #         detail=(
+    #             f"The '{action}' action is not available on the {plan.capitalize()} plan. "
+    #             "Upgrade to Standard or Pro to unlock this feature."
+    #         ),
+    #     )
+
+    # With Step 2 commented, limit 0 would fall through to Step 3 and always "exhaust" quota;
+    # treat course_publish on Free like a tracked-but-unblocked action until the gate returns.
+    if action == "course_publish" and action_limit == 0:
+        _increment_usage(db, user, action)
+        logger.debug(
+            "course_publish allowed (free-tier gate off): user=%s plan=%s",
+            user.id,
+            plan,
+        )
+        return
+
     if action_limit == 0:
         # Explicitly blocked — not a quota issue, a plan-tier restriction.
         raise HTTPException(

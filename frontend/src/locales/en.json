@@ -16,6 +16,12 @@
     "search": "Search...",
     "filters": "Filters"
   },
+  "errorPage": {
+    "title": "Something went wrong",
+    "subtitle": "We couldn't complete that action. Your editor may be out of sync. Try going back, then reopen the lesson or refresh the page.",
+    "goBack": "Go back",
+    "backHome": "Back to home"
+  },
   "subscriptionCheckout": {
     "successTitle": "Welcome to LinguAI Pro",
     "successSubtitle": "Your subscription is active. You can use your new limits right away.",

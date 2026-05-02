@@ -27,10 +27,7 @@ from app.services.media_block_utils import normalise_media_blocks
 from app.services.segment_publication_policy import (
     maybe_consume_course_publish_for_new_live_segment,
 )
-from app.core.teacher_tariffs import (
-    get_teacher_tariff_display_state,
-    get_teacher_tariff_limits,
-)
+from app.core.teacher_tariffs import get_teacher_tariff_display_state
 
 router = APIRouter()
 
@@ -463,15 +460,16 @@ async def publish_unit(
                 )
 
             # Phase 1: plan-level block (free tier has course_publish = 0)
-            limits = get_teacher_tariff_limits(plan)
-            if limits.get("course_publish") == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                    detail=(
-                        "Publishing units is not available on the Free plan. "
-                        "Upgrade to Standard or Pro to unlock this feature."
-                    ),
-                )
+            # TEMP: disabled alongside teacher_tariffs course_publish gate — re-enable before prod.
+            # limits = get_teacher_tariff_limits(plan)
+            # if limits.get("course_publish") == 0:
+            #     raise HTTPException(
+            #         status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            #         detail=(
+            #             "Publishing units is not available on the Free plan. "
+            #             "Upgrade to Standard or Pro to unlock this feature."
+            #         ),
+            #     )
 
             # Phase 2: idempotent credit consumption for paid/pro tiers
             maybe_consume_course_publish_for_new_live_segment(
