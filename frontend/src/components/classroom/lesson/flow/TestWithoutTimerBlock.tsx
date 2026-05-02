@@ -59,7 +59,7 @@ function toRuntimeQuestion(draft: QuestionDraft, index: number): RuntimeQuestion
     const correctIndex = Number(rawDraft.correct_index ?? 0);
     const normalisedOptions = rawOptions.map((o, i) => ({ id: o.id ?? `opt_${i}`, text: o.text ?? "" }));
     const correctId = normalisedOptions[correctIndex]?.id ?? `opt_${correctIndex}`;
-    draft = { ...draft, type: "multiple_choice", options: normalisedOptions, correct_option_ids: [correctId] } as QuestionDraft;
+    draft = { ...(draft as object), type: "multiple_choice", options: normalisedOptions, correct_option_ids: [correctId] } as QuestionDraft;
   }
   const base: RuntimeQuestion = { id: index + 1, type: draft.type, prompt: draft.prompt, question_text: draft.prompt };
   switch (draft.type) {

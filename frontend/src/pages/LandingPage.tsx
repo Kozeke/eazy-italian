@@ -9,7 +9,7 @@
  * - School card updated to $49/mo · up to 10 teachers
  * - CTA subtext updated
  */
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 /* ─── CSS (verbatim — unchanged) ─── */
@@ -329,29 +329,8 @@ const LogoSVG = ({ width = 150, height = 36 }: { width?: number; height?: number
 
 /* ─── Main Component ─── */
 export default function LandingPage() {
-  const [activeTab,  setActiveTab]  = useState<"unit" | "exercise" | "course">("unit");
-  const [activeStep, setActiveStep] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // ── Phase 4: billing toggle ──────────────────────────────────────────────
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
-
-  const resetTimer = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setActiveStep((prev) => (prev + 1) % 4);
-    }, 3500);
-  };
-
-  useEffect(() => {
-    resetTimer();
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
-
-  const handleStepClick = (i: number) => {
-    setActiveStep(i);
-    resetTimer();
-  };
 
   // ── Phase 4: derived pricing ──────────────────────────────────────────────
   const isAnnual = billing === "annual";

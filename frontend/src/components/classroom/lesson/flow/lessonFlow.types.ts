@@ -125,6 +125,15 @@ export type LessonFlowDividerItem = {
   label?: string;
 };
 
+/** Inline stacked-image carousel block (see ImageStackedBlock, exerciseRegistrations). */
+export type LessonFlowImageStackedItem = {
+  type:   'image_stacked';
+  id:     string;
+  label?: string;
+  data?:  Record<string, unknown>;
+  status: LessonFlowItemStatus;
+};
+
 // ─── Union ────────────────────────────────────────────────────────────────────
 
 export type LessonFlowItem =
@@ -132,7 +141,8 @@ export type LessonFlowItem =
   | LessonFlowTaskItem
   | LessonFlowTestItem
   | LessonFlowVideoItem
-  | LessonFlowDividerItem;
+  | LessonFlowDividerItem
+  | LessonFlowImageStackedItem;
 
 // ─── Top-level model ──────────────────────────────────────────────────────────
 

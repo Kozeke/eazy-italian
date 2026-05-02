@@ -65,7 +65,7 @@ export interface ClassroomHeaderProps {
   isTeacher?: boolean;
   generateUnitId?: number | null;
   generateUnitTitle?: string;
-  onGenerateSuccess?: (result: { segments_created: number; exercises_created: number; segments: any[] }) => void;
+  onGenerateSuccess?: (result: { segments_created: number; exercises_created?: number; segments: any[] }) => void;
 
   lessonRail?: React.ReactNode;
   /** @deprecated Use lessonRail instead. */

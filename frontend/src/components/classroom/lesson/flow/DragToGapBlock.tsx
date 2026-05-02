@@ -35,7 +35,7 @@ import React, {
 } from "react";
 import type { ExerciseBlockProps } from "./exerciseBlock.types";
 import type { DragToGapData, TextSeg, GapSeg } from "./DragToGapEditorPage";
-import { GripVertical, MoveHorizontal } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { useLiveSyncField } from "../../../../hooks/useLiveSession";
 import { LiveSessionContext } from "../../live/LiveSessionProvider";
 import { showTeacherExerciseHints } from "./showTeacherExerciseHints";

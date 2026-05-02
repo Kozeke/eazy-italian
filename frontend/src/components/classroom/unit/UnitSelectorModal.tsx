@@ -82,7 +82,8 @@ export type UnitSelectorModalProps = {
   /** Title shown inside the GenerateUnitModal header */
   generateUnitTitle?: string;
   /** Called after a successful AI generation so the parent can reload content */
-  onGenerateSuccess?: (result: { segments_created: number; exercises_created: number; segments: any[] }) => void;
+  /** `exercises_created` is optional — unit generate API may omit it (see GenerateUnitModal GenerateResult). */
+  onGenerateSuccess?: (result: { segments_created: number; exercises_created?: number; segments: any[] }) => void;
   /**
    * Called when the footer "Сгенерировать" button is clicked.
    * Should create a brand-new unit and return its { id, title }.
