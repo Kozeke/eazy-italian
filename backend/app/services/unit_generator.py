@@ -84,7 +84,6 @@ from app.models.segment import Segment, SegmentStatus
 from app.models.unit import Unit
 from app.services.ai.providers.base import AIProvider, AIProviderError
 from app.services.exercise_generation_flow import generate_exercise_for_segment
-from app.services.ai_exercise_generator import build_exercise_provider_for_plan
 
 logger = logging.getLogger(__name__)
 
@@ -1540,8 +1539,6 @@ Requirements for "text_content":
                 exc,
             )
 
-        exercise_provider = build_exercise_provider_for_plan(request.plan or "free")
-
         # ── Smart exercise assignment ─────────────────────────────────────────
         # One exercise type per segment, chosen to match content.
         # Falls back to segment blueprints if no plans available.
@@ -1727,11 +1724,11 @@ Requirements for "text_content":
                         segment_id=segment.id,
                         unit_id=request.unit_id,
                         created_by=request.teacher_id,
+                        teacher_plan=request.plan or "free",
                         block_title=None,
                         topic_hint=hint,
                         content_language=request.content_language,
                         instruction_language=request.instruction_language,
-                        provider=exercise_provider,
                         generator_params={},
                     )
                     result.exercises_created += 1

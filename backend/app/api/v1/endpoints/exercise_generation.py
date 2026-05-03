@@ -34,7 +34,11 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
 from app.core.database import get_db
-from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota
+from app.core.teacher_tariffs import (
+    check_and_consume_teacher_ai_quota,
+    get_teacher_tariff_display_state,
+)
+from app.services.ai_exercise_generator import get_provider_for_plan
 from app.models.user import User
 from app.schemas.exercise_generation import (
     ExerciseGenerateRequest,
@@ -187,6 +191,7 @@ async def create_image_block(
     unit_id = _resolve_unit_id(db, segment_id, parsed_generate_request.unit_id)
     # Consumes one AI exercise-generation credit for AI image generation requests.
     check_and_consume_teacher_ai_quota(db, current_user, "exercise_generation")
+    plan, _ = get_teacher_tariff_display_state(db, current_user)
 
     # Executes standard segment exercise flow using the registered "image" generator.
     block, metadata = await generate_exercise_for_segment(
@@ -195,6 +200,7 @@ async def create_image_block(
         segment_id=segment_id,
         unit_id=unit_id,
         created_by=current_user.id,
+        teacher_plan=plan,
         block_title=parsed_generate_request.block_title,
         topic_hint=parsed_generate_request.topic_hint,
         content_language=parsed_generate_request.content_language,
@@ -430,6 +436,7 @@ async def generate_exercise_block(
     unit_id = _resolve_unit_id(db, segment_id, body.unit_id)
     # Consumes one AI exercise-generation credit after basic request validation succeeds.
     check_and_consume_teacher_ai_quota(db, current_user, "exercise_generation")
+    plan, _ = get_teacher_tariff_display_state(db, current_user)
 
     block, metadata = await generate_exercise_for_segment(
         exercise_type=exercise_type,
@@ -437,6 +444,7 @@ async def generate_exercise_block(
         segment_id=segment_id,
         unit_id=unit_id,
         created_by=current_user.id,
+        teacher_plan=plan,
         block_title=body.block_title,
         topic_hint=body.topic_hint,
         content_language=body.content_language,
@@ -524,6 +532,7 @@ async def generate_exercise_from_file(
     # ── Generate ──────────────────────────────────────────────────────────────
     # Consumes one AI exercise-generation credit after the input file is validated.
     check_and_consume_teacher_ai_quota(db, current_user, "exercise_generation")
+    plan, _ = get_teacher_tariff_display_state(db, current_user)
     try:
         from app.services.ai_exercise_generator import generate_exercise as _gen
         exercise_data, metadata = await _gen(
@@ -535,6 +544,7 @@ async def generate_exercise_from_file(
             gap_count=resolved_gap_count,
             gap_type=gap_type,
             difficulty=difficulty,
+            provider=get_provider_for_plan(plan),
         )
     except NotImplementedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -583,6 +593,7 @@ async def generate_drag_to_gap_compat(
     unit_id = _resolve_unit_id(db, segment_id, body.unit_id)
     # Same quota gate as POST /exercises/{exercise_slug} — compat route must not bypass it.
     check_and_consume_teacher_ai_quota(db, current_user, "exercise_generation")
+    plan, _ = get_teacher_tariff_display_state(db, current_user)
 
     block, metadata = await generate_exercise_for_segment(
         exercise_type="drag_to_gap",
@@ -590,6 +601,7 @@ async def generate_drag_to_gap_compat(
         segment_id=segment_id,
         unit_id=unit_id,
         created_by=current_user.id,
+        teacher_plan=plan,
         block_title=body.block_title,
         topic_hint=body.topic_hint,
         content_language=body.content_language,

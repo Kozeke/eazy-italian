@@ -250,94 +250,7 @@ class _WithOllamaFallback(AIProvider):
         return f"<_WithOllamaFallback primary={self._primary!r} fallback={self._fallback!r}>"
 
 
-class _WithDeepSeekFallback(AIProvider):
-    """
-    Wraps Groq (primary) and falls back to DeepSeek when Groq rate-limits.
-
-    Used for Standard / Pro plans during exercise generation:
-      - First attempt: Groq (fast, free-tier)
-      - On 429: retry with DeepSeek (paid, no rate limit for our traffic)
-    """
-
-    _RATE_LIMIT_PHRASES = ("rate limit", "429", "slow down", "quota", "too many requests")
-
-    def __init__(self, primary: AIProvider, fallback: AIProvider) -> None:
-        self._primary  = primary
-        self._fallback = fallback
-        self.model = getattr(primary, "model", type(primary).__name__)
-
-    def _is_rate_limit(self, exc: AIProviderError) -> bool:
-        return any(p in str(exc).lower() for p in self._RATE_LIMIT_PHRASES)
-
-    def generate(self, prompt: str) -> str:
-        try:
-            return self._primary.generate(prompt)
-        except AIProviderError as exc:
-            if self._is_rate_limit(exc):
-                logger.warning(
-                    "Groq rate-limited during exercise generation (%s) — "
-                    "falling back to DeepSeek.", exc,
-                )
-                self.model = getattr(self._fallback, "model", type(self._fallback).__name__)
-                return self._fallback.generate(prompt)
-            raise
-
-    async def agenerate(self, prompt: str) -> str:
-        try:
-            return await self._primary.agenerate(prompt)
-        except AIProviderError as exc:
-            if self._is_rate_limit(exc):
-                logger.warning(
-                    "Groq rate-limited during exercise generation (%s) — "
-                    "falling back to DeepSeek (async).", exc,
-                )
-                self.model = getattr(self._fallback, "model", type(self._fallback).__name__)
-                return await self._fallback.agenerate(prompt)
-            raise
-
-    def __repr__(self) -> str:
-        return f"<_WithDeepSeekFallback primary={self._primary!r} fallback={self._fallback!r}>"
-
-
-def build_exercise_provider_for_plan(plan: str) -> AIProvider:
-    """
-    Return the correct exercise-generation provider for the given plan.
-
-    free                → Groq only  (same as the env-var default)
-    standard / pro      → Groq first, DeepSeek on rate-limit fallback
-
-    The returned provider is a fresh instance — callers must NOT cache it
-    across requests because DeepSeek credentials may rotate at runtime.
-    """
-    from app.services.ai.providers.groq_provider import GroqProvider
-    groq = GroqProvider()
-
-    paid_plans = {"standard", "pro"}
-    if plan.lower() not in paid_plans:
-        logger.debug("build_exercise_provider_for_plan: plan=%r → Groq only", plan)
-        return groq
-
-    try:
-        from app.services.ai.providers.deepseek_provider import DeepSeekProvider
-        deepseek = DeepSeekProvider(json_mode=False)
-        logger.info(
-            "build_exercise_provider_for_plan: plan=%r → Groq + DeepSeek fallback", plan
-        )
-        return _WithDeepSeekFallback(primary=groq, fallback=deepseek)
-    except Exception as exc:
-        logger.warning(
-            "build_exercise_provider_for_plan: could not init DeepSeek fallback "
-            "(plan=%r) — falling back to Groq only: %s", plan, exc,
-        )
-        return groq
-
-
 def _build_default_provider() -> AIProvider:
-    """
-    Build the module-level default exercise provider from the AI_PROVIDER env-var.
-
-    This is used only when no plan-aware provider is passed to a generator.
-    """
     provider_name = os.environ.get("AI_PROVIDER", "groq").strip().lower()
 
     if provider_name == "groq":
@@ -349,6 +262,13 @@ def _build_default_provider() -> AIProvider:
             logger.info("Ollama fallback available — rate-limit errors will auto-retry locally.")
             return _WithOllamaFallback(primary=p, fallback=fallback)
         return p
+
+    # Ollama is not available in this deployment — disabled.
+    # if provider_name == "ollama":
+    #     from app.services.ai.providers.ollama import LocalLlamaProvider
+    #     p = LocalLlamaProvider()
+    #     logger.info("AI exercise provider: LocalLlamaProvider (model=%s)", p.model)
+    #     return p
 
     if provider_name == "anthropic":
         from app.services.ai.providers.anthropic_provider import AnthropicProvider
@@ -374,6 +294,38 @@ def _build_default_provider() -> AIProvider:
 
 
 _default_provider: AIProvider = _build_default_provider()
+
+
+def get_provider_for_plan(plan: str) -> AIProvider:
+    """
+    Return the AI provider appropriate for the teacher's subscription plan.
+
+    Routing policy
+    --------------
+    free      → Groq  (rate-limited; cheaper)
+    standard  → DeepSeek
+    pro       → DeepSeek
+    <unknown> → DeepSeek (safe default for paid tiers)
+
+    The env-var AI_PROVIDER is intentionally ignored here so the tariff
+    routing always wins over any deployment-level default.
+    """
+    canonical = (plan or "free").strip().lower()
+
+    if canonical == "free":
+        from app.services.ai.providers.groq_provider import GroqProvider
+        p = GroqProvider()
+        logger.info("Exercise provider for plan=%r: GroqProvider (model=%s)", plan, p.model)
+        fallback = _build_ollama_provider()
+        if fallback is not None:
+            return _WithOllamaFallback(primary=p, fallback=fallback)
+        return p
+
+    # standard / pro / any future paid tier → DeepSeek
+    from app.services.ai.providers.deepseek_provider import DeepSeekProvider
+    p = DeepSeekProvider()
+    logger.info("Exercise provider for plan=%r: DeepSeekProvider (model=%s)", plan, p.model)
+    return p
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3567,22 +3519,14 @@ async def generate_exercise(
     content_language: str = "auto",
     instruction_language: str = "english",
     topic_hint: str | None = None,
-    provider: "AIProvider | None" = None,
     **kwargs,
 ) -> tuple[dict, dict]:
     """
     Dispatch to the correct generator for *exercise_type*.
-
+ 
     This is the only function imported by exercise_generation_flow.py.
     Individual generators are implementation details.
-
-    Parameters
-    ----------
-    provider
-        Optional AI provider override.  When supplied it is forwarded to the
-        type-specific generator, which uses it instead of ``_default_provider``.
-        Pass ``build_exercise_provider_for_plan(plan)`` for plan-aware routing.
-
+ 
     Raises
     ------
     NotImplementedError  Unknown or unimplemented exercise_type.
@@ -3596,18 +3540,11 @@ async def generate_exercise(
             f"No AI generator registered for exercise type '{exercise_type}'. "
             f"Supported types: {supported}"
         )
-
-    # Forward provider only when explicitly supplied — generators default to
-    # _default_provider when provider=None.
-    extra: dict = {}
-    if provider is not None:
-        extra["provider"] = provider
-
+ 
     return await generator(
         unit_content=unit_content,
         content_language=content_language,
         instruction_language=instruction_language,
         topic_hint=topic_hint,
-        **extra,
         **kwargs,
     )

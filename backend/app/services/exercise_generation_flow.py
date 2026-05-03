@@ -40,7 +40,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.services.ai.providers.base import AIProviderError
-from app.services.ai_exercise_generator import generate_exercise
+from app.services.ai_exercise_generator import generate_exercise, get_provider_for_plan
 
 # Re-use content assembly from the test flow — single source of truth.
 from app.services.test_generation_flow import (
@@ -141,13 +141,13 @@ async def generate_exercise_for_segment(
     segment_id: int,
     unit_id: int,
     created_by: int,
+    # Subscription plan — drives provider selection (deepseek for paid, groq for free).
+    teacher_plan: str = "free",
     # Common optional params — all generators receive them; unused ones are ignored.
     block_title: str | None = None,
     topic_hint: str | None = None,
     content_language: str = "auto",
     instruction_language: str = "english",
-    # Optional plan-aware AI provider (Groq → DeepSeek fallback for paid plans).
-    provider: Any | None = None,
     # Type-specific extras forwarded verbatim to the generator.
     generator_params: dict | None = None,
 ) -> tuple[dict, dict]:
@@ -209,6 +209,7 @@ async def generate_exercise_for_segment(
     )
 
     # ── 3. Generate via LLM ───────────────────────────────────────────────────
+    provider = get_provider_for_plan(teacher_plan)
     try:
         exercise_data, metadata = await generate_exercise(
             exercise_type=exercise_type,
