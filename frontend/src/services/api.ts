@@ -24,6 +24,26 @@ import {
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 
+// Normalized API root (no trailing slash) for raw `fetch` URLs aligned with the axios client baseURL.
+export const API_V1_BASE = API_BASE_URL.replace(/\/+$/, "");
+
+/**
+ * Derives WebSocket origin (scheme + host) from the configured API URL so sockets reach the backend, not the Vite dev server.
+ */
+export function wsOriginFromApiBase(): string {
+  try {
+    const parsedApiUrl = new URL(API_BASE_URL);
+    const wsProtocol = parsedApiUrl.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProtocol}//${parsedApiUrl.host}`;
+  } catch {
+    if (typeof window === "undefined") {
+      return "ws://localhost:8000";
+    }
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProtocol}//${window.location.host}`;
+  }
+}
+
 // Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

@@ -42,6 +42,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { wsOriginFromApiBase } from '../services/api';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -143,9 +144,7 @@ export function useOnlinePresence({
   // Derive WS base URL once (stable across renders)
   const getWsBase = useCallback((): string => {
     if (wsBaseUrl) return wsBaseUrl;
-    if (typeof window === 'undefined') return 'ws://localhost:8000';
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${window.location.host}`;
+    return wsOriginFromApiBase();
   }, [wsBaseUrl]);
 
   // Attach a deterministic colour to every user object

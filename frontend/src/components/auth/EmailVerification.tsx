@@ -10,6 +10,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Mail, RefreshCw, CheckCircle } from 'lucide-react';
+import { API_V1_BASE } from '../../services/api';
 import { PrimaryButton, ErrorMsg } from './RegisterPage';
 
 interface EmailVerificationProps {
@@ -37,7 +38,7 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/verify-email', {
+      const res = await fetch(`${API_V1_BASE}/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code }),
@@ -100,7 +101,7 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
     if (resendCooldown > 0) return;
     setResending(true);
     try {
-      await fetch('/api/v1/auth/resend-verification', {
+      await fetch(`${API_V1_BASE}/auth/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

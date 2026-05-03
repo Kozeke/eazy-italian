@@ -23,6 +23,7 @@ import {
   Mail, ArrowRight, ArrowLeft, Eye, EyeOff, Lock, User, Pencil, RotateCcw,
 } from 'lucide-react';
 import { LinguAiLogo } from '../global/LinguAiLogo';
+import { API_V1_BASE } from '../../services/api';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ export default function RegisterPage() {
 
   const sendRegistrationCode = async () => {
     try {
-      await fetch('/api/v1/auth/send-registration-code', {
+      await fetch(`${API_V1_BASE}/auth/send-registration-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -108,7 +109,7 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/check-email', {
+      const res = await fetch(`${API_V1_BASE}/auth/check-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -144,7 +145,7 @@ export default function RegisterPage() {
     setOtpError('');
     setOtpLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/verify-registration-code', {
+      const res = await fetch(`${API_V1_BASE}/auth/verify-registration-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: otp }),
@@ -176,7 +177,7 @@ export default function RegisterPage() {
     const first_name = parts[0];
     const last_name = parts.slice(1).join(' ') || parts[0];
     try {
-      const res = await fetch('/api/v1/auth/register', {
+      const res = await fetch(`${API_V1_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -10,6 +10,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Sparkles, Mail, Key, Eye, EyeOff, Loader2 } from 'lucide-react';
 import EmailVerification from './EmailVerification';
+import { API_V1_BASE } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { LinguAiLogo } from '../global/LinguAiLogo';
@@ -318,7 +319,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/magic-code', {
+      const res = await fetch(`${API_V1_BASE}/auth/magic-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -342,7 +343,7 @@ export default function LoginPage() {
   /* Unchanged magic-verified handler */
   const handleMagicVerified = async () => {
     try {
-      const res = await fetch('/api/v1/users/me', {
+      const res = await fetch(`${API_V1_BASE}/users/me`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
       });
       if (!res.ok) throw new Error();

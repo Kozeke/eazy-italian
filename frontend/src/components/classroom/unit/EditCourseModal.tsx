@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, Upload, Lock, Send } from 'lucide-react';
 import ConnectPaymentModal from "../../../pages/admin/components/ConnectPaymentModal";
+import { API_V1_BASE } from "../../../services/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ export type EditCourseModalProps = {
   currentStatus?: string | null;
   /** Called after a successful publish so the parent can refresh course data. */
   onPublished?: () => void;
-  /** API base URL — defaults to "/api/v1" */
+  /** API base URL — defaults to VITE_API_BASE_URL (via API_V1_BASE) */
   apiBase?: string;
 };
 
@@ -148,7 +149,7 @@ export default function EditCourseModal({
   courseId,
   currentStatus,
   onPublished,
-  apiBase = '/api/v1',
+  apiBase = API_V1_BASE,
 }: EditCourseModalProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('basics');
   const [title, setTitle]         = useState(initialTitle);

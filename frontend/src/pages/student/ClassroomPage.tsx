@@ -91,6 +91,7 @@ import {
   segmentsApi,
   coursesApi,
   homeworkSubmissionApi,
+  API_V1_BASE,
   type UnitMaterialAttachment,
   type HomeworkSubmissionListItemDto,
 } from "../../services/api";
@@ -317,12 +318,12 @@ function EmptyLesson({ unitTitle }: { unitTitle: string }) {
  * Props
  * -----
  * courseId    — numeric course ID, used for the PATCH /courses/{id}/publish call
- * apiBase     — API root (default "/api/v1")
+ * apiBase     — API root (default from VITE_API_BASE_URL via API_V1_BASE)
  * onPublished — called after a successful publish so the parent can refresh state
  */
 function DraftCourseBanner({
   courseId,
-  apiBase = "/api/v1",
+  apiBase = API_V1_BASE,
   onPublished,
 }: {
   courseId: number | string;
@@ -1631,7 +1632,6 @@ function ClassroomPageInner({
           course.status !== "PUBLISHED" && (
             <DraftCourseBanner
               courseId={course.id}
-              apiBase="/api/v1"
               onPublished={reloadUnits}
             />
           )}

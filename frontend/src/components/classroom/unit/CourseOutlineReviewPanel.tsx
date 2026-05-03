@@ -35,6 +35,7 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react';
+import { API_V1_BASE } from '../../../services/api';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ async function fetchSegmentPlan(
   level: string,
   language: string,
 ): Promise<SegmentPlanItem[]> {
-  const res = await fetch(`/api/v1/units/${unitId}/plan`, {
+  const res = await fetch(`${API_V1_BASE}/units/${unitId}/plan`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({
@@ -102,7 +103,7 @@ async function patchOutline(
   courseId: number,
   units: Array<{ title: string; description: string; sections: any[] }>,
 ): Promise<void> {
-  const res = await fetch(`/api/v1/course-builder/${courseId}/outline`, {
+  const res = await fetch(`${API_V1_BASE}/course-builder/${courseId}/outline`, {
     method: 'PATCH',
     headers: authHeaders(),
     body: JSON.stringify({ units }),

@@ -17,6 +17,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { API_V1_BASE } from '../../../services/api';
 import {
   X,
   Plus,
@@ -290,7 +291,7 @@ export default function EditOutlineModal({
     };
 
     try {
-      const res = await fetch(`/api/v1/course-builder/${courseId}/outline`, {
+      const res = await fetch(`${API_V1_BASE}/course-builder/${courseId}/outline`, {
         method:  'PATCH',
         headers: authHeaders(),
         body:    JSON.stringify(payload),

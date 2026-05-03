@@ -18,6 +18,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, BookOpen, Hash, Sparkles, CheckCircle2 } from 'lucide-react';
+import { API_V1_BASE } from '../../services/api';
 import { AuthShell, PrimaryButton, ErrorMsg } from './RegisterPage';
 
 // Extends the base AuthShell props with optional metadata fields for this page.
@@ -49,7 +50,7 @@ export default function JoinClassroomPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/student/join-classroom', {
+      const res = await fetch(`${API_V1_BASE}/student/join-classroom`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

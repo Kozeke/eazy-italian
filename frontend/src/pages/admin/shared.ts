@@ -14,6 +14,7 @@
 import React, {
     useState, useRef, useEffect, useCallback, useReducer,
   } from "react";
+import { API_V1_BASE } from "../../services/api";
   
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // TYPES
@@ -315,7 +316,7 @@ import React, {
         setStatus("saving");
         try {
           const token = localStorage.getItem("token");
-          const res = await fetch("/api/v1/slides/draft", {
+          const res = await fetch(`${API_V1_BASE}/slides/draft`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             body: JSON.stringify({ course_id: courseId, slides: JSON.parse(payload) }),
@@ -407,7 +408,7 @@ import React, {
       dispatch({ type: "REGEN_START", id: slide.id });
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch("/api/v1/ai/regenerate-slide", {
+        const res = await fetch(`${API_V1_BASE}/ai/regenerate-slide`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: JSON.stringify({ slide_id: slide.id, title: slide.title, bullets: slide.bullets }),
@@ -481,7 +482,7 @@ import React, {
       setBusy(true); setError(null);
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch("/api/v1/ai/regenerate-image", {
+        const res = await fetch(`${API_V1_BASE}/ai/regenerate-image`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: JSON.stringify({ slide_id: slideId, prompt }),

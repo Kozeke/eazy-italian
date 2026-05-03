@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTeacherClassroomTransition } from "../../../contexts/TeacherClassroomTransitionContext";
+import { API_V1_BASE } from "../../../services/api";
 
 // Stores theme tokens shared across this catalog page.
 const T = {
@@ -239,7 +240,7 @@ export default function MyClassesPage() {
     const loadClassrooms = async () => {
       setLoading(true);
       try {
-        const response = await fetch("/api/v1/student/classrooms", {
+        const response = await fetch(`${API_V1_BASE}/student/classrooms`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

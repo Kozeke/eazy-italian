@@ -24,8 +24,7 @@
  */
 
 import { useState, useCallback } from 'react';
-
-const API_BASE = '/api/v1';
+import { API_V1_BASE } from '../services/api';
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') ?? '';
@@ -64,7 +63,7 @@ export function useCreateCourseWithUnit(): UseCreateCourseWithUnitReturn {
 
       try {
         // ── Step 1: Create the course ─────────────────────────────────────
-        const courseRes = await fetch(`${API_BASE}/admin/courses`, {
+        const courseRes = await fetch(`${API_V1_BASE}/admin/courses`, {
           method: 'POST',
           headers: authHeaders(),
           body: JSON.stringify({ title: courseTitle, ...courseExtra }),
@@ -81,7 +80,7 @@ export function useCreateCourseWithUnit(): UseCreateCourseWithUnitReturn {
         // ── Step 2: Create "Unit 1" linked to that course ─────────────────
         // UnitCreate schema requires: title (str), level (UnitLevel).
         // level defaults to 'A1' — the safest minimum-valid value.
-        const unitRes = await fetch(`${API_BASE}/admin/units`, {
+        const unitRes = await fetch(`${API_V1_BASE}/admin/units`, {
           method: 'POST',
           headers: authHeaders(),
           body: JSON.stringify({

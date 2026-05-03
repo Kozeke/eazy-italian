@@ -19,6 +19,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { API_V1_BASE } from '../../services/api';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ function authHeaders(): Record<string, string> {
 }
 
 async function apiCreateUnit(courseId: number): Promise<{ id: number; title: string; [k: string]: unknown }> {
-  const res = await fetch('/api/v1/admin/units', {
+  const res = await fetch(`${API_V1_BASE}/admin/units`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({

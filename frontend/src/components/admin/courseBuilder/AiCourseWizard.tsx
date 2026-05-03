@@ -30,6 +30,7 @@
 import React, {
     useCallback, useEffect, useRef, useState,
   } from 'react';
+import { API_V1_BASE } from '../../../services/api';
   
   // ─── Types ────────────────────────────────────────────────────────────────────
   
@@ -85,7 +86,7 @@ import React, {
   }
   
   async function generateOutline(config: WizardConfig): Promise<CourseOutline> {
-    const res = await fetch('/api/v1/course-builder/generate-outline', {
+    const res = await fetch(`${API_V1_BASE}/course-builder/generate-outline`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
@@ -113,7 +114,7 @@ import React, {
         form.append('file',      file);
         form.append('unit_id',   String(unitId));
         form.append('course_id', String(courseId));
-        return fetch('/api/v1/ingest/upload', {
+        return fetch(`${API_V1_BASE}/ingest/upload`, {
           method: 'POST',
           headers,
           body:   form,

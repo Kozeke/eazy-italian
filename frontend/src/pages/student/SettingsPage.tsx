@@ -34,6 +34,7 @@ import React, {
   useState,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_V1_BASE } from '../../services/api';
 import {
   User,
   Bell,
@@ -718,7 +719,7 @@ export default function SettingsPage() {
     setProfileSave('saving');
     setProfileErrMsg('');
     try {
-      const res = await fetch('/api/v1/student/profile', {
+      const res = await fetch(`${API_V1_BASE}/student/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
         body: JSON.stringify(profile),
@@ -738,7 +739,7 @@ export default function SettingsPage() {
     try {
       const fd = new FormData();
       fd.append('avatar', file);
-      await fetch('/api/v1/student/avatar', {
+      await fetch(`${API_V1_BASE}/student/avatar`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
         body: fd,
@@ -778,7 +779,7 @@ export default function SettingsPage() {
     try {
       // Normalizes selected interface language before persisting and applying it globally.
       const normalizedInterfaceLanguage = normalizeInterfaceLanguage(prefs.interface_language);
-      const res = await fetch('/api/v1/student/preferences', {
+      const res = await fetch(`${API_V1_BASE}/student/preferences`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
         body: JSON.stringify({ ...prefs, interface_language: normalizedInterfaceLanguage }),
@@ -815,7 +816,7 @@ export default function SettingsPage() {
     setPwSave('saving');
     setPwErrMsg('');
     try {
-      const res = await fetch('/api/v1/student/change-password', {
+      const res = await fetch(`${API_V1_BASE}/student/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
         body: JSON.stringify({ current_password: pw.current, new_password: pw.next }),
@@ -845,7 +846,7 @@ export default function SettingsPage() {
   const handleDeleteAccount = useCallback(async () => {
     setDeleteLoading(true);
     try {
-      await fetch('/api/v1/student/account', {
+      await fetch(`${API_V1_BASE}/student/account`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
       });

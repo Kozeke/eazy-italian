@@ -43,7 +43,7 @@ import type {
   WsPatch,
   WsSnapshot,
 } from "./liveSession.types";
-import { classroomAnswersApi } from "../../../services/api";
+import { classroomAnswersApi, wsOriginFromApiBase } from "../../../services/api";
 import { LIVE_LESSON_RESET_BLOCK_KEY } from "./liveSession.types";
 
 export const LiveSessionContext = createContext<LiveSyncContextValue | null>(null);
@@ -147,9 +147,8 @@ export function LiveSessionProvider({
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   const getWsUrl = useCallback((): string => {
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const token = localStorage.getItem("token") ?? "";
-    return `${proto}://${window.location.host}/api/v1/ws/classroom/${classroomId}/live?token=${encodeURIComponent(token)}`;
+    return `${wsOriginFromApiBase()}/api/v1/ws/classroom/${classroomId}/live?token=${encodeURIComponent(token)}`;
   }, [classroomId]);
 
   const sendJson = useCallback((data: object) => {

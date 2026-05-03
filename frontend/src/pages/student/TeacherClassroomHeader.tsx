@@ -12,6 +12,8 @@
  * to hide the admin sidebar.
  */
 
+import { API_V1_BASE } from '../../services/api';
+
 interface TeacherClassroomHeaderProps {
   course: {
     id: number;
@@ -68,7 +70,7 @@ function ExitIcon() {
 
 export default function TeacherClassroomHeader({ course, onExit }: TeacherClassroomHeaderProps) {
   const thumbnailSrc = course.thumbnail_url || course.thumbnail_path
-    ? (course.thumbnail_url || `/api/v1/uploads/${course.thumbnail_path}`)
+    ? (course.thumbnail_url || `${API_V1_BASE}/uploads/${course.thumbnail_path}`)
     : null;
 
   return (
