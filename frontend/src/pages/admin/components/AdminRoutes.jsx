@@ -78,7 +78,7 @@ import AdminTariffsConnectPage from "../AdminTariffsConnectPage";
  *   CourseBuildScreen.legacy.jsx, CourseOutlineScreen.legacy.jsx,
  *   CreateTestMethodPicker.legacy.tsx, CreateTaskMethodPicker.legacy.tsx,
  *   SlideEditorPage.legacy.jsx, SlideEditor.legacy.tsx, SlideImageEditor.legacy.tsx, SlideNavigator.legacy.tsx, SlidePreview.legacy.tsx,
- *   CourseFileUploadModal.legacy.jsx, AiBuilderPage.legacy.tsx (App.tsx), useAITaskGeneration.legacy.ts
+ *   CourseFileUploadModal.jsx, AiBuilderPage.legacy.tsx (App.tsx), useAITaskGeneration.legacy.ts
  *
  * import AdminCourseDetailPage   from "../AdminCourseDetailPage.legacy";
  * import AdminCourseCreatePage   from "../AdminCourseCreatePage.legacy";

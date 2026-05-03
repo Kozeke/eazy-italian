@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 _DEEPSEEK_API_BASE = "https://api.deepseek.com/v1"
 _DEFAULT_MODEL     = "deepseek-chat"
-_DEFAULT_TIMEOUT   = float(os.environ.get("DEEPSEEK_TIMEOUT", "90"))
+_DEFAULT_TIMEOUT   = float(os.environ.get("DEEPSEEK_TIMEOUT", "180"))
 _MAX_TOKENS        = 8000
 
 

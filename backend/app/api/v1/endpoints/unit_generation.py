@@ -16,6 +16,7 @@ POST /units/{unit_id}/generate/from-file
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
 from app.core.database import get_db
-from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota
+from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota, get_teacher_tariff_display_state
 from app.models.segment import Segment
 from app.models.unit import Unit
 from app.models.user import User
@@ -61,6 +62,37 @@ SUPPORTED_TYPES: set[str] = {
 CEFR_LEVELS: set[str] = {"A1", "A2", "B1", "B2", "C1", "C2"}
 
 
+def _parse_exercise_types_from_form(exercise_types: str) -> list[str]:
+    """
+    Normalize multipart ``exercise_types``: the SPA sends JSON.stringify([...]); older
+    clients send comma-separated slugs. Both must yield clean type keys.
+    """
+    # Raw value from multipart (may be JSON array or comma-separated list)
+    raw = (exercise_types or "").strip()
+    if not raw:
+        return []
+    # JSON array from the frontend (e.g. '["drag_to_gap","match_pairs"]')
+    if raw.startswith("[") and raw.endswith("]"):
+        try:
+            decoded = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                "exercise_types looks like a JSON array but is not valid JSON."
+            ) from exc
+        if not isinstance(decoded, list):
+            raise ValueError("exercise_types JSON must be an array of strings.")
+        # Keeps only non-empty string tokens after trim
+        out: list[str] = []
+        for item in decoded:
+            if isinstance(item, str):
+                s = item.strip()
+                if s:
+                    out.append(s)
+        return out
+    # Legacy: drag_to_gap,match_pairs
+    return [t.strip() for t in raw.split(",") if t.strip()]
+
+
 # ── Request / Response schemas ────────────────────────────────────────────────
 
 class UnitGenerateRequest(BaseModel):
@@ -86,8 +118,8 @@ class UnitGenerateRequest(BaseModel):
         description="Target language of the content (e.g. 'English', 'Spanish').",
     )
     num_segments: int = Field(
-        default=3, ge=1, le=6,
-        description="Number of lesson segments to create (1–6).",
+        default=3, ge=1, le=10,
+        description="Number of lesson segments to create (1–10).",
     )
     exercise_types: list[str] = Field(
         default=["drag_to_gap", "match_pairs"],
@@ -265,11 +297,10 @@ async def generate_unit_content(
     # Consumes one AI unit-generation credit based on the teacher's active tariff.
     check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
 
-    # Select AI provider based on the teacher's subscription plan:
-    #   free              → Groq  (fast, free-tier)
-    #   standard / pro    → DeepSeek V3  (higher quality)
+    # Resolve the plan from the DB (same source as quota gate — avoids lazy-load issues
+    # with current_user.subscription which returns None for paid users in some ORM contexts).
     try:
-        plan = current_user.subscription or "free"
+        plan, _ = get_teacher_tariff_display_state(db, current_user)
         provider = get_provider_for_plan(plan)
         logger.info(
             "generate_unit_content: plan=%r provider=%s unit_id=%d teacher_id=%d",
@@ -297,6 +328,7 @@ async def generate_unit_content(
         content_language=body.language.lower(),
         instruction_language=body.instruction_language,
         include_images=body.include_images,
+        plan=plan,
     )
 
     service = UnitGeneratorService(ai_provider=provider)
@@ -359,10 +391,10 @@ async def generate_unit_from_file(
     file: UploadFile = File(..., description="PDF or DOCX file — max 20 MB"),
     level: str = Form(default="A2", description="CEFR level: A1–C2"),
     language: str = Form(default="English", description="Target language of the content"),
-    num_segments: int = Form(default=3, ge=1, le=6, description="Number of segments to create (1–6)"),
+    num_segments: int = Form(default=3, ge=1, le=10, description="Number of segments to create (1–10)"),
     exercise_types: str = Form(
-        default="drag_to_gap,match_pairs",
-        description="Comma-separated exercise type keys",
+        default='["drag_to_gap","match_pairs"]',
+        description='JSON array of exercise type keys, or comma-separated slugs (e.g. drag_to_gap,match_pairs)',
     ),
     instruction_language: str = Form(default="english", description="Language for student-facing UI labels"),
     include_images: bool = Form(default=False, description="Generate SVG image per segment"),
@@ -432,7 +464,10 @@ async def generate_unit_from_file(
             detail=f"level must be one of {sorted(CEFR_LEVELS)}, got '{level}'",
         )
 
-    parsed_types = [t.strip() for t in exercise_types.split(",") if t.strip()]
+    try:
+        parsed_types = _parse_exercise_types_from_form(exercise_types)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not parsed_types:
         raise HTTPException(status_code=400, detail="exercise_types must not be empty.")
     unknown = [t for t in parsed_types if t not in SUPPORTED_TYPES]
@@ -447,7 +482,7 @@ async def generate_unit_from_file(
     #   standard / pro    → DeepSeek V3  (higher quality)
     check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
     try:
-        plan = current_user.subscription or "free"
+        plan, _ = get_teacher_tariff_display_state(db, current_user)
         provider = get_provider_for_plan(plan)
         logger.info(
             "generate_unit_from_file: plan=%r provider=%s unit_id=%d teacher_id=%d",
@@ -468,6 +503,7 @@ async def generate_unit_from_file(
         instruction_language=instruction_language,
         source_content=file_text,
         include_images=include_images,
+        plan=plan,
     )
 
     service = UnitGeneratorService(ai_provider=provider)
@@ -490,3 +526,219 @@ async def generate_unit_from_file(
         images_created=result.images_created,
         segments=segments_summary,
     )
+
+
+# ── Plan-only endpoints (Phase 0 only — no DB writes, no quota) ──────────────
+#
+# These endpoints run Phase 0 of the unit-generator pipeline and return the
+# proposed segment plan WITHOUT committing anything to the database.
+# The frontend displays the plan so teachers can review and approve before the
+# full generation pipeline starts.
+#
+# Both endpoints:
+#   • Run ONE fast LLM call (Phase 0 only)
+#   • Make NO database writes
+#   • Consume NO AI quota — previewing is always free
+#   • Return a UnitPlanResponse: list of {title, focus, is_intro}
+
+
+class SegmentPlanItem(BaseModel):
+    """One planned segment entry returned by the plan endpoints."""
+    index: int
+    title: str
+    focus: str
+    is_intro: bool = False
+    """True only for the first segment (Introduction & Learning Outcomes)."""
+
+
+class UnitPlanResponse(BaseModel):
+    """Proposed segment plan returned before any generation starts."""
+    unit_id: int
+    topic: str
+    source: str          # "topic" | "description" | "file"
+    segments: list[SegmentPlanItem]
+    total: int
+
+
+def _plans_to_response(
+    unit_id: int,
+    topic: str,
+    source: str,
+    plans: list,
+) -> UnitPlanResponse:
+    items = [
+        SegmentPlanItem(
+            index=i,
+            title=p.title,
+            focus=p.focus,
+            is_intro=(i == 0),
+        )
+        for i, p in enumerate(plans)
+    ]
+    return UnitPlanResponse(
+        unit_id=unit_id,
+        topic=topic,
+        source=source,
+        segments=items,
+        total=len(items),
+    )
+
+
+@router.post(
+    "/{unit_id}/plan",
+    response_model=UnitPlanResponse,
+    summary="Preview the segment plan before generation (topic / description)",
+    description=(
+        "Runs Phase 0 of the unit-generation pipeline for a **topic** or **description** "
+        "and returns the proposed segment plan **without** writing anything to the database.\n\n"
+        "The first segment is always **Introduction & Learning Outcomes**.\n\n"
+        "Use this to show teachers what will be generated before they commit. "
+        "Consumes **no quota**."
+    ),
+    tags=["AI Unit Generation"],
+)
+async def plan_unit_from_topic(
+    unit_id: int,
+    body: UnitGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> UnitPlanResponse:
+    _get_unit_or_404(db, unit_id, current_user.id)
+
+    try:
+        plan, _ = get_teacher_tariff_display_state(db, current_user)
+        provider = get_provider_for_plan(plan)
+        logger.info(
+            "plan_unit_from_topic: plan=%r provider=%s unit_id=%d teacher_id=%d",
+            plan, type(provider).__name__, unit_id, current_user.id,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"AI provider unavailable: {exc}") from exc
+
+    svc_request = _SvcUnitGenerateRequest(
+        unit_id=unit_id,
+        topic=body.topic,
+        description=body.description,
+        level=body.level,
+        language=body.language,
+        num_segments=body.num_segments,
+        exercise_types=list(body.exercise_types),
+        teacher_id=current_user.id,
+        content_language=body.language.lower(),
+        instruction_language=body.instruction_language,
+        plan=plan,
+    )
+
+    service = UnitGeneratorService(ai_provider=provider)
+    try:
+        plans = await service.plan_only(svc_request)
+    except Exception as exc:
+        logger.error(
+            "plan_unit_from_topic: failed unit_id=%d teacher_id=%d: %s",
+            unit_id, current_user.id, exc, exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=f"Planning failed: {exc}") from exc
+
+    source = "description" if body.description else "topic"
+    return _plans_to_response(unit_id, body.topic, source, plans)
+
+
+@router.post(
+    "/{unit_id}/plan/from-file",
+    response_model=UnitPlanResponse,
+    summary="Preview the segment plan before generation (uploaded file)",
+    description=(
+        "Upload a PDF or DOCX file. Runs Phase 0 of the unit-generation pipeline "
+        "and returns the proposed segment plan **without** writing anything to the database.\n\n"
+        "The first segment is always **Introduction & Learning Outcomes**.\n\n"
+        "Consumes **no quota**."
+    ),
+    tags=["AI Unit Generation"],
+)
+async def plan_unit_from_file(
+    unit_id: int,
+    file: UploadFile = File(..., description="PDF or DOCX file — max 20 MB"),
+    level: str = Form(default="A2", description="CEFR level: A1–C2"),
+    language: str = Form(default="English", description="Target language of the content"),
+    num_segments: int = Form(default=3, ge=1, le=10, description="Number of segments to plan (1–10)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> UnitPlanResponse:
+    _get_unit_or_404(db, unit_id, current_user.id)
+
+    # ── Validate file ─────────────────────────────────────────────────────────
+    filename = file.filename or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '.{ext}'. Allowed: {', '.join(sorted(_ALLOWED_EXTENSIONS))}.",
+        )
+
+    raw = await file.read()
+    if len(raw) > _MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large ({len(raw) // 1024} KB). Maximum is 20 MB.",
+        )
+
+    try:
+        ct = (file.content_type or "").lower().split(";")[0].strip()
+        parser = get_parser(filename, ct)
+        parsed_doc = parser.parse(raw, filename=filename)
+    except ParserError as exc:
+        raise HTTPException(status_code=422, detail=f"Could not extract text from the file: {exc}") from exc
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unexpected error while parsing the file.")
+
+    file_text = (parsed_doc.text or "").strip()
+    if not file_text:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No text could be extracted from '{filename}'.",
+        )
+
+    level_upper = level.upper()
+    if level_upper not in CEFR_LEVELS:
+        raise HTTPException(status_code=400, detail=f"level must be one of {sorted(CEFR_LEVELS)}")
+
+    topic = (
+        parsed_doc.title
+        or filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").strip()
+        or "Uploaded Document"
+    )
+
+    try:
+        plan, _ = get_teacher_tariff_display_state(db, current_user)
+        provider = get_provider_for_plan(plan)
+        logger.info(
+            "plan_unit_from_file: plan=%r provider=%s unit_id=%d teacher_id=%d",
+            plan, type(provider).__name__, unit_id, current_user.id,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"AI provider unavailable: {exc}") from exc
+
+    svc_request = _SvcUnitGenerateRequest(
+        unit_id=unit_id,
+        topic=topic,
+        level=level_upper,
+        language=language,
+        num_segments=num_segments,
+        exercise_types=["drag_to_gap", "match_pairs"],
+        teacher_id=current_user.id,
+        content_language="auto",
+        source_content=file_text,
+        plan=plan,
+    )
+
+    service = UnitGeneratorService(ai_provider=provider)
+    try:
+        plans = await service.plan_only(svc_request)
+    except Exception as exc:
+        logger.error(
+            "plan_unit_from_file: failed unit_id=%d teacher_id=%d: %s",
+            unit_id, current_user.id, exc, exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=f"Planning failed: {exc}") from exc
+
+    return _plans_to_response(unit_id, topic, "file", plans)

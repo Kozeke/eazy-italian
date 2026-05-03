@@ -421,12 +421,14 @@
         "removeFileTitle": "Удалить файл",
         "dropLine": "Перетащите файлы сюда или",
         "browse": "выберите",
-        "formatsHint": "PDF, DOCX, TXT, изображения, видео, субтитры · до {{maxMb}} МБ каждый · не более {{maxFiles}} файлов",
+        "formatsHint": "Только PDF и DOCX · до {{maxMb}} МБ суммарно · не более {{maxFiles}} файлов",
         "errorMaxFiles": "Не больше {{max}} файлов.",
-        "errorFileTooBig": "Файл «{{name}}» больше {{maxMb}} МБ.",
+        "errorInvalidType": "Файл «{{name}}» должен быть в формате PDF или DOCX.",
+        "errorTotalTooBig": "Суммарный размер не может превышать {{maxMb}} МБ.",
+        "errorFileExceedsTotalBudget": "Файл «{{name}}» больше лимита {{maxMb}} МБ на всю загрузку.",
         "headerTitle": "Добавьте свои материалы",
         "headerSubtitle": "Загрузите файлы — AI получит больше контекста. Этот шаг необязателен.",
-        "filesAdded": "Добавлено файлов: {{count}} из {{max}}",
+        "filesAdded": "{{count}} / {{max}} файлов · {{usedMb}} / {{maxMb}} МБ",
         "skipForNow": "Пропустить",
         "generate": "Сгенерировать",
         "generateWithCount_one": "Сгенерировать ({{count}} файл)",
@@ -779,7 +781,9 @@
         "build_sentence": "Собрать предложение",
         "order_paragraphs": "Порядок абзацев",
         "sort_into_columns": "Сортировка по колонкам",
-        "true_false": "Верно / неверно"
+        "true_false": "Верно / неверно",
+        "test_without_timer": "Тест без таймера",
+        "test_with_timer": "Тест с таймером"
       }
     },
     "additionalMaterialsModal": {
@@ -828,9 +832,18 @@
       "tasksCount": "{{count}} заданий",
       "testsCount": "{{count}} тестов",
       "openUnit": "Открыть урок",
+      "linkCopied": "Ссылка скопирована",
+      "linkCopyFailed": "Не удалось скопировать ссылку",
+      "share": {
+        "forTeacher": "Для преподавателя",
+        "forStudent": "Для ученика",
+        "menuLabel": "Ссылка на класс"
+      },
       "aria": {
         "reorder": "Переупорядочить",
         "shareUnit": "Поделиться уроком",
+        "copyUnitLink": "Скопировать ссылку на урок",
+        "openShareMenu": "Поделиться — ссылка для преподавателя или ученика",
         "moreOptions": "Больше опций"
       },
       "actions": {
@@ -858,6 +871,7 @@
       "searchAria": "Поиск уроков",
       "filter": "Фильтр",
       "availableUnitsAria": "Доступные уроки",
+      "reorderFailed": "Не удалось сохранить порядок уроков. Попробуйте снова.",
       "generatedBadge": "Сгенерировано",
       "generatingBadge": "Генерация...",
       "createUnit": "Создать урок",
@@ -869,6 +883,7 @@
         "resetSearch": "Сбросить поиск"
       },
       "unitLabel": "Урок {{index}} - {{title}}",
+      "unnamedUnit": "Урок {{index}}",
       "progressBanner": {
         "allGenerated": "Все {{total}} уроков сгенерированы - нажмите на любой урок, чтобы начать преподавать",
         "generatingWithErrors": "Генерация... {{done}}/{{total}} готово (есть ошибки)",
@@ -896,7 +911,26 @@
       "changeUnit": "Сменить урок",
       "chooseUnit": "Выбрать урок",
       "unitShort": "Урок",
-      "chooseShort": "Выбор"
+      "chooseShort": "Выбор",
+      "addStudentAria": "Добавить ученика в этот класс"
+    },
+    "enrollStudentModal": {
+      "title": "Записать ученика",
+      "selectLabel": "Ученики",
+      "selectPlaceholder": "Выберите ученика…",
+      "optionInCourse": "записан на этот курс",
+      "optionNotInCourse": "не записан на этот курс",
+      "optionOnline": "сейчас в классе",
+      "alreadyInCourseHint": "Этот ученик уже записан. Выберите ученика без записи, чтобы добавить его.",
+      "addToCourse": "Добавить на курс",
+      "enrollingButton": "Добавление…",
+      "loading": "Загрузка списка…",
+      "empty": "Учеников пока нет. Создайте аккаунты в Админ → Ученики.",
+      "loadError": "Не удалось загрузить список учеников.",
+      "enrolledToast": "{{name}} записан на этот курс.",
+      "alreadyEnrolledToast": "{{name}} уже записан на этот курс.",
+      "enrollFailed": "Не удалось записать ученика.",
+      "close": "Закрыть"
     },
     "studentAnswersPanel": {
       "title": "Ответы",

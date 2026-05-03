@@ -203,3 +203,6 @@ postgres_data/
 # Uploads directory (user-uploaded files)
 backend/uploads/
 uploads/
+
+# Local Hugging Face model cache (do not commit blobs)
+.hf-cache/
