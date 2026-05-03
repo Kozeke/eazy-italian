@@ -1,18 +1,11 @@
 /**
  * LandingPage.tsx
  * Rebuilt from landing__2_.html — design system: #6C6FEF primary, Syne + Inter fonts.
- *
- * Phase 4 changes (pricing section only):
- * - New Free / Standard / Pro plan cards with updated copy and prices
- * - Monthly / Annual billing toggle with savings badges
- * - "Generate your first course" callout inside Free card
- * - School card updated to $49/mo · up to 10 teachers
- * - CTA subtext updated
  */
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
-/* ─── CSS (verbatim — unchanged) ─── */
+/* ─── CSS (verbatim from landing__2_.html, adapted for JSX injection) ─── */
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
 
@@ -199,7 +192,8 @@ h2 em { font-style: normal; color: var(--primary); }
 .section-sub { font-size: 17px; color: var(--text-sub); max-width: 500px; line-height: 1.7; }
 
 /* ── FEATURES ── */
-.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 52px; }
+/* Three columns so six cards lay out 3×2 on desktop (auto-fit would fit four narrow columns first). */
+.features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 52px; }
 .feat-card { background: var(--white); border-radius: var(--r-lg); border: 1px solid var(--border); padding: 28px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow-sm); transition: transform .22s, box-shadow .22s; }
 .feat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
 .feat-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
@@ -307,6 +301,8 @@ footer { max-width: 1100px; margin: 0 auto; padding: 48px 24px; display: flex; f
   .how-wrap { grid-template-columns: 1fr; }
   nav .nav-links a:not(.btn-nav) { display: none; }
   .db-grid { grid-template-columns: repeat(2, 1fr); }
+  /* Single column on small screens — three equal columns would squeeze feature copy. */
+  .features-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .db-grid { grid-template-columns: 1fr; }
@@ -329,22 +325,26 @@ const LogoSVG = ({ width = 150, height = 36 }: { width?: number; height?: number
 
 /* ─── Main Component ─── */
 export default function LandingPage() {
-  // ── Phase 4: billing toggle ──────────────────────────────────────────────
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const [activeTab, setActiveTab] = useState<"unit" | "exercise" | "course">("unit");
+  const [activeStep, setActiveStep] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Phase 4: derived pricing ──────────────────────────────────────────────
-  const isAnnual = billing === "annual";
-  // Monthly prices
-  const STANDARD_MONTHLY = 12;
-  const PRO_MONTHLY       = 39;
-  // Annual prices (billed as one payment)
-  const STANDARD_ANNUAL  = 115; // 12*12*0.8 ≈ 115  → saves $29 vs 12 × monthly
-  const PRO_ANNUAL        = 374; // 39*12*0.8 ≈ 374  → saves $94 vs 12 × monthly
+  const resetTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % 4);
+    }, 3500);
+  };
 
-  const standardPrice = isAnnual ? `$${STANDARD_ANNUAL}` : `$${STANDARD_MONTHLY}`;
-  const proPrice      = isAnnual ? `$${PRO_ANNUAL}`      : `$${PRO_MONTHLY}`;
-  const standardPer   = isAnnual ? "per year" : "per month";
-  const proPer        = isAnnual ? "per year" : "per month";
+  useEffect(() => {
+    resetTimer();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
+
+  const handleStepClick = (i: number) => {
+    setActiveStep(i);
+    resetTimer();
+  };
 
   return (
     <>
@@ -359,7 +359,7 @@ export default function LandingPage() {
           <a href="#features">Features</a>
           <a href="#exercises">Exercises</a>
           <a href="#ai-generation">AI Generation</a>
-          <a href="#how">How it works</a>
+          {/* <a href="#how">How it works</a> */}
           <a href="#pricing">Pricing</a>
           <Link to="/login">Log in</Link>
           <Link to="/register" className="btn-nav">Get started free</Link>
@@ -373,7 +373,7 @@ export default function LandingPage() {
         <p className="hero-sub">Build structured courses, generate lessons in minutes, and track every student's progress — all in one beautiful platform.</p>
         <div className="hero-cta">
           <Link to="/register" className="btn-primary">Start for free →</Link>
-          <a href="#how" className="btn-ghost">See how it works</a>
+          {/* <a href="#how" className="btn-ghost">See how it works</a> */}
         </div>
 
         {/* Dashboard preview */}
@@ -476,200 +476,473 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ── FEATURES, EXERCISE TYPES, AI GENERATION, STATS, HOW IT WORKS, TESTIMONIALS ── */}
-      {/* ... existing code — all sections between hero and pricing are unchanged ... */}
+      {/* ── FEATURES ── */}
+      <section id="features">
+        <div className="section-label">Features</div>
+        <h2>Everything you need to<br /><em>teach brilliantly</em></h2>
+        <p className="section-sub">One platform — from content creation to classroom management and grading.</p>
+        <div className="features-grid">
+          {[
+            { icon: "📚", bg: "#EEF0FE", title: "Structured course builder", body: "Organise teaching into courses, units, and lessons. Drag to reorder, nest freely, and always give students a clear path forward." },
+            { icon: "✨", bg: "#fef3c7", title: "AI content generation", body: "Describe a topic — get a full lesson deck, interactive exercises, and a graded test generated in minutes. No blank-page anxiety." },
+            { icon: "🎓", bg: "#dcfce7", title: "Live classroom mode", body: "Assign lessons to classrooms. Students follow at their own pace through slides, drag-and-drop tasks, and timed tests." },
+            { icon: "📊", bg: "#e0f2fe", title: "Progress & analytics", body: "See every student's completion, scores, and time spent at a glance. Spot weak areas and intervene before they fall behind." },
+            { icon: "🎯", bg: "#fce7f3", title: "Rich exercise types", body: "Drag-to-gap, match pairs, sort into columns, type word, true/false, build sentence — 12+ interactive exercise types built in." },
+            { icon: "🏠", bg: "#f0fdf4", title: "Homework & self-study", body: "Assign homework that students complete independently. Submissions are collected and graded automatically, saving hours each week." },
+          ].map((f) => (
+            <div className="feat-card" key={f.title}>
+              <div className="feat-icon" style={{ background: f.bg }}>{f.icon}</div>
+              <div className="feat-title">{f.title}</div>
+              <p className="feat-body">{f.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── EXERCISE TYPES ── */}
+      <section id="exercises" style={{ overflow: "hidden" }}>
+        <div className="section-label">Exercise library</div>
+        <h2>12+ interactive<br /><em>exercise types</em></h2>
+        <p className="section-sub">Every exercise is interactive, auto-graded, and works seamlessly on desktop and mobile.</p>
+
+        <div style={{ position: "relative", marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 32, alignItems: "center", width: "100%", maxWidth: 900, margin: "0 auto" }}>
+            {/* LEFT */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
+              {[
+                { bg: "linear-gradient(135deg,#f87171,#fb923c)", rot: "-2deg", label: "🖼 Image & GIF" },
+                { bg: "linear-gradient(135deg,#fb923c,#facc15)", rot: "-1deg", label: "▶ YouTube video" },
+                { bg: "linear-gradient(135deg,#4ade80,#22d3ee)", rot: "1.5deg", label: "⬜ Drag to gap" },
+                { bg: "linear-gradient(135deg,#22d3ee,#6366f1)", rot: "-1deg", label: "✅ Test with answers" },
+                { bg: "linear-gradient(135deg,#6366f1,#a855f7)", rot: "2deg", label: "✏️ Essay & translate" },
+                { bg: "linear-gradient(135deg,#a855f7,#ec4899)", rot: "-1.5deg", label: "🎧 Audio playback" },
+                { bg: "linear-gradient(135deg,#ec4899,#f87171)", rot: "1deg", label: "⌨️ Type in the gap" },
+              ].map((p) => (
+                <div key={p.label} className="ex-pill" style={{ background: p.bg, transform: `rotate(${p.rot})` }}>{p.label}</div>
+              ))}
+            </div>
+
+            {/* CENTRE */}
+            <div style={{ background: "var(--white)", borderRadius: 20, border: "1.5px dashed var(--border)", padding: "36px 28px", textAlign: "center", minWidth: 180, boxShadow: "var(--shadow-sm)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--tint)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 20 }}>✦</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: "var(--text-muted)" }}>Section name</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>+ Add exercise</div>
+            </div>
+
+            {/* RIGHT */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
+              {[
+                { bg: "linear-gradient(135deg,#f87171,#a855f7)", rot: "2deg", label: "🖼 Word to image" },
+                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "-1.5deg", label: "📝 Build sentence" },
+                { bg: "linear-gradient(135deg,#22d3ee,#4ade80)", rot: "1deg", label: "🔤 Build from letters" },
+                { bg: "linear-gradient(135deg,#a855f7,#6366f1)", rot: "-2deg", label: "☰ Sort into columns" },
+                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "1.5deg", label: "↕ Order paragraphs" },
+                { bg: "linear-gradient(135deg,#22d3ee,#4ade80)", rot: "-1deg", label: "🎙 Voice record" },
+                { bg: "linear-gradient(135deg,#4ade80,#facc15)", rot: "2deg", label: "💬 Match pairs" },
+              ].map((p) => (
+                <div key={p.label} className="ex-pill" style={{ background: p.bg, transform: `rotate(${p.rot})` }}>{p.label}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Exercise preview cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16, marginTop: 52 }}>
+          {/* Drag to gap */}
+          <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", padding: 24, boxShadow: "var(--shadow-sm)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 14 }}>Drag to gap</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+              <span className="word-chip">lives</span>
+              <span className="word-chip">watches</span>
+              <span className="word-chip" style={{ opacity: .4, pointerEvents: "none" }}>starts</span>
+              <span className="word-chip">buys</span>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 2 }}>
+              My brother <span className="gap-slot">starts</span> in a small flat. He <span className="gap-slot" style={{ background: "var(--tint)", borderColor: "var(--primary)", color: "var(--primary-dk)" }}>watches</span> TV every day and she <span className="gap-slot">___</span> a new book every week.
+            </p>
+          </div>
+          {/* Match pairs */}
+          <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", padding: 24, boxShadow: "var(--shadow-sm)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 14 }}>Match pairs</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div className="match-item" style={{ borderColor: "var(--primary)", background: "var(--tint)", color: "var(--primary-dk)" }}>I live</div>
+              <div className="match-item">permanent situation</div>
+              <div className="match-item">I am living</div>
+              <div className="match-item" style={{ borderColor: "var(--primary)", background: "var(--tint)", color: "var(--primary-dk)" }}>temporary situation</div>
+              <div className="match-item" style={{ borderColor: "var(--primary)", background: "var(--tint)", color: "var(--primary-dk)" }}>every day</div>
+              <div className="match-item">adverb of frequency</div>
+            </div>
+          </div>
+          {/* Sort into columns */}
+          <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", padding: 24, boxShadow: "var(--shadow-sm)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 14 }}>Sort into columns</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#166534", marginBottom: 8 }}>Presente</div>
+                <div className="sort-chip" style={{ background: "#dcfce7", color: "#166534", borderColor: "#86efac" }}>parlo</div>
+                <div className="sort-chip" style={{ background: "#dcfce7", color: "#166534", borderColor: "#86efac" }}>mangio</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#1e40af", marginBottom: 8 }}>Passato</div>
+                <div className="sort-chip" style={{ background: "#dbeafe", color: "#1e40af", borderColor: "#93c5fd" }}>ho parlato</div>
+                <div className="sort-chip" style={{ background: "var(--bg)", color: "var(--text-muted)", borderColor: "var(--border)", borderStyle: "dashed" }}>ho mangiato</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── AI GENERATION ── */}
+      <div style={{ background: "var(--white)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "88px 24px" }} id="ai-generation">
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div className="section-label">AI generation</div>
+          <h2>Describe it. AI<br /><em>builds it for you.</em></h2>
+          <p className="section-sub">Generate full units, individual exercises, or entire courses — all from a simple description.</p>
+
+          {/* Tab switcher */}
+          <div style={{ display: "flex", gap: 8, marginTop: 40, marginBottom: 36, flexWrap: "wrap" }}>
+            <button className={`ai-tab${activeTab === "unit" ? " active" : ""}`} onClick={() => setActiveTab("unit")}>✦ Generate unit</button>
+            <button className={`ai-tab${activeTab === "exercise" ? " active" : ""}`} onClick={() => setActiveTab("exercise")}>⬜ Generate exercise</button>
+            <button className={`ai-tab${activeTab === "course" ? " active" : ""}`} onClick={() => setActiveTab("course")}>📚 Generate course</button>
+          </div>
+
+          {/* UNIT tab */}
+          {activeTab === "unit" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+              <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
+                <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>Generate Unit Content</span>
+                </div>
+                <div style={{ padding: 24 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--tint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>✦</div>
+                    <div>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14 }}>Generate Unit Content</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Unit 14</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "var(--bg)", borderRadius: 10, padding: 3, marginBottom: 16 }}>
+                    <div style={{ textAlign: "center", padding: 8, background: "var(--white)", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "var(--text-main)", boxShadow: "var(--shadow-sm)" }}>✦ Generate with AI</div>
+                    <div style={{ textAlign: "center", padding: 8, fontSize: 12, color: "var(--text-muted)" }}>↑ From File</div>
+                  </div>
+                  <input style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", outline: "none", marginBottom: 10 }} placeholder="e.g. Present Simple tense, Vocabulary: Food & Drink..." readOnly />
+                  <textarea style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", resize: "none", height: 80, outline: "none", fontFamily: "inherit" }} placeholder="Describe what you'd like the AI to focus on…" readOnly />
+                  <div style={{ textAlign: "center", fontSize: 12, color: "var(--text-muted)", margin: "10px 0" }}>⌄ Advanced settings</div>
+                  <div style={{ background: "var(--primary)", color: "#fff", borderRadius: "var(--r)", padding: 12, textAlign: "center", fontSize: 14, fontWeight: 700 }}>★ Generate 3 Segments</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
+                {[
+                  { icon: "✦", bg: "#EEF0FE", title: "One prompt, full unit", body: "Describe the topic and level — AI generates 3 lesson segments complete with slides, exercises, and a graded test." },
+                  { icon: "📂", bg: "#dcfce7", title: "Or upload your materials", body: "Got existing worksheets or PDFs? Upload them and AI extracts the content into an editable lesson automatically." },
+                  { icon: "✏️", bg: "#fef3c7", title: "Always editable", body: "Every slide, every exercise question, every test item is fully editable after generation. AI gives you the head start." },
+                  { icon: "🎯", bg: "#e0f2fe", title: "Choose what to generate", body: "Select which segments to generate and in what order. Skip what you already have — generate only what you need." },
+                ].map((p) => (
+                  <div className="ai-point" key={p.title}>
+                    <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
+                    <div>
+                      <div className="ai-point-title">{p.title}</div>
+                      <div className="ai-point-body">{p.body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* EXERCISE tab */}
+          {activeTab === "exercise" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+              <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
+                <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>AI Exercise Generator</span>
+                </div>
+                <div style={{ padding: 24 }}>
+                  <div className="ai-chip" style={{ marginBottom: 14 }}>⬜ Drag-to-Gap</div>
+                  <div style={{ background: "var(--bg)", border: "1.5px solid var(--primary)", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-sub)", marginBottom: 14 }}>"Practice Italian present tense with irregular verbs: essere, avere, fare — intermediate level"</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                    {["sono", "hai", "fa", "siamo", "avete"].map((w) => <span key={w} className="word-chip">{w}</span>)}
+                  </div>
+                  <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 2 }}>
+                    Io <span className="gap-slot" style={{ background: "var(--tint)", borderColor: "var(--primary)", color: "var(--primary-dk)" }}>sono</span> italiano. Tu <span className="gap-slot">___</span> una studentessa. Lei <span className="gap-slot">___</span> la spesa.
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
+                {[
+                  { icon: "✦", bg: "#EEF0FE", title: "Exercise-level AI", body: "Generate a single exercise of any type — drag-to-gap, match pairs, sort columns, true/false — from just a description." },
+                  { icon: "💡", bg: "#fef3c7", title: "Smart prompt suggestions", body: "One-click prompt chips help you get started: \"Write a text on the topic\", \"Practice past tense with\", and more." },
+                  { icon: "👁", bg: "#dcfce7", title: "Preview before adding", body: "See the generated exercise with words in gaps before adding it to your lesson. Regenerate if needed." },
+                  { icon: "📄", bg: "#e0f2fe", title: "Generate from your materials", body: "Switch to \"By materials\" and upload a PDF or text — AI builds exercises from your own content instantly." },
+                ].map((p) => (
+                  <div className="ai-point" key={p.title}>
+                    <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
+                    <div>
+                      <div className="ai-point-title">{p.title}</div>
+                      <div className="ai-point-body">{p.body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* COURSE tab */}
+          {activeTab === "course" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+              <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
+                <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>AI Course Generator</span>
+                </div>
+                <div style={{ padding: 24 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--tint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📚</div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14 }}>Generate Full Course</div>
+                  </div>
+                  <div style={{ border: "1.5px solid var(--primary)", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-sub)", marginBottom: 10 }}>Italian A2 — Intermediate beginners, focused on everyday conversation and grammar</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", margin: "14px 0 10px" }}>Generated outline — 6 units</div>
+                  <div className="course-gen-row"><span className="cg-num">1</span><div><div className="cg-title">Greetings & Introductions</div><div className="cg-sub">3 segments · vocabulary + dialogue</div></div><span className="cg-check">✓</span></div>
+                  <div className="course-gen-row"><span className="cg-num">2</span><div><div className="cg-title">Daily Routines — Presente</div><div className="cg-sub">3 segments · grammar focus</div></div><span className="cg-check">✓</span></div>
+                  <div className="course-gen-row" style={{ opacity: .6 }}><span className="cg-num" style={{ background: "var(--bg)", color: "var(--text-muted)" }}>3</span><div><div className="cg-title">Food & Restaurants</div><div className="cg-sub">generating…</div></div><div className="cg-spinner" /></div>
+                  <div className="course-gen-row" style={{ opacity: .3 }}><span className="cg-num" style={{ background: "var(--bg)", color: "var(--text-muted)" }}>4</span><div><div className="cg-title">Shopping & Prices</div><div className="cg-sub">queued</div></div></div>
+                  <div style={{ background: "var(--primary)", color: "#fff", borderRadius: "var(--r)", padding: 12, textAlign: "center", fontSize: 13, fontWeight: 700, marginTop: 16 }}>★ Generate All Units</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
+                {[
+                  { icon: "📚", bg: "#EEF0FE", title: "Full course in minutes", body: "Describe your course — level, audience, topic — and AI builds a complete outline with units, segments, slides, and exercises." },
+                  { icon: "🔄", bg: "#fef3c7", title: "Edit the outline first", body: "Review and adjust the AI-generated unit outline before generating content — add, remove, or reorder units freely." },
+                  { icon: "⚡", bg: "#dcfce7", title: "Parallel generation", body: "All units generate in parallel. A 6-unit course with slides, tasks, and tests is ready in under 2 minutes." },
+                  { icon: "🎯", bg: "#e0f2fe", title: "Always teacher-reviewed", body: "Generated content is a head start — every slide, exercise, and test question is editable before publishing to students." },
+                ].map((p) => (
+                  <div className="ai-point" key={p.title}>
+                    <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
+                    <div>
+                      <div className="ai-point-title">{p.title}</div>
+                      <div className="ai-point-body">{p.body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── STATS BAND ── */}
+      <div className="stats-band">
+        <div className="stats-band-inner">
+          <div><div className="stat-num">12+</div><div className="stat-label">Exercise types</div></div>
+          <div><div className="stat-num">3 min</div><div className="stat-label">Avg. lesson generation time</div></div>
+          <div><div className="stat-num">100%</div><div className="stat-label">Auto-graded tests</div></div>
+          <div><div className="stat-num">∞</div><div className="stat-label">Students per classroom</div></div>
+        </div>
+      </div>
+
+      {/* How it works section: not rendered — remove `false &&` wrapper to show again. */}
+      {false && (
+      <section id="how">
+        <div className="section-label">How it works</div>
+        <h2>From idea to lesson<br /><em>in four steps</em></h2>
+        <div style={{ height: 40 }} />
+        <div className="how-wrap">
+          <div className="steps">
+            {[
+              { title: "Create your course structure", body: "Add a course, then build units inside it. Each unit holds lessons, tasks, and tests — all neatly organised for your students." },
+              { title: "Generate content with AI", body: "Type a topic or paste your notes. AI produces a full slide deck, exercise sheet, and graded test — edit any block you want." },
+              { title: "Assign to your classroom", body: "Open a live session or assign as homework. Students join with a code and work through content at their own pace." },
+              { title: "Track & improve", body: "Scores, completion rates, and weak-spot analytics update in real time. Know exactly where each student needs support." },
+            ].map((s, i) => (
+              <div key={i} className={`step${activeStep === i ? " active" : ""}`} onClick={() => handleStepClick(i)}>
+                <div className="step-num">{i + 1}</div>
+                <div>
+                  <div className="step-title">{s.title}</div>
+                  <div className="step-body">{s.body}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Screen mockup */}
+          <div className="step-screen">
+            {/* Step 0 */}
+            {activeStep === 0 && (
+              <>
+                <div className="step-screen-bar">
+                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>My Courses</span>
+                </div>
+                <div className="step-screen-body">
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 16 }}>My Courses</div>
+                  {[
+                    { thumb: "🇮🇹", bg: "#EEF0FE", name: "Italian A1 — Beginners", meta: "6 units · 24 lessons", badge: "Active" },
+                    { thumb: "📖", bg: "#dcfce7", name: "Italian B1 — Intermediate", meta: "8 units · 31 lessons", badge: "Active" },
+                    { thumb: "✏️", bg: "#fef3c7", name: "Italian Grammar Intensive", meta: "4 units · 12 lessons", badge: "Draft", badgeStyle: { background: "var(--bg)", color: "var(--text-muted)" } },
+                  ].map((c) => (
+                    <div className="course-row" key={c.name}>
+                      <div className="course-thumb" style={{ background: c.bg }}>{c.thumb}</div>
+                      <div><div className="course-name">{c.name}</div><div className="course-meta">{c.meta}</div></div>
+                      <span className="unit-badge" style={c.badgeStyle}>{c.badge}</span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 20 }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ New Course</div>
+                  </div>
+                </div>
+              </>
+            )}
+            {/* Step 1 */}
+            {activeStep === 1 && (
+              <>
+                <div className="step-screen-bar">
+                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>AI Generator</span>
+                </div>
+                <div className="step-screen-body">
+                  <div className="ai-chip" style={{ marginBottom: 14 }}>✨ AI Generator</div>
+                  <div className="ai-prompt-box">"Create a lesson about Italian past tense — Passato Prossimo — for A2 students with dialogue examples and fill-in-the-blank exercises."</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>Generated in 38 seconds</div>
+                  <div className="ai-gen-item"><div className="ai-gen-icon" style={{ background: "#EEF0FE" }}>🖼</div>Slide deck — 12 slides</div>
+                  <div className="ai-gen-item"><div className="ai-gen-icon" style={{ background: "#dcfce7" }}>📝</div>Exercise sheet — 8 tasks</div>
+                  <div className="ai-gen-item"><div className="ai-gen-icon" style={{ background: "#fef3c7" }}>✅</div>Graded test — 15 questions</div>
+                </div>
+              </>
+            )}
+            {/* Step 2 */}
+            {activeStep === 2 && (
+              <>
+                <div className="step-screen-bar">
+                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>Live Session</span>
+                </div>
+                <div className="step-screen-body">
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15 }}>Italian A1 — Group 3</div>
+                    <div style={{ background: "#dcfce7", color: "#166534", fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99 }}>● Live</div>
+                  </div>
+                  <div style={{ background: "var(--tint)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "var(--primary-dk)", fontWeight: 600, marginBottom: 4 }}>Join code</div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, color: "var(--primary)", letterSpacing: 4 }}>A1-4892</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>Students online · 7 of 12</div>
+                  {[
+                    { bg: "#6C6FEF", initials: "MR", name: "Marco R.", prog: "Slide 4 of 12", pct: "33%" },
+                    { bg: "#10b981", initials: "LA", name: "Lucia A.", prog: "Exercise 2", pct: "60%" },
+                    { bg: "#f59e0b", initials: "GF", name: "Giovanni F.", prog: "On test", pct: "88%" },
+                  ].map((s) => (
+                    <div className="student-row" key={s.name}>
+                      <div className="avatar" style={{ width: 28, height: 28, background: s.bg, fontSize: 11 }}>{s.initials}</div>
+                      <div><div className="student-name">{s.name}</div><div className="student-prog">{s.prog}</div></div>
+                      <div className="progress-bar-wrap" style={{ width: 70 }}><div className="progress-bar" style={{ width: s.pct }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {/* Step 3 */}
+            {activeStep === 3 && (
+              <>
+                <div className="step-screen-bar">
+                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>Student Progress</span>
+                </div>
+                <div className="step-screen-body">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+                    <div style={{ background: "var(--tint)", borderRadius: 10, padding: 12, textAlign: "center" }}>
+                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 24, fontWeight: 800, color: "var(--primary)" }}>84%</div>
+                      <div style={{ fontSize: 11, color: "var(--primary-dk)" }}>Avg. score</div>
+                    </div>
+                    <div style={{ background: "#dcfce7", borderRadius: 10, padding: 12, textAlign: "center" }}>
+                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 24, fontWeight: 800, color: "#166534" }}>91%</div>
+                      <div style={{ fontSize: 11, color: "#166534" }}>Pass rate</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>Top students</div>
+                  {[
+                    { bg: "#6C6FEF", initials: "LA", name: "Lucia A.", prog: "12/12 lessons complete", score: "96%", scoreBg: "#dcfce7", scoreColor: "#166534" },
+                    { bg: "#f59e0b", initials: "GF", name: "Giovanni F.", prog: "11/12 lessons complete", score: "88%", scoreBg: "#EEF0FE", scoreColor: "var(--primary-dk)" },
+                    { bg: "#10b981", initials: "MR", name: "Marco R.", prog: "10/12 lessons complete", score: "74%", scoreBg: "#fef3c7", scoreColor: "#92400e" },
+                  ].map((s) => (
+                    <div className="student-row" key={s.name}>
+                      <div className="avatar" style={{ width: 28, height: 28, background: s.bg, fontSize: 11 }}>{s.initials}</div>
+                      <div><div className="student-name">{s.name}</div><div className="student-prog">{s.prog}</div></div>
+                      <div className="score-badge" style={{ background: s.scoreBg, color: s.scoreColor }}>{s.score}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+      )}
+
+      {/* ── TESTIMONIALS ── */}
+      <section>
+        <div className="section-label">What teachers say</div>
+        <h2>Built for language<br /><em>educators, by educators</em></h2>
+        <div className="testi-grid">
+          {[
+            { initials: "SM", bg: "#6C6FEF", name: "Silvia M.", role: "Italian teacher, Milan", text: "I used to spend entire Sundays preparing lesson materials. Now I describe the topic, tweak the AI output, and I'm done in 20 minutes. My students love the interactive exercises." },
+            { initials: "LP", bg: "#10b981", name: "Lorenzo P.", role: "Language school director, Rome", text: "The live classroom mode changed how I teach. I can see in real time who is stuck on slide 4 and who has already finished the test. No more guessing." },
+            { initials: "CF", bg: "#f59e0b", name: "Chiara F.", role: "Private tutor, Florence", text: "The analytics panel is genuinely useful. I identified that 60% of my class was struggling with subjunctive before anyone told me — the data just showed it." },
+          ].map((t) => (
+            <div className="testi-card" key={t.name}>
+              <div className="testi-stars">★★★★★</div>
+              <p className="testi-text">"{t.text}"</p>
+              <div className="testi-author">
+                <div className="avatar" style={{ background: t.bg, width: 36, height: 36, fontSize: 13 }}>{t.initials}</div>
+                <div><div className="testi-name">{t.name}</div><div className="testi-role">{t.role}</div></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── PRICING ── */}
       <section id="pricing">
         <div className="section-label">Pricing</div>
         <h2>Simple, transparent<br /><em>pricing</em></h2>
         <p className="section-sub">Start for free. Upgrade when you're ready. No hidden fees.</p>
-
-        {/* ── Phase 4: Billing toggle ──────────────────────────────────────── */}
-        <div style={{
-          display: "flex", justifyContent: "center", marginTop: 32,
-          gap: 4,
-        }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center",
-            background: "var(--white)", border: "1px solid var(--border)",
-            borderRadius: 12, padding: 4,
-            boxShadow: "var(--shadow-sm)",
-          }}>
-            <button
-              type="button"
-              onClick={() => setBilling("monthly")}
-              style={{
-                padding: "8px 22px", borderRadius: 9, border: "none",
-                fontSize: 14, fontWeight: 600, cursor: "pointer",
-                fontFamily: "inherit",
-                background: !isAnnual ? "var(--primary)" : "transparent",
-                color:      !isAnnual ? "#fff" : "var(--text-sub)",
-                transition: "background .18s, color .18s",
-              }}
-            >
-              Monthly
-            </button>
-            <button
-              type="button"
-              onClick={() => setBilling("annual")}
-              style={{
-                padding: "8px 22px", borderRadius: 9, border: "none",
-                fontSize: 14, fontWeight: 600, cursor: "pointer",
-                fontFamily: "inherit",
-                display: "flex", alignItems: "center", gap: 8,
-                background: isAnnual ? "var(--primary)" : "transparent",
-                color:      isAnnual ? "#fff" : "var(--text-sub)",
-                transition: "background .18s, color .18s",
-              }}
-            >
-              Annual
-              <span style={{
-                fontSize: 11, fontWeight: 700, padding: "2px 7px",
-                borderRadius: 99,
-                background: isAnnual ? "rgba(255,255,255,0.22)" : "var(--tint)",
-                color: isAnnual ? "#fff" : "var(--primary-dk)",
-                whiteSpace: "nowrap",
-              }}>
-                save 20%
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* ── Pricing cards ──────────────────────────────────────────────────── */}
         <div className="pricing-grid">
-
-          {/* ── FREE ──────────────────────────────────────────────────────── */}
+          {/* Free */}
           <div className="price-card">
             <div className="price-name">Free</div>
-            <div className="price-val">$0</div>
+            <div className="price-val">€0</div>
             <div className="price-per">forever free</div>
-
-            {/* Phase 4: teacher-only draft callout */}
-            <div style={{
-              background: "var(--tint)", color: "var(--primary-dk)",
-              borderRadius: 8, padding: "8px 12px",
-              fontSize: 13, lineHeight: 1.55,
-              marginBottom: 16,
-            }}>
-              Generate a full AI course for free. Preview it as teacher, upgrade when you're ready to share with students.
-            </div>
-
             <hr className="price-divider" />
-            <div className="price-feature"><div className="check">✓</div> Generate up to 10 AI exercises / month</div>
-            <div className="price-feature"><div className="check">✓</div> Generate up to 3 AI units / month</div>
-            <div className="price-feature"><div className="check">✓</div> Generate 1 full AI course — preview before you pay</div>
-            <div className="price-feature"><div className="check">✓</div> Course visible to teacher only until you upgrade</div>
-            <div className="price-feature"><div className="check">✓</div> Up to 3 students</div>
-            <div className="price-feature" style={{ color: "var(--text-muted)" }}>
-              <div style={{ color: "#ef4444", fontWeight: 700 }}>✗</div> Publish course to students
-            </div>
+            <div className="price-feature"><div className="check">✓</div> 1 course, 3 units</div>
+            <div className="price-feature"><div className="check">✓</div> Up to 15 students</div>
+            <div className="price-feature"><div className="check">✓</div> 5 AI generations / month</div>
+            <div className="price-feature"><div className="check">✓</div> Basic analytics</div>
             <div className="price-cta">
-              <Link
-                to="/register"
-                className="btn-ghost"
-                style={{
-                  display: "block", textAlign: "center", padding: "13px 24px",
-                  fontSize: 15, fontWeight: 700, textDecoration: "none",
-                  color: "var(--text-sub)", border: "1px solid var(--border)",
-                  borderRadius: "var(--r)",
-                }}
-              >
-                Get started
-              </Link>
+              <Link to="/register" className="btn-ghost" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--text-sub)", border: "1px solid var(--border)", borderRadius: "var(--r)" }}>Get started</Link>
             </div>
           </div>
-
-          {/* ── STANDARD (featured) ───────────────────────────────────────── */}
+          {/* Pro - featured */}
           <div className="price-card featured">
-            <div style={{
-              display: "inline-block", background: "rgba(255,255,255,.2)",
-              color: "#fff", fontSize: 11, fontWeight: 700,
-              padding: "3px 12px", borderRadius: 99,
-              marginBottom: 12, letterSpacing: ".5px",
-            }}>
-              MOST POPULAR
-            </div>
-            <div className="price-name">Standard</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-              <div className="price-val">{standardPrice}</div>
-              {isAnnual && (
-                <span style={{
-                  fontSize: 12, fontWeight: 700, padding: "2px 8px",
-                  borderRadius: 99, background: "#22c55e",
-                  color: "#fff", whiteSpace: "nowrap", marginBottom: 2,
-                }}>
-                  save $29
-                </span>
-              )}
-            </div>
-            <div className="price-per">{standardPer}</div>
-            <hr className="price-divider" />
-            <div className="price-feature"><div className="check">✓</div> 100 AI exercise generations / month</div>
-            <div className="price-feature"><div className="check">✓</div> 20 AI unit generations / month</div>
-            <div className="price-feature"><div className="check">✓</div> 5 AI course generations / month</div>
-            <div className="price-feature"><div className="check">✓</div> Publish courses to students</div>
-            <div className="price-feature"><div className="check">✓</div> Up to 50 students</div>
-            <div className="price-feature"><div className="check">✓</div> Priority email support</div>
-            <div className="price-cta">
-              <Link
-                to="/register"
-                style={{
-                  display: "block", background: "#fff",
-                  color: "var(--primary-dk)", borderRadius: "var(--r)",
-                  padding: "13px 24px", fontSize: 15, fontWeight: 700,
-                  textDecoration: "none", textAlign: "center",
-                }}
-              >
-                Start free trial
-              </Link>
-            </div>
-          </div>
-
-          {/* ── PRO ───────────────────────────────────────────────────────── */}
-          <div className="price-card">
+            <div style={{ display: "inline-block", background: "rgba(255,255,255,.2)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 12px", borderRadius: 99, marginBottom: 12, letterSpacing: ".5px" }}>MOST POPULAR</div>
             <div className="price-name">Pro</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-              <div className="price-val">{proPrice}</div>
-              {isAnnual && (
-                <span style={{
-                  fontSize: 12, fontWeight: 700, padding: "2px 8px",
-                  borderRadius: 99, background: "#22c55e",
-                  color: "#fff", whiteSpace: "nowrap", marginBottom: 2,
-                }}>
-                  save $94
-                </span>
-              )}
-            </div>
-            <div className="price-per">{proPer}</div>
+            <div className="price-val">€19</div>
+            <div className="price-per">per month, billed monthly</div>
             <hr className="price-divider" />
-            <div className="price-feature"><div className="check">✓</div> Unlimited AI exercise generations</div>
-            <div className="price-feature"><div className="check">✓</div> Unlimited AI unit generations</div>
-            <div className="price-feature"><div className="check">✓</div> Unlimited AI course generations</div>
-            <div className="price-feature"><div className="check">✓</div> Publish courses to students</div>
+            <div className="price-feature"><div className="check">✓</div> Unlimited courses & units</div>
             <div className="price-feature"><div className="check">✓</div> Unlimited students</div>
-            <div className="price-feature"><div className="check">✓</div> Priority support + early access to new features</div>
+            <div className="price-feature"><div className="check">✓</div> Unlimited AI generations</div>
+            <div className="price-feature"><div className="check">✓</div> Full analytics dashboard</div>
+            <div className="price-feature"><div className="check">✓</div> Homework & self-study mode</div>
+            <div className="price-feature"><div className="check">✓</div> Priority support</div>
             <div className="price-cta">
-              <Link
-                to="/register"
-                className="btn-ghost"
-                style={{
-                  display: "block", textAlign: "center", padding: "13px 24px",
-                  fontSize: 15, fontWeight: 700, textDecoration: "none",
-                  color: "var(--text-sub)", border: "1px solid var(--border)",
-                  borderRadius: "var(--r)",
-                }}
-              >
-                Start free trial
-              </Link>
+              <Link to="/register" style={{ display: "block", background: "#fff", color: "var(--primary-dk)", borderRadius: "var(--r)", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Start free trial</Link>
             </div>
           </div>
-
-          {/* ── SCHOOL (updated from €49 to $49) ─────────────────────────── */}
-          {/* <div className="price-card">
+          {/* School */}
+          <div className="price-card">
             <div className="price-name">School</div>
-            <div className="price-val">$49</div>
+            <div className="price-val">€49</div>
             <div className="price-per">per month · up to 10 teachers</div>
             <hr className="price-divider" />
             <div className="price-feature"><div className="check">✓</div> Everything in Pro</div>
@@ -678,21 +951,9 @@ export default function LandingPage() {
             <div className="price-feature"><div className="check">✓</div> School-wide analytics</div>
             <div className="price-feature"><div className="check">✓</div> Dedicated onboarding</div>
             <div className="price-cta">
-              <Link
-                to="/register"
-                className="btn-ghost"
-                style={{
-                  display: "block", textAlign: "center", padding: "13px 24px",
-                  fontSize: 15, fontWeight: 700, textDecoration: "none",
-                  color: "var(--text-sub)", border: "1px solid var(--border)",
-                  borderRadius: "var(--r)",
-                }}
-              >
-                Contact us
-              </Link>
+              <Link to="/register" className="btn-ghost" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--text-sub)", border: "1px solid var(--border)", borderRadius: "var(--r)" }}>Contact us</Link>
             </div>
-          </div> */}
-
+          </div>
         </div>
       </section>
 
@@ -701,8 +962,7 @@ export default function LandingPage() {
         <div className="cta-inner">
           <div className="section-label" style={{ textAlign: "center" }}>Ready to start?</div>
           <h2>Join teachers already<br /><em>saving hours every week</em></h2>
-          {/* Phase 4: updated subtext */}
-          <p>Create your free account in 60 seconds. Generate your first AI course for free.</p>
+          <p>Create your free account in 60 seconds. No credit card required.</p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             <Link to="/register" className="btn-primary">Get started free →</Link>
             <Link to="/login" className="btn-ghost">Sign in</Link>
