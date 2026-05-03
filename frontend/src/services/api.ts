@@ -238,6 +238,16 @@ export const coursesApi = {
     return response.data;
   },
 
+  /** GET /admin/courses/:id/enrolled-student-ids — student user ids enrolled in the course (teacher-owned). */
+  getCourseEnrolledStudentIds: async (
+    courseId: number,
+  ): Promise<{ student_ids: number[] }> => {
+    const response: AxiosResponse<{ student_ids: number[] }> = await api.get(
+      `/admin/courses/${courseId}/enrolled-student-ids`,
+    );
+    return response.data;
+  },
+
   createCourse: async (courseData: Partial<any>): Promise<any> => {
     const response: AxiosResponse<any> = await api.post(
       "/admin/courses",
@@ -300,6 +310,18 @@ export const coursesApi = {
     const response: AxiosResponse<any> = await api.post(
       "/admin/courses/reorder",
       { course_ids: courseIds },
+    );
+    return response.data;
+  },
+
+  /** POST /admin/courses/:id/units/reorder — body { unit_ids: number[] } lists every unit in the course in display order. */
+  reorderCourseUnits: async (
+    courseId: number,
+    unitIds: number[],
+  ): Promise<{ message?: string }> => {
+    const response: AxiosResponse<{ message?: string }> = await api.post(
+      `/admin/courses/${courseId}/units/reorder`,
+      { unit_ids: unitIds },
     );
     return response.data;
   },

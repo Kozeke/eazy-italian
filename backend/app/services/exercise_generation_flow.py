@@ -146,6 +146,8 @@ async def generate_exercise_for_segment(
     topic_hint: str | None = None,
     content_language: str = "auto",
     instruction_language: str = "english",
+    # Optional plan-aware AI provider (Groq → DeepSeek fallback for paid plans).
+    provider: Any | None = None,
     # Type-specific extras forwarded verbatim to the generator.
     generator_params: dict | None = None,
 ) -> tuple[dict, dict]:
@@ -214,6 +216,7 @@ async def generate_exercise_for_segment(
             content_language=content_language,
             instruction_language=instruction_language,
             topic_hint=topic_hint,
+            provider=provider,
             **params,
         )
     except NotImplementedError as exc:

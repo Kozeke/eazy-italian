@@ -1,5 +1,8 @@
 /**
- * UnitSelectorModal.tsx  (v4 — with EditUnitModal)
+ * UnitSelectorModal.tsx  (v5 — unit reorder via @dnd-kit)
+ *
+ * • Teachers reorder units by dragging the grip control next to Share in each row
+ *   (search field must be empty). Persists via POST /admin/courses/:id/units/reorder.
  *
  * What changed from v3:
  * ─────────────────────
@@ -11,7 +14,8 @@
  * • All existing props and behaviour are unchanged.
  */
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
   X,
@@ -22,14 +26,31 @@ import {
   Filter,
   Plus,
   Sparkles,
-  Pencil,
 } from 'lucide-react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import UnitListItem from './UnitListItem';
 import EditCourseModal, { type CourseEditData } from './EditCourseModal';
 import EditUnitModal, { type UnitEditData } from './EditUnitModal';
 import CreateUnitModal, { type CreateUnitData } from './CreateUnitModal';
 import GenerateUnitModal from '../unit/GenerateUnitModal';
 import EditOutlineModal from './EditOutlineModal';
+import CourseOutlineReviewPanel from './CourseOutlineReviewPanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,343 +140,125 @@ export type UnitSelectorModalProps = {
    * EditOutlineModal.  The parent should update its local outline state
    * and sessionStorage so the CourseGenerationPanel reflects the changes.
    */
+  /**
+   * CEFR level forwarded to the segment plan endpoint (e.g. 'B1').
+   * Comes from the ?level= URL param written by CreateCourseModal.
+   */
+  generationLevel?: string;
+  /**
+   * Target language forwarded to the segment plan endpoint (e.g. 'English').
+   * Comes from editCourseLanguage resolved to a display name.
+   */
+  generationLanguage?: string;
   onEditOutline?: (updatedOutline: any) => void;
+  /**
+   * Teacher-only: persist a new canonical unit order after drag-and-drop in the list.
+   */
+  onReorderUnits?: (orderedUnitIds: number[]) => void | Promise<void>;
 };
 
 type ActiveTab = 'contents' | 'description';
 
-// ─── CourseGenerationPanel ────────────────────────────────────────────────────
-// Shown inside UnitSelectorModal when an AI outline is present and the teacher
-// needs to review the structure before triggering full content generation.
+/**
+ * Picks the human-readable title for a unit row when both AI outline and DB titles exist.
+ * Outline topics replace generic placeholders such as "Unit 4" from create-unit defaults.
+ */
+function resolveUnitRowTitle(
+  outlineTitle: string,
+  dbTitle: string,
+  orderIndex: number,
+  t: TFunction,
+): string {
+  const trimmedOutline = outlineTitle.trim();
+  const trimmedDb = dbTitle.trim();
+  // Matches auto-generated titles from ClassroomPage / create-unit flows
+  const isGenericDbTitle = /^unit\s*\d+$/i.test(trimmedDb);
+  if (trimmedOutline) return trimmedOutline;
+  if (trimmedDb && !isGenericDbTitle) return trimmedDb;
+  return t('classroom.unitSelector.unnamedUnit', { index: orderIndex + 1 });
+}
+
+/**
+ * Resolves the visible title for a persisted unit, using the cached course outline when useful.
+ */
+function resolveUnitListItemTitle(
+  unit: { title?: string; order_index?: number },
+  courseOutline: any | null | undefined,
+  t: TFunction,
+): string {
+  const orderIdx = unit.order_index ?? 0;
+  const outlineSlice =
+    typeof unit.order_index === 'number' && Array.isArray(courseOutline?.units)
+      ? courseOutline.units[unit.order_index]
+      : undefined;
+  const outlineTitle = String(outlineSlice?.title ?? '');
+  return resolveUnitRowTitle(outlineTitle, unit.title ?? '', orderIdx, t);
+}
+
+/** One sortable row: outer `<li>` for @dnd-kit, inner `UnitListItem` root is `div` to avoid invalid nesting. */
+type SortableTeacherUnitRowProps = {
+  unit: any;
+  isCurrent: boolean;
+  isCompleted: boolean;
+  isLocked: boolean;
+  isAiGenerating: boolean;
+  displayTitle: string;
+  teacherCallbacks: {
+    showActions?: boolean;
+    onEdit?: (u: any) => void;
+    onGenerate?: (u: any) => void;
+    onHide?: (u: any) => void;
+    onCopy?: (u: any) => void;
+    onDelete?: (u: any) => void;
+  };
+  onRowClick: () => void;
+  shareCourseId?: number | null;
+};
+
+function SortableTeacherUnitRow({
+  unit,
+  isCurrent,
+  isCompleted,
+  isLocked,
+  isAiGenerating,
+  displayTitle,
+  teacherCallbacks,
+  onRowClick,
+  shareCourseId,
+}: SortableTeacherUnitRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: unit.id,
+    disabled: isLocked,
+  });
+  const sortableStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    listStyle: 'none',
+    opacity: isDragging ? 0.92 : 1,
+    zIndex: isDragging ? 2 : undefined,
+    position: 'relative',
+  };
+
+  return (
+    <li ref={setNodeRef} style={sortableStyle}>
+      <UnitListItem
+        unit={unit}
+        isCurrent={isCurrent}
+        isCompleted={isCompleted}
+        isLocked={isLocked}
+        onClick={onRowClick}
+        {...teacherCallbacks}
+        displayTitle={displayTitle}
+        isAiGenerating={isAiGenerating}
+        rootElement="div"
+        dragHandleBinder={{ attributes, listeners }}
+        shareCourseId={shareCourseId}
+      />
+    </li>
+  );
+}
 
 type UnitGenStatus = 'pending' | 'generating' | 'done' | 'error';
-
-function UnitStatusIcon({ status }: { status: UnitGenStatus | undefined }) {
-  if (!status || status === 'pending') {
-    return (
-      <span
-        style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #D1D5DB', display: 'inline-block', flexShrink: 0 }}
-      />
-    );
-  }
-  if (status === 'generating') {
-    return (
-      <span
-        style={{
-          width: 20, height: 20, borderRadius: '50%',
-          border: '2px solid #6C6FEF',
-          borderTopColor: 'transparent',
-          display: 'inline-block',
-          flexShrink: 0,
-          animation: 'usm-spin 0.75s linear infinite',
-        }}
-      />
-    );
-  }
-  if (status === 'done') {
-    return (
-      <span
-        style={{
-          width: 20, height: 20, borderRadius: '50%',
-          background: '#6C6FEF',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <svg viewBox="0 0 16 16" width="11" height="11" fill="none">
-          <path d="M3 8l3.5 3.5 6.5-7" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </span>
-    );
-  }
-  // error
-  return (
-    <span
-      style={{
-        width: 20, height: 20, borderRadius: '50%',
-        background: '#FEE2E2',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-      }}
-    >
-      <svg viewBox="0 0 16 16" width="10" height="10" fill="none">
-        <path d="M4 4l8 8M12 4l-8 8" stroke="#DC2626" strokeWidth="2" strokeLinecap="round"/>
-      </svg>
-    </span>
-  );
-}
-
-interface CourseGenerationPanelProps {
-  outline: any;
-  /** unit.id → status  (only for DB-persisted units; outline units have no id yet) */
-  unitStatuses: Record<number, UnitGenStatus>;
-  units: any[];        // DB units from useClassroom — used to match by order_index
-  isGenerating: boolean;
-  onStart: () => void;
-  /** Opens the EditOutlineModal overlay */
-  onEditOutline?: () => void;
-}
-
-function CourseGenerationPanel({
-  outline,
-  unitStatuses,
-  units,
-  isGenerating,
-  onStart,
-  onEditOutline,
-}: CourseGenerationPanelProps) {
-  // Provides localized labels for the course generation panel.
-  const { t } = useTranslation();
-  const outlineUnits: any[] = outline?.units ?? [];
-  const totalUnits     = outlineUnits.length;
-  const doneCount      = Object.values(unitStatuses).filter((s) => s === 'done').length;
-  const allDone        = isGenerating === false && doneCount > 0 && doneCount >= units.length;
-
-  // Map DB units by order_index so we can look up their id from the outline index
-  const dbUnitByIndex = React.useMemo(() => {
-    const map: Record<number, any> = {};
-    units.forEach((u) => { if (typeof u.order_index === 'number') map[u.order_index] = u; });
-    return map;
-  }, [units]);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-      {/* ── Spinning keyframe (injected once) */}
-      <style>{`
-        @keyframes usm-spin { to { transform: rotate(360deg); } }
-      `}</style>
-
-      {/* ── Header strip */}
-      <div style={{
-        background: '#EEF0FE',
-        borderBottom: '1px solid #E0E3FD',
-        padding: '12px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        flexShrink: 0,
-      }}>
-        <svg viewBox="0 0 20 20" width="18" height="18" fill="none">
-          <path d="M10 2l2.39 4.84L18 7.64l-4 3.9.94 5.5L10 14.27 5.06 17.04 6 11.54 2 7.64l5.61-.8L10 2z"
-            fill="#6C6FEF" stroke="#6C6FEF" strokeWidth="1.2" strokeLinejoin="round"/>
-        </svg>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#4F52C2', lineHeight: 1.3 }}>
-            {allDone
-              ? t('classroom.unitSelector.courseGeneration.generatedReady', { count: doneCount })
-              : isGenerating
-                ? t('classroom.unitSelector.courseGeneration.generatingProgress', { done: doneCount, total: units.length })
-                : t('classroom.unitSelector.courseGeneration.outlineReady', { count: totalUnits })}
-          </p>
-          {!isGenerating && !allDone && (
-            <p style={{ margin: 0, fontSize: 11, color: '#6C6FEF', marginTop: 2 }}>
-              {t('classroom.unitSelector.courseGeneration.reviewBeforeGeneratePrefix')} <strong>{t('classroom.unitSelector.courseGeneration.generateCourseButton')}</strong>.
-            </p>
-          )}
-        </div>
-
-        {/* Edit Outline button — only before generation starts */}
-        {!isGenerating && !allDone && onEditOutline && (
-          <button
-            onClick={onEditOutline}
-            style={{
-              display:       'inline-flex',
-              alignItems:    'center',
-              gap:            5,
-              padding:       '5px 11px',
-              borderRadius:   8,
-              border:        '1.5px solid #A5A8F5',
-              background:    '#FFFFFF',
-              color:         '#4F52C2',
-              fontSize:       11,
-              fontWeight:     700,
-              cursor:        'pointer',
-              flexShrink:     0,
-              transition:    'background 0.15s, border-color 0.15s',
-              whiteSpace:    'nowrap',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#EEF0FE';
-              e.currentTarget.style.borderColor = '#6C6FEF';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#FFFFFF';
-              e.currentTarget.style.borderColor = '#A5A8F5';
-            }}
-          >
-            <Pencil size={11} />
-            {t('classroom.unitSelector.courseGeneration.editOutline')}
-          </button>
-        )}
-
-        {/* Progress bar */}
-        {(isGenerating || allDone) && units.length > 0 && (
-          <div style={{
-            width: 72, height: 6, borderRadius: 3,
-            background: '#C7CAFB', overflow: 'hidden', flexShrink: 0,
-          }}>
-            <div style={{
-              height: '100%',
-              width: `${Math.round((doneCount / units.length) * 100)}%`,
-              background: '#6C6FEF',
-              borderRadius: 3,
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-        )}
-      </div>
-
-      {/* ── Scrollable unit list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 0', overscrollBehavior: 'contain' }}>
-        {outlineUnits.map((outlineUnit: any, idx: number) => {
-          const dbUnit   = dbUnitByIndex[idx];
-          const status   = dbUnit ? (unitStatuses[dbUnit.id] ?? (isGenerating ? 'pending' : undefined)) : undefined;
-          const sections: any[] = outlineUnit.sections ?? [];
-
-          return (
-            <div
-              key={idx}
-              style={{
-                background: '#FFFFFF',
-                border: '1px solid',
-                borderColor: status === 'generating' ? '#A5A8F5' : status === 'done' ? '#C7CAFB' : '#E5E7EB',
-                borderRadius: 12,
-                padding: '11px 14px',
-                marginBottom: 10,
-                transition: 'border-color 0.25s',
-              }}
-            >
-              {/* Unit row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <UnitStatusIcon status={status} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{
-                    margin: 0, fontSize: 13, fontWeight: 600,
-                    color: status === 'done' ? '#4F52C2' : '#1E293B',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>
-                    {t('classroom.unitSelector.unitLabel', { index: idx + 1, title: outlineUnit.title })}
-                  </p>
-                  {outlineUnit.description && (
-                    <p style={{
-                      margin: '2px 0 0', fontSize: 11, color: '#6B7280',
-                      display: '-webkit-box', WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                    }}>
-                      {outlineUnit.description}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Section chips */}
-              {sections.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8, marginLeft: 30 }}>
-                  {sections.map((sec: any, sIdx: number) => (
-                    <span
-                      key={sIdx}
-                      style={{
-                        background: '#F7F7FA',
-                        border: '1px solid #E5E7EB',
-                        borderRadius: 6,
-                        padding: '2px 8px',
-                        fontSize: 10,
-                        color: '#6B7280',
-                        fontWeight: 500,
-                      }}
-                    >
-                      {sec.title}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <div style={{ height: 8 }} />
-      </div>
-
-      {/* ── CTA footer */}
-      {!allDone && (
-        <div style={{
-          borderTop: '1px solid #EEF0FE',
-          padding: '12px 20px',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          background: '#FFFFFF',
-        }}>
-          <button
-            disabled={isGenerating}
-            onClick={onStart}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 7,
-              background: isGenerating ? '#A5A8F5' : '#6C6FEF',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: 10,
-              padding: '9px 18px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: isGenerating ? 'not-allowed' : 'pointer',
-              transition: 'background 0.2s',
-              boxShadow: isGenerating ? 'none' : '0 2px 8px rgba(108,111,239,0.28)',
-            }}
-            onMouseEnter={(e) => { if (!isGenerating) (e.currentTarget as HTMLButtonElement).style.background = '#4F52C2'; }}
-            onMouseLeave={(e) => { if (!isGenerating) (e.currentTarget as HTMLButtonElement).style.background = '#6C6FEF'; }}
-          >
-            {isGenerating ? (
-              <>
-                <span style={{
-                  width: 13, height: 13, borderRadius: '50%',
-                  border: '2px solid rgba(255,255,255,0.4)',
-                  borderTopColor: '#FFFFFF',
-                  display: 'inline-block',
-                  animation: 'usm-spin 0.75s linear infinite',
-                }} />
-                {t('classroom.unitSelector.courseGeneration.generatingShort')}
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
-                  <path d="M8 1.5l1.91 3.87L14 6.35l-3 2.93.71 4.15L8 11.5l-3.71 1.93.71-4.15L2 6.35l4.09-.98L8 1.5z"
-                    fill="#fff" stroke="#fff" strokeWidth="0.8" strokeLinejoin="round"/>
-                </svg>
-                {t('classroom.unitSelector.courseGeneration.generateCourseButton')}
-              </>
-            )}
-          </button>
-          {!isGenerating && (
-            <p style={{ margin: 0, fontSize: 11, color: '#9CA3AF' }}>
-              {t('classroom.unitSelector.courseGeneration.fillAllUnits', { count: totalUnits })}
-            </p>
-          )}
-        </div>
-      )}
-
-      {allDone && (
-        <div style={{
-          borderTop: '1px solid #EEF0FE',
-          padding: '12px 20px',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          background: '#FFFFFF',
-        }}>
-          <svg viewBox="0 0 20 20" width="18" height="18" fill="none">
-            <circle cx="10" cy="10" r="9" fill="#EEF0FE"/>
-            <path d="M6 10l2.5 2.5 5.5-5" stroke="#6C6FEF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <p style={{ margin: 0, fontSize: 12, color: '#4F52C2', fontWeight: 600 }}>
-            {t('classroom.unitSelector.courseGeneration.allUnitsGenerated')}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── GenerationProgressBanner ─────────────────────────────────────────────────
 // Compact sticky banner shown at the top of the units list while background
@@ -613,7 +416,10 @@ export default function UnitSelectorModal({
   isGeneratingCourse = false,
   onStartCourseGeneration,
   courseId,
+  generationLevel = 'B1',
+  generationLanguage = 'English',
   onEditOutline,
+  onReorderUnits,
 }: UnitSelectorModalProps) {
   // Provides localized labels for unit selector modal controls and states.
   const { t } = useTranslation();
@@ -691,11 +497,53 @@ export default function UnitSelectorModal({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return units;
-    return units.filter((u) => u.title?.toLowerCase().includes(q));
-  }, [units, query]);
+    return units.filter((u) => {
+      const resolvedLabel = resolveUnitListItemTitle(u, courseOutline, t).toLowerCase();
+      const rawTitle = (u.title ?? '').toLowerCase();
+      return resolvedLabel.includes(q) || rawTitle.includes(q);
+    });
+  }, [units, query, courseOutline, t]);
 
-  // Once the SSE stream has started (or produced any statuses), switch from the
-  // outline-review panel to the normal units list so units are immediately clickable.
+  // Stable lesson order for the list; matches server order_index
+  const displaySortedUnits = useMemo(
+    () =>
+      [...filtered].sort(
+        (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
+      ),
+    [filtered],
+  );
+
+  // Drag-and-drop would fight filtered subsets — only enable with an empty search query
+  const reorderEnabled = Boolean(isTeacher && onReorderUnits && !query.trim());
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleUnitsDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!onReorderUnits || !over || active.id === over.id) return;
+      const oldIndex = displaySortedUnits.findIndex(
+        (u) => String(u.id) === String(active.id),
+      );
+      const newIndex = displaySortedUnits.findIndex(
+        (u) => String(u.id) === String(over.id),
+      );
+      if (oldIndex < 0 || newIndex < 0) return;
+      const nextIds = arrayMove(displaySortedUnits, oldIndex, newIndex).map(
+        (u: { id: number }) => u.id,
+      );
+      void onReorderUnits(nextIds);
+    },
+    [onReorderUnits, displaySortedUnits],
+  );
+
+  // generationStarted is used to drive the GenerationProgressBanner in the
+  // normal units list.  CourseOutlineReviewPanel now shows for the full
+  // outline flow (before + during + after generation) so we no longer use it
+  // to gate the panel.
   const generationStarted = isGeneratingCourse || Object.keys(unitGenerationStatuses).length > 0;
 
   if (!open) return null;
@@ -712,7 +560,11 @@ export default function UnitSelectorModal({
     ? {
         showActions: true,
         onEdit:     (unit: any) => setEditingUnit(unit),   // ← opens EditUnitModal
-        onGenerate: (unit: any) => setGenerateTarget({ id: unit.id, title: unit.title ?? '' }),
+        onGenerate: (unit: any) =>
+          setGenerateTarget({
+            id: unit.id,
+            title: resolveUnitListItemTitle(unit, courseOutline, t),
+          }),
         onHide:     onHideUnit,
         onCopy:     onCopyUnit,
         onDelete:   onDeleteUnit,
@@ -913,15 +765,22 @@ export default function UnitSelectorModal({
         </div>
 
         {/* ── Tab body ─────────────────────────────────────────────────────── */}
-        {/* Generation panel — shown only BEFORE generation starts (outline review) */}
-        {courseOutline && !generationStarted && activeTab === 'contents' ? (
-          <CourseGenerationPanel
+        {/* Generation panel — shown for the FULL outline flow:
+            before generation, while generating, and after all done.
+            Units with status 'done' are directly clickable to navigate.  */}
+        {courseOutline && activeTab === 'contents' ? (
+          <CourseOutlineReviewPanel
             outline={courseOutline}
             unitStatuses={unitGenerationStatuses}
             units={units}
             isGenerating={isGeneratingCourse}
+            courseId={courseId ?? null}
+            level={generationLevel}
+            language={generationLanguage}
             onStart={() => onStartCourseGeneration?.()}
             onEditOutline={onEditOutline ? () => setEditOutlineOpen(true) : undefined}
+            onOutlineChanged={(updated) => { onEditOutline?.(updated); }}
+            onSelectUnit={(unit) => { handleSelect(unit); }}
           />
         ) : activeTab === 'description' ? (
           <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '64px 0', fontSize: 13, color: '#9CA3AF' }}>
@@ -1005,22 +864,61 @@ export default function UnitSelectorModal({
                     </button>
                   )}
                 </div>
+              ) : reorderEnabled ? (
+                <DndContext
+                  sensors={dndSensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleUnitsDragEnd}
+                >
+                  <SortableContext
+                    items={displaySortedUnits.map((u) => u.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <ul
+                      style={{ listStyle: 'none', margin: 0, padding: '4px 0', borderTop: 'none' }}
+                      role="listbox"
+                      aria-label={t('classroom.unitSelector.availableUnitsAria')}
+                    >
+                      {displaySortedUnits.map((unit) => {
+                        const isCurrent   = String(unit.id) === String(currentUnitId);
+                        const isCompleted = completedUnitIds?.has(unit.id) ?? false;
+                        const isLocked    = unit.is_visible_to_students === false;
+                        const genStatus   = unitGenerationStatuses[unit.id];
+                        const isGeneratingNow = genStatus === 'generating' || genStatus === 'pending';
+
+                        return (
+                          <SortableTeacherUnitRow
+                            key={unit.id}
+                            unit={unit}
+                            isCurrent={isCurrent}
+                            isCompleted={isCompleted}
+                            isLocked={isLocked}
+                            isAiGenerating={isGeneratingNow}
+                            displayTitle={resolveUnitListItemTitle(unit, courseOutline, t)}
+                            teacherCallbacks={teacherCallbacks}
+                            onRowClick={() => !isLocked && handleSelect(unit)}
+                            shareCourseId={courseId}
+                          />
+                        );
+                      })}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
               ) : (
                 <ul
                   style={{ listStyle: 'none', margin: 0, padding: '4px 0', borderTop: 'none' }}
                   role="listbox"
                   aria-label={t('classroom.unitSelector.availableUnitsAria')}
                 >
-                  {filtered.map((unit) => {
+                  {displaySortedUnits.map((unit) => {
                     const isCurrent   = String(unit.id) === String(currentUnitId);
                     const isCompleted = completedUnitIds?.has(unit.id) ?? false;
                     const isLocked    = unit.is_visible_to_students === false;
                     const genStatus   = unitGenerationStatuses[unit.id];
-                    const isGeneratedDone = genStatus === 'done';
                     const isGeneratingNow = genStatus === 'generating' || genStatus === 'pending';
 
                     return (
-                      <li key={unit.id} style={{ position: 'relative', listStyle: 'none' }}>
+                      <li key={unit.id} style={{ listStyle: 'none' }}>
                         <UnitListItem
                           unit={unit}
                           isCurrent={isCurrent}
@@ -1028,73 +926,10 @@ export default function UnitSelectorModal({
                           isLocked={isLocked}
                           onClick={() => !isLocked && handleSelect(unit)}
                           {...teacherCallbacks}
+                          displayTitle={resolveUnitListItemTitle(unit, courseOutline, t)}
+                          isAiGenerating={isGeneratingNow}
+                          shareCourseId={courseId}
                         />
-
-                        {/* ── "Generated" badge — shown when AI content is ready ── */}
-                        {isGeneratedDone && (
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: '50%',
-                              right: 48,
-                              transform: 'translateY(-50%)',
-                              pointerEvents: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              background: '#EEF0FE',
-                              color: '#4F52C2',
-                              fontSize: 10,
-                              fontWeight: 700,
-                              borderRadius: 20,
-                              padding: '3px 9px',
-                              letterSpacing: '0.02em',
-                              whiteSpace: 'nowrap',
-                              boxShadow: '0 1px 3px rgba(108,111,239,0.10)',
-                            }}
-                          >
-                            {/* sparkle dot */}
-                            <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                              <path
-                                d="M4 0.5L4.9 3.1H7.5L5.4 4.7L6.2 7.5L4 5.8L1.8 7.5L2.6 4.7L0.5 3.1H3.1L4 0.5Z"
-                                fill="#6C6FEF"
-                              />
-                            </svg>
-                            {t('classroom.unitSelector.generatedBadge')}
-                          </span>
-                        )}
-
-                        {/* ── Pulsing dot — shown while still generating ── */}
-                        {isGeneratingNow && (
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: '50%',
-                              right: 52,
-                              transform: 'translateY(-50%)',
-                              pointerEvents: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 5,
-                              color: '#6C6FEF',
-                              fontSize: 10,
-                              fontWeight: 600,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: '50%',
-                                background: '#6C6FEF',
-                                display: 'inline-block',
-                                animation: 'usm-pulse 1.2s ease-in-out infinite',
-                              }}
-                            />
-                            {t('classroom.unitSelector.generatingBadge')}
-                          </span>
-                        )}
                       </li>
                     );
                   })}

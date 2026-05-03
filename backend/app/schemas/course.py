@@ -139,6 +139,11 @@ class CourseReorderRequest(BaseModel):
     """Request schema for reordering courses"""
     course_ids: List[int]
 
+
+class CourseUnitsReorderRequest(BaseModel):
+    """Canonical order of all units in a course — each DB unit id appears exactly once."""
+    unit_ids: List[int]
+
 class CoursePublishRequest(BaseModel):
     """Request schema for publishing a course"""
     publish_at: Optional[datetime] = None

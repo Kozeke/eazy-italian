@@ -18,14 +18,19 @@
  *   `group-hover:hidden` — both icon and cluster coexist in layout, no reflow.
  *
  * • `onOpen` and `onShare` props added (were absent from v3 project file).
+ * • `shareCourseId` — Share opens a menu to copy teacher (unit) or student (course) links using VITE_APP_ORIGIN.
  *
  * • Dropdown closes on Escape key.
  *
  * • Locked units: `actionsOn` is false regardless of `showActions`.
  */
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
+import type { DraggableAttributes } from '@dnd-kit/core';
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
+import { getAppOrigin } from '../../../utils/appOrigin';
 import {
   BookOpen,
   FileText,
@@ -38,7 +43,6 @@ import {
   Share2,
   MoreHorizontal,
   EyeOff,
-  Copy,
   Pen,
   Trash2,
   Sparkles,
@@ -65,10 +69,16 @@ export type UnitListItemProps = {
       published_slides?: number;
     };
   };
+  /** When set (e.g. outline-aware label from UnitSelectorModal), shown instead of unit.title in the row */
+  displayTitle?: string;
   isCurrent: boolean;
   isCompleted?: boolean;
   isLocked?: boolean;
   onClick: () => void;
+  /** Unit was just AI-generated — inline Generated chip (JSX currently commented out) */
+  isAiGenerated?: boolean;
+  /** Unit is currently being AI-generated — shows a pulsing inline chip */
+  isAiGenerating?: boolean;
   /**
    * Set true (e.g. when isTeacher) to enable the hover action cluster.
    * Defaults to false so existing call sites without this prop are unaffected.
@@ -79,13 +89,53 @@ export type UnitListItemProps = {
   onShare?:    (unit: any) => void;
   onGenerate?: (unit: any) => void;
   onHide?:     (unit: any) => void;
+  /** Dropdown “Copy” row is commented out; prop kept for callers / easy restore. */
   onCopy?:     (unit: any) => void;
   onEdit?:     (unit: any) => void;
   onDelete?:   (unit: any) => void;
+  /**
+   * `div` when an outer `<li>` provides list semantics (e.g. sortable row wrapper).
+   */
+  rootElement?: 'li' | 'div';
+  /**
+   * When set, the grip control uses these @dnd-kit spreads so only that button starts a drag.
+   */
+  dragHandleBinder?: {
+    attributes: DraggableAttributes;
+    listeners?: SyntheticListenerMap;
+  };
+  /**
+   * When set, Share opens a small menu: teacher unit URL and student course URL (see getAppOrigin()).
+   */
+  shareCourseId?: number | null;
 };
 
-// ─── Level colors ─────────────────────────────────────────────────────────────
+/** Writes text to the system clipboard, with execCommand fallback for older browsers. */
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const fallbackField = document.createElement('textarea');
+      fallbackField.value = text;
+      fallbackField.setAttribute('readonly', '');
+      fallbackField.style.position = 'fixed';
+      fallbackField.style.left = '-9999px';
+      document.body.appendChild(fallbackField);
+      fallbackField.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(fallbackField);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
 
+// ─── Level colors (unused while CEFR pill next to unit title is hidden) ─────────
+
+/*
 const LEVEL_COLORS: Record<string, string> = {
   A1: 'bg-sky-100 text-sky-700',
   A2: 'bg-blue-100 text-blue-700',
@@ -94,6 +144,7 @@ const LEVEL_COLORS: Record<string, string> = {
   C1: 'bg-purple-100 text-purple-700',
   C2: 'bg-fuchsia-100 text-fuchsia-700',
 };
+*/
 
 // ─── Content type chip ────────────────────────────────────────────────────────
 
@@ -132,7 +183,6 @@ function UnitActionDropdown({
   onClose,
   onGenerate,
   onHide,
-  onCopy,
   onEdit,
   onDelete,
 }: {
@@ -140,7 +190,6 @@ function UnitActionDropdown({
   onClose: () => void;
   onGenerate?: (u: any) => void;
   onHide?:     (u: any) => void;
-  onCopy?:     (u: any) => void;
   onEdit?:     (u: any) => void;
   onDelete?:   (u: any) => void;
 }) {
@@ -193,7 +242,8 @@ function UnitActionDropdown({
     >
       {onGenerate && menuItem(<Sparkles className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.generateAi'), () => onGenerate(unit))}
       {menuItem(<EyeOff className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.hideUnit'),   () => onHide?.(unit))}
-      {menuItem(<Copy   className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.copy'),    () => onCopy?.(unit))}
+      {/* Copy unit — hidden per product request; restore with `Copy` from lucide-react */}
+      {/* {menuItem(<Copy className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.copy'), () => onCopy?.(unit))} */}
       {menuItem(<Pen    className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.edit'), () => onEdit?.(unit))}
       {onDelete && <div className="border-t border-slate-100" />}
       {onDelete &&
@@ -211,29 +261,40 @@ function UnitActionDropdown({
 
 export default function UnitListItem({
   unit,
+  displayTitle,
   isCurrent,
   isCompleted = false,
   isLocked = false,
   onClick,
   showActions = false,
+  isAiGenerated = false,
+  isAiGenerating = false,
   onOpen,
   onShare,
   onGenerate,
   onHide,
-  onCopy,
   onEdit,
   onDelete,
+  rootElement = 'li',
+  dragHandleBinder,
+  shareCourseId,
 }: UnitListItemProps) {
   // Provides localized labels for unit rows and hover actions.
   const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // True while the Share popover (teacher vs student link) is open
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const shareMenuWrapRef = useRef<HTMLDivElement>(null);
+  // Primary heading: parent may supply outline-backed text while callbacks still use unit.title
+  const rowTitle = displayTitle ?? unit.title;
 
   const locked    = isLocked || unit.is_visible_to_students === false;
   // Cluster is active only when explicitly requested AND the unit isn't locked
   const actionsOn = showActions && !locked;
 
-  const cc       = unit.content_count;
-  const levelCls = unit.level ? (LEVEL_COLORS[unit.level] ?? 'bg-slate-100 text-slate-600') : null;
+  const cc = unit.content_count;
+  // CEFR level pill next to title — hidden per product request (was: A1, B2, etc.)
+  // const levelCls = unit.level ? (LEVEL_COLORS[unit.level] ?? 'bg-slate-100 text-slate-600') : null;
 
   const hasSlides = (cc?.slides ?? cc?.videos ?? 0) > 0;
   const hasTask   = (cc?.tasks  ?? 0) > 0;
@@ -249,8 +310,75 @@ export default function UnitListItem({
 
   const iconBtn = 'rounded-lg p-1.5 text-slate-400 hover:text-[#6C6FEF] hover:bg-[#EEF0FE] transition-colors';
 
+  const shareEnabled = shareCourseId != null && Number.isFinite(Number(shareCourseId));
+
+  // Close Share menu on outside click so it does not trap focus
+  useEffect(() => {
+    if (!shareMenuOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (shareMenuWrapRef.current && !shareMenuWrapRef.current.contains(e.target as Node)) {
+        setShareMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [shareMenuOpen]);
+
+  // Close Share menu on Escape
+  useEffect(() => {
+    if (!shareMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShareMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [shareMenuOpen]);
+
+  const teacherShareUrl = useCallback(() => {
+    const origin = getAppOrigin();
+    const cid = Number(shareCourseId);
+    return `${origin}/teacher/classroom/${cid}/${unit.id}`;
+  }, [shareCourseId, unit.id]);
+
+  const studentShareUrl = useCallback(() => {
+    const origin = getAppOrigin();
+    const cid = Number(shareCourseId);
+    return `${origin}/student/classroom/${cid}`;
+  }, [shareCourseId]);
+
+  const copyShareUrl = useCallback(
+    async (url: string) => {
+      const ok = await copyTextToClipboard(url);
+      if (ok) {
+        toast.success(t('classroom.unitList.linkCopied'), {
+          duration: 1800,
+          style: { fontSize: 13, padding: '10px 14px' },
+        });
+        setShareMenuOpen(false);
+      } else {
+        toast.error(t('classroom.unitList.linkCopyFailed'));
+      }
+    },
+    [t],
+  );
+
+  const handleShareButtonClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      if (shareEnabled) {
+        setShareMenuOpen((v) => !v);
+        return;
+      }
+      onShare?.(unit);
+    },
+    [shareEnabled, unit, onShare],
+  );
+
+  // Outer tag matches list semantics unless a parent `<li>` already wraps this row
+  const RootTag = rootElement === 'div' ? 'div' : 'li';
+
   return (
-    <li className="group relative">
+    <RootTag className="group relative">
       <div
         className={[
           'relative w-full px-4 py-3.5 transition-all duration-150',
@@ -303,20 +431,54 @@ export default function UnitListItem({
                       : 'text-slate-800 group-hover:text-[#4F52C2]',
                   ].join(' ')}
                 >
-                  {unit.title}
+                  {rowTitle}
                 </span>
 
+                {/*
                 {levelCls && unit.level && (
                   <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${levelCls}`}>
                     {unit.level}
                   </span>
                 )}
+                */}
 
                 {isCurrent && (
                   <span className="shrink-0 rounded-full bg-[#6C6FEF]/10 px-2 py-0.5 text-[10px] font-bold text-[#6C6FEF]">
                     {t('classroom.unitList.nowStudying')}
                   </span>
                 )}
+
+                {/* AI generation status chips — inline so they never overlap action buttons */}
+                {isAiGenerating && !isAiGenerated && (
+                  <span
+                    className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-[#6C6FEF]"
+                    style={{ background: '#EEF0FE' }}
+                  >
+                    <span
+                      style={{
+                        width: 5, height: 5, borderRadius: '50%',
+                        background: '#6C6FEF', display: 'inline-block',
+                        animation: 'usm-pulse 1.2s ease-in-out infinite',
+                      }}
+                    />
+                    {t('classroom.unitSelector.generatingBadge')}
+                  </span>
+                )}
+
+                {/* Generated badge next to unit title — hidden per product request */}
+                {/*
+                {isAiGenerated && (
+                  <span
+                    className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold text-[#4F52C2]"
+                    style={{ background: '#EEF0FE' }}
+                  >
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden>
+                      <path d="M4 0.5L4.9 3.1H7.5L5.4 4.7L6.2 7.5L4 5.8L1.8 7.5L2.6 4.7L0.5 3.1H3.1L4 0.5Z" fill="#6C6FEF" />
+                    </svg>
+                    {t('classroom.unitSelector.generatedBadge')}
+                  </span>
+                )}
+                */}
               </div>
 
               {(hasSlides || hasTask || hasTest) && (
@@ -384,25 +546,70 @@ export default function UnitListItem({
               className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-150"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Drag handle — visual affordance only */}
+              {/* Drag handle — @dnd-kit listeners when dragHandleBinder is passed */}
               <button
-                className={iconBtn}
+                type="button"
+                className={[
+                  iconBtn,
+                  dragHandleBinder ? 'touch-none cursor-grab active:cursor-grabbing' : '',
+                ].join(' ')}
                 aria-label={t('classroom.unitList.aria.reorder')}
-                tabIndex={-1}
                 onClick={(e) => e.stopPropagation()}
+                {...(dragHandleBinder?.attributes ?? {})}
+                {...(dragHandleBinder?.listeners ?? {})}
+                tabIndex={dragHandleBinder ? 0 : -1}
               >
                 <AlignJustify className="h-4 w-4" />
               </button>
 
-              {/* Share */}
-              <button
-                className={iconBtn}
-                aria-label={t('classroom.unitList.aria.shareUnit')}
-                tabIndex={-1}
-                onClick={(e) => { e.stopPropagation(); onShare?.(unit); }}
-              >
-                <Share2 className="h-4 w-4" />
-              </button>
+              {/* Share — dropdown: teacher (unit) vs student (course) link, origin from VITE_APP_ORIGIN */}
+              <div className="relative" ref={shareMenuWrapRef}>
+                <button
+                  type="button"
+                  className={iconBtn}
+                  aria-label={
+                    shareEnabled
+                      ? t('classroom.unitList.aria.openShareMenu')
+                      : t('classroom.unitList.aria.shareUnit')
+                  }
+                  aria-expanded={shareMenuOpen}
+                  aria-haspopup="menu"
+                  tabIndex={-1}
+                  onClick={handleShareButtonClick}
+                >
+                  <Share2 className="h-4 w-4" />
+                </button>
+                {shareMenuOpen && shareEnabled && (
+                  <div
+                    role="menu"
+                    aria-label={t('classroom.unitList.share.menuLabel')}
+                    className="absolute right-0 top-full z-[60] mt-1 w-max min-w-[11rem] rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg ring-1 ring-black/5"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-[#EEF0FE] hover:text-[#4F52C2]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void copyShareUrl(teacherShareUrl());
+                      }}
+                    >
+                      {t('classroom.unitList.share.forTeacher')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-[#EEF0FE] hover:text-[#4F52C2]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void copyShareUrl(studentShareUrl());
+                      }}
+                    >
+                      {t('classroom.unitList.share.forStudent')}
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Three-dot menu */}
               <div className="relative">
@@ -420,7 +627,6 @@ export default function UnitListItem({
                     onClose={() => setDropdownOpen(false)}
                     onGenerate={onGenerate}
                     onHide={onHide}
-                    onCopy={onCopy}
                     onEdit={onEdit}
                     onDelete={onDelete}
                   />
@@ -439,6 +645,6 @@ export default function UnitListItem({
 
         </div>
       </div>
-    </li>
+    </RootTag>
   );
 }

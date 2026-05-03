@@ -50,6 +50,7 @@ import { useCourseGeneration } from "../../hooks/useCourseGeneration";
 import ClassroomLayout from "../../components/classroom/ClassroomLayout";
 import ClassroomHeader from "../../components/classroom/ClassroomHeader";
 import type { ClassroomTab } from "../../components/classroom/ClassroomHeader";
+import ClassroomEnrollStudentModal from "../../components/classroom/ClassroomEnrollStudentModal";
 import LessonWorkspace, {
   type LessonWorkspaceProps,
 } from "../../components/classroom/lesson/LessonWorkspace";
@@ -601,11 +602,16 @@ function ClassroomPageInner({
     courseId:    courseId ? Number(courseId) : null,
     level:       generationLevel,
     sourceToken,                   // ← NEW: undefined when no files were uploaded
-    onUnitDone: (_unitId) => {
-      // Silently refresh the unit list so the modal shows fresh content without
-      // forcing navigation. The SSE stream keeps running in the background even
-      // when the modal is closed and reopened.
+    onUnitDone: (unitId) => {
+      // Refresh the unit list so the modal sidebar shows up-to-date titles/status.
       reloadUnits();
+      // If the unit that just finished generating is the one currently on screen,
+      // force a content reload.  Without this, useStudentUnit won't re-fetch
+      // because the unitId prop hasn't changed (same URL), so the user sees the
+      // empty state that was loaded before generation started until they refresh.
+      if (unitId === currentUnit?.id) {
+        void reloadUnit();
+      }
     },
     onComplete: () => {
       // ── Strip both ?ai_outline and ?source_token from URL ─────────────────
@@ -673,6 +679,8 @@ function ClassroomPageInner({
   const [materialsUploading, setMaterialsUploading] = useState(false);
   // Controls visibility of the teacher-only StudentAnswersPanel (observe student exercise answers)
   const [answersPanelOpen, setAnswersPanelOpen] = useState(false);
+  // Controls the roster modal opened from the header add-student control (teacher only).
+  const [enrollStudentModalOpen, setEnrollStudentModalOpen] = useState(false);
   // Lesson rail wrapper — primary anchor for the answers popover on the lesson tab.
   const answersPanelAnchorRef = useRef<HTMLDivElement>(null);
   // Header answers icon — anchor when homework tab or lesson with hidden strip (≤480px).
@@ -829,6 +837,12 @@ function ClassroomPageInner({
     enabled:         true,
     isTeacher,
   });
+
+  // Normalized user ids currently in the room; used to badge rows in the enroll modal.
+  const onlineUserIdsForEnroll = useMemo(
+    () => new Set(onlineUsers.map((u) => Number(u.user_id))),
+    [onlineUsers],
+  );
 
   // ── Homework import guards (reset on each navigation) ────────────────────
   const homeworkImportConsumedRef      = useRef(false);
@@ -1124,56 +1138,6 @@ function ClassroomPageInner({
     ],
   );
 
-  /**
-   * Hides a unit from students by setting is_visible_to_students = false.
-   * The unit remains fully accessible to the teacher.
-   */
-  const handleHideUnit = useCallback(
-    async (unitToHide: ClassroomUnit) => {
-      if (!isTeacher) return;
-      try {
-        const token = localStorage.getItem('access_token') ?? '';
-        const res = await fetch(`/api/v1/admin/units/${unitToHide.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ is_visible_to_students: false }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        reloadUnits();
-        toast.success(`"${unitToHide.title}" hidden from students`);
-      } catch (error) {
-        console.error('[ClassroomPage] Failed to hide unit', error);
-        toast.error('Failed to hide unit');
-      }
-    },
-    [isTeacher, reloadUnits],
-  );
-
-  /**
-   * Duplicates a unit — creates a new unit with the same title (+ " (copy)")
-   * at the end of the course and navigates to it.
-   */
-  const handleCopyUnit = useCallback(
-    async (unitToCopy: ClassroomUnit) => {
-      if (!isTeacher) return;
-      try {
-        const newUnit = await unitsApi.createUnit({
-          title: `${unitToCopy.title} (copy)`,
-          level: (unitToCopy as any).level ?? 'A1',
-          course_id: Number(courseId),
-          order_index: units.length,
-        } as any);
-        reloadUnits();
-        toast.success(`"${unitToCopy.title}" copied`);
-        navigate(`${classroomBasePath}/${courseId}/${newUnit.id}`, { replace: false });
-      } catch (error) {
-        console.error('[ClassroomPage] Failed to copy unit', error);
-        toast.error('Failed to copy unit');
-      }
-    },
-    [isTeacher, units.length, courseId, classroomBasePath, navigate, reloadUnits],
-  );
-
   /** Navigates to a unit URL and resets local lesson progress (shared by selector, finish, and draft confirm). */
   const navigateToUnit = useCallback(
     (unit: ClassroomUnit) => {
@@ -1274,6 +1238,21 @@ function ClassroomPageInner({
   const handlePanelExtra = useCallback(() => {
     setMaterialsModalOpen(true);
   }, []);
+
+  // Persists unit order after drag-and-drop in UnitSelectorModal (teacher only).
+  const handleReorderUnits = useCallback(
+    async (unitIds: number[]) => {
+      if (!courseId) return;
+      try {
+        await coursesApi.reorderCourseUnits(Number(courseId), unitIds);
+        await reloadUnits();
+      } catch (err) {
+        console.error(err);
+        toast.error(t("classroom.unitSelector.reorderFailed"));
+      }
+    },
+    [courseId, reloadUnits, t],
+  );
 
   // Keeps local modal materials synchronized with the latest loaded unit payload.
   useEffect(() => {
@@ -1640,6 +1619,7 @@ function ClassroomPageInner({
                 answersPanelOpen,
               }
             : {})}
+          onAddStudent={isTeacher ? () => setEnrollStudentModalOpen(true) : undefined}
         />
 
         <LiveSessionBanner />
@@ -1708,8 +1688,6 @@ function ClassroomPageInner({
         generateUnitTitle={undefined}
         onCreateAndGenerate={handleCreateAndGenerate}
         onDeleteUnit={isTeacher ? handleDeleteUnit : undefined}
-        onHideUnit={isTeacher ? handleHideUnit : undefined}
-        onCopyUnit={isTeacher ? handleCopyUnit : undefined}
         onEditCourse={isTeacher ? handleEditCourse : undefined}
         onDeleteCourse={isTeacher ? handleDeleteCourse : undefined}
         editCourseDescription={editCourseSeed.initialDescription}
@@ -1734,6 +1712,8 @@ function ClassroomPageInner({
         isGeneratingCourse={courseGen.isStreaming}
         onStartCourseGeneration={courseGen.start}
         courseId={courseId ? Number(courseId) : null}
+        generationLevel={generationLevel}
+        generationLanguage={editCourseSeed.initialLanguage === 'en' ? 'English' : editCourseSeed.initialLanguage || 'English'}
         onEditOutline={(updatedOutline) => {
           // Update in-memory state so CourseGenerationPanel re-renders immediately
           setCourseOutline(updatedOutline);
@@ -1748,6 +1728,7 @@ function ClassroomPageInner({
           // Reload the unit list so the modal's unit titles reflect DB changes
           reloadUnits();
         }}
+        onReorderUnits={isTeacher ? handleReorderUnits : undefined}
       />
 
       {/* ── Additional materials modal — teachers upload, students download ── */}
@@ -1760,6 +1741,13 @@ function ClassroomPageInner({
         uploading={materialsUploading}
         onClose={() => setMaterialsModalOpen(false)}
         onUploadFiles={isTeacher ? handleUploadUnitMaterials : undefined}
+      />
+
+      <ClassroomEnrollStudentModal
+        open={enrollStudentModalOpen}
+        onClose={() => setEnrollStudentModalOpen(false)}
+        courseId={courseId ? Number(courseId) : 0}
+        onlineUserIds={onlineUserIdsForEnroll}
       />
 
       {/* ── Exit confirm dialog — design system styling ─────────────────── */}

@@ -421,12 +421,14 @@
         "removeFileTitle": "Remove file",
         "dropLine": "Drop files here or",
         "browse": "browse",
-        "formatsHint": "PDF, DOCX, TXT, images, video, subtitles · up to {{maxMb}} MB each · max {{maxFiles}} files",
+        "formatsHint": "PDF and DOCX only · up to {{maxMb}} MB total · max {{maxFiles}} files",
         "errorMaxFiles": "Maximum {{max}} files allowed.",
-        "errorFileTooBig": "\"{{name}}\" exceeds {{maxMb}} MB.",
+        "errorInvalidType": "\"{{name}}\" must be a PDF or DOCX file.",
+        "errorTotalTooBig": "Total size cannot exceed {{maxMb}} MB.",
+        "errorFileExceedsTotalBudget": "\"{{name}}\" is larger than the {{maxMb}} MB total limit.",
         "headerTitle": "Enrich with your materials",
         "headerSubtitle": "Upload files to give the AI more context. This step is optional.",
-        "filesAdded": "{{count}} / {{max}} files added",
+        "filesAdded": "{{count}} / {{max}} files · {{usedMb}} / {{maxMb}} MB",
         "skipForNow": "Skip for now",
         "generate": "Generate",
         "generateWithCount_one": "Generate with {{count}} file",
@@ -775,7 +777,9 @@
         "build_sentence": "Build Sentence",
         "order_paragraphs": "Order Paragraphs",
         "sort_into_columns": "Sort Columns",
-        "true_false": "True/False"
+        "true_false": "True/False",
+        "test_without_timer": "Test without timer",
+        "test_with_timer": "Test with timer"
       }
     },
     "additionalMaterialsModal": {
@@ -824,9 +828,18 @@
       "tasksCount": "{{count}} task",
       "testsCount": "{{count}} test",
       "openUnit": "Open unit",
+      "linkCopied": "Link copied",
+      "linkCopyFailed": "Could not copy link",
+      "share": {
+        "forTeacher": "For teacher",
+        "forStudent": "For student",
+        "menuLabel": "Copy classroom link"
+      },
       "aria": {
         "reorder": "Reorder",
         "shareUnit": "Share unit",
+        "copyUnitLink": "Copy link to unit",
+        "openShareMenu": "Share — copy link for teacher or student",
         "moreOptions": "More options"
       },
       "actions": {
@@ -854,6 +867,7 @@
       "searchAria": "Search units",
       "filter": "Filter",
       "availableUnitsAria": "Available units",
+      "reorderFailed": "Could not save unit order. Try again.",
       "generatedBadge": "Generated",
       "generatingBadge": "Generating...",
       "createUnit": "Create unit",
@@ -865,6 +879,7 @@
         "resetSearch": "Reset search"
       },
       "unitLabel": "Unit {{index}} - {{title}}",
+      "unnamedUnit": "Unit {{index}}",
       "progressBanner": {
         "allGenerated": "All {{total}} units generated - click any unit to start teaching",
         "generatingWithErrors": "Generating... {{done}}/{{total}} done (some errors)",
@@ -892,7 +907,26 @@
       "changeUnit": "Change Unit",
       "chooseUnit": "Choose Unit",
       "unitShort": "Unit",
-      "chooseShort": "Choose"
+      "chooseShort": "Choose",
+      "addStudentAria": "Add student to this class"
+    },
+    "enrollStudentModal": {
+      "title": "Enroll a student",
+      "selectLabel": "Students",
+      "selectPlaceholder": "Select a student…",
+      "optionInCourse": "enrolled in this course",
+      "optionNotInCourse": "not enrolled in this course",
+      "optionOnline": "in class now",
+      "alreadyInCourseHint": "This student is already enrolled. Pick someone who is not enrolled to add them.",
+      "addToCourse": "Add to course",
+      "enrollingButton": "Adding…",
+      "loading": "Loading students…",
+      "empty": "No students yet. Create student accounts from Admin → Students.",
+      "loadError": "Could not load your students.",
+      "enrolledToast": "{{name}} is now enrolled in this course.",
+      "alreadyEnrolledToast": "{{name}} is already enrolled in this course.",
+      "enrollFailed": "Could not enroll this student.",
+      "close": "Close"
     },
     "studentAnswersPanel": {
       "title": "Answers",

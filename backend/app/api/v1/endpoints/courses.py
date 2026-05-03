@@ -26,7 +26,8 @@ from app.models.enrollment import CourseEnrollment
 from app.models.video_progress import VideoProgress
 from app.schemas.course import (
     CourseResponse, CourseCreate, CourseUpdate, CourseListResponse,
-    CourseDetailResponse, CourseReorderRequest, CoursePublishRequest,
+    CourseDetailResponse, CourseReorderRequest, CourseUnitsReorderRequest,
+    CoursePublishRequest,
     CourseBulkAction, DashboardStatistics, StudentDashboardStats,
     EnrolledCourseResponse, CourseAskRequest,
 )
@@ -337,6 +338,35 @@ async def get_admin_course(
         content_summary=course.content_summary,
         units=units_data
     )
+
+
+@router.get("/admin/courses/{course_id}/enrolled-student-ids")
+async def get_admin_course_enrolled_student_ids(
+    course_id: int,
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db),
+):
+    """List student user ids enrolled in this course; course must belong to the current teacher."""
+    # Ensures the teacher can only inspect enrollments for their own course.
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.created_by == current_user.id,
+    ).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    # Loads distinct student ids from enrollment rows for this course.
+    enrollment_rows = (
+        db.query(CourseEnrollment.user_id)
+        .join(User, User.id == CourseEnrollment.user_id)
+        .filter(
+            CourseEnrollment.course_id == course_id,
+            User.role == UserRole.STUDENT,
+        )
+        .all()
+    )
+    return {"student_ids": [row[0] for row in enrollment_rows]}
+
 
 @router.put("/admin/courses/{course_id}", response_model=CourseResponse)
 async def update_course(
@@ -680,6 +710,43 @@ async def reorder_courses(
     db.commit()
     
     return {"message": "Courses reordered successfully"}
+
+
+@router.post("/admin/courses/{course_id}/units/reorder", response_model=Dict[str, str])
+async def reorder_course_units(
+    course_id: int,
+    body: CourseUnitsReorderRequest,
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db),
+):
+    """
+    Persist a new order_index sequence (0..n-1) for all units in the course.
+    Body must list every unit id belonging to this course exactly once.
+    """
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.created_by == current_user.id,
+    ).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    units = db.query(Unit).filter(Unit.course_id == course_id).all()
+    db_ids = {u.id for u in units}
+    payload_ids = list(body.unit_ids)
+    if len(payload_ids) != len(db_ids) or set(payload_ids) != db_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="unit_ids must list every unit in this course exactly once",
+        )
+
+    id_to_unit = {u.id: u for u in units}
+    for index, uid in enumerate(payload_ids):
+        id_to_unit[uid].order_index = index
+        id_to_unit[uid].updated_by = current_user.id
+
+    db.commit()
+    return {"message": "Units reordered successfully"}
+
 
 # Helper function to get subscription name
 def get_user_subscription_name(db: Session, user: User) -> str:

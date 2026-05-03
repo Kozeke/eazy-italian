@@ -55,6 +55,9 @@ const EXERCISE_TYPE_DEFS: ExerciseTypeDef[] = [
   { value: "order_paragraphs", icon: "↕" },
   { value: "sort_into_columns", icon: "⊞" },
   { value: "true_false", icon: "✓✗" },
+  // MC-style tests: optional per-question timer is stored on the block when "with timer" is chosen.
+  { value: "test_without_timer", icon: "◯" },
+  { value: "test_with_timer", icon: "⏱" },
 ];
 
 const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -305,6 +308,9 @@ function AdvancedPanel({
             );
           })}
         </div>
+        {/* Hint + counts (e.g. ru: «Выбранные типы…» + «(2 типов × 3 разделов)»): explains that the
+            generator spreads the chosen exercise kinds across all unit segments; the parenthetical
+            is the live product selectedTypes.size × numSegments sent as exercise_types / num_segments. */}
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
           {t("classroom.generateUnitModal.exerciseTypesHint")}
           {selectedTypes.size > 0 && (

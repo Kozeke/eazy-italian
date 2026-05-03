@@ -352,13 +352,36 @@ def _evict_expired_tokens() -> None:
 # ── AI provider ───────────────────────────────────────────────────────────────
 
 
-def _get_provider():
-    from app.services.ai_exercise_generator import _default_provider
-    return _default_provider
+def _get_provider_for_user(user: "User", db: "Session"):
+    """
+    Return the appropriate AI provider for *user*'s subscription plan.
+
+    free              → Groq  (fast, free-tier)
+    standard / pro    → DeepSeek V3  (higher quality)
+
+    Falls back to the default provider if plan resolution fails.
+    """
+    try:
+        from app.core.teacher_tariffs import get_teacher_tariff_display_state
+        from app.services.ai.providers.router import get_provider_for_plan
+        plan, _ = get_teacher_tariff_display_state(db, user)
+        logger.info(
+            "course-gen provider: plan=%r → %s",
+            plan,
+            "DeepSeek" if plan in ("standard", "pro") else "Groq",
+        )
+        return get_provider_for_plan(plan), plan
+    except Exception as exc:
+        logger.warning("course-gen provider fallback — plan resolution failed: %s", exc)
+        from app.services.ai_exercise_generator import _default_provider
+        return _default_provider, "free"
 
 
-async def _call_ai(prompt: str) -> str:
-    return await _get_provider().agenerate(prompt)
+async def _call_ai(prompt: str, provider=None) -> str:
+    if provider is None:
+        from app.services.ai_exercise_generator import _default_provider
+        provider = _default_provider
+    return await provider.agenerate(prompt)
 
 
 # ── Endpoint 1: generate-outline (JSON, no files) ────────────────────────────
@@ -380,9 +403,11 @@ async def generate_course_outline(
     logger.info("generate-outline: %r level=%s", body.description[:60], body.level)
     # Consumes one AI course-generation credit based on the teacher's active tariff.
     check_and_consume_teacher_ai_quota(db, current_user, "course_generation")
+    provider, plan = _get_provider_for_user(current_user, db)
+    logger.info("generate-outline: plan=%r provider=%s", plan, type(provider).__name__)
     try:
         outline = _parse_outline(
-            await _call_ai(_build_outline_prompt(body.description, body.level))
+            await _call_ai(_build_outline_prompt(body.description, body.level), provider)
         )
         logger.info("generate-outline: '%s' (%d units)", outline.title, len(outline.units))
         return outline
@@ -416,6 +441,10 @@ async def generate_course_outline_from_files(
     """
     # Consumes one AI course-generation credit based on the teacher's active tariff.
     check_and_consume_teacher_ai_quota(db, current_user, "course_generation")
+    provider, plan = _get_provider_for_user(current_user, db)
+    logger.info(
+        "generate-outline-from-files: plan=%r provider=%s", plan, type(provider).__name__
+    )
     # Normalise level
     level_norm = str(level).strip().upper()
     if level_norm not in CEFR_LEVELS:
@@ -439,7 +468,8 @@ async def generate_course_outline_from_files(
     try:
         outline = _parse_outline(
             await _call_ai(
-                _build_outline_prompt(description, level_norm, source_content)
+                _build_outline_prompt(description, level_norm, source_content),
+                provider,
             )
         )
         logger.info(
@@ -493,10 +523,12 @@ async def _stream_generation(
     level: str,
     language: str,
     source_content: str,        # "" when no files were uploaded
+    teacher_plan: str = "free", # teacher's subscription plan for provider routing
 ) -> AsyncIterator[str]:
     from app.core.database import SessionLocal
     from app.models.unit import Unit as UnitModel
     from app.services.unit_generator import UnitGeneratorService, UnitGenerateRequest
+    from app.services.ai.providers.router import get_provider_for_plan
 
     db = SessionLocal()
     try:
@@ -516,7 +548,12 @@ async def _stream_generation(
     await asyncio.sleep(0.1)
 
     try:
-        service = UnitGeneratorService(ai_provider=_get_provider())
+        provider = get_provider_for_plan(teacher_plan)
+        logger.info(
+            "stream_course_generation: plan=%r provider=%s course_id=%d",
+            teacher_plan, type(provider).__name__, course_id,
+        )
+        service = UnitGeneratorService(ai_provider=provider)
     except RuntimeError as exc:
         yield _sse({"type": "error", "error": str(exc)})
         db.close()
@@ -547,6 +584,7 @@ async def _stream_generation(
                     # the teacher's uploaded materials.  Empty string when no
                     # files were provided — UnitGeneratorService ignores it.
                     source_content=source_content or None,
+                    plan=teacher_plan,
                 ),
                 db,
             )
@@ -607,6 +645,23 @@ async def stream_course_generation(
             headers={"Cache-Control": "no-cache"},
         )
 
+    # Resolve the teacher's subscription plan for provider routing
+    teacher_plan = "free"
+    try:
+        from app.core.teacher_tariffs import get_teacher_tariff_display_state
+        from app.core.database import SessionLocal as _SL
+        _db = _SL()
+        try:
+            teacher_plan, _ = get_teacher_tariff_display_state(_db, user)
+        finally:
+            _db.close()
+        logger.info(
+            "stream_course_generation: teacher_id=%d plan=%r course_id=%d",
+            user.id, teacher_plan, course_id,
+        )
+    except Exception as exc:
+        logger.warning("stream_course_generation: plan resolution failed — free fallback: %s", exc)
+
     # Retrieve (and consume) the cached source text if a token was provided
     source_content = ""
     if source_token:
@@ -626,7 +681,7 @@ async def stream_course_generation(
             )
 
     return StreamingResponse(
-        _stream_generation(course_id, level, language, source_content),
+        _stream_generation(course_id, level, language, source_content, teacher_plan),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

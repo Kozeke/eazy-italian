@@ -344,8 +344,6 @@ export default function ClassroomHeader({
 
   const hasRail      = !!lessonRail && !!currentUnit;
   const showTabs     = !!currentUnit && !!onTabChange;
-  // useOnlinePresence excludes the current user; any remaining entry is another person in the room (students).
-  const hasOnlineStudent = onlineUsers.length > 0;
 
   return (
     <>
@@ -483,7 +481,7 @@ export default function ClassroomHeader({
               </button>
 
               {/* TEACHER: answers + add-student + presence + divider (exit is in sibling slot) */}
-              {isTeacher && hasOnlineStudent && (
+              {isTeacher && (
                 <>
                   <div className="flex items-center gap-2">
                     {onToggleAnswersPanel && (
@@ -508,7 +506,7 @@ export default function ClassroomHeader({
                     <button
                       type="button"
                       onClick={onAddStudent}
-                      aria-label="Add student to classroom"
+                      aria-label={t('classroom.header.addStudentAria')}
                       className="ch-icon-btn ch-icon-btn--add"
                       disabled={!onAddStudent}
                     >

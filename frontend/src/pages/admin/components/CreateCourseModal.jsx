@@ -4,7 +4,7 @@
  * Two modes in one compact modal:
  *   • Quick    — single title input → create course immediately
  *   • Generate — describe your course → AI builds title + units (JSON POST /generate-outline).
- *                Optional file enrichment: CourseFileUploadModal.legacy.jsx (multipart /generate-outline-from-files).
+ *                Optional file enrichment: CourseFileUploadModal.jsx (multipart /generate-outline-from-files).
  *
  * Props:
  *   open       — controls visibility
@@ -20,7 +20,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useTeacherClassroomTransition } from '../../../contexts/TeacherClassroomTransitionContext';
 // Optional second step: teacher attaches PDFs/docs before outline generation.
-import CourseFileUploadModal from './CourseFileUploadModal.legacy';
+import CourseFileUploadModal from './CourseFileUploadModal';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -455,7 +455,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
     }
   }, [quickTitle, onCreated, goToClassroom, thumbFile, t]);
 
-  // ── AI GENERATE — Step 2: outline + course creation (was also Step 2 for CourseFileUploadModal.legacy) ──
+  // ── AI GENERATE — Step 2: outline + course creation (second step: CourseFileUploadModal) ──
   //
   //  files.length === 0  →  POST /generate-outline            (JSON, fast path)
   //  files.length  >  0  →  POST /generate-outline-from-files (multipart, returns source_token)
