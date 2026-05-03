@@ -62,7 +62,18 @@ interface ExerciseTypeConfig {
 }
 
 // Registry of exercise types (labels come from i18n: aiExerciseGenerator.types.<type>).
+// Keep in sync with backend SUPPORTED_TYPES (exercise_generation.py) and editor `exerciseType` props.
 const EXERCISE_TYPE_CONFIGS: ExerciseTypeConfig[] = [
+  // Dedicated POST …/exercises/image (same path for manual save vs AI — see backend router order).
+  {
+    type: "image", icon: "🖼", endpoint: "image",
+    showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
+  },
+  // Generic POST …/exercises/image-stacked (slug uses hyphen).
+  {
+    type: "image_stacked", icon: "🖼+", endpoint: "image-stacked",
+    showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
+  },
   {
     type: "drag_to_gap", icon: "✦", endpoint: "drag-to-gap",
     showGaps: true, showPairs: false, defaultGapType: "Verbs only",
@@ -95,8 +106,22 @@ const EXERCISE_TYPE_CONFIGS: ExerciseTypeConfig[] = [
     type: "true_false", icon: "✓✗", endpoint: "true-false",
     showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
   },
+  // MC test blocks — URL slugs test-without-timer / test-with-timer (backend SUPPORTED_TYPES).
+  {
+    type: "test_without_timer", icon: "◯", endpoint: "test-without-timer",
+    showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
+  },
+  {
+    type: "test_with_timer", icon: "⏱", endpoint: "test-with-timer",
+    showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
+  },
   {
     type: "select_form_to_image", icon: "🖼", endpoint: "select-form-to-image",
+    showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
+  },
+  // Editor default slug drag_to_image; API registry key is drag_word_to_image.
+  {
+    type: "drag_to_image", icon: "↔🖼", endpoint: "drag-word-to-image",
     showGaps: false, showPairs: false, defaultGapType: "Mixed (verbs + nouns)",
   },
   {

@@ -72,9 +72,11 @@ router = APIRouter(prefix="/segments", tags=["exercise-generation"])
 
 SUPPORTED_TYPES: set[str] = {
     "text",
+    "image",
     "image-stacked",
     "drag-to-gap",
     "drag-word-to-image",
+    "type-word-to-image",
     "select-form-to-image",
     "type-word-in-gap",
     "select-word-form",

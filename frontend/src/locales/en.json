@@ -1108,6 +1108,14 @@
         "label": "Text block",
         "description": "Markdown reading or grammar explanation"
       },
+      "image": {
+        "label": "Image block",
+        "description": "AI illustration from your topic or unit content"
+      },
+      "image_stacked": {
+        "label": "Stacked images",
+        "description": "Several related images from your materials"
+      },
       "drag_to_gap": {
         "label": "Drag to Gap",
         "description": "Drag word chips into sentence gaps"
@@ -1140,9 +1148,21 @@
         "label": "True / False",
         "description": "Mark statements as true or false"
       },
+      "test_without_timer": {
+        "label": "Test without timer",
+        "description": "Multiple-choice questions with no countdown"
+      },
+      "test_with_timer": {
+        "label": "Test with timer",
+        "description": "Multiple-choice questions; set the time limit in the editor"
+      },
       "select_form_to_image": {
         "label": "Image + Select",
         "description": "Pick the word that matches the image"
+      },
+      "drag_to_image": {
+        "label": "Drag word to image",
+        "description": "Drag answer chips onto each picture"
       },
       "type_word_to_image": {
         "label": "Image + Type",

@@ -3502,6 +3502,8 @@ EXERCISE_GENERATORS: dict[str, GeneratorFn] = {
     "order_paragraphs":     generate_order_paragraphs_from_unit_content,
     "sort_into_columns":    generate_sort_into_columns_from_unit_content,
     "drag_word_to_image":   generate_drag_word_to_image_from_unit_content,
+    # Same card payload as drag_word_to_image; block kind follows the requested exercise_type.
+    "type_word_to_image":   generate_drag_word_to_image_from_unit_content,
     "select_form_to_image": generate_select_form_to_image_from_unit_content,
     "test_without_timer":   generate_test_without_timer_from_unit_content,
     "test_with_timer":      generate_test_without_timer_from_unit_content,  # same shape, timer set by editor
