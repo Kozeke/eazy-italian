@@ -51,6 +51,7 @@ import CreateUnitModal, { type CreateUnitData } from './CreateUnitModal';
 import GenerateUnitModal from '../unit/GenerateUnitModal';
 import EditOutlineModal from './EditOutlineModal';
 import CourseOutlineReviewPanel from './CourseOutlineReviewPanel';
+import { resolveStaticAssetUrl } from '../../../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -355,10 +356,12 @@ function GenerationProgressBanner({ unitStatuses, units, isGenerating }: Generat
 function CourseThumbnail({ url, initial }: { url?: string; initial: string }) {
   // Provides localized image alt text for the course thumbnail.
   const { t } = useTranslation();
-  if (url) {
+  // Converts stored backend thumbnail paths to browser-resolvable static URLs.
+  const resolvedThumbnailUrl = useMemo(() => (url ? resolveStaticAssetUrl(url) : ''), [url]);
+  if (resolvedThumbnailUrl) {
     return (
       <img
-        src={url}
+        src={resolvedThumbnailUrl}
         alt={t('classroom.unitSelector.courseThumbnailAlt')}
         style={{ height: 64, width: 64, flexShrink: 0, borderRadius: 14, objectFit: 'cover', boxShadow: '0 2px 8px rgba(108,111,239,0.15)' }}
       />

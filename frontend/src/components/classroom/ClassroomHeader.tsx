@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import UnitSelectorModal from './unit/UnitSelectorModal';
 import { type OnlineUser, getAvatarColor } from '../../hooks/useOnlinePresence';
+import { resolveStaticAssetUrl } from '../../services/api';
 import './classroom-mode.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -328,6 +329,8 @@ export default function ClassroomHeader({
   const [modalOpen, setModalOpen] = useState(false);
 
   const canUseModal = units.length > 0 && typeof onSelectUnit === 'function';
+  // Resolves either stored path or absolute URL into a browser-safe thumbnail source.
+  const courseThumbnailSrc = course.thumbnail_url ? resolveStaticAssetUrl(course.thumbnail_url) : '';
 
   const handleOpenChanger = () => {
     if (canUseModal) {
@@ -384,9 +387,9 @@ export default function ClassroomHeader({
                 className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:hidden"
                 aria-label={`Leave classroom (${course.title})`}
               >
-                {course.thumbnail_url ? (
+                {courseThumbnailSrc ? (
                   <img
-                    src={course.thumbnail_url}
+                    src={courseThumbnailSrc}
                     alt=""
                     className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-slate-200"
                   />
@@ -407,9 +410,9 @@ export default function ClassroomHeader({
                 className="hidden items-center gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:flex"
                 aria-label={`Leave classroom (${course.title})`}
               >
-                {course.thumbnail_url ? (
+                {courseThumbnailSrc ? (
                   <img
-                    src={course.thumbnail_url}
+                    src={courseThumbnailSrc}
                     alt=""
                     className="h-7 w-7 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
                   />
@@ -574,6 +577,7 @@ export default function ClassroomHeader({
           units={units}
           currentUnitId={currentUnit?.id ?? null}
           courseTitle={course.title}
+          courseThumbnailUrl={courseThumbnailSrc || undefined}
           completedUnitIds={completedUnitIds}
           onClose={() => setModalOpen(false)}
           onSelectUnit={handleSelectUnit}
