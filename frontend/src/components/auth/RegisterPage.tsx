@@ -76,6 +76,34 @@ export default function RegisterPage() {
   const [resendSecs,setResendSecs]= useState(60);
   const [timerOn,   setTimerOn]   = useState(false);
 
+  // Defines which registration step should open when the top-left back icon is clicked.
+  const previousStepByStep: Partial<Record<Step, Step>> = {
+    'account-type': 'email',
+    'student-info': 'account-type',
+    activation: 'account-type',
+    greeting: 'activation',
+    details: 'greeting',
+  };
+
+  // Stores whether the current step should render the top-left back icon.
+  const shouldShowTopBackButton =
+    step !== 'email' &&
+    step !== 'trial' &&
+    step !== 'account-type';
+
+  // Navigates backward in the wizard using explicit step mapping, with browser fallback.
+  const handleTopBackClick = () => {
+    // Stores the mapped previous step for the current wizard step if one exists.
+    const previousStep = previousStepByStep[step];
+    if (previousStep) {
+      setStep(previousStep);
+      setError('');
+      setOtpError('');
+      return;
+    }
+    navigate(-1);
+  };
+
   // countdown
   useEffect(() => {
     if (!timerOn) return;
@@ -214,7 +242,8 @@ export default function RegisterPage() {
         input::placeholder { color:${c.inputPlaceholder}; }
       `}</style>
 
-      <div key={step} style={{ animation: 'regIn 0.2s ease-out' }}>
+      <div key={step} style={{ animation: 'regIn 0.2s ease-out', position:'relative' }}>
+        {shouldShowTopBackButton && <TopLeftBackIcon onClick={handleTopBackClick} />}
 
         {/* ── 1. Email ──────────────────────────────────────────────────────── */}
         {step === 'email' && (
@@ -381,7 +410,7 @@ export default function RegisterPage() {
               fontSize:'12px', color:c.bodyText, lineHeight:1.6,
               maxWidth:'260px', margin:'0 auto 16px',
             }}>
-              We've activated a free 7-day trial so you can explore everything the platform has to offer.
+              We've activated a free 31-day trial so you can explore everything the platform has to offer.
             </p>
             <BigBtn
               onClick={() => navigate('/admin/dashboard')}
@@ -805,6 +834,38 @@ function BackRow({ onClick }: { onClick: () => void }) {
         marginBottom:'10px', padding:0, transition:'color 0.15s',
       }}>
       <ArrowLeft style={{ width:14, height:14 }} />Back
+    </button>
+  );
+}
+
+function TopLeftBackIcon({ onClick }: { onClick: () => void }) {
+  // Stores hover state for subtle icon background feedback.
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Go back"
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        position:'absolute',
+        top:'-2px',
+        left:'-2px',
+        width:'30px',
+        height:'30px',
+        borderRadius:'999px',
+        border:'none',
+        background: hov ? c.violetLight : 'transparent',
+        color: hov ? c.violetDark : c.mutedText,
+        display:'flex',
+        alignItems:'center',
+        justifyContent:'center',
+        cursor:'pointer',
+        transition:'background 0.15s, color 0.15s',
+      }}
+    >
+      <ArrowLeft style={{ width:16, height:16 }} />
     </button>
   );
 }

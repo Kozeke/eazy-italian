@@ -201,7 +201,7 @@ class UnitGenerateRequest:
     source_content: str | None = None
     include_images: bool = False   # generate SVG images only when requested
     description: str | None = None  # optional teacher directive injected into the prompt
-    plan: str = "free"             # teacher's subscription plan — used for provider routing
+    plan: str = "free"             # teacher's subscription plan (all plans route to DeepSeek)
 
 
 # ── Result type ───────────────────────────────────────────────────────────────

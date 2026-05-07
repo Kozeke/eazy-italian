@@ -191,6 +191,20 @@ export default function AdminCoursesPage() {
     );
   }
 
+  if (courses.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <Link
+          to="/admin/courses/builder"
+          className="inline-flex items-center rounded-lg border border-transparent bg-primary-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Создать курс
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sticky top bar */}

@@ -1,3 +1,5 @@
+"""Authentication endpoints for signup, login, and email code verification flows."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -21,6 +23,25 @@ from app.services.email_service import EmailService
 
 router = APIRouter()
 
+# Returns an active FREE subscription row, creating it for new databases when needed.
+def get_or_create_free_subscription(db: Session) -> Subscription:
+    # Stores the existing FREE subscription if one is already seeded.
+    free_subscription = db.query(Subscription).filter(
+        Subscription.name == SubscriptionName.FREE
+    ).first()
+    if free_subscription:
+        return free_subscription
+
+    # Creates a fallback FREE subscription so registration works without manual seeding.
+    free_subscription = Subscription(
+        name=SubscriptionName.FREE,
+        price=0.0,
+        is_active=True,
+    )
+    db.add(free_subscription)
+    db.flush()
+    return free_subscription
+
 @router.post("/register", response_model=UserResponse)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     # Check if user already exists
@@ -43,15 +64,9 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     )
     
     db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    # 🔥 Attach FREE subscription
-    free_sub = db.query(Subscription).filter(
-        Subscription.name == SubscriptionName.FREE
-    ).first()
-
-    if not free_sub:
-        raise HTTPException(500, "Free subscription not found")
+    db.flush()
+    # Stores the ensured FREE subscription used as the default plan for new users.
+    free_sub = get_or_create_free_subscription(db)
 
     # Stores plan end for teachers: Free tier lasts 30 days then must renew or upgrade.
     free_plan_ends_at = (
@@ -68,6 +83,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     ))
 
     db.commit()
+    db.refresh(db_user)
     
     # Send email verification code if email is not verified
     if not db_user.email_verified_at:
@@ -294,7 +310,16 @@ def send_magic_code(request: MagicCodeRequest, db: Session = Depends(get_db)):
     </html>
     """
     
-    email_service.send_email(request.email, subject, body, html_body)
+    # Tracks whether the SMTP provider accepted and sent the email.
+    is_email_sent = email_service.send_email(request.email, subject, body, html_body)
+    if not is_email_sent:
+        # Prevents stale verification rows when email delivery fails.
+        verification_code.is_used = True
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to send magic code email. Please try again later."
+        )
     
     return {"message": "Magic code sent to your email"}
 
@@ -351,7 +376,16 @@ def send_registration_code(request: MagicCodeRequest, db: Session = Depends(get_
         <p>Best regards,<br>Eazy Italian Team</p>
     </body></html>
     """
-    email_service.send_email(request.email, subject, body, html_body)
+    # Tracks whether the SMTP provider accepted and sent the email.
+    is_email_sent = email_service.send_email(request.email, subject, body, html_body)
+    if not is_email_sent:
+        # Prevents stale registration rows when email delivery fails.
+        verification_code.is_used = True
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to send registration code email. Please verify SMTP settings and try again."
+        )
 
     return {"message": "Registration code sent to your email"}
 

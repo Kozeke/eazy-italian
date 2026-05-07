@@ -2,7 +2,7 @@
 Course Generator Service — AI-powered course builder.
 
 Generates complete courses (Course, Units, Tasks, Tests, Questions) from a
-high-level description using Groq/Llama.
+high-level description using DeepSeek-based generation.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class CourseGeneratorService:
         Parameters
         ----------
         ai_provider : AIProvider
-            The AI provider to use for course generation (Groq/Ollama/etc).
+            The AI provider to use for course generation (DeepSeek/Ollama/etc).
         """
         self.provider = ai_provider
 

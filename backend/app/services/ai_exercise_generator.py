@@ -302,26 +302,17 @@ def get_provider_for_plan(plan: str) -> AIProvider:
 
     Routing policy
     --------------
-    free      → Groq  (rate-limited; cheaper)
+    free      → DeepSeek
     standard  → DeepSeek
     pro       → DeepSeek
-    <unknown> → DeepSeek (safe default for paid tiers)
+    <unknown> → DeepSeek
 
     The env-var AI_PROVIDER is intentionally ignored here so the tariff
     routing always wins over any deployment-level default.
     """
     canonical = (plan or "free").strip().lower()
 
-    if canonical == "free":
-        from app.services.ai.providers.groq_provider import GroqProvider
-        p = GroqProvider()
-        logger.info("Exercise provider for plan=%r: GroqProvider (model=%s)", plan, p.model)
-        fallback = _build_ollama_provider()
-        if fallback is not None:
-            return _WithOllamaFallback(primary=p, fallback=fallback)
-        return p
-
-    # standard / pro / any future paid tier → DeepSeek
+    # All plans route to DeepSeek.
     from app.services.ai.providers.deepseek_provider import DeepSeekProvider
     p = DeepSeekProvider()
     logger.info("Exercise provider for plan=%r: DeepSeekProvider (model=%s)", plan, p.model)

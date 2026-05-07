@@ -5,15 +5,15 @@ Plan-aware provider router.
 
 Maps a teacher's subscription plan to the appropriate AI backend:
 
-  free              → Groq  (fast, free-tier quota)
-  standard / pro    → DeepSeek V3  (higher quality, paid)
+  free              → DeepSeek
+  standard / pro    → DeepSeek
 
 Both choices are overridable via environment variables so you can flip
 backends in production without a code deploy.
 
 Environment variables
 ---------------------
-AI_PROVIDER_FREE    default: "groq"      — provider for free-plan teachers
+AI_PROVIDER_FREE    default: "deepseek"  — provider for free-plan teachers
 AI_PROVIDER_PAID    default: "deepseek"  — provider for standard/pro teachers
 
 Usage
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 # ── defaults (overridable via env-vars) ───────────────────────────────────────
 
-_FREE_BACKEND  = os.environ.get("AI_PROVIDER_FREE",  "groq").strip().lower()
+_FREE_BACKEND  = os.environ.get("AI_PROVIDER_FREE",  "deepseek").strip().lower()
 _PAID_BACKEND  = os.environ.get("AI_PROVIDER_PAID",  "deepseek").strip().lower()
 
 # ── valid plan identifiers ────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ def get_provider_for_plan(plan: str) -> AIProvider:
 
     Plan routing table
     ------------------
-    "free"                  → AI_PROVIDER_FREE  (default: GroqProvider)
+    "free"                  → AI_PROVIDER_FREE  (default: DeepSeekProvider)
     "standard" / "pro"      → AI_PROVIDER_PAID  (default: DeepSeekProvider)
 
     Parameters

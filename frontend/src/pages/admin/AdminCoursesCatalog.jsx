@@ -762,7 +762,7 @@ export default function AdminCoursesCatalog() {
           )}
 
           {/* Empty state */}
-          {!loading && courses.length === 0 && <EmptyState onNew={handleNew} t={t}/>}
+          {!loading && courses.length === 0 && null}
 
           {/* No filter results */}
           {!loading && courses.length > 0 && filtered.length === 0 && (
@@ -778,7 +778,7 @@ export default function AdminCoursesCatalog() {
           )}
 
           {/* Grid view */}
-          {!loading && courses.length > 0 && view === "grid" && (
+          {!loading && view === "grid" && (
             <div className="cat-grid">
               {/* Create tile — same card structure so heights match */}
               <div className="cat-create-tile" onClick={handleNew}>
@@ -797,7 +797,7 @@ export default function AdminCoursesCatalog() {
           )}
 
           {/* List view */}
-          {!loading && courses.length > 0 && view === "list" && (
+          {!loading && view === "list" && (
             <div className="cat-list">
               {filtered.map((c, i) => (
                 <Row key={c.id} course={c} idx={i} t={t}
