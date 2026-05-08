@@ -43,7 +43,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Flag, BookOpen, CheckCircle2, Circle, X, GripVertical, Send } from 'lucide-react';
+import { Plus, Flag, BookOpen, CheckCircle2, Circle, X, GripVertical, Send, Lock, Zap } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +95,10 @@ export type SectionSidePanelProps = {
   finishButtonVariant?: 'publish' | 'finish';
   /** Disables the primary footer button (e.g. while a publish request is in flight). */
   finishButtonDisabled?: boolean;
+  /** When "publish" variant and true, replaces the Publish button with an upgrade prompt. */
+  publishBlocked?: boolean;
+  /** Called when the teacher clicks the upgrade button (e.g. navigate to /admin/tariffs). */
+  onUpgradeForPublish?: () => void;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -122,6 +126,8 @@ export default function SectionSidePanel({
   currentUnitSteps,
   finishButtonVariant = 'finish',
   finishButtonDisabled = false,
+  publishBlocked = false,
+  onUpgradeForPublish,
 }: SectionSidePanelProps) {
   // Provides localized labels for the section side panel UI.
   const { t } = useTranslation();
@@ -541,13 +547,16 @@ export default function SectionSidePanel({
             gap: 6,
           }}
         >
-          {onFinishUnit && (
-            <FinishUnitButton
-              variant={finishButtonVariant}
-              disabled={finishButtonDisabled}
-              onClick={onFinishUnit}
-            />
-          )}
+          {onFinishUnit &&
+            (finishButtonVariant === 'publish' && publishBlocked ? (
+              <UpgradePublishButton onClick={onUpgradeForPublish ?? (() => {})} />
+            ) : (
+              <FinishUnitButton
+                variant={finishButtonVariant}
+                disabled={finishButtonDisabled}
+                onClick={onFinishUnit}
+              />
+            ))}
           {showAddSectionButton && <AddUnitButton onClick={handleAddSection} />}
           {onExtra      && <ExtraButton      onClick={onExtra} />}
         </div>
@@ -1205,6 +1214,65 @@ function FinishUnitButton({
       )}
       {isPublish ? t('classroom.sectionPanel.publishUnit') : t('classroom.sectionPanel.finishUnit')}
     </button>
+  );
+}
+
+function UpgradePublishButton({ onClick }: { onClick: () => void }) {
+  // Tracks hover affordance for the upgrade CTA.
+  const [hovered, setHovered] = React.useState(false);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {/* Info strip */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 10px',
+          background: '#FFFBEB',
+          border: '1px solid #FDE68A',
+          borderRadius: 8,
+        }}
+      >
+        <Lock style={{ width: 11, height: 11, color: '#D97706', flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: '#92400E', lineHeight: 1.4, fontWeight: 500 }}>
+          Publishing requires a paid plan
+        </span>
+      </div>
+
+      {/* Upgrade CTA button */}
+      <button
+        type="button"
+        onClick={onClick}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          width: '100%',
+          padding: '9px 10px',
+          background: hovered
+            ? 'linear-gradient(135deg, #5A5DE0 0%, #4345B0 100%)'
+            : 'linear-gradient(135deg, #6C6FEF 0%, #4F52C2 100%)',
+          border: 'none',
+          borderRadius: 10,
+          cursor: 'pointer',
+          boxShadow: hovered
+            ? '0 3px 12px 0 rgba(108, 111, 239, 0.40)'
+            : '0 2px 8px 0 rgba(108, 111, 239, 0.30)',
+          transition: 'background 0.12s ease, box-shadow 0.12s ease',
+          color: '#ffffff',
+          fontSize: 12,
+          fontWeight: 600,
+          outline: 'none',
+        }}
+      >
+        <Zap style={{ width: 13, height: 13, color: '#ffffff' }} />
+        Upgrade to Publish
+      </button>
+    </div>
   );
 }
 

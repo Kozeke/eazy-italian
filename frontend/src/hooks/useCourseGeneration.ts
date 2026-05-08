@@ -4,27 +4,15 @@
  * Manages the SSE stream that fills a course with AI-generated content
  * unit by unit.
  *
- * When the teacher uploaded files during course creation, a `sourceToken`
- * is available (stored in sessionStorage by CreateCourseModal and read
- * from the URL ?source_token= by the caller).  The hook appends it to the
- * SSE URL so the backend can ground each unit's content in the uploaded
- * materials.
- *
- * Usage
- * ─────
- * const courseGen = useCourseGeneration({
- *   courseId:    42,
- *   level:       'B1',
- *   sourceToken: searchParams.get('source_token') ?? undefined,
- *   onUnitDone:  (unitId) => { ... },
- *   onComplete:  ()       => { ... },
- * });
- *
- * courseGen.start();
- *
- * // In UI:
- * courseGen.unitStatuses   // Record<unitId, 'pending'|'generating'|'done'|'error'>
- * courseGen.isStreaming     // true while SSE is open
+ * FIXES applied:
+ *   1. Pre-initialise ALL unit IDs as 'pending' the moment start() is called,
+ *      so units never appear empty regardless of SSE state.
+ *   2. Auto-reconnect on connection drop (up to MAX_RECONNECTS times) with
+ *      exponential back-off.
+ *   3. Resume support — already-done unit IDs are sent back as
+ *      ?done_unit_ids=1,2,3 so the backend can skip them on reconnect.
+ *   4. On final failure, every 'pending' / 'generating' unit is flipped to
+ *      'error' so the UI always shows a meaningful state instead of empty.
  */
 
 import { useCallback, useRef, useState } from 'react';
@@ -40,35 +28,33 @@ export interface UseCourseGenerationOptions {
   level: string;
   /**
    * UUID returned by POST /generate-outline-from-files.
-   * When present it is appended to the SSE URL as ?source_token=<uuid>
-   * so the backend forwards the extracted file text to each unit generator.
-   * Omit (or pass undefined) when no files were uploaded.
+   * Appended to the SSE URL so the backend can ground content in uploaded files.
    */
   sourceToken?: string;
   /**
-   * Called each time a unit finishes generating.
-   * Use to reload the unit list so the modal reflects fresh content.
+   * All DB units for the course (just need { id }).
+   * Used to pre-populate every unit as 'pending' before the first SSE event
+   * arrives, so nothing ever appears empty.
    */
+  units?: ReadonlyArray<{ id: number }>;
+  /** Called each time a unit finishes. Use to reload unit content. */
   onUnitDone: (unitId: number) => void;
-  /**
-   * Called once the entire stream completes.
-   * Use to strip ?ai_outline=true / ?source_token from the URL and
-   * clear sessionStorage.
-   */
+  /** Called once the whole stream completes successfully. */
   onComplete: () => void;
 }
 
 export interface UseCourseGenerationResult {
-  /** Per-unit status map; key is unit_id as a number. */
   unitStatuses: Record<number, UnitGenerationStatus>;
-  /** True while the EventSource connection is alive. */
   isStreaming: boolean;
-  /**
-   * Opens the SSE stream and begins generating all units in order.
-   * Safe to call multiple times — no-ops if already streaming or courseId is null.
-   */
   start: () => void;
+  /** Manually retry all units currently in 'error' state. */
+  retryErrors: () => void;
 }
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const MAX_RECONNECTS    = 4;
+const RECONNECT_BASE_MS = 1_500; // first retry after 1.5 s; doubles each attempt
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
@@ -76,67 +62,112 @@ export function useCourseGeneration({
   courseId,
   level,
   sourceToken,
+  units,
   onUnitDone,
   onComplete,
 }: UseCourseGenerationOptions): UseCourseGenerationResult {
+
   const [unitStatuses, setUnitStatuses] = useState<Record<number, UnitGenerationStatus>>({});
   const [isStreaming, setIsStreaming]   = useState(false);
 
-  const esRef = useRef<EventSource | null>(null);
+  // ── Stable refs (never stale inside ESS callbacks) ───────────────────────
+  const esRef             = useRef<EventSource | null>(null);
+  const reconnectCount    = useRef(0);
+  const reconnectTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doneUnitIds       = useRef<Set<number>>(new Set());   // for resume on reconnect
+  const onUnitDoneRef     = useRef(onUnitDone);
+  const onCompleteRef     = useRef(onComplete);
+  const courseIdRef       = useRef(courseId);
+  const levelRef          = useRef(level);
+  const sourceTokenRef    = useRef(sourceToken);
+  const unitsRef          = useRef(units);
 
-  // Stable refs so EventSource handlers never capture stale closures
-  const onUnitDoneRef = useRef(onUnitDone);
-  const onCompleteRef = useRef(onComplete);
-  onUnitDoneRef.current = onUnitDone;
-  onCompleteRef.current = onComplete;
+  onUnitDoneRef.current  = onUnitDone;
+  onCompleteRef.current  = onComplete;
+  courseIdRef.current    = courseId;
+  levelRef.current       = level;
+  sourceTokenRef.current = sourceToken;
+  unitsRef.current       = units;
 
-  const start = useCallback(() => {
-    if (!courseId) {
-      console.warn('[useCourseGeneration] courseId is null — ignoring start()');
-      return;
-    }
-    if (esRef.current) {
-      console.warn('[useCourseGeneration] already streaming — ignoring duplicate start()');
-      return;
-    }
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-    const jwtToken = localStorage.getItem('token');
-    if (!jwtToken) {
-      console.error('[useCourseGeneration] No JWT found in localStorage — cannot open SSE stream');
-      return;
-    }
-
-    const apiBase = (import.meta as any).env?.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
-
-    // Build URL params
-    const params = new URLSearchParams({
-      level: level,
-      token: jwtToken,
+  /** Mark every unit that is still pending / generating as error. */
+  const markStuckAsError = useCallback(() => {
+    setUnitStatuses(prev => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(next)) {
+        if (v === 'pending' || v === 'generating') {
+          next[Number(k)] = 'error';
+        }
+      }
+      return next;
     });
+  }, []);
 
-    // Append source_token when files were uploaded — backend pops the cached
-    // extracted text and forwards it to each UnitGenerateRequest.source_content.
-    if (sourceToken) {
-      params.set('source_token', sourceToken);
-      console.info('[useCourseGeneration] source_token attached — units will be grounded in uploaded files');
+  /** Build the SSE URL, forwarding done unit IDs so the backend can skip them. */
+  const buildUrl = useCallback((): string => {
+    const apiBase =
+      (import.meta as any).env?.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
+    const jwt = localStorage.getItem('token') ?? '';
+
+    const params = new URLSearchParams({ level: levelRef.current, token: jwt });
+
+    if (sourceTokenRef.current) {
+      params.set('source_token', sourceTokenRef.current);
     }
 
-    const url = `${apiBase}/course-builder/${courseId}/stream?${params.toString()}`;
+    // Tell the backend which units are already done so it can skip them.
+    if (doneUnitIds.current.size > 0) {
+      params.set('done_unit_ids', [...doneUnitIds.current].join(','));
+    }
 
-    setIsStreaming(true);
-    setUnitStatuses({});
+    return `${apiBase}/course-builder/${courseIdRef.current}/stream?${params}`;
+  }, []);
 
-    const es = new EventSource(url);
+  // ── Core: open (or re-open) the EventSource ───────────────────────────────
+
+  const openStream = useCallback(() => {
+    if (!courseIdRef.current) return;
+
+    // Close any leftover connection before opening a new one.
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+
+    const es = new EventSource(buildUrl());
     esRef.current = es;
 
-    const teardown = (error?: boolean) => {
+    // ── Clean shutdown ──────────────────────────────────────────────────────
+    const teardown = (opts: { success: boolean }) => {
       es.close();
-      esRef.current = null;
-      setIsStreaming(false);
-      if (error) return;
-      onCompleteRef.current();
+      if (esRef.current === es) esRef.current = null;
+
+      if (opts.success) {
+        reconnectCount.current = 0;
+        setIsStreaming(false);
+        onCompleteRef.current();
+      } else {
+        // Try to reconnect unless we've hit the limit.
+        if (reconnectCount.current < MAX_RECONNECTS) {
+          const delay = RECONNECT_BASE_MS * Math.pow(2, reconnectCount.current);
+          reconnectCount.current += 1;
+          console.warn(
+            `[useCourseGeneration] SSE dropped — reconnect attempt ` +
+            `${reconnectCount.current}/${MAX_RECONNECTS} in ${delay} ms`,
+          );
+          reconnectTimer.current = setTimeout(() => {
+            openStream();
+          }, delay);
+        } else {
+          console.error('[useCourseGeneration] Max reconnects reached — giving up');
+          setIsStreaming(false);
+          markStuckAsError();
+        }
+      }
     };
 
+    // ── SSE message handler ────────────────────────────────────────────────
     es.onmessage = (event: MessageEvent) => {
       let data: Record<string, any>;
       try {
@@ -147,8 +178,20 @@ export function useCourseGeneration({
       }
 
       switch (data.type) {
+
         case 'start':
-          // { type: 'start', total: N }
+          // { type: 'start', total: N, unit_ids?: number[] }
+          // If the backend sends unit_ids up front, use them; otherwise fall back
+          // to the units prop that was pre-populated in start().
+          if (Array.isArray(data.unit_ids) && data.unit_ids.length > 0) {
+            setUnitStatuses(prev => {
+              const next = { ...prev };
+              for (const id of data.unit_ids as number[]) {
+                if (!next[id]) next[id] = 'pending'; // don't overwrite done/error
+              }
+              return next;
+            });
+          }
           break;
 
         case 'unit_start':
@@ -158,38 +201,96 @@ export function useCourseGeneration({
 
         case 'unit_done':
           // { type: 'unit_done', unit_id, index, segments_created, exercises_created }
+          doneUnitIds.current.add(data.unit_id as number);
           setUnitStatuses(prev => ({ ...prev, [data.unit_id as number]: 'done' }));
           onUnitDoneRef.current(data.unit_id as number);
           break;
 
         case 'unit_error':
           // { type: 'unit_error', unit_id, index, error }
+          console.error(`[useCourseGeneration] unit ${data.unit_id} error:`, data.error);
           setUnitStatuses(prev => ({ ...prev, [data.unit_id as number]: 'error' }));
           break;
 
         case 'complete':
           // { type: 'complete', units_done, total }
-          teardown();
+          teardown({ success: true });
           break;
 
         case 'error':
           console.error('[useCourseGeneration] Server-side SSE error:', data.error);
-          teardown(true);
+          teardown({ success: false });
           break;
 
         default:
-          console.log('[useCourseGeneration] Unknown SSE event type:', data.type);
+          // heartbeat / ping — just keeps the connection alive, ignore
+          break;
       }
     };
 
     es.onerror = () => {
       console.error('[useCourseGeneration] EventSource connection error');
-      teardown(true);
+      teardown({ success: false });
     };
 
-  // Intentionally omit isStreaming from deps — esRef guard handles re-entrancy
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseId, level, sourceToken]);
+  }, [buildUrl, markStuckAsError]);
 
-  return { unitStatuses, isStreaming, start };
+  // ── Public: start ─────────────────────────────────────────────────────────
+
+  const start = useCallback(() => {
+    if (!courseIdRef.current) {
+      console.warn('[useCourseGeneration] courseId is null — ignoring start()');
+      return;
+    }
+    if (esRef.current) {
+      console.warn('[useCourseGeneration] already streaming — ignoring duplicate start()');
+      return;
+    }
+    if (!localStorage.getItem('token')) {
+      console.error('[useCourseGeneration] No JWT — cannot open SSE stream');
+      return;
+    }
+
+    // ── FIX 1: Pre-initialise ALL units as 'pending' immediately ────────────
+    // This guarantees the UI never shows an empty unit while waiting for its
+    // unit_start event — even if the connection is slow or drops for later units.
+    doneUnitIds.current.clear();
+    reconnectCount.current = 0;
+
+    const knownUnits = unitsRef.current ?? [];
+    if (knownUnits.length > 0) {
+      const initial: Record<number, UnitGenerationStatus> = {};
+      for (const u of knownUnits) initial[u.id] = 'pending';
+      setUnitStatuses(initial);
+    } else {
+      setUnitStatuses({});
+    }
+
+    setIsStreaming(true);
+    openStream();
+
+  // courseId / level / sourceToken / units are accessed via refs — no dep needed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openStream]);
+
+  // ── Public: retryErrors ───────────────────────────────────────────────────
+  // Re-opens the stream for any units currently in 'error' state.
+
+  const retryErrors = useCallback(() => {
+    if (esRef.current) return; // already streaming
+
+    setUnitStatuses(prev => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(next)) {
+        if (v === 'error') next[Number(k)] = 'pending';
+      }
+      return next;
+    });
+
+    reconnectCount.current = 0;
+    setIsStreaming(true);
+    openStream();
+  }, [openStream]);
+
+  return { unitStatuses, isStreaming, start, retryErrors };
 }

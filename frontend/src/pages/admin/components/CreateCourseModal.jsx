@@ -46,7 +46,27 @@ const FONT_BODY    = "'Inter', system-ui, sans-serif";
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-// ─── API helpers ──────────────────────────────────────────────────────────────
+// ─── Shared tariff cache ───────────────────────────────────────────────────────
+// Module-level singleton — survives re-renders and is shared with every other
+// component in the same JS bundle (AdminHeader, GenerateUnitModal, etc.) that
+// reads/writes the same window key, so we never fire a duplicate network request
+// when another component already has a fresh response.
+
+const TARIFF_CACHE_TTL = 90_000; // 90 s — fresh enough for quota enforcement
+
+function getTariffCache() {
+  try {
+    const c = window.__lingu_tariff_cache;
+    if (c && Date.now() - c.ts < TARIFF_CACHE_TTL) return c.data;
+  } catch {}
+  return null;
+}
+
+function setTariffCache(data) {
+  try { window.__lingu_tariff_cache = { data, ts: Date.now() }; } catch {}
+}
+
+
 
 function authHeaders() {
   const token = localStorage.getItem('token');
@@ -349,6 +369,10 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   // ── File enrichment step (Generate mode only)
   const [fileModalOpen, setFileModalOpen] = useState(false);
 
+  // ── Course generation quota (fetched once when modal opens) ──────────────
+  const [quotaStatus, setQuotaStatus] = useState('idle'); // 'idle' | 'loading' | 'ok' | 'error'
+  const [tariffData,  setTariffData]  = useState(null);
+
   const quickInputRef = useRef(null);
   const descRef       = useRef(null);
 
@@ -365,9 +389,44 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       setGenStep(0);
       setError(null);
       setFileModalOpen(false);
+      setQuotaStatus('idle');
+      setTariffData(null);
       setTimeout(() => quickInputRef.current?.focus(), 80);
     }
   }, [open]);
+
+  // ── Fetch course generation quota when modal opens ────────────────────────
+  useEffect(() => {
+    if (!open) return;
+    if (quotaStatus === 'ok' || quotaStatus === 'loading') return;
+
+    // ── 1. Serve from cache immediately (populated by any component this session)
+    const cached = getTariffCache();
+    if (cached) {
+      setTariffData(cached);
+      setQuotaStatus('ok');
+      return;
+    }
+
+    // ── 2. No cache — fetch and populate cache for all subsequent components
+    let mounted = true;
+    setQuotaStatus('loading');
+    (async () => {
+      try {
+        const token = localStorage.getItem('token') ?? '';
+        const res = await fetch(buildAdminApiUrl('/admin/tariffs/me'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('quota fetch failed');
+        const data = await res.json();
+        setTariffCache(data);
+        if (mounted) { setTariffData(data); setQuotaStatus('ok'); }
+      } catch {
+        if (mounted) setQuotaStatus('error');
+      }
+    })();
+    return () => { mounted = false; };
+  }, [open, quotaStatus]);
 
   useEffect(() => {
     return () => { if (thumbPreview) URL.revokeObjectURL(thumbPreview); };
@@ -423,6 +482,21 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
     navigate(base + search);
   }, [navigate, startTeacherClassroomOpen]);
 
+  // ── Course generation limit (derived from tariff data) ───────────────────
+  const courseLimit = (() => {
+    if (!tariffData?.ai_limits) return null;
+    const limits = tariffData.ai_limits;
+    const raw = limits['course_generation'] ?? limits['course_generations'] ?? undefined;
+    return raw === undefined ? null : raw; // null = unlimited
+  })();
+  const courseUsed = tariffData?.ai_usage?.course_generations ?? 0;
+  const isAtLimit  = courseLimit !== null && courseUsed >= courseLimit;
+  const showQuota  = quotaStatus === 'ok' && tariffData !== null;
+
+  const redirectToTariffs = useCallback(() => {
+    window.location.assign('http://localhost:3000/admin/tariffs');
+  }, []);
+
   // ── QUICK CREATE ─────────────────────────────────────────────────────────────
 
   const handleQuickCreate = useCallback(async () => {
@@ -474,32 +548,32 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
 
       if (files.length > 0) {
         // File-enrichment path
-        try {
-          const result = await apiGenerateOutlineFromFiles(desc, level, files);
-          sourceToken = result.source_token ?? null;
-          outline     = result;                 // same shape as OutlineRequest response
-          console.info(
-            '[CreateCourseModal] Outline from files — source_token:', sourceToken,
-            'units:', outline.units?.length,
-          );
-        } catch (aiErr) {
-          console.warn('[CreateCourseModal] Outline-from-files failed, falling back.', aiErr);
-          outline = {
-            title: desc.slice(0, 80),
-            units: [{ title: t('admin.createCourseModal.defaultUnitTitle', { n: 1 }), description: '', sections: [] }],
-          };
-        }
+        const res = await fetch(buildAdminApiUrl('/course-builder/generate-outline-from-files'), {
+          method: 'POST',
+          headers: { ...authHeaders() },
+          body: (() => {
+            const form = new FormData();
+            form.append('description', desc);
+            form.append('level', level);
+            for (const f of files) form.append('files', f);
+            return form;
+          })(),
+        });
+        if (res.status === 402) { redirectToTariffs(); return; }
+        if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
+        const result = await parseJsonResponse(res, 'Outline generation from files returned an empty or invalid JSON response.');
+        sourceToken = result.source_token ?? null;
+        outline     = result;
       } else {
         // Fast path — no files
-        try {
-          outline = await apiGenerateOutline(desc, level);
-        } catch (aiErr) {
-          console.warn('[CreateCourseModal] Outline generation failed, falling back.', aiErr);
-          outline = {
-            title: desc.slice(0, 80),
-            units: [{ title: t('admin.createCourseModal.defaultUnitTitle', { n: 1 }), description: '', sections: [] }],
-          };
-        }
+        const res = await fetch(buildAdminApiUrl('/course-builder/generate-outline'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ description: desc, level }),
+        });
+        if (res.status === 402) { redirectToTariffs(); return; }
+        if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
+        outline = await parseJsonResponse(res, 'Outline generation returned an empty or invalid JSON response.');
       }
 
       setGenStep(1);
@@ -531,8 +605,6 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       try {
         sessionStorage.setItem(`ai_outline_${course.id}`, JSON.stringify(outline));
         if (sourceToken) {
-          // UnitSelectorModal / useCourseGeneration reads this to append
-          // &source_token=... to the SSE URL so units are grounded in files.
           sessionStorage.setItem(`ai_source_token_${course.id}`, sourceToken);
         }
       } catch {
@@ -549,19 +621,57 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       setLoading(false);
       setGenStep(0);
     }
-  }, [description, level, thumbFile, onCreated, goToClassroom, t]);
+  }, [description, level, thumbFile, onCreated, goToClassroom, redirectToTariffs, t]);
 
-  // ── AI GENERATE — Step 1: validate, then open file-enrichment modal (Skip → JSON outline; files → multipart).
-  const handleGenerate = useCallback(() => {
+  // ── AI GENERATE — Step 1: resolve quota → show limit UI or open file modal ──
+  // Made async so it can fetch quota on-the-spot when the background effect
+  // hasn't resolved yet (slow network / very first page load). After the inline
+  // fetch the state is updated, which triggers a re-render that switches the
+  // footer to the Upgrade button and shows the limit badge — no silent no-ops.
+  const handleGenerate = useCallback(async () => {
     const desc = description.trim();
     if (!desc) {
       setError(t('admin.createCourseModal.errorDescRequired'));
       descRef.current?.focus();
       return;
     }
-    setError(null);
-    setFileModalOpen(true);
-  }, [description, t]);
+
+    // ── If quota is already resolved use it directly ──────────────────────
+    if (quotaStatus === 'ok') {
+      if (isAtLimit) return; // footer already shows Upgrade button
+      setError(null);
+      setFileModalOpen(true);
+      return;
+    }
+
+    // ── Quota still loading — fetch inline so we never block silently ─────
+    setQuotaStatus('loading');
+    try {
+      const token = localStorage.getItem('token') ?? '';
+      const res = await fetch(buildAdminApiUrl('/admin/tariffs/me'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('quota fetch failed');
+      const data = await res.json();
+      setTariffCache(data);
+      setTariffData(data);
+      setQuotaStatus('ok');
+
+      // Compute limit from fresh data immediately (state hasn't re-rendered yet)
+      const lim = data.ai_limits?.course_generation ?? data.ai_limits?.course_generations ?? null;
+      const used = data.ai_usage?.course_generations ?? 0;
+      const limitReached = lim !== null && used >= lim;
+
+      if (limitReached) return; // re-render will show quota badge + Upgrade button
+      setError(null);
+      setFileModalOpen(true);
+    } catch {
+      // Fetch failed — allow generation (fail open, backend enforces anyway)
+      setQuotaStatus('error');
+      setError(null);
+      setFileModalOpen(true);
+    }
+  }, [description, isAtLimit, quotaStatus, t]);
 
   const handleBackdrop = useCallback((e) => {
     if (e.target === e.currentTarget && !loading) onClose();
@@ -570,7 +680,12 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   if (!open) return null;
 
   const isGenerate = mode === 'generate';
-  const canSubmit  = isGenerate ? description.trim().length > 0 : quickTitle.trim().length > 0;
+  // canSubmit does not gate on quotaReady — tariff data arrives instantly from
+  // cache on every re-open. The hard guard inside handleGenerate catches the
+  // rare cold-start case where the very first ever fetch is still in flight.
+  const canSubmit  = isGenerate
+    ? (description.trim().length > 0 && !isAtLimit)
+    : quickTitle.trim().length > 0;
 
   return createPortal(
     <>
@@ -760,6 +875,41 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                 </div>
               ) : (
                 <>
+                  {/* ── Quota badge ── */}
+                  {showQuota && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 13px', borderRadius: 10,
+                      background: isAtLimit ? C.errorBg : C.tint,
+                      border: `1.5px solid ${isAtLimit ? '#FECACA' : C.border}`,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                        <path d="M7 1l1.2 3.8L12 6l-3.8 1.2L7 11 5.8 7.2 2 6l3.8-1.2L7 1z"
+                          fill={isAtLimit ? C.error : C.primary} />
+                      </svg>
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: isAtLimit ? C.error : C.primary }}>
+                        {isAtLimit
+                          ? 'Monthly course generation limit reached'
+                          : courseLimit === null
+                            ? 'Unlimited course generations'
+                            : `${courseUsed} of ${courseLimit} course generations used`}
+                      </span>
+                      {isAtLimit && (
+                        <button
+                          type="button"
+                          onClick={redirectToTariffs}
+                          style={{
+                            flexShrink: 0, fontSize: 11.5, fontWeight: 700,
+                            color: C.white, background: C.primary,
+                            border: 'none', borderRadius: 7, padding: '3px 9px',
+                            cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
+                          }}
+                        >
+                          Upgrade
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <textarea
                     ref={descRef}
                     className="ccm2-input"
@@ -814,25 +964,39 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                 {t('common.cancel')}
               </button>
             )}
-            <button
-              className="ccm2-btn-primary"
-              style={{
-                background: canSubmit && !loading ? C.primary : C.muted,
-                flex: loading ? 1 : 'unset',
-                justifyContent: loading ? 'center' : 'flex-start',
-              }}
-              onClick={isGenerate ? handleGenerate : handleQuickCreate}
-              disabled={loading || !canSubmit}
-              type="button"
-            >
-              {loading ? (
-                <><Spinner />{isGenerate ? t('admin.createCourseModal.generating') : t('admin.createCourseModal.creating')}</>
-              ) : isGenerate ? (
-                <><SparkleIcon />{t('admin.createCourseModal.generateCourse')}</>
-              ) : (
-                t('admin.createCourseModal.createCourse')
-              )}
-            </button>
+            {isGenerate && isAtLimit ? (
+              <button
+                className="ccm2-btn-primary"
+                style={{ background: C.primary }}
+                onClick={redirectToTariffs}
+                type="button"
+              >
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
+                  <path d="M7 1l1.2 3.8L12 6l-3.8 1.2L7 11 5.8 7.2 2 6l3.8-1.2L7 1z" fill="currentColor" />
+                </svg>
+                Upgrade Plan
+              </button>
+            ) : (
+              <button
+                className="ccm2-btn-primary"
+                style={{
+                  background: canSubmit && !loading ? C.primary : C.muted,
+                  flex: loading ? 1 : 'unset',
+                  justifyContent: loading ? 'center' : 'flex-start',
+                }}
+                onClick={isGenerate ? handleGenerate : handleQuickCreate}
+                disabled={loading || !canSubmit}
+                type="button"
+              >
+                {loading ? (
+                  <><Spinner />{isGenerate ? t('admin.createCourseModal.generating') : t('admin.createCourseModal.creating')}</>
+                ) : isGenerate ? (
+                  <><SparkleIcon />{t('admin.createCourseModal.generateCourse')}</>
+                ) : (
+                  t('admin.createCourseModal.createCourse')
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -174,6 +174,10 @@ export interface LessonWorkspaceProps {
   answersPanelAnchorRef?: RefObject<HTMLDivElement>;
   /** Disables the side panel publish/finish button while the parent runs an async publish. */
   finishUnitActionPending?: boolean;
+  /** When true and the unit is draft, side panel shows upgrade prompt instead of publish button. */
+  publishBlocked?: boolean;
+  /** Called when the teacher clicks the upgrade button in the side panel. */
+  onUpgradeForPublish?: () => void;
 }
 
 // ─── Flow-building helpers ────────────────────────────────────────────────────
@@ -299,6 +303,8 @@ function LessonWorkspace({
   answersPanelOpen = false,
   answersPanelAnchorRef,
   finishUnitActionPending = false,
+  publishBlocked = false,
+  onUpgradeForPublish,
 }: LessonWorkspaceProps) {
   // Provides localized labels for classroom lesson workspace controls.
   const { t } = useTranslation();
@@ -1403,6 +1409,8 @@ function LessonWorkspace({
             currentUnitSteps={currentUnitSteps}
             finishButtonVariant={sidePanelFinishVariant}
             finishButtonDisabled={finishUnitActionPending}
+            publishBlocked={publishBlocked}
+            onUpgradeForPublish={onUpgradeForPublish}
           />
         )}
       </div>

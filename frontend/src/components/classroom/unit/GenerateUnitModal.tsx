@@ -515,6 +515,15 @@ export default function GenerateUnitModal({
   // ── Phase 3: fetch quota once on open ────────────────────────────────────
   useEffect(() => {
     if (quotaStatus === "ok" || quotaStatus === "loading") return;
+
+    // ── Serve from shared window cache if another component already fetched ──
+    const cached = (window as any).__lingu_tariff_cache;
+    if (cached && Date.now() - cached.ts < 90_000) {
+      setTariffData(cached.data);
+      setQuotaStatus("ok");
+      return;
+    }
+
     let mounted = true;
     setQuotaStatus("loading");
     const doFetch = async () => {
@@ -525,6 +534,8 @@ export default function GenerateUnitModal({
         });
         if (!res.ok) throw new Error("quota fetch failed");
         const data: TariffStatus = await res.json();
+        // Populate shared cache for CreateCourseModal and other components
+        try { (window as any).__lingu_tariff_cache = { data, ts: Date.now() }; } catch {}
         if (mounted) { setTariffData(data); setQuotaStatus("ok"); }
       } catch {
         if (mounted) setQuotaStatus("error");

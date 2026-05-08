@@ -598,39 +598,6 @@ function ClassroomPageInner({
     }
   }, [isAiOutline, courseId]);
 
-  // Generation hook — start() called from inside UnitSelectorModal  (BLOCK A)
-  const courseGen = useCourseGeneration({
-    courseId:    courseId ? Number(courseId) : null,
-    level:       generationLevel,
-    sourceToken,                   // ← NEW: undefined when no files were uploaded
-    onUnitDone: (unitId) => {
-      // Refresh the unit list so the modal sidebar shows up-to-date titles/status.
-      reloadUnits();
-      // If the unit that just finished generating is the one currently on screen,
-      // force a content reload.  Without this, useStudentUnit won't re-fetch
-      // because the unitId prop hasn't changed (same URL), so the user sees the
-      // empty state that was loaded before generation started until they refresh.
-      if (unitId === currentUnit?.id) {
-        void reloadUnit();
-      }
-    },
-    onComplete: () => {
-      // ── Strip both ?ai_outline and ?source_token from URL ─────────────────
-      setSearchParams(prev => {
-        prev.delete('ai_outline');
-        prev.delete('source_token');
-        return prev;
-      });
-      // ── Clear outline state so the panel fully dismisses ──────────────────
-      setCourseOutline(null);
-      // ── Clear both sessionStorage keys ────────────────────────────────────
-      if (courseId) {
-        sessionStorage.removeItem(`ai_outline_${courseId}`);
-        sessionStorage.removeItem(`ai_source_token_${courseId}`);
-      }
-    },
-  });
-
   // ── Lesson progress state ─────────────────────────────────────────────────
   const [lessonProgress, dispatch] = useReducer(lessonProgressReducer, {
     slides: "idle",
@@ -666,6 +633,8 @@ function ClassroomPageInner({
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   // True while POST …/publish is in flight so the lesson footer cannot double-submit.
   const [publishBusy, setPublishBusy] = useState(false);
+  // True when the teacher's tariff blocks unit publishing (course_publish limit = 0).
+  const [isPublishBlocked, setIsPublishBlocked] = useState(false);
   // When the teacher picks another unit while the current unit is still a draft, we confirm first.
   const [draftSwitchModalOpen, setDraftSwitchModalOpen] = useState(false);
   // Target unit for the draft switch confirmation modal (null when the modal is closed).
@@ -702,6 +671,40 @@ function ClassroomPageInner({
     loading: courseLoading,
     error: courseError,
   } = state;
+
+  // Generation hook — start() called from inside UnitSelectorModal  (BLOCK A)
+  const courseGen = useCourseGeneration({
+    courseId:    courseId ? Number(courseId) : null,
+    level:       generationLevel,
+    sourceToken,                   // ← NEW: undefined when no files were uploaded
+    units,
+    onUnitDone: (unitId) => {
+      // Refresh the unit list so the modal sidebar shows up-to-date titles/status.
+      reloadUnits();
+      // If the unit that just finished generating is the one currently on screen,
+      // force a content reload.  Without this, useStudentUnit won't re-fetch
+      // because the unitId prop hasn't changed (same URL), so the user sees the
+      // empty state that was loaded before generation started until they refresh.
+      if (unitId === currentUnit?.id) {
+        void reloadUnit();
+      }
+    },
+    onComplete: () => {
+      // ── Strip both ?ai_outline and ?source_token from URL ─────────────────
+      setSearchParams(prev => {
+        prev.delete('ai_outline');
+        prev.delete('source_token');
+        return prev;
+      });
+      // ── Clear outline state so the panel fully dismisses ──────────────────
+      setCourseOutline(null);
+      // ── Clear both sessionStorage keys ────────────────────────────────────
+      if (courseId) {
+        sessionStorage.removeItem(`ai_outline_${courseId}`);
+        sessionStorage.removeItem(`ai_source_token_${courseId}`);
+      }
+    },
+  });
 
   const { completeTeacherClassroomOpen } = useTeacherClassroomTransition();
 
@@ -1193,6 +1196,25 @@ function ClassroomPageInner({
 
     const unitStatus = (unitDetail as { status?: string } | null)?.status;
     if (unitStatus === "draft") {
+      // ── Tariff guard ───────────────────────────────────────────────────────
+      try {
+        const token = localStorage.getItem("token") ?? "";
+        const res = await fetch(`${API_V1_BASE}/admin/tariffs/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const limit: number | null = data?.ai_limits?.course_publish ?? null;
+          if (limit !== null && limit <= 0) {
+            setIsPublishBlocked(true);
+            return;
+          }
+        }
+      } catch {
+        // tariff check failed — let the server gate it
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       setPublishBusy(true);
       try {
         await unitsApi.publishUnit(currentUnit.id, { publish_children: true });
@@ -1479,6 +1501,8 @@ function ClassroomPageInner({
       onAddUnit: handleAddUnit,
       onFinishUnit: handleFinishUnit,
       finishUnitActionPending: publishBusy,
+      publishBlocked: isPublishBlocked,
+      onUpgradeForPublish: () => navigate("/admin/tariffs"),
       segmentRefreshKey: state.segmentVersion,
       onExtra: handlePanelExtra,
       onCurrentSegmentIdChange: handleCurrentSegmentIdChange,
@@ -1521,6 +1545,8 @@ function ClassroomPageInner({
       handleAddUnit,
       handleFinishUnit,
       publishBusy,
+      isPublishBlocked,
+      navigate,
       handlePanelExtra,
       handleCurrentSegmentIdChange,
       handleCopyExerciseToHomework,

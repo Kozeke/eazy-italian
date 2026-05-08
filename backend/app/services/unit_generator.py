@@ -1422,68 +1422,120 @@ Requirements for "text_content":
 
         return result
 
-    # ── Exercise assignment (smart, one-per-segment) ─────────────────────────
+    # ── Exercise assignment (smart, multi-per-segment) ───────────────────────
 
     # Exercise types that work best for specific segment roles.
     # Used by _smart_assign_exercises to match type to content.
     _EXERCISE_AFFINITY: dict[str, int] = {
         # Lower number = better for overview / comprehension
-        "true_false":         1,
-        "match_pairs":        2,
-        "select_word_form":   3,
-        "drag_to_gap":        4,
-        "type_word_in_gap":   5,
-        "build_sentence":     6,
-        "sort_into_columns":  7,
-        "order_paragraphs":   8,
-        "drag_word_to_image": 9,
+        "true_false":           1,
+        "match_pairs":          2,
+        "select_word_form":     3,
+        "drag_to_gap":          4,
+        "type_word_in_gap":     5,
+        "build_sentence":       6,
+        "sort_into_columns":    7,
+        "order_paragraphs":     8,
+        "drag_word_to_image":   9,
         "select_form_to_image": 10,
-        "image_stacked":      11,
-        "test_without_timer": 12,
-        "test_with_timer":    13,
+        "image_stacked":        11,
+        "test_without_timer":   12,
+        "test_with_timer":      13,
     }
+
+    # Fallback pool used when teacher selects fewer than 3 types so every segment
+    # can still receive a varied set of exercises.
+    _FALLBACK_EXERCISE_POOL: list[str] = [
+        "drag_to_gap",
+        "match_pairs",
+        "true_false",
+        "type_word_in_gap",
+        "select_word_form",
+        "build_sentence",
+        "sort_into_columns",
+        "order_paragraphs",
+        "test_without_timer",
+    ]
+
+    # How many exercises to generate per content segment (not the intro).
+    _EXERCISES_PER_SEGMENT: int = 3
 
     def _smart_assign_exercises(
         self,
         segment_plans: list["SegmentPlan"],
         exercise_types: list[str],
         topic: str,
-    ) -> list[tuple[str, str] | None]:
+    ) -> list[list[tuple[str, str]] | None]:
         """
-        Assign exactly ONE exercise type per segment from the teacher's chosen types.
+        Assign 2–3 *different* exercise types per content segment.
 
         Design goals
         ────────────
-        • Segment 0 (overview/intro) always gets NO exercise — returns None.
-        • Every chosen type must appear at least once across the remaining segments.
-        • Content sections get types matched by affinity to their position.
-        • Extra segments beyond the type count cycle round-robin.
+        • Segment 0 (overview/intro) always gets NO exercises — returns None.
+        • Every teacher-chosen type appears at least once across the unit.
+        • Each segment receives ``_EXERCISES_PER_SEGMENT`` exercises whose
+          types are ALL different from each other.
+        • No two consecutive segments share the same first exercise type.
+        • When fewer than ``_EXERCISES_PER_SEGMENT`` distinct teacher-chosen
+          types are available, the fallback pool fills in the gaps so every
+          segment always has a full variety set.
 
-        Returns list of (exercise_type, topic_hint) | None — one entry per segment.
+        Returns list of [(exercise_type, topic_hint), ...] | None — one per segment.
         """
-        normalised = [
+        # 1. Normalise teacher-chosen types
+        normalised: list[str] = [
             t.replace("-", "_").lower()
             for t in exercise_types
             if t.replace("-", "_").lower() in SUPPORTED_EXERCISE_TYPES
         ]
         if not normalised:
-            normalised = ["match_pairs"]
+            normalised = list(self._FALLBACK_EXERCISE_POOL[:self._EXERCISES_PER_SEGMENT])
 
-        sorted_types = sorted(normalised, key=lambda t: self._EXERCISE_AFFINITY.get(t, 99))
+        # 2. Build an extended pool: teacher types first, then fallbacks to reach
+        #    at least _EXERCISES_PER_SEGMENT unique types.
+        seen: set[str] = set(normalised)
+        extended_pool: list[str] = list(normalised)
+        for fb in self._FALLBACK_EXERCISE_POOL:
+            if fb not in seen:
+                extended_pool.append(fb)
+                seen.add(fb)
+            if len(extended_pool) >= self._EXERCISES_PER_SEGMENT * 3:
+                break
 
-        n_types = len(sorted_types)
-        result: list[tuple[str, str] | None] = []
+        # 3. Sort by affinity so the best-fit types come first
+        extended_pool.sort(key=lambda t: self._EXERCISE_AFFINITY.get(t, 99))
+        n_pool = len(extended_pool)
+
+        result: list[list[tuple[str, str]] | None] = []
 
         for i, plan in enumerate(segment_plans):
             if i == 0:
-                # Overview section — no exercise
+                # Intro / overview segment — no exercises by design
                 result.append(None)
                 continue
-            # Assign type by cycling through the sorted list
-            content_idx = i - 1  # offset: skip the overview slot
-            ex_type = sorted_types[content_idx % n_types]
-            hint = f"{plan.title} — {ex_type.replace('_', ' ')} practice"
-            result.append((ex_type, hint))
+
+            content_idx = i - 1  # 0-based index among content segments
+            assignments: list[tuple[str, str]] = []
+            used_in_segment: set[str] = set()
+
+            for slot in range(self._EXERCISES_PER_SEGMENT):
+                # Stagger starting offset per segment so consecutive segments
+                # start on a different type → natural variety across the unit.
+                start = (content_idx * self._EXERCISES_PER_SEGMENT + slot) % n_pool
+                chosen: str | None = None
+                for offset in range(n_pool):
+                    candidate = extended_pool[(start + offset) % n_pool]
+                    if candidate not in used_in_segment:
+                        chosen = candidate
+                        break
+                if chosen is None:
+                    # All pool types exhausted for this segment — skip slot
+                    continue
+                used_in_segment.add(chosen)
+                hint = f"{plan.title} — {chosen.replace('_', ' ')} practice"
+                assignments.append((chosen, hint))
+
+            result.append(assignments if assignments else None)
 
         return result
 
@@ -1553,15 +1605,20 @@ Requirements for "text_content":
         )
         for seg_bp, assignment in zip(blueprint.segments, exercise_assignment):
             if assignment is None:
-                seg_bp.exercises = []  # overview — no exercise
+                seg_bp.exercises = []  # overview / intro — no exercises by design
             else:
-                ex_type, hint = assignment
-                seg_bp.exercises = [ExerciseBlueprint(type=ex_type, topic_hint=hint)]
+                # assignment is a list of (ex_type, hint) tuples — one per exercise slot
+                seg_bp.exercises = [
+                    ExerciseBlueprint(type=ex_type, topic_hint=hint)
+                    for ex_type, hint in assignment
+                ]
 
         logger.info(
             "UnitGenerator: exercise assignment — %s",
-            [(seg.title, seg.exercises[0].type if seg.exercises else "none")
-             for seg in blueprint.segments],
+            [
+                (seg.title, [ex.type for ex in seg.exercises] if seg.exercises else "none")
+                for seg in blueprint.segments
+            ],
         )
 
         result = UnitGenerateResult(segments_created=0, exercises_created=0)
@@ -1710,13 +1767,11 @@ Requirements for "text_content":
             )
 
             for ex_bp in seg_bp.exercises:
-                # Prefer the blueprint's own topic_hint if it's specific;
-                # fall back to the rich content-based hint.
-                hint = (
-                    ex_bp.topic_hint
-                    if (ex_bp.topic_hint and len(ex_bp.topic_hint) > 30)
-                    else rich_hint
-                )
+                # Always use rich_hint (segment title + full text content) so the
+                # AI generator has the actual lesson material to draw from.
+                # ex_bp.topic_hint is intentionally ignored here — it is a short
+                # label used only for logging, not a content source.
+                hint = rich_hint if rich_hint.strip() else (ex_bp.topic_hint or "")
                 try:
                     await generate_exercise_for_segment(
                         exercise_type=ex_bp.type,
@@ -1724,7 +1779,12 @@ Requirements for "text_content":
                         segment_id=segment.id,
                         unit_id=request.unit_id,
                         created_by=request.teacher_id,
-                        teacher_plan=request.plan or "free",
+                        # teacher_plan intentionally NOT passed — unit generation is
+                        # already metered by the unit_generation quota consumed at
+                        # the endpoint.  Forwarding teacher_plan into the service
+                        # layer would silently skip all exercises when the standalone
+                        # exercise_generation quota is exhausted (TypeError swallowed
+                        # by the broad except below).
                         block_title=None,
                         topic_hint=hint,
                         content_language=request.content_language,

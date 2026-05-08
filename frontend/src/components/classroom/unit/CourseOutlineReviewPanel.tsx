@@ -32,8 +32,10 @@ import {
   Layers,
   Loader2,
   Pencil,
+  Plus,
   RotateCcw,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { API_V1_BASE } from '../../../services/api';
 
@@ -260,6 +262,7 @@ interface UnitCardProps {
   allOutlineUnits: any[];
   onOutlineChanged?: (updatedOutline: any) => void;
   onSelectUnit?: (unit: any) => void;
+  onRemoveUnit?: (index: number) => void;
 }
 
 function UnitCard({
@@ -274,6 +277,7 @@ function UnitCard({
   allOutlineUnits,
   onOutlineChanged,
   onSelectUnit,
+  onRemoveUnit,
 }: UnitCardProps) {
   const [expanded,     setExpanded]     = useState(false);
   const [hovered,      setHovered]      = useState(false);
@@ -506,6 +510,27 @@ function UnitCard({
               </button>
             )}
 
+            {/* Delete button — shown on hover when not generating and not done */}
+            {!isGenerating && !isDone && onRemoveUnit && (
+              <button
+                title="Remove this unit from outline"
+                onClick={(e) => { e.stopPropagation(); onRemoveUnit(index); }}
+                style={{
+                  flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 26, height: 26, borderRadius: 7,
+                  border: `1px solid ${hovered ? '#FECACA' : 'transparent'}`,
+                  background: hovered ? '#FEF2F2' : 'transparent',
+                  color: hovered ? DS.danger : DS.textSubtle,
+                  cursor: 'pointer',
+                  opacity: hovered ? 1 : 0.3,
+                  transition: 'opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s',
+                }}
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+
             {/* Saving spinner */}
             {saving && (
               <span style={{ flexShrink: 0, color: DS.primary, display: 'flex' }}>
@@ -699,7 +724,12 @@ export default function CourseOutlineReviewPanel({
   const outlineUnits: any[] = outline?.units ?? [];
   const totalUnits = outlineUnits.length;
   const doneCount  = Object.values(unitStatuses).filter((s) => s === 'done').length;
-  const allDone    = !isGenerating && doneCount > 0 && doneCount >= units.length;
+  // Use totalUnits (outline length) not units.length (DB records) — removing units
+  // from the outline before generating leaves stale DB records that are never
+  // generated, so completion must be measured against what the outline says.
+  const allDone    = !isGenerating && doneCount > 0 && doneCount >= totalUnits;
+
+  const [addingUnit, setAddingUnit] = React.useState(false);
 
   const dbUnitByIndex = React.useMemo(() => {
     const map: Record<number, any> = {};
@@ -707,9 +737,46 @@ export default function CourseOutlineReviewPanel({
     return map;
   }, [units]);
 
-  const generationPercent = units.length > 0
-    ? Math.round((doneCount / units.length) * 100)
+  const generationPercent = totalUnits > 0
+    ? Math.round((doneCount / totalUnits) * 100)
     : 0;
+
+  // ── Remove a unit from the outline ────────────────────────────────────────
+  const handleRemoveUnit = React.useCallback(async (index: number) => {
+    if (!courseId || isGenerating) return;
+    const next = outlineUnits.filter((_: any, i: number) => i !== index);
+    try {
+      await patchOutline(
+        courseId,
+        next.map((u: any) => ({
+          title: u.title ?? '',
+          description: u.description ?? '',
+          sections: u.sections ?? [],
+        })),
+      );
+      onOutlineChanged?.({ ...(outline ?? {}), units: next });
+    } catch { /* silently ignore */ }
+  }, [courseId, isGenerating, outlineUnits, outline, onOutlineChanged]);
+
+  // ── Add a blank unit to the outline ───────────────────────────────────────
+  const handleAddUnit = React.useCallback(async () => {
+    if (!courseId || isGenerating || addingUnit) return;
+    setAddingUnit(true);
+    const newUnit = { title: `Unit ${outlineUnits.length + 1}`, description: '', sections: [] };
+    const next = [...outlineUnits, newUnit];
+    try {
+      await patchOutline(
+        courseId,
+        next.map((u: any) => ({
+          title: u.title ?? '',
+          description: u.description ?? '',
+          sections: u.sections ?? [],
+        })),
+      );
+      onOutlineChanged?.({ ...(outline ?? {}), units: next });
+    } catch { /* silently ignore */ }
+    finally { setAddingUnit(false); }
+  }, [courseId, isGenerating, addingUnit, outlineUnits, outline, onOutlineChanged]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -740,7 +807,7 @@ export default function CourseOutlineReviewPanel({
               {allDone
                 ? `All ${doneCount} unit${doneCount !== 1 ? 's' : ''} generated`
                 : isGenerating
-                  ? `Generating… ${doneCount} / ${units.length} units done`
+                  ? `Generating… ${doneCount} / ${totalUnits} units done`
                   : `${totalUnits} unit${totalUnits !== 1 ? 's' : ''} ready to review`}
             </p>
             <p style={{ margin: 0, fontSize: 11, color: DS.primary, marginTop: 1 }}>
@@ -780,7 +847,7 @@ export default function CourseOutlineReviewPanel({
         </div>
 
         {/* Progress bar */}
-        {(isGenerating || (allDone && units.length > 0)) && (
+        {(isGenerating || (allDone && totalUnits > 0)) && (
           <div style={{ marginTop: 6 }}>
             <div style={{ height: 5, borderRadius: 3, background: DS.tintStrong, overflow: 'hidden' }}>
               <div style={{
@@ -828,9 +895,48 @@ export default function CourseOutlineReviewPanel({
               allOutlineUnits={outlineUnits}
               onOutlineChanged={onOutlineChanged}
               onSelectUnit={onSelectUnit}
+              onRemoveUnit={!isGenerating ? handleRemoveUnit : undefined}
             />
           );
         })}
+
+        {/* ── Add unit button ─────────────────────────────────────────────── */}
+        {!isGenerating && !allDone && (
+          <button
+            onClick={handleAddUnit}
+            disabled={addingUnit}
+            style={{
+              width: '100%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: '10px 16px',
+              borderRadius: 12,
+              border: `1.5px dashed ${DS.borderFocus}`,
+              background: 'transparent',
+              color: DS.primary,
+              fontSize: 12, fontWeight: 600,
+              cursor: addingUnit ? 'not-allowed' : 'pointer',
+              opacity: addingUnit ? 0.6 : 1,
+              transition: 'background 0.15s, border-color 0.15s',
+              marginBottom: 2,
+            }}
+            onMouseEnter={(e) => {
+              if (!addingUnit) {
+                (e.currentTarget as HTMLButtonElement).style.background = DS.tint;
+                (e.currentTarget as HTMLButtonElement).style.borderColor = DS.primary;
+              }
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = DS.borderFocus;
+            }}
+          >
+            {addingUnit
+              ? <Loader2 size={13} style={{ animation: 'corp-spin 0.7s linear infinite' }} />
+              : <Plus size={13} />}
+            {addingUnit ? 'Adding…' : 'Add unit'}
+          </button>
+        )}
+
         <div style={{ height: 12 }} />
       </div>
 

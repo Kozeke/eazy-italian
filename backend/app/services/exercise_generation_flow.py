@@ -40,7 +40,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.services.ai.providers.base import AIProviderError
-from app.services.ai_exercise_generator import generate_exercise, get_provider_for_plan
+from app.services.ai_exercise_generator import generate_exercise
 
 # Re-use content assembly from the test flow — single source of truth.
 from app.services.test_generation_flow import (
@@ -141,8 +141,6 @@ async def generate_exercise_for_segment(
     segment_id: int,
     unit_id: int,
     created_by: int,
-    # Subscription plan — drives provider selection (deepseek for paid, groq for free).
-    teacher_plan: str = "free",
     # Common optional params — all generators receive them; unused ones are ignored.
     block_title: str | None = None,
     topic_hint: str | None = None,
@@ -150,6 +148,13 @@ async def generate_exercise_for_segment(
     instruction_language: str = "english",
     # Type-specific extras forwarded verbatim to the generator.
     generator_params: dict | None = None,
+    # Accepted but intentionally NOT used for quota gating here.
+    # Quota enforcement is the responsibility of the calling HTTP endpoint
+    # (POST /segments/{id}/exercises/{type}).  Service-layer callers such as
+    # UnitGeneratorService and the course-generation SSE stream have already
+    # consumed their own quota bucket (unit_generation / course_generation)
+    # and must not be blocked by the standalone exercise_generation limit.
+    teacher_plan: str | None = None,  # noqa: ARG001
 ) -> tuple[dict, dict]:
     """
     Full pipeline for any exercise type:
@@ -209,7 +214,6 @@ async def generate_exercise_for_segment(
     )
 
     # ── 3. Generate via LLM ───────────────────────────────────────────────────
-    provider = get_provider_for_plan(teacher_plan)
     try:
         exercise_data, metadata = await generate_exercise(
             exercise_type=exercise_type,
@@ -217,7 +221,6 @@ async def generate_exercise_for_segment(
             content_language=content_language,
             instruction_language=instruction_language,
             topic_hint=topic_hint,
-            provider=provider,
             **params,
         )
     except NotImplementedError as exc:

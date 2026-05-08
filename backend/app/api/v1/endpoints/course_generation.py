@@ -525,12 +525,13 @@ async def _stream_generation(
     source_content: str,        # "" when no files were uploaded
     teacher_plan: str = "free", # teacher's subscription plan for provider routing
     user: "User | None" = None, # authenticated teacher — required for quota checks
+    done_unit_ids: set[int] | None = None,  # unit ids already completed on a previous connection
 ) -> AsyncIterator[str]:
     from app.core.database import SessionLocal
     from app.models.unit import Unit as UnitModel
     from app.services.unit_generator import UnitGeneratorService, UnitGenerateRequest
     from app.services.ai.providers.router import get_provider_for_plan
-    from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota, _refund_teacher_ai_quota
+    from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota  # noqa: F401 (kept for future use)
 
     db = SessionLocal()
     try:
@@ -545,8 +546,17 @@ async def _stream_generation(
         db.close()
         return
 
-    total = len(units)
-    yield _sse({"type": "start", "total": total})
+    # Tracks units that should be skipped when the client reconnects mid-stream.
+    done_unit_ids = done_unit_ids or set()
+    # Keeps only units that still need generation for this connection.
+    pending_units = [unit for unit in units if unit.id not in done_unit_ids]
+    # Counts the number of units that remain for this streaming session.
+    total = len(pending_units)
+    yield _sse({
+        "type": "start",
+        "total": total,
+        "unit_ids": [unit.id for unit in pending_units],
+    })
     await asyncio.sleep(0.1)
 
     try:
@@ -561,8 +571,11 @@ async def _stream_generation(
         db.close()
         return
 
+    # Counts successful unit generations in the current streaming session.
     units_done = 0
-    for index, unit in enumerate(units):
+    # Defines how often we emit SSE heartbeats while waiting on long operations.
+    heartbeat_interval_seconds = 20
+    for index, unit in enumerate(pending_units):
         yield _sse({
             "type": "unit_start",
             "unit_id": unit.id,
@@ -572,30 +585,18 @@ async def _stream_generation(
         })
         await asyncio.sleep(0.05)
 
-        # ── Quota gate: consume one unit-generation credit before generating ──
-        # Credit is refunded if the generation itself fails, so the teacher is
-        # only charged for successfully completed units.
-        if user is not None:
-            try:
-                check_and_consume_teacher_ai_quota(db, user, "unit_generation")
-            except Exception as quota_exc:
-                # 402 / 403 from quota gate — stop the whole stream immediately;
-                # no point continuing if the teacher is out of credits.
-                logger.warning(
-                    "SSE quota denied for user=%d unit=%d: %s",
-                    user.id, unit.id, quota_exc,
-                )
-                yield _sse({
-                    "type": "error",
-                    "unit_id": unit.id,
-                    "error": getattr(quota_exc, "detail", str(quota_exc)),
-                    "code": "quota_exceeded",
-                })
-                db.close()
-                return
+        # ── No separate unit_generation quota check here ──────────────────────
+        # This SSE stream is always triggered as part of a course-generation
+        # flow.  The teacher already spent a `course_generation` credit when
+        # they called generate-outline (or generate-outline-from-files).
+        # Double-gating on `unit_generation` means a teacher who has used their
+        # standalone unit-gen quota cannot complete a course they legitimately
+        # paid for with a course-gen credit.  The `course_generation` bucket is
+        # the correct meter for this entire flow.
 
         try:
-            result = await service.generate(
+            # Wraps unit generation so we can keep the SSE connection alive with heartbeats.
+            generation_task = asyncio.create_task(service.generate(
                 UnitGenerateRequest(
                     unit_id=unit.id,
                     topic=unit.title,
@@ -611,7 +612,16 @@ async def _stream_generation(
                     plan=teacher_plan,
                 ),
                 db,
-            )
+            ))
+            while True:
+                try:
+                    result = await asyncio.wait_for(
+                        asyncio.shield(generation_task),
+                        timeout=heartbeat_interval_seconds,
+                    )
+                    break
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
             units_done += 1
             yield _sse({
                 "type": "unit_done",
@@ -622,15 +632,15 @@ async def _stream_generation(
             })
         except Exception as exc:
             logger.warning("SSE unit %d failed: %s", unit.id, exc, exc_info=True)
-            # Generation failed — refund the credit consumed above.
-            if user is not None:
-                _refund_teacher_ai_quota(db, user, "unit_generation")
+            # No unit_generation credit was consumed in this flow, so no refund needed.
             yield _sse({
                 "type": "unit_error",
                 "unit_id": unit.id,
                 "index": index,
                 "error": str(exc),
             })
+
+        yield ": heartbeat\n\n"
 
         if index < total - 1:
             await asyncio.sleep(0.5)
@@ -646,9 +656,10 @@ async def stream_course_generation(
     language:     str          = Query(default="English"),
     token:        str          = Query(..., description="JWT — EventSource cannot set headers."),
     source_token: str | None   = Query(default=None, description="UUID from generate-outline-from-files."),
+    done_unit_ids: str | None  = Query(default=None, description="Comma-separated unit IDs already finished on client reconnect."),
 ):
     """
-    GET /course-builder/{course_id}/stream?level=B2&token=<jwt>[&source_token=<uuid>]
+    GET /course-builder/{course_id}/stream?level=B2&token=<jwt>[&source_token=<uuid>][&done_unit_ids=1,2,3]
 
     SSE stream triggered by the teacher clicking "Generate Course Content".
 
@@ -707,10 +718,31 @@ async def stream_course_generation(
                 len(source_content), course_id,
             )
 
+    # Parses already-finished unit ids from reconnect query params.
+    already_done_unit_ids: set[int] = set()
+    if done_unit_ids:
+        already_done_unit_ids = {
+            int(raw_id.strip())
+            for raw_id in done_unit_ids.split(",")
+            if raw_id.strip().isdigit()
+        }
+
     return StreamingResponse(
-        _stream_generation(course_id, level, language, source_content, teacher_plan, user),
+        _stream_generation(
+            course_id,
+            level,
+            language,
+            source_content,
+            teacher_plan,
+            user,
+            already_done_unit_ids,
+        ),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 

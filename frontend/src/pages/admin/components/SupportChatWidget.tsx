@@ -148,8 +148,10 @@ export default function SupportChatWidget() {
       const res = await apiFetch<ChatMessage[]>(`/admin/support/messages${qs}`);
       if (res.length > 0) {
         setMessages(prev => {
-          const merged = afterId != null ? [...prev, ...res] : res;
-          lastIdRef.current = merged[merged.length - 1].id;
+          const existingIds = new Set(prev.map(m => m.id));
+          const newOnly     = res.filter(m => !existingIds.has(m.id));
+          const merged      = afterId != null ? [...prev, ...newOnly] : res;
+          if (merged.length > 0) lastIdRef.current = merged[merged.length - 1].id;
           return merged;
         });
         scrollBottom();
