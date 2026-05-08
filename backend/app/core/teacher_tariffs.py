@@ -273,6 +273,46 @@ def _increment_usage(db: Session, user: User, action: str) -> None:
         db.rollback()
 
 
+def _refund_teacher_ai_quota(db: Session, user: User, action: str) -> None:
+    """
+    Compensating decrement — undo a previously consumed quota credit.
+
+    Called when a generation request was charged but the actual generation
+    failed, so the teacher is not penalised for a transient AI-provider error.
+
+    Silently swallows errors (same contract as _increment_usage) so a
+    refund failure never masks the original generation error.
+    """
+    try:
+        from app.models.teacher_ai_usage import TeacherAIUsage  # type: ignore
+
+        period_key = get_teacher_ai_usage_period_key(db, user)
+        row = (
+            db.query(TeacherAIUsage)
+            .filter(
+                TeacherAIUsage.user_id == user.id,
+                TeacherAIUsage.period_key == period_key,
+                TeacherAIUsage.action == action,
+            )
+            .first()
+        )
+        if row and row.count and row.count > 0:
+            row.count = row.count - 1
+            db.commit()
+            logger.info(
+                "Quota refunded: user=%s action='%s' new_count=%d",
+                user.id, action, row.count,
+            )
+        else:
+            logger.warning(
+                "Quota refund skipped: no usage row found for user=%s action='%s'",
+                user.id, action,
+            )
+    except Exception as exc:
+        logger.warning("Quota refund failed (non-fatal): %s", exc, exc_info=True)
+        db.rollback()
+
+
 # ── Quota enforcement — the critical gate ─────────────────────────────────────
 
 def check_and_consume_teacher_ai_quota(

@@ -1707,10 +1707,10 @@ async def generate_select_word_form_from_unit_content(
     )
 
     # ── build prompt hints ────────────────────────────────────────────────────
-    lang_hint = (
-        f" The passage must be written in {content_language.upper()}."
-        if content_language and content_language != "auto" else ""
-    )
+    if content_language and content_language.strip().lower() not in ("", "auto"):
+        lang_hint = f" The passage must be written in {content_language.upper()}."
+    else:
+        lang_hint = " Use the same language as the source material for the passage and all gap words — do NOT use the title/UI language for the body."
     gap_type_hint = f" Focus all gaps on: {gap_type}." if gap_type else ""
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
     title_lang_hint = (
@@ -1887,7 +1887,15 @@ async def generate_match_pairs_from_unit_content(
     # Honour an explicit number in the teacher's topic hint (e.g. "Match 5 italian
     # words") before falling back to pair_count and then the hard-coded default.
     effective_pairs = pair_count or _extract_count_from_hint(topic_hint, default=6)
-    lang_hint = f" Pairs must be in {content_language}." if content_language != "auto" else ""
+    if content_language and content_language.strip().lower() not in ("", "auto"):
+        lang_hint = f" Pairs must be in {content_language}."
+    else:
+        lang_hint = " Use the same language as the source material for all pair content."
+    title_lang_hint = (
+        f" Write the exercise 'title' in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
  
     fallback_titles = {
@@ -1908,7 +1916,7 @@ async def generate_match_pairs_from_unit_content(
         f"Create a match-pairs exercise with exactly {effective_pairs} pairs.{lang_hint}\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
         "Rules:\n"
-        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name that reflects the topic.\n"
+        f"- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name that reflects the topic.{title_lang_hint}\n"
         "- Do NOT use generic titles like 'Match the pairs'.\n"
         "- Pairs must be clearly related and derived from the source material.\n\n"
         "Respond with this JSON structure (no extra keys):\n"
@@ -2033,7 +2041,15 @@ async def generate_build_sentence_from_unit_content(
     sentence_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
     min_words, max_words = _extract_word_count_from_hint(topic_hint)
 
-    lang_hint = f" Sentences must be in {content_language}." if content_language != "auto" else ""
+    if content_language and content_language.strip().lower() not in ("", "auto"):
+        lang_hint = f" Sentences must be in {content_language}."
+    else:
+        lang_hint = " Use the same language as the source material for all sentences."
+    title_lang_hint = (
+        f" Write the 'title' in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
 
     # Build word-length constraint clause for the prompt
@@ -2067,7 +2083,7 @@ async def generate_build_sentence_from_unit_content(
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
         "Rules:\n"
         f"- The \"sentences\" array MUST contain EXACTLY {sentence_count} item(s). No more, no fewer.\n"
-        "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name that reflects this content.\n"
+        f"- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name that reflects this content.{title_lang_hint}\n"
         "- Do NOT use generic titles like 'Build the sentences'.\n\n"
         "Respond with this JSON structure:\n"
         "{\n"
@@ -2165,7 +2181,15 @@ async def generate_order_paragraphs_from_unit_content(
 ) -> tuple[dict, dict]:
     _provider = provider or _default_provider
     para_count = pair_count or _extract_count_from_hint(topic_hint, default=4)
-    lang_hint = f" Paragraphs must be in {content_language}." if content_language != "auto" else ""
+    if content_language and content_language.strip().lower() not in ("", "auto"):
+        lang_hint = f" Paragraphs must be in {content_language}."
+    else:
+        lang_hint = " Use the same language as the source material for all paragraph text."
+    title_lang_hint = (
+        f" Write the 'title' in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
     topic_str  = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
  
     fallback_titles = {
@@ -2184,7 +2208,7 @@ async def generate_order_paragraphs_from_unit_content(
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
         "Rules:\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name based on the source content.\n"
-        "- Do NOT use generic titles like 'Put the paragraphs in order'.\n"
+        f"- Do NOT use generic titles like 'Put the paragraphs in order'.{title_lang_hint}\n"
         "- Each paragraph string must be a single JSON string on one line. Separate sentences with a space, not a newline.\n"
         "- Output ONLY the JSON object below — no explanation, no markdown fences.\n\n"
         "Respond with this JSON:\n"
@@ -2296,9 +2320,15 @@ async def generate_sort_into_columns_from_unit_content(
             f"This directive overrides any default rules about column count or content."
         )
 
-    lang_hint = ""
-    if content_language != "auto":
+    if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = f" All column titles and words must be in {content_language}."
+    else:
+        lang_hint = " Use the same language as the source material for all column titles and words."
+    title_lang_hint = (
+        f" Write the top-level 'title' in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
 
     # Fallback title used ONLY if the model omits the field entirely.
     fallback_titles = {
@@ -2333,8 +2363,8 @@ async def generate_sort_into_columns_from_unit_content(
         "reflect the requested tense or category.\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE name for this specific exercise "
         "(e.g. 'English Tenses: From Past to Future' or 'Kitchen Vocabulary by Category'). "
-        "Do NOT use generic placeholders like 'Sort into columns' — make it reflect the actual "
-        "topic and column categories.\n\n"
+        f"Do NOT use generic placeholders like 'Sort into columns' — make it reflect the actual "
+        f"topic and column categories.{title_lang_hint}\n\n"
         f"Respond with this exact JSON structure (must have exactly {column_count} column objects):\n"
         "{\n"
         '  "title": "<descriptive exercise title>",\n'
@@ -2436,7 +2466,15 @@ async def generate_drag_word_to_image_from_unit_content(
     """
     _provider = provider or _default_provider
     card_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
-    lang_hint = f" Words must be in {content_language}." if content_language != "auto" else ""
+    if content_language and content_language.strip().lower() not in ("", "auto"):
+        lang_hint = f" Words must be in {content_language}."
+    else:
+        lang_hint = " Use the same language as the source material for all answer words."
+    title_lang_hint = (
+        f" Write the 'title' in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
 
     fallback_titles = {
@@ -2458,7 +2496,7 @@ async def generate_drag_word_to_image_from_unit_content(
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
         "Rules:\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name reflecting the vocabulary theme.\n"
-        "- Do NOT use generic titles like 'Drag the word to the correct image'.\n\n"
+        f"- Do NOT use generic titles like 'Drag the word to the correct image'.{title_lang_hint}\n\n"
         "For each item provide:\n"
         '  - "answer": the vocabulary word or short phrase the student drags (target language)\n'
         '  - "description": a brief English image description so the teacher knows what photo to upload\n\n'
@@ -2554,7 +2592,15 @@ async def generate_select_form_to_image_from_unit_content(
     # Stores the desired number of cards, inferred from pair_count or hint text.
     card_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
     # Stores optional language instruction when caller requests explicit language.
-    lang_hint = f" All words must be in {content_language}." if content_language != "auto" else ""
+    if content_language and content_language.strip().lower() not in ("", "auto"):
+        lang_hint = f" All words must be in {content_language}."
+    else:
+        lang_hint = " Use the same language as the source material for all answer words and distractors."
+    title_lang_hint = (
+        f" Write the 'title' in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
     # Stores optional teacher directive appended to the prompt.
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
 
@@ -2584,7 +2630,7 @@ async def generate_select_form_to_image_from_unit_content(
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
         "Rules:\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name.\n"
-        "- Do NOT use generic titles like 'Select the correct form for each image'.\n"
+        f"- Do NOT use generic titles like 'Select the correct form for each image'.{title_lang_hint}\n"
         "- Each item must include a concise image description in English.\n"
         "- Each item must include one correct word form and at least 2 distractors.\n"
         "- Distractors must be plausible but incorrect for that image.\n\n"
@@ -2794,12 +2840,21 @@ async def generate_test_without_timer_from_unit_content(
     question_count = pair_count or _extract_count_from_hint(topic_hint, default=5)  # pair_count reused as question count
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
 
-    lang_hint = ""
-    if content_language != "auto":
+    if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = (
             f" All 'prompt' fields and all option 'text' fields MUST be written "
             f"in {content_language}."
         )
+    else:
+        lang_hint = (
+            " All 'prompt' fields and option 'text' fields must use the same language "
+            "as the source material — do NOT use the UI/title language for question content."
+        )
+    title_lang_hint = (
+        f" Write the top-level 'title' in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
 
     fallback_titles = {
         "russian":   "Тест",
@@ -2843,7 +2898,7 @@ async def generate_test_without_timer_from_unit_content(
         "'options' array (0 = first, 1 = second, 2 = third, 3 = fourth).\n"
         "5. Vary correct_index across questions — do NOT always use 0.\n\n"
         "6. The top-level 'title' must be a SHORT, DESCRIPTIVE exercise name based on the source material.\n"
-        "   Do NOT use generic titles like 'Test'.\n\n"
+        f"   Do NOT use generic titles like 'Test'.{title_lang_hint}\n\n"
         "WORKED EXAMPLE (follow this pattern exactly):\n"
         "{\n"
         '  "title": "Past Simple: Choose the Correct Form",\n'
@@ -3051,9 +3106,15 @@ async def generate_true_false_from_unit_content(
     statement_count = pair_count or _extract_count_from_hint(topic_hint, default=6)
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
  
-    lang_hint = ""
-    if content_language != "auto":
+    if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = f" Statements must be in {content_language}."
+    else:
+        lang_hint = " Use the same language as the source material for all statements — do NOT use the UI/title language for statement content."
+    title_lang_hint = (
+        f" Write the top-level 'title' in {instruction_language.upper()}."
+        if instruction_language and instruction_language.lower() not in ("auto", "")
+        else ""
+    )
  
     fallback_titles = {
         "russian":   "Верно / Неверно",
@@ -3079,9 +3140,8 @@ async def generate_true_false_from_unit_content(
         "- Approximately half should be true and half false.\n"
         "- False statements should contain a plausible but incorrect detail from the material.\n"
         "- Avoid trick questions or double negatives.\n"
-        "- Use the source material language for statements unless directed otherwise.\n\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name tied to the topic.\n"
-        "- Do NOT use generic titles like 'True / False'.\n\n"
+        f"- Do NOT use generic titles like 'True / False'.{title_lang_hint}\n\n"
         "Respond with this exact JSON structure:\n"
         "{\n"
         '  "title": "<descriptive exercise title>",\n'
@@ -3175,14 +3235,19 @@ async def generate_reading_text_from_unit_content(
     """
     _provider = provider or _default_provider
     topic_str = f"\n\nTeacher focus: {topic_hint}" if topic_hint else ""
-    lang_rule = ""
-    if content_language != "auto":
+    if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_rule = f" Write the main body in {content_language}."
+    else:
+        lang_rule = (
+            " Detect the primary language of the SOURCE MATERIAL below and write the main body "
+            "entirely in that same language. Do NOT use the UI/title language for the body."
+        )
     # Helps when the authoring UI is localized; student-facing copy still follows content_language.
     teacher_title_hint = ""
     if instruction_language.lower() not in ("english", "auto"):
         teacher_title_hint = (
-            f"\nThe \"title\" should be clear for teachers using {instruction_language} in the UI."
+            f"\nThe \"title\" field only should be written in {instruction_language} "
+            f"(teacher UI language). The passage body must remain in the source material's language."
         )
     # Stores a normalized teacher-selected difficulty instruction for prompt control.
     difficulty_hint = ""

@@ -19,7 +19,6 @@ import {
   X, Sparkles, Layers, CheckCircle, AlertCircle,
   ChevronDown, ChevronUp, Upload, FileText, Trash2, Zap,
 } from "lucide-react";
-import ConnectPaymentModal from "../../../pages/admin/components/ConnectPaymentModal";
 import { aiLimitFromMe } from "../../../utils/teacherTariffMe";
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -462,6 +461,10 @@ export default function GenerateUnitModal({
   unitId, unitTitle, apiBase = DEFAULT_API_BASE, onClose, onSuccess,
 }: Props) {
   const { t } = useTranslation();
+  // Navigates teachers to the pricing page when generation quota is exhausted.
+  const redirectToTariffs = useCallback(() => {
+    window.location.assign("http://localhost:3000/admin/tariffs");
+  }, []);
   // Strips trailing slashes so fetch URLs never contain "//" after the host.
   const apiBaseNormalized = useMemo(() => apiBase.replace(/\/+$/, ""), [apiBase]);
   // Tab
@@ -495,7 +498,6 @@ export default function GenerateUnitModal({
   // ── Phase 3: quota state ──────────────────────────────────────────────────
   const [quotaStatus, setQuotaStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [tariffData,  setTariffData]  = useState<TariffStatus | null>(null);
-  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const toggleType = useCallback((value: string) => {
     setSelectedTypes(prev => {
@@ -576,7 +578,7 @@ export default function GenerateUnitModal({
           include_images: includeImages,
         }),
       });
-      if (res.status === 402) { setShowUpgrade(true); return; }
+      if (res.status === 402) { redirectToTariffs(); return; }
       if (!res.ok) {
         const failMsg = t("classroom.generateUnitModal.errorGenerationFailed");
         const data = await parseJsonPayload<{ detail?: string }>(res, failMsg);
@@ -618,7 +620,7 @@ export default function GenerateUnitModal({
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
-      if (res.status === 402) { setShowUpgrade(true); return; }
+      if (res.status === 402) { redirectToTariffs(); return; }
       if (!res.ok) {
         const failMsg = t("classroom.generateUnitModal.errorGenerationFailed");
         const data = await parseJsonPayload<{ detail?: string }>(res, failMsg);
@@ -742,7 +744,7 @@ export default function GenerateUnitModal({
                   <UnitQuotaBadge
                     used={unitUsed}
                     limit={unitLimit}
-                    onUpgrade={() => setShowUpgrade(true)}
+                    onUpgrade={redirectToTariffs}
                   />
                 )}
 
@@ -922,7 +924,7 @@ export default function GenerateUnitModal({
                   /* Limit reached → upgrade CTA */
                   <button
                     type="button"
-                    onClick={() => setShowUpgrade(true)}
+                    onClick={redirectToTariffs}
                     style={{
                       width: "100%", padding: "13px", borderRadius: 12, border: "none",
                       background: "#F3F4F6", color: C.sub, fontSize: 14, fontWeight: 600,
@@ -982,29 +984,6 @@ export default function GenerateUnitModal({
         </div>
       </div>
 
-      {/* ── Phase 3: ConnectPaymentModal for upgrade flow ─────────────────── */}
-      {showUpgrade && (
-        <ConnectPaymentModal
-          key="unit-upgrade"
-          open
-          onClose={() => setShowUpgrade(false)}
-          durationLabel="1 mo"
-          planName="Standard"
-          priceLabel="12.00 USD"
-          planTagLabels={[
-            "AI unit generations: 20 / mo",
-            "AI exercise generations: 100 / mo",
-            "Publish to students: ✓",
-          ]}
-          yearSavingsLabel="If you pay for 1 year you could save: 27 USD"
-          amountUsd={12}
-          planCode="standard"
-          billingPeriod="1m"
-          onPay={async () => {
-            setShowUpgrade(false);
-          }}
-        />
-      )}
     </>
   );
 }

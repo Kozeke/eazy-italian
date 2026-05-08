@@ -316,7 +316,7 @@ export default function AIExerciseGeneratorModal({
   exerciseType: exerciseTypeProp = "drag_to_gap",
 }: AIExerciseGeneratorModalProps) {
 
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   // Full-page fallback when the API returns 422 (unexpected validation state after a request).
   const navigate = useNavigate();
   const exerciseType = EXERCISE_TYPE_MAP.has(exerciseTypeProp) ? exerciseTypeProp : "drag_to_gap";
@@ -326,7 +326,7 @@ export default function AIExerciseGeneratorModal({
 
   // ── Form — description tab ────────────────────────────────────────────────
   const [prompt,       setPrompt]       = useState("");
-  const [language,     setLanguage]     = useState<string>(LANGUAGE_PREF_VALUES[0]);
+  const [language,     setLanguage]     = useState<string>(LANGUAGE_PREF_VALUES[1]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [difficulty,   setDifficulty]   = useState<string>(DIFFICULTY_VALUES[1]);
   const [gapCount,     setGapCount]     = useState("auto");
@@ -444,9 +444,10 @@ export default function AIExerciseGeneratorModal({
       // Both paths resolve the base URL the same way — from the env-supplied prop (API_BASE_URL).
       const base = apiBase || API_BASE_URL;
 
-      // Aligns exercise titles/UI language with the teacher's interface language (e.g. Russian).
-      const instructionLang = i18n.language?.toLowerCase().startsWith("ru") ? "russian" : "english";
-      const contentLang     = language === "Detect automatically" ? "auto" : "english";
+      // Stores the content language token sent to API based on the current selector value.
+      const contentLang = language === "Detect automatically" ? "auto" : "english";
+      // Keeps instruction language synchronized with content language for backend consistency.
+      const instructionLang = contentLang;
 
       let res: Response;
 
@@ -467,9 +468,21 @@ export default function AIExerciseGeneratorModal({
         if (cfg.showPairs) {
           form.append("pair_count", pairCount === "auto" ? "auto" : String(parseInt(pairCount, 10)));
         }
-        // fetchWithAuth handles token refresh on 401; do NOT set Content-Type —
-        // the browser sets it automatically with the correct multipart boundary.
-        res = await fetchWithAuth(url, { method: "POST", body: form });
+        // IMPORTANT: Do NOT use fetchWithAuth here — it injects "Content-Type: application/json"
+        // which overrides the browser's auto-generated "multipart/form-data; boundary=..." header,
+        // causing FastAPI to receive null for the file field (422 Unprocessable Entity).
+        // Instead, use raw fetch with only the Authorization header so the browser can set
+        // the correct Content-Type with the multipart boundary automatically.
+        const _token = localStorage.getItem("token");
+        res = await fetch(url, {
+          method: "POST",
+          body: form,
+          headers: _token ? { Authorization: `Bearer ${_token}` } : {},
+        });
+        // On 401 (token expired), fall back to fetchWithAuth which handles token refresh.
+        if (res.status === 401) {
+          res = await fetchWithAuth(url, { method: "POST", body: form });
+        }
       } else {
         // ── Description path — JSON ─────────────────────────────────────────
         // Endpoint: POST /segments/{id}/exercises/{type}
@@ -511,7 +524,7 @@ export default function AIExerciseGeneratorModal({
     } finally {
       setLoading(false);
     }
-  }, [activeTab, prompt, uploadedFile, language, difficulty, gapCount, pairCount, gapType, exerciseType, apiBase, segmentId, t, i18n.language, navigate, onClose]);
+  }, [activeTab, prompt, uploadedFile, language, difficulty, gapCount, pairCount, gapType, exerciseType, apiBase, segmentId, t, navigate, onClose]);
 
   const handleAddToExercise = useCallback(() => {
     if (generatedBlock) onGenerated?.(generatedBlock);
@@ -945,6 +958,132 @@ export default function AIExerciseGeneratorModal({
                       onChange={handleFileChange}
                       style={{ display: "none" }}
                     />
+
+                    {/* Advanced toggle (also available for from-file flow) */}
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvanced((v) => !v)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 5,
+                        background: "none", border: "none", cursor: "pointer",
+                        color: C.sub, fontSize: 12.5, fontWeight: 500, padding: 0,
+                        fontFamily: "inherit", marginTop: 12, marginBottom: showAdvanced ? 10 : 0,
+                      }}
+                    >
+                      {showAdvanced ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      {t("aiExerciseGenerator.advancedSettings")}
+                    </button>
+
+                    {showAdvanced && (
+                      <div style={{
+                        background: C.bg, borderRadius: 10, padding: "12px 13px",
+                        border: `1px solid ${C.borderSoft}`, display: "flex", gap: 10, flexWrap: "wrap",
+                      }}>
+                        <div style={{ flex: "1 1 160px" }}>
+                          <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: C.sub, marginBottom: 5 }}>
+                            {t("aiExerciseGenerator.languageField")}
+                          </label>
+                          <div style={{ position: "relative" }}>
+                            <select
+                              value={language}
+                              onChange={(e) => setLanguage(e.target.value)}
+                              style={{
+                                width: "100%", padding: "7px 24px 7px 9px", borderRadius: 8,
+                                border: `1.5px solid ${C.border}`, background: C.white,
+                                fontSize: 12, color: C.text, outline: "none", appearance: "none",
+                                fontFamily: "inherit", cursor: "pointer",
+                              }}
+                            >
+                              {LANGUAGE_PREF_VALUES.map((v) => (
+                                <option key={v} value={v}>
+                                  {v === "Detect automatically"
+                                    ? t("aiExerciseGenerator.contentLanguage.detectAuto")
+                                    : t("aiExerciseGenerator.contentLanguage.english")}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={11} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: C.muted }} />
+                          </div>
+                        </div>
+
+                        <div style={{ flex: "1 1 160px" }}>
+                          <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: C.sub, marginBottom: 5 }}>
+                            {t("aiExerciseGenerator.difficultyField")}
+                          </label>
+                          <div style={{ position: "relative" }}>
+                            <select
+                              value={difficulty}
+                              onChange={(e) => setDifficulty(e.target.value)}
+                              style={{
+                                width: "100%", padding: "7px 24px 7px 9px", borderRadius: 8,
+                                border: `1.5px solid ${C.border}`, background: C.white,
+                                fontSize: 12, color: C.text, outline: "none", appearance: "none",
+                                fontFamily: "inherit", cursor: "pointer",
+                              }}
+                            >
+                              {DIFFICULTY_VALUES.map((v, idx) => (
+                                <option key={v} value={v}>
+                                  {t(`aiExerciseGenerator.difficulty.${DIFFICULTY_LABEL_KEYS[idx]}`)}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={11} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: C.muted }} />
+                          </div>
+                        </div>
+
+                        {activeCfg.showGaps && (
+                          <>
+                            <div style={{ flex: "1 1 120px" }}>
+                              <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: C.sub, marginBottom: 5 }}>{t("aiExerciseGenerator.gapsLabel")}</label>
+                              <div style={{ position: "relative" }}>
+                                <select value={gapCount} onChange={(e) => setGapCount(e.target.value)}
+                                  style={{ width: "100%", padding: "7px 24px 7px 9px", borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.white, fontSize: 12, color: C.text, outline: "none", appearance: "none", fontFamily: "inherit", cursor: "pointer" }}
+                                >
+                                  {GAP_COUNT_OPTIONS.map((o) => (
+                                    <option key={o} value={o.toLowerCase()}>
+                                      {o === "Auto" ? t("aiExerciseGenerator.countAuto") : o}
+                                    </option>
+                                  ))}
+                                </select>
+                                <ChevronDown size={11} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: C.muted }} />
+                              </div>
+                            </div>
+                            <div style={{ flex: "1 1 160px" }}>
+                              <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: C.sub, marginBottom: 5 }}>{t("aiExerciseGenerator.gapTypeLabel")}</label>
+                              <div style={{ position: "relative" }}>
+                                <select value={gapType} onChange={(e) => setGapType(e.target.value)}
+                                  style={{ width: "100%", padding: "7px 24px 7px 9px", borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.white, fontSize: 12, color: C.text, outline: "none", appearance: "none", fontFamily: "inherit", cursor: "pointer" }}
+                                >
+                                  {GAP_TYPE_OPTIONS.map((o) => (
+                                    <option key={o} value={o}>
+                                      {t(`aiExerciseGenerator.gapType.${GAP_TYPE_I18N_KEY[o]}`)}
+                                    </option>
+                                  ))}
+                                </select>
+                                <ChevronDown size={11} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: C.muted }} />
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {activeCfg.showPairs && (
+                          <div style={{ flex: "1 1 120px" }}>
+                            <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: C.sub, marginBottom: 5 }}>{t("aiExerciseGenerator.pairsLabel")}</label>
+                            <div style={{ position: "relative" }}>
+                              <select value={pairCount} onChange={(e) => setPairCount(e.target.value)}
+                                style={{ width: "100%", padding: "7px 24px 7px 9px", borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.white, fontSize: 12, color: C.text, outline: "none", appearance: "none", fontFamily: "inherit", cursor: "pointer" }}
+                              >
+                                {PAIR_COUNT_OPTIONS.map((o) => (
+                                  <option key={o} value={o.toLowerCase()}>
+                                    {o === "Auto" ? t("aiExerciseGenerator.countAuto") : o}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown size={11} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: C.muted }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

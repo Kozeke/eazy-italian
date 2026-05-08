@@ -318,7 +318,7 @@ export default function ConnectPaymentModal({
   if (paySuccess) {
     return (
       <div
-        className="fixed inset-0 z-[1400] flex items-center justify-center px-3 py-6 sm:px-4"
+        className="fixed inset-0 z-[12000] flex items-center justify-center px-3 py-6 sm:px-4"
         style={{
           background: "rgba(15, 17, 35, 0.42)",
           backdropFilter: "blur(6px)",
@@ -349,7 +349,7 @@ export default function ConnectPaymentModal({
 
   return (
     <div
-      className="fixed inset-0 z-[1400] flex items-center justify-center px-3 py-6 sm:px-4"
+      className="fixed inset-0 z-[12000] flex items-center justify-center px-3 py-6 sm:px-4"
       style={{
         background: "rgba(15, 17, 35, 0.42)",
         backdropFilter: "blur(6px)",

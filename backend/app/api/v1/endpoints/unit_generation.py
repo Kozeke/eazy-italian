@@ -26,7 +26,11 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_teacher
 from app.core.database import get_db
-from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota, get_teacher_tariff_display_state
+from app.core.teacher_tariffs import (
+    check_and_consume_teacher_ai_quota,
+    get_teacher_tariff_display_state,
+    _refund_teacher_ai_quota,
+)
 from app.models.segment import Segment
 from app.models.unit import Unit
 from app.models.user import User
@@ -294,11 +298,8 @@ async def generate_unit_content(
         body.include_images,
     )
     _get_unit_or_404(db, unit_id, current_user.id)
-    # Consumes one AI unit-generation credit based on the teacher's active tariff.
-    check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
 
-    # Resolve the plan from the DB (same source as quota gate — avoids lazy-load issues
-    # with current_user.subscription which returns None for paid users in some ORM contexts).
+    # Resolve the plan BEFORE quota check (no side-effects yet — safe to do first).
     try:
         plan, _ = get_teacher_tariff_display_state(db, current_user)
         provider = get_provider_for_plan(plan)
@@ -315,6 +316,13 @@ async def generate_unit_content(
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail=f"AI provider unavailable: {exc}") from exc
+
+    # NOTE: quota check is intentionally placed here — AFTER provider init but
+    # BEFORE generation — so that a credit is only at risk if the provider is
+    # reachable.  The credit is consumed just before the generation call and
+    # refunded (via a compensating decrement) if the generation itself raises.
+    # This prevents silent credit loss on transient AI-provider failures.
+    check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
 
     svc_request = _SvcUnitGenerateRequest(
         unit_id=unit_id,
@@ -333,17 +341,29 @@ async def generate_unit_content(
 
     service = UnitGeneratorService(ai_provider=provider)
     # Convert generation runtime failures into stable API errors.
+    # On failure: refund the credit so the teacher is not charged for nothing.
     try:
         result = await service.generate(svc_request, db)
     except RuntimeError as exc:
         logger.error(
-            "generate_unit_content: generation failed unit_id=%d teacher_id=%d: %s",
+            "generate_unit_content: generation failed unit_id=%d teacher_id=%d: %s — refunding quota",
             unit_id,
             current_user.id,
             exc,
             exc_info=True,
         )
+        _refund_teacher_ai_quota(db, current_user, "unit_generation")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(
+            "generate_unit_content: unexpected failure unit_id=%d teacher_id=%d: %s — refunding quota",
+            unit_id,
+            current_user.id,
+            exc,
+            exc_info=True,
+        )
+        _refund_teacher_ai_quota(db, current_user, "unit_generation")
+        raise HTTPException(status_code=500, detail="Generation failed unexpectedly.") from exc
 
     segments_summary: list[SegmentSummary] = []
     for seg_id in result.segment_ids:
@@ -480,7 +500,8 @@ async def generate_unit_from_file(
     # Select AI provider based on the teacher's subscription plan:
     #   free              → Groq  (fast, free-tier)
     #   standard / pro    → DeepSeek V3  (higher quality)
-    check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
+    # Provider is resolved BEFORE quota consumption so a bad provider config
+    # never silently burns a credit.
     try:
         plan, _ = get_teacher_tariff_display_state(db, current_user)
         provider = get_provider_for_plan(plan)
@@ -490,6 +511,8 @@ async def generate_unit_from_file(
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI provider unavailable: {exc}") from exc
+
+    check_and_consume_teacher_ai_quota(db, current_user, "unit_generation")
 
     svc_request = _SvcUnitGenerateRequest(
         unit_id=unit_id,
@@ -507,10 +530,29 @@ async def generate_unit_from_file(
     )
 
     service = UnitGeneratorService(ai_provider=provider)
+    # On failure: refund the credit so the teacher is not charged for nothing.
     try:
         result = await service.generate(svc_request, db)
     except RuntimeError as exc:
+        logger.error(
+            "generate_unit_from_file: generation failed unit_id=%d teacher_id=%d: %s — refunding quota",
+            unit_id,
+            current_user.id,
+            exc,
+            exc_info=True,
+        )
+        _refund_teacher_ai_quota(db, current_user, "unit_generation")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(
+            "generate_unit_from_file: unexpected failure unit_id=%d teacher_id=%d: %s — refunding quota",
+            unit_id,
+            current_user.id,
+            exc,
+            exc_info=True,
+        )
+        _refund_teacher_ai_quota(db, current_user, "unit_generation")
+        raise HTTPException(status_code=500, detail="Generation failed unexpectedly.") from exc
 
     # ── Shape response ────────────────────────────────────────────────────────
     segments_summary: list[SegmentSummary] = []

@@ -524,11 +524,13 @@ async def _stream_generation(
     language: str,
     source_content: str,        # "" when no files were uploaded
     teacher_plan: str = "free", # teacher's subscription plan for provider routing
+    user: "User | None" = None, # authenticated teacher — required for quota checks
 ) -> AsyncIterator[str]:
     from app.core.database import SessionLocal
     from app.models.unit import Unit as UnitModel
     from app.services.unit_generator import UnitGeneratorService, UnitGenerateRequest
     from app.services.ai.providers.router import get_provider_for_plan
+    from app.core.teacher_tariffs import check_and_consume_teacher_ai_quota, _refund_teacher_ai_quota
 
     db = SessionLocal()
     try:
@@ -570,6 +572,28 @@ async def _stream_generation(
         })
         await asyncio.sleep(0.05)
 
+        # ── Quota gate: consume one unit-generation credit before generating ──
+        # Credit is refunded if the generation itself fails, so the teacher is
+        # only charged for successfully completed units.
+        if user is not None:
+            try:
+                check_and_consume_teacher_ai_quota(db, user, "unit_generation")
+            except Exception as quota_exc:
+                # 402 / 403 from quota gate — stop the whole stream immediately;
+                # no point continuing if the teacher is out of credits.
+                logger.warning(
+                    "SSE quota denied for user=%d unit=%d: %s",
+                    user.id, unit.id, quota_exc,
+                )
+                yield _sse({
+                    "type": "error",
+                    "unit_id": unit.id,
+                    "error": getattr(quota_exc, "detail", str(quota_exc)),
+                    "code": "quota_exceeded",
+                })
+                db.close()
+                return
+
         try:
             result = await service.generate(
                 UnitGenerateRequest(
@@ -579,7 +603,7 @@ async def _stream_generation(
                     language=language,
                     num_segments=_DEFAULT_NUM_SEGMENTS,
                     exercise_types=_DEFAULT_EXERCISE_TYPES,
-                    teacher_id=getattr(unit, "created_by", 0) or 0,
+                    teacher_id=user.id if user else (getattr(unit, "created_by", 0) or 0),
                     # Forward extracted file text so each unit is grounded in
                     # the teacher's uploaded materials.  Empty string when no
                     # files were provided — UnitGeneratorService ignores it.
@@ -598,6 +622,9 @@ async def _stream_generation(
             })
         except Exception as exc:
             logger.warning("SSE unit %d failed: %s", unit.id, exc, exc_info=True)
+            # Generation failed — refund the credit consumed above.
+            if user is not None:
+                _refund_teacher_ai_quota(db, user, "unit_generation")
             yield _sse({
                 "type": "unit_error",
                 "unit_id": unit.id,
@@ -681,7 +708,7 @@ async def stream_course_generation(
             )
 
     return StreamingResponse(
-        _stream_generation(course_id, level, language, source_content, teacher_plan),
+        _stream_generation(course_id, level, language, source_content, teacher_plan, user),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
