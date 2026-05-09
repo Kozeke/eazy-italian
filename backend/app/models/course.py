@@ -43,6 +43,14 @@ class Course(Base):
     thumbnail_path = Column(String(500), nullable=True)  # Course thumbnail path (relative to uploads/)
     duration_hours = Column(Integer, nullable=True)  # Estimated total duration in hours
     tags = Column(JSON, default=list, nullable=True)  # Course tags for categorization
+
+    # Language context for the course (used by AI generation, content rendering, and search filters).
+    # Stores the language the course teaches (e.g. "Italian"). Free-form short string so we are
+    # not coupled to an enum and can handle any user-entered language label.
+    target_language = Column(String(64), nullable=True)
+    # Stores the language used for explanations / instructions to the learner (e.g. "Russian").
+    # Same rationale as target_language: kept as a free-form short string for flexibility.
+    native_language = Column(String(64), nullable=True)
     
     # SEO and visibility
     slug = Column(String(255), nullable=True, unique=True)

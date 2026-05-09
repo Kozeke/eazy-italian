@@ -463,7 +463,8 @@
       "daysLeftAria": "Подписка: осталось {{days}} дней",
       "planAria": "Текущий тариф подписки",
       "daysLeftTitle": "Осталось {{days}} дней",
-      "freePlanTitle": "Бесплатный тариф - нажмите для обновления"
+      "freePlanTitle": "Бесплатный тариф - нажмите для обновления",
+      "activePlanTitle": "Активная подписка"
     },
     "userMenu": {
       "label": "Меню пользователя",
@@ -487,7 +488,8 @@
         "aria": "Информация о подписке",
         "paidDateOnly": "Оплачено до {{date}}",
         "paidOneDayLeft": "Оплачено до {{date}} · остался 1 день",
-        "paidManyDaysLeft": "Оплачено до {{date}} · осталось дней: {{days}}"
+        "paidManyDaysLeft": "Оплачено до {{date}} · осталось дней: {{days}}",
+        "openEndedActive": "Тариф активен. Без даты окончания — открытый доступ."
       },
       "updatesNewAria": "Новое"
     },
@@ -899,6 +901,39 @@
         "generatingShort": "Генерация...",
         "fillAllUnits": "Это заполнит все {{count}} уроков AI-контентом.",
         "allUnitsGenerated": "Все уроки сгенерированы! Выберите урок ниже, чтобы начать преподавать."
+      },
+      "outlineReview": {
+        "introBadge": "ВВОД",
+        "segmentPlanTitle": "План разделов",
+        "planningSegments": "Планируем разделы…",
+        "planLoadError": "Не удалось загрузить план — при генерации будут стандартные разделы",
+        "retry": "Повторить",
+        "planNeedsDbUnit": "Для этой строки структуры ещё нет сохранённого урока. Обновите страницу или создайте урок, чтобы посмотреть план.",
+        "editUnitTitle": "Изменить название урока",
+        "removeUnitTitle": "Удалить этот урок из структуры",
+        "clickEditDescription": "Нажмите, чтобы изменить описание",
+        "clickAddDescription": "Нажмите, чтобы добавить описание…",
+        "openUnit": "Открыть этот урок",
+        "open": "Открыть",
+        "bannerAllDone_one": "Сгенерирован {{count}} урок",
+        "bannerAllDone_few": "Сгенерировано {{count}} урока",
+        "bannerAllDone_many": "Сгенерировано {{count}} уроков",
+        "bannerAllDone_other": "Сгенерировано {{count}} уроков",
+        "bannerGenerating": "Генерация… {{done}} / {{total}} уроков готово",
+        "unitsReadyToReview_one": "{{count}} урок готов к проверке",
+        "unitsReadyToReview_few": "{{count}} урока готовы к проверке",
+        "unitsReadyToReview_many": "{{count}} уроков готовы к проверке",
+        "unitsReadyToReview_other": "{{count}} уроков готовы к проверке",
+        "subtitleAllDone": "Нажмите на карточку урока, чтобы открыть его",
+        "subtitleGenerating": "Готовые уроки можно открыть, пока остальные генерируются",
+        "subtitleReview": "Проверьте и отредактируйте ниже, затем нажмите «Сгенерировать курс»",
+        "percentComplete": "{{percent}}% готово",
+        "noUnitsInOutline": "В этой структуре нет уроков",
+        "footerGenerating": "Идёт генерация… готовые уроки можно открыть выше",
+        "footerAllDone": "Все уроки готовы — нажмите «Открыть» на карточке, чтобы перейти к уроку.",
+        "footerExpandHint": "Разверните любой урок, чтобы посмотреть план разделов перед генерацией",
+        "addUnit": "Добавить урок",
+        "adding": "Добавление…"
       }
     },
     "header": {
@@ -1241,6 +1276,233 @@
     "aiBannerTitle": "Сгенерировать с ИИ",
     "aiBannerSubtitle": "Опишите упражнение — ИИ соберёт черновик за вас",
     "closeGalleryAria": "Закрыть"
+  },
+  "exerciseTemplates": {
+    "sections": {
+      "text_reading": "Текст и чтение",
+      "images": "Изображения",
+      "audio_video": "Аудио и видео",
+      "words_gaps": "Слова и пропуски",
+      "tests": "Тесты",
+      "put_in_order": "Порядок и сопоставление"
+    },
+    "labels": {
+      "text-block": "Текстовый блок",
+      "img-block": "Изображение",
+      "img-carousel": "Карусель изображений",
+      "img-gif": "GIF-анимация",
+      "video-embed": "Видео",
+      "audio-clip": "Аудио",
+      "audio-repeat": "Прослушай и повтори",
+      "drag-to-gap": "Перетащи слово в пропуск",
+      "type-word-in-gap": "Впиши слово в пропуск",
+      "cloze-select": "Выбери форму слова",
+      "visual-drag": "Перетащи слово к картинке",
+      "visual-input": "Впиши слово к картинке",
+      "visual-select": "Выбери форму к картинке",
+      "mc-no-timer": "Тест без таймера",
+      "mc-timer": "Тест с таймером",
+      "true-false": "Верно / неверно",
+      "order-sentence": "Собери предложение",
+      "sort-columns": "Распредели по колонкам",
+      "order-text": "Упорядочь абзацы",
+      "anagram": "Собери слово",
+      "matching": "Сопоставь пары"
+    }
+  },
+  "exerciseEditors": {
+    "gap": {
+      "instructionDrag": "Перетащите слова в нужные пропуски",
+      "instructionType": "Впишите слова в нужные пропуски",
+      "wordsBarChipsEmpty": "Слова появятся здесь после заполнения пропусков",
+      "typingHintDefault": "Ученик будет вписывать ответы прямо в пропуски",
+      "mainPlaceholder": "Введите текст упражнения",
+      "addGapTooltip": "Добавить пропуск",
+      "addGapAria": "Показать кнопку вставки пропуска",
+      "insertGapTooltip": "Вставить пропуск на месте курсора",
+      "insertGapAria": "Вставить пропуск в позиции курсора",
+      "correctAnswer": "Правильный ответ",
+      "deleteGapTooltip": "Удалить пропуск",
+      "deleteGapAria": "Удалить пропуск",
+      "answerPlaceholder": "Введите правильный ответ…",
+      "saveAnswer": "Сохранить ответ",
+      "gapAriaFilled": "Пропуск с ответом «{{answer}}» — нажмите, чтобы изменить",
+      "gapAriaEmpty": "Пустой пропуск — нажмите, чтобы задать ответ",
+      "needAllGapsTooltip": "Заполните все пропуски перед сохранением",
+      "saveExerciseTooltip": "Сохранить упражнение"
+    },
+    "common": {
+      "exerciseTitlePlaceholder": "Название упражнения (видно ученикам)",
+      "exerciseTitleAria": "Название упражнения",
+      "saveExerciseHelp": "Сохранить упражнение",
+      "completeRequiredHint": "Заполните все обязательные поля перед сохранением",
+      "leftItemPlaceholder": "Слева",
+      "rightItemPlaceholder": "Справа",
+      "columnTitlePlaceholder": "Заголовок колонки",
+      "columnWordPlaceholder": "Слово",
+      "saveForms": "Сохранить формы"
+    },
+    "matchPairs": {
+      "instruction": "Сопоставьте слово слева с правильным словом справа",
+      "leftColumn": "Слева",
+      "rightColumn": "Справа",
+      "addCouple": "Добавить пару",
+      "removePairAria": "Удалить пару",
+      "removePairTitle": "Удалить пару",
+      "needCompleteTooltip": "Заполните обе колонки в каждой строке перед сохранением"
+    },
+    "sortColumns": {
+      "wordsPreviewEmpty": "Добавленные слова появятся здесь",
+      "dropWordsHere": "Перетащите слова сюда",
+      "removeColumnTitle": "Удалить колонку",
+      "removeColumnAria": "Удалить колонку {{n}}",
+      "removeWordAria": "Удалить слово",
+      "addWord": "Добавить слово",
+      "addColumn": "Добавить колонку",
+      "needCompleteTooltip": "Заполните заголовки колонок и все слова перед сохранением"
+    },
+    "orderParagraphs": {
+      "instruction": "Расположите абзацы в правильном порядке",
+      "needCompleteTooltip": "Заполните все абзацы перед сохранением"
+    },
+    "buildSentence": {
+      "instruction": "Соберите правильное предложение из слов",
+      "needCompleteTooltip": "Добавьте задание и все слова перед сохранением"
+    },
+    "textBlock": {
+      "editorAriaSuffix": "редактор",
+      "titlePlaceholder": "Название упражнения",
+      "showPreview": "Показать предпросмотр",
+      "hidePreview": "Скрыть предпросмотр",
+      "markdownHintPrefix": "Markdown:",
+      "markdownBold": "жирный",
+      "markdownItalic": "курсив",
+      "markdownHeading": "заголовок",
+      "markdownList": "список",
+      "textareaPlaceholder": "Текст в Markdown…\n\n## Правило\n**Пример:** *essere* для состояний.\n- io sono\n- tu sei",
+      "previewHeading": "Предпросмотр",
+      "needContentTooltip": "Введите текст перед сохранением",
+      "saveBlockTooltip": "Сохранить блок"
+    },
+    "selectWordForm": {
+      "instruction": "Выберите правильную форму слова в каждом пропуске",
+      "correctFormsLabel": "Правильные формы",
+      "panelHint": "Отметьте галочками правильные формы и добавьте новые варианты ниже.",
+      "variantPlaceholder": "Вариант {{n}}",
+      "markVariantAria": "Отметить вариант {{n}} как верный",
+      "addVariant": "Добавить вариант",
+      "removeVariant": "Удалить",
+      "gapAriaFilled": "Пропуск с {{count}} верными формами — нажмите, чтобы изменить",
+      "gapAriaEmpty": "Пустой пропуск — нажмите, чтобы добавить варианты"
+    },
+    "trueFalseEditor": {
+      "needValidQuestionsTooltip": "Добавьте корректные вопросы «Верно / неверно»"
+    },
+    "testEditor": {
+      "needCompleteTooltip": "Заполните каждый вопрос и варианты ответа перед сохранением"
+    },
+    "selectFormImage": {
+      "instruction": "Выберите правильную форму под каждым изображением",
+      "addOption": "Добавить вариант",
+      "optionPlaceholder": "Форма {{n}}",
+      "optionAria": "Форма {{n}}",
+      "needCompleteTooltip": "Добавьте изображение и отметьте хотя бы одну верную форму на каждой карточке",
+      "boardAria": "Карточки с изображениями и вариантами форм",
+      "markCorrectAria": "Отметить форму {{n}} как верную",
+      "removeFormAria": "Удалить форму {{n}}",
+      "removeOptionTitle": "Удалить вариант"
+    },
+    "dragToImage": {
+      "instructionDrag": "Перетащите слова к нужным картинкам",
+      "instructionType": "Впишите правильное слово для каждой картинки",
+      "boardAria": "Карточки с изображениями",
+      "removeCardAria": "Удалить карточку",
+      "removeCardTitle": "Удалить карточку",
+      "replaceImageTitle": "Заменить изображение",
+      "uploadImageTitle": "Загрузить изображение",
+      "correctWordPlaceholder": "Правильное слово",
+      "correctWordAria": "Правильное слово",
+      "aiImageHint": "Подсказка к изображению ИИ",
+      "addCardAria": "Добавить карточку",
+      "addCardTitle": "Добавить карточку",
+      "needCompleteTooltip": "Заполните все карточки перед сохранением",
+      "saveTooltip": "Сохранить упражнение",
+      "wordsBarEmpty": "Слова появятся здесь после заполнения карточек",
+      "uploading": "Загрузка…",
+      "upload": "Загрузить"
+    },
+    "workspace": {
+      "validation": {
+        "promptRequired": "Нужен текст вопроса.",
+        "mcOptionsMin": "Нужно минимум 2 варианта.",
+        "mcCorrectMin": "Отметьте хотя бы один правильный ответ.",
+        "mcOptionText": "У каждого варианта должен быть текст.",
+        "tfCorrect": "Выберите верный ответ: Верно или Неверно.",
+        "keywordsMin": "Добавьте хотя бы одно ключевое слово для проверки.",
+        "regexPattern": "Введите шаблон regex для проверки.",
+        "gapsAnswers": "В каждом пропуске должен быть хотя бы один принимаемый ответ.",
+        "matchText": "У каждого элемента сопоставления должен быть текст.",
+        "matchPairs": "Соедините каждый элемент слева с элементом справа.",
+        "orderItemsText": "У каждого элемента должен быть текст.",
+        "orderSet": "Задайте правильный порядок для всех элементов."
+      },
+      "questionErrorLine": "В. {{n}}: {{error}}",
+      "saveFailed": "Не удалось сохранить. Попробуйте снова.",
+      "untitledSlide": "Слайд без названия",
+      "slideCanvasBadge": "Пустой слайд",
+      "slideCanvasHint": "— добавьте медиа и упражнения ниже",
+      "mediaRemoveBlock": "Удалить блок",
+      "mediaCaptionPlaceholder": "Подпись (необязательно)",
+      "mediaImagePreviewAlt": "Предпросмотр изображения",
+      "mediaVideoPreviewTitle": "Предпросмотр видео",
+      "mediaPreviewAfterSave": "Предпросмотр будет доступен после сохранения.",
+      "mediaUploadImageTitle": "Загрузить изображение",
+      "mediaImageLabel": "Изображение",
+      "mediaVideoLabel": "Видео",
+      "mediaAudioLabel": "Аудио",
+      "mediaImagePlaceholder": "Вставьте URL изображения или нажмите «Загрузить»",
+      "mediaVideoPlaceholder": "Вставьте ссылку YouTube или Vimeo",
+      "mediaAudioPlaceholder": "Вставьте URL аудиофайла"
+    },
+    "player": {
+      "questionTypes": {
+        "multiple_choice": "Множественный выбор",
+        "true_false": "Верно / неверно",
+        "open_answer": "Свободный ответ",
+        "cloze_input": "Вписать в пропуск",
+        "cloze_drag": "Перетащить в пропуск",
+        "matching_pairs": "Сопоставление пар",
+        "ordering_words": "Порядок слов",
+        "ordering_sentences": "Порядок предложений"
+      },
+      "mediaHeading": "Медиа",
+      "exerciseHeading": "Упражнение",
+      "addBlock": "Добавить блок",
+      "addQuestion": "Добавить вопрос",
+      "removeQuestion": "Удалить вопрос",
+      "saving": "Сохранение…",
+      "emptySlideTitle": "Пустой слайд",
+      "emptySlideBody": "Нажмите кнопку ниже, чтобы добавить изображение, видео, аудио или упражнение.",
+      "emptyQuestionsTitle": "Пока нет вопросов",
+      "emptyQuestionsBody": "Добавьте первый вопрос, чтобы собрать упражнение.",
+      "emptySlideCta": "Добавить блок",
+      "emptyQuestionsCta": "Добавить первый вопрос",
+      "inlineVideoAfterSave": "Ссылка на видео сохранена — предпросмотр после сохранения.",
+      "inlinePreviewAlt": "Предпросмотр",
+      "inlineVideoIframeTitle": "Предпросмотр видео",
+      "mediaPickers": {
+        "image": "Изображение",
+        "video": "Видео",
+        "audio": "Аудио"
+      },
+      "inlineMediaPlaceholders": {
+        "image": "Вставьте URL изображения или нажмите «Загрузить»",
+        "video": "Вставьте ссылку YouTube или Vimeo",
+        "audio": "Вставьте URL аудиофайла"
+      },
+      "captionOptional": "Подпись (необязательно)",
+      "uploadImageTitle": "Загрузить изображение"
+    }
   },
   "mediaEditor": {
     "cancel": "Отмена",

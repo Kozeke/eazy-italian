@@ -20,6 +20,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { Trash2, Check, KeyboardIcon } from "lucide-react";
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
@@ -176,6 +177,7 @@ function SyncedGapEditorInput({
   onRemoteChange,
   onClick,
 }: SyncedGapEditorInputProps) {
+  const { t } = useTranslation();
   // ── Live sync: one hook call per gap ────────────────────────────────────────
   useLiveSyncField(`ex/${segmentId ?? "unsaved"}/${gapId}`, gapAnswer, (v) =>
     onRemoteChange(gapId, v as string),
@@ -212,8 +214,8 @@ function SyncedGapEditorInput({
           }}
           aria-label={
             isFilled
-              ? `Gap with answer "${gapAnswer}" — click to edit`
-              : "Empty gap — click to add correct answer"
+              ? t("exerciseEditors.gap.gapAriaFilled", { answer: gapAnswer })
+              : t("exerciseEditors.gap.gapAriaEmpty")
           }
         />
 
@@ -244,12 +246,15 @@ function SyncedGapEditorInput({
 export default function TypeWordInGapEditorPage({
   initialTitle = "",
   initialData,
-  label = "Вписать слово в пропуск",
+  label,
   segmentId,
   onSave,
   onCancel,
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedHeaderLabel =
+    label ?? t("exerciseTemplates.labels.type-word-in-gap");
   const [title, setTitle] = useState(initialData?.title ?? initialTitle);
   const [showAIModal, setShowAIModal] = useState(false);
 
@@ -534,7 +539,7 @@ export default function TypeWordInGapEditorPage({
     <div ref={rootRef} className="dtg-editor-root" onBlur={handleRootBlur}>
       <ExerciseHeader
         title={title}
-        headerLabel={label}
+        headerLabel={resolvedHeaderLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -543,7 +548,7 @@ export default function TypeWordInGapEditorPage({
       <div
         className="dtg-editor-content"
         style={{ paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14 }}
-        aria-label={label}
+        aria-label={resolvedHeaderLabel}
       >
         {/* ── Title ─────────────────────────────────────────────────────────── */}
         <div className="dtg-title-row">
@@ -551,8 +556,8 @@ export default function TypeWordInGapEditorPage({
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
-            aria-label="Exercise title"
+            placeholder={t("exerciseEditors.common.exerciseTitlePlaceholder")}
+            aria-label={t("exerciseEditors.common.exerciseTitleAria")}
           />
         </div>
 
@@ -564,7 +569,7 @@ export default function TypeWordInGapEditorPage({
           </div> */}
           <div className="dtg-exercise-instruction">
             {/* <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8L6 12M6 12L18 16M6 12H22M2 12H4"/></svg> */}
-            Type words into the correct gaps
+            {t("exerciseEditors.gap.instructionType")}
           </div>
         </div>
 
@@ -592,7 +597,7 @@ export default function TypeWordInGapEditorPage({
             aria-hidden="true"
           />
           <span className="dtg-words-bar-hint">
-            Ученик будет вписывать ответы прямо в пропуски
+            {t("exerciseEditors.gap.typingHintDefault")}
           </span>
         </div>
 
@@ -632,7 +637,7 @@ export default function TypeWordInGapEditorPage({
                 setTimeout(() => spanRefs.current[0]?.focus(), 10);
               }}
             >
-              Введите текст упражнения
+              {t("exerciseEditors.gap.mainPlaceholder")}
             </div>
           )}
 
@@ -690,8 +695,8 @@ export default function TypeWordInGapEditorPage({
                 e.stopPropagation();
                 setInsertMode(true);
               }}
-              title="Добавить пропуск"
-              aria-label="Show gap insert button"
+              title={t("exerciseEditors.gap.addGapTooltip")}
+              aria-label={t("exerciseEditors.gap.addGapAria")}
             >
               ?
             </button>
@@ -706,8 +711,8 @@ export default function TypeWordInGapEditorPage({
                 e.preventDefault();
                 insertGap();
               }}
-              title="Вставить пропуск на месте курсора"
-              aria-label="Insert gap at cursor"
+              title={t("exerciseEditors.gap.insertGapTooltip")}
+              aria-label={t("exerciseEditors.gap.insertGapAria")}
             >
               [ ]
             </button>
@@ -719,13 +724,15 @@ export default function TypeWordInGapEditorPage({
               style={{ top: popoverPos.top, left: popoverPos.left }}
             >
               <div className="dtg-bottom-panel-header">
-                <span className="dtg-bottom-panel-label">Правильный ответ</span>
+                <span className="dtg-bottom-panel-label">
+                  {t("exerciseEditors.gap.correctAnswer")}
+                </span>
                 <button
                   type="button"
                   className="dtg-bottom-panel-delete"
                   onClick={() => deleteGap(activeGapId)}
-                  title="Удалить пропуск"
-                  aria-label="Delete gap"
+                  title={t("exerciseEditors.gap.deleteGapTooltip")}
+                  aria-label={t("exerciseEditors.gap.deleteGapAria")}
                 >
                   <Trash2 size={13} />
                 </button>
@@ -735,7 +742,7 @@ export default function TypeWordInGapEditorPage({
                 <textarea
                   ref={answerTextareaRef}
                   className="dtg-answer-textarea"
-                  placeholder="Введите правильный ответ..."
+                  placeholder={t("exerciseEditors.gap.answerPlaceholder")}
                   value={answerDraft}
                   rows={2}
                   onChange={(e) => setAnswerDraft(e.target.value)}
@@ -753,7 +760,7 @@ export default function TypeWordInGapEditorPage({
                     className="dtg-bottom-panel-cancel"
                     onClick={() => setActiveGapId(null)}
                   >
-                    Отмена
+                    {t("common.cancel")}
                   </button>
                   <button
                     type="button"
@@ -769,7 +776,7 @@ export default function TypeWordInGapEditorPage({
                     disabled={!answerDraft.trim()}
                   >
                     <Check size={13} />
-                    Сохранить ответ
+                    {t("exerciseEditors.gap.saveAnswer")}
                   </button>
                 </div>
               </div>
@@ -798,7 +805,7 @@ export default function TypeWordInGapEditorPage({
 
           <div className="dtg-footer-btns">
             <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -812,11 +819,11 @@ export default function TypeWordInGapEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? "Заполните все пропуски перед сохранением"
-                  : "Сохранить упражнение"
+                  ? t("exerciseEditors.gap.needAllGapsTooltip")
+                  : t("exerciseEditors.gap.saveExerciseTooltip")
               }
             >
-              Сохранить
+              {t("common.save")}
             </button>
           </div>
         </div>

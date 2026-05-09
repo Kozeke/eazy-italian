@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Plus, Upload, X } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
@@ -143,12 +144,14 @@ function serialiseCard(card: CardDraft): SelectFormToImageCard {
 export default function SelectFormToImageEditorPage({
   initialTitle = '',
   initialData,
-  label = 'Выбрать форму по изображению',
+  label,
   onSave,
   onCancel,
   segmentId,
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.visual-select');
   const [showAIModal, setShowAIModal] = useState(false);
 
   const [title, setTitle] = useState(initialData?.title ?? initialTitle);
@@ -321,7 +324,7 @@ export default function SelectFormToImageEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -330,21 +333,21 @@ export default function SelectFormToImageEditorPage({
       <div
         className="dtg-editor-content"
         style={{ paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14 }}
-        aria-label={label}
+        aria-label={resolvedLabel}
       >
         <div className="dtg-title-row">
           <input
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
-            aria-label="Exercise title"
+            placeholder={t('exerciseEditors.common.exerciseTitlePlaceholder')}
+            aria-label={t('exerciseEditors.common.exerciseTitleAria')}
           />
         </div>
 
         <div className="dtg-editor-title-preview">
           <div className="dtg-exercise-instruction">
-            Select the correct form under each image
+            {t('exerciseEditors.selectFormImage.instruction')}
           </div>
         </div>
 
@@ -364,7 +367,7 @@ export default function SelectFormToImageEditorPage({
           />
         </div>
 
-        <div className="dti-editor-board" aria-label="Image cards with selectable forms">
+        <div className="dti-editor-board" aria-label={t('exerciseEditors.selectFormImage.boardAria')}>
           {cards.map((card, index) => {
             const hasImage = card.imageUrl.trim() !== '';
             const isUploading = uploadingCardId === card.id;
@@ -381,8 +384,8 @@ export default function SelectFormToImageEditorPage({
                     type="button"
                     className="dti-editor-card-remove"
                     onClick={() => removeCard(card.id)}
-                    aria-label="Remove image card"
-                    title="Удалить карточку"
+                    aria-label={t('exerciseEditors.dragToImage.removeCardAria')}
+                    title={t('exerciseEditors.dragToImage.removeCardTitle')}
                   >
                     <X size={14} />
                   </button>
@@ -410,8 +413,8 @@ export default function SelectFormToImageEditorPage({
                     .join(' ')}
                   disabled={isUploading}
                   onClick={() => fileInputRefs.current[card.id]?.click()}
-                  aria-label={hasImage ? 'Replace image' : 'Upload image'}
-                  title={hasImage ? 'Заменить изображение' : 'Загрузить изображение'}
+                  aria-label={hasImage ? t('exerciseEditors.dragToImage.replaceImageTitle') : t('exerciseEditors.dragToImage.uploadImageTitle')}
+                  title={hasImage ? t('exerciseEditors.dragToImage.replaceImageTitle') : t('exerciseEditors.dragToImage.uploadImageTitle')}
                 >
                   {hasImage ? (
                     <img
@@ -422,7 +425,7 @@ export default function SelectFormToImageEditorPage({
                   ) : (
                     <span className="dti-image-slot-upload">
                       <Upload size={18} />
-                      <span>{isUploading ? 'Uploading...' : 'Upload'}</span>
+                      <span>{isUploading ? t('exerciseEditors.dragToImage.uploading') : t('exerciseEditors.dragToImage.upload')}</span>
                     </span>
                   )}
                 </button>
@@ -442,7 +445,7 @@ export default function SelectFormToImageEditorPage({
                       >
                         <label
                           className="dtg-variant-check"
-                          aria-label={`Mark form ${optionIndex + 1} as correct`}
+                          aria-label={t('exerciseEditors.selectFormImage.markCorrectAria', { n: optionIndex + 1 })}
                         >
                           <input
                             type="checkbox"
@@ -465,15 +468,15 @@ export default function SelectFormToImageEditorPage({
                             minWidth: 148,
                             paddingRight: 12,
                           }}
-                          placeholder={`Form ${optionIndex + 1}`}
-                          aria-label={`Form ${optionIndex + 1}`}
+                          placeholder={t('exerciseEditors.selectFormImage.optionPlaceholder', { n: optionIndex + 1 })}
+                          aria-label={t('exerciseEditors.selectFormImage.optionAria', { n: optionIndex + 1 })}
                         />
                         <button
                           type="button"
                           className="dtg-variant-remove"
                           onClick={() => removeOption(card.id, option.id)}
-                          aria-label={`Remove form ${optionIndex + 1}`}
-                          title="Удалить вариант"
+                          aria-label={t('exerciseEditors.selectFormImage.removeFormAria', { n: optionIndex + 1 })}
+                          title={t('exerciseEditors.selectFormImage.removeOptionTitle')}
                           style={{
                             padding: 0,
                             width: 28,
@@ -504,7 +507,7 @@ export default function SelectFormToImageEditorPage({
                       }}
                     >
                       <Plus size={13} />
-                      Добавить вариант
+                      {t('exerciseEditors.selectFormImage.addOption')}
                     </button>
                   </div>
                 </div>
@@ -522,8 +525,8 @@ export default function SelectFormToImageEditorPage({
             type="button"
             className="dti-add-card"
             onClick={addCard}
-            aria-label="Add image card"
-            title="Добавить карточку"
+            aria-label={t('exerciseEditors.dragToImage.addCardAria')}
+            title={t('exerciseEditors.dragToImage.addCardTitle')}
           >
             <Plus size={18} />
           </button>
@@ -532,7 +535,7 @@ export default function SelectFormToImageEditorPage({
         <div className="dtg-footer">
           <div className="dtg-footer-btns">
             <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -546,12 +549,12 @@ export default function SelectFormToImageEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Добавьте изображение и хотя бы одну форму в каждую карточку'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.selectFormImage.needCompleteTooltip')
+                  : t('exerciseEditors.common.saveExerciseHelp')
               }
             >
               <Check size={14} />
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

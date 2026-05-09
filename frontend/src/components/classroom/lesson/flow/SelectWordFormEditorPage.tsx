@@ -18,6 +18,7 @@ import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
 } from './AI_generation/AIExerciseGeneratorModal';
+import { useTranslation } from 'react-i18next';
 
 export type { TextSeg, GapSeg, Segment };
 
@@ -235,12 +236,15 @@ const TextSpan = memo(
 export default function SelectWordFormEditorPage({
   initialTitle = '',
   initialData,
-  label = 'Выбрать форму слова',
+  label,
   onSave,
   segmentId,
   onCancel,
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  // Shown in header/aria; falls back to the template gallery label for this exercise type
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.cloze-select');
   const [title, setTitle] = useState(initialData?.title ?? initialTitle);
   const [segments, setSegments] = useState<Segment[]>(
     initialData?.segments ?? [{ type: 'text', value: '' }],
@@ -490,7 +494,7 @@ export default function SelectWordFormEditorPage({
     >
       <ExerciseHeader
         title={title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -499,22 +503,22 @@ export default function SelectWordFormEditorPage({
       <div
         className="dtg-editor-content"
         style={{ paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14 }}
-        aria-label={label}
+        aria-label={resolvedLabel}
       >
         <div className="dtg-title-row">
           <input
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Exercise title (shown to students)"
-            aria-label="Exercise title"
+            placeholder={t('exerciseEditors.common.exerciseTitlePlaceholder')}
+            aria-label={t('exerciseEditors.common.exerciseTitleAria')}
           />
         </div>
 
         {/* ── Student-facing preview: instruction shown in the block */}
         <div className="dtg-editor-title-preview">
           <div className="dtg-exercise-instruction">
-            Select the correct word form in each gap
+            {t('exerciseEditors.selectWordForm.instruction')}
           </div>
         </div>
 
@@ -565,7 +569,7 @@ export default function SelectWordFormEditorPage({
                 setTimeout(() => spanRefs.current[0]?.focus(), 10);
               }}
             >
-              Введите текст упражнения
+              {t('exerciseEditors.gap.mainPlaceholder')}
             </div>
           )}
 
@@ -636,8 +640,8 @@ export default function SelectWordFormEditorPage({
                         }}
                         aria-label={
                           isFilled
-                            ? `Gap with ${gapConfig.correctAnswers.length} correct forms — click to edit`
-                            : 'Empty gap — click to add dropdown forms'
+                            ? t('exerciseEditors.selectWordForm.gapAriaFilled', { count: gapConfig.correctAnswers.length })
+                            : t('exerciseEditors.selectWordForm.gapAriaEmpty')
                         }
                       />
 
@@ -664,8 +668,8 @@ export default function SelectWordFormEditorPage({
                 e.stopPropagation();
                 setInsertMode(true);
               }}
-              title="Добавить пропуск"
-              aria-label="Show gap insert button"
+              title={t('exerciseEditors.gap.addGapTooltip')}
+              aria-label={t('exerciseEditors.gap.addGapAria')}
             >
               ?
             </button>
@@ -679,8 +683,8 @@ export default function SelectWordFormEditorPage({
                 e.preventDefault();
                 insertGap();
               }}
-              title="Вставить пропуск на месте курсора"
-              aria-label="Insert gap at cursor"
+              title={t('exerciseEditors.gap.insertGapTooltip')}
+              aria-label={t('exerciseEditors.gap.insertGapAria')}
             >
               [ ]
             </button>
@@ -691,13 +695,15 @@ export default function SelectWordFormEditorPage({
               style={{ top: popoverPos.top, left: popoverPos.left }}
             >
               <div className="dtg-bottom-panel-header">
-                <span className="dtg-bottom-panel-label">Правильные формы</span>
+                <span className="dtg-bottom-panel-label">
+                  {t('exerciseEditors.selectWordForm.correctFormsLabel')}
+                </span>
                 <button
                   type="button"
                   className="dtg-bottom-panel-delete"
                   onClick={() => deleteGap(activeGapId)}
-                  title="Удалить пропуск"
-                  aria-label="Delete gap"
+                  title={t('exerciseEditors.gap.deleteGapTooltip')}
+                  aria-label={t('exerciseEditors.gap.deleteGapAria')}
                 >
                   <Trash2 size={13} />
                 </button>
@@ -705,12 +711,15 @@ export default function SelectWordFormEditorPage({
 
               <div className="dtg-bottom-panel-body">
                 <span className="dtg-bottom-panel-hint">
-                  Отметьте галочками правильные формы и добавьте новые варианты ниже.
+                  {t('exerciseEditors.selectWordForm.panelHint')}
                 </span>
                 <div className="dtg-variant-list">
                   {variantRows.map((row, index) => (
                     <div key={row.id} className="dtg-variant-row">
-                      <label className="dtg-variant-check" aria-label={`Mark variant ${index + 1} as correct`}>
+                      <label
+                        className="dtg-variant-check"
+                        aria-label={t('exerciseEditors.selectWordForm.markVariantAria', { n: index + 1 })}
+                      >
                         <input
                           type="checkbox"
                           checked={row.checked}
@@ -730,7 +739,7 @@ export default function SelectWordFormEditorPage({
                           variantInputRefs.current[row.id] = el;
                         }}
                         className="dtg-variant-input"
-                        placeholder={`Вариант ${index + 1}`}
+                        placeholder={t('exerciseEditors.selectWordForm.variantPlaceholder', { n: index + 1 })}
                         value={row.value}
                         onChange={(e) => {
                           const value = e.target.value;
@@ -762,7 +771,7 @@ export default function SelectWordFormEditorPage({
                           });
                         }}
                       >
-                        Удалить
+                        {t('exerciseEditors.selectWordForm.removeVariant')}
                       </button>
                     </div>
                   ))}
@@ -777,7 +786,7 @@ export default function SelectWordFormEditorPage({
                   }}
                 >
                   <Plus size={14} />
-                  Добавить вариант
+                  {t('exerciseEditors.selectWordForm.addVariant')}
                 </button>
                 <div className="dtg-bottom-panel-actions">
                   <button
@@ -785,7 +794,7 @@ export default function SelectWordFormEditorPage({
                     className="dtg-bottom-panel-cancel"
                     onClick={closeGapEditor}
                   >
-                    Отмена
+                    {t('common.cancel')}
                   </button>
                   <button
                     type="button"
@@ -801,7 +810,7 @@ export default function SelectWordFormEditorPage({
                     disabled={selectedVariants.length === 0}
                   >
                     <Check size={13} />
-                    Сохранить формы
+                    {t('exerciseEditors.common.saveForms')}
                   </button>
                 </div>
               </div>
@@ -828,7 +837,7 @@ export default function SelectWordFormEditorPage({
 
           <div className="dtg-footer-btns">
             <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -842,11 +851,11 @@ export default function SelectWordFormEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Заполните все пропуски перед сохранением'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.gap.needAllGapsTooltip')
+                  : t('exerciseEditors.gap.saveExerciseTooltip')
               }
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

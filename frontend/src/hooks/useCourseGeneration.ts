@@ -27,6 +27,19 @@ export interface UseCourseGenerationOptions {
   /** CEFR level forwarded to the backend (default 'B1'). */
   level: string;
   /**
+   * The language the course is TEACHING (e.g. 'Italian', 'Spanish').
+   * Forwarded as ?language= — drives Italian example sentences, vocabulary, phrases.
+   * Defaults to 'English' when omitted.
+   */
+  language?: string;
+  /**
+   * The teacher's native / explanation language (e.g. 'Russian', 'English').
+   * Forwarded as ?native_language= — grammar rules and instructions are written
+   * in this language so students can understand explanations in their own language.
+   * Defaults to 'English' when omitted.
+   */
+  nativeLanguage?: string;
+  /**
    * UUID returned by POST /generate-outline-from-files.
    * Appended to the SSE URL so the backend can ground content in uploaded files.
    */
@@ -61,6 +74,8 @@ const RECONNECT_BASE_MS = 1_500; // first retry after 1.5 s; doubles each attemp
 export function useCourseGeneration({
   courseId,
   level,
+  language,
+  nativeLanguage,
   sourceToken,
   units,
   onUnitDone,
@@ -79,6 +94,8 @@ export function useCourseGeneration({
   const onCompleteRef     = useRef(onComplete);
   const courseIdRef       = useRef(courseId);
   const levelRef          = useRef(level);
+  const languageRef       = useRef(language);
+  const nativeLanguageRef = useRef(nativeLanguage);
   const sourceTokenRef    = useRef(sourceToken);
   const unitsRef          = useRef(units);
 
@@ -86,6 +103,8 @@ export function useCourseGeneration({
   onCompleteRef.current  = onComplete;
   courseIdRef.current    = courseId;
   levelRef.current       = level;
+  languageRef.current    = language;
+  nativeLanguageRef.current = nativeLanguage;
   sourceTokenRef.current = sourceToken;
   unitsRef.current       = units;
 
@@ -111,6 +130,16 @@ export function useCourseGeneration({
     const jwt = localStorage.getItem('token') ?? '';
 
     const params = new URLSearchParams({ level: levelRef.current, token: jwt });
+
+    // language — the target language the course TEACHES (e.g. "Italian").
+    // Drives Italian vocabulary, example sentences, and phrases in every segment.
+    params.set('language', (languageRef.current || 'English').trim());
+
+    // native_language — the explanation language the teacher/student reads in
+    // (e.g. "Russian"). Grammar rules and instructions are written in this language.
+    if (nativeLanguageRef.current) {
+      params.set('native_language', nativeLanguageRef.current.trim());
+    }
 
     if (sourceTokenRef.current) {
       params.set('source_token', sourceTokenRef.current);

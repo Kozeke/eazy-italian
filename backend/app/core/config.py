@@ -90,8 +90,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Ligua AI"
     
-    # AI Provider Configuration
-    AI_PROVIDER: str = "groq"
+    # AI Provider Configuration (exercise generation defaults to DeepSeek→Groq in ai_exercise_generator)
+    AI_PROVIDER: str = "deepseek"
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_TIMEOUT: int = 60

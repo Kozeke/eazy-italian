@@ -2,8 +2,8 @@
  * AdminHeader.jsx
  *
  * Props unchanged from v1:
- *   userName / userEmail / trialUntil / darkMode / onToggleDark / onLogout /
- *   onProfileSettings / onTariffs
+ *   userName / userEmail / trialUntil / teacherSubscriptionPlan / darkMode /
+ *   onToggleDark / onLogout / onProfileSettings / onTariffs
  *
  * Part C (Phase 6):
  *   • Fetches GET /admin/tariffs/me ONCE on mount (single useEffect, no polling).
@@ -309,6 +309,15 @@ function getTrialDaysLeft(isoStr) {
 }
 function getInitial(name) { return name?.trim()[0]?.toUpperCase() ?? "?"; }
 
+/** Maps raw /users/me plan strings to canonical tariff keys (premium → standard, etc.). */
+function normalizeTeacherPlanKey(raw) {
+  if (raw == null || String(raw).trim() === "") return "free";
+  const n = String(raw).trim().toLowerCase();
+  if (n === "premium") return "standard";
+  if (n === "basic") return "free";
+  return n;
+}
+
 function usePopover(ref, onClose) {
   useEffect(() => {
     function onPD(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
@@ -398,21 +407,36 @@ function LimitsTab({ visible }) {
 }
 
 // ── TrialPopover ──────────────────────────────────────────────────────────────
-function TrialPopover({ trialUntil, onClose, onTariffs }) {
+function TrialPopover({ trialUntil, teacherSubscriptionPlan, onClose, onTariffs }) {
   const { t, i18n } = useTranslation();
   const ref       = useRef(null);
   usePopover(ref, onClose);
   const [tab, setTab] = useState("plan");
+  // Canonical plan from User.subscription — Pro uses null subscription_ends_at, so we must not infer "free" from that alone.
+  const planKey  = normalizeTeacherPlanKey(teacherSubscriptionPlan);
+  const isPaid   = planKey !== "free";
   const trialDate = formatTrialDate(trialUntil, i18n.language);
   const daysLeft  = getTrialDaysLeft(trialUntil);
-  const isPaid    = trialUntil != null;
-  const paidNote  = isPaid && trialDate
-    ? (daysLeft == null
-        ? t("admin.header.trialPopover.paidDateOnly", { date: trialDate })
-        : daysLeft === 1
-          ? t("admin.header.trialPopover.paidOneDayLeft", { date: trialDate })
-          : t("admin.header.trialPopover.paidManyDaysLeft", { date: trialDate, days: daysLeft }))
-    : null;
+  // Paid note: period text when ends_at parses; open-ended / fallback copy otherwise (Pro has null ends_at).
+  let paidNote = null;
+  if (isPaid) {
+    if (trialUntil && trialDate) {
+      paidNote =
+        daysLeft == null
+          ? t("admin.header.trialPopover.paidDateOnly", { date: trialDate })
+          : daysLeft === 1
+            ? t("admin.header.trialPopover.paidOneDayLeft", { date: trialDate })
+            : t("admin.header.trialPopover.paidManyDaysLeft", { date: trialDate, days: daysLeft });
+    } else {
+      paidNote = t("admin.header.trialPopover.openEndedActive");
+    }
+  }
+  const planLabel =
+    planKey === "pro"
+      ? t("admin.tariffs.plans.pro")
+      : planKey === "standard"
+        ? t("admin.tariffs.plans.standard")
+        : t("admin.tariffs.plans.free");
   return (
     <div className="ah-dropdown ah-trial-pop" ref={ref} role="dialog" aria-label={t("admin.header.trialPopover.aria")}>
       <div className="ah-tp-tabs">
@@ -422,7 +446,7 @@ function TrialPopover({ trialUntil, onClose, onTariffs }) {
       {tab === "plan" && (
         <div className="ah-tp-body">
           <div className="ah-tp-plan-row">
-            <span className="ah-tp-plan-name">{isPaid ? t("admin.tariffs.plans.standard") : t("admin.tariffs.plans.free")}</span>
+            <span className="ah-tp-plan-name">{planLabel}</span>
             <span className="ah-tp-badge">{isPaid ? t("admin.subscription.active") : t("admin.tariffs.plans.free")}</span>
           </div>
           {paidNote
@@ -483,14 +507,15 @@ function HelpDropdown({ onClose }) {
 
 // ── AdminHeader ───────────────────────────────────────────────────────────────
 export default function AdminHeader({
-  userName          = "",
-  userEmail         = "",
-  trialUntil        = null,
-  darkMode          = false,
-  onToggleDark      = () => {},
-  onLogout          = () => {},
-  onProfileSettings = () => {},
-  onTariffs         = () => {},
+  userName                = "",
+  userEmail               = "",
+  trialUntil              = null,
+  teacherSubscriptionPlan = null,
+  darkMode                = false,
+  onToggleDark            = () => {},
+  onLogout                = () => {},
+  onProfileSettings       = () => {},
+  onTariffs               = () => {},
 }) {
   const { t } = useTranslation();
   const [userOpen,  setUserOpen]  = useState(false);
@@ -524,6 +549,11 @@ export default function AdminHeader({
   const initial       = useMemo(() => getInitial(userName), [userName]);
   const showTrial     = true;
   const trialDaysLeft = useMemo(() => getTrialDaysLeft(trialUntil), [trialUntil]);
+  // True when /users/me reports a paid teacher tier (Pro has no subscription_ends_at).
+  const hasPaidTeacherPlan = useMemo(
+    () => normalizeTeacherPlanKey(teacherSubscriptionPlan) !== "free",
+    [teacherSubscriptionPlan],
+  );
 
   const openUser   = useCallback(() => { setTrialOpen(false); setHelpOpen(false); setUserOpen(o => !o); }, []);
   const openTrial  = useCallback(() => { setUserOpen(false);  setHelpOpen(false); setTrialOpen(o => !o); }, []);
@@ -602,13 +632,26 @@ export default function AdminHeader({
                 aria-haspopup="dialog"
                 aria-expanded={trialOpen}
                 aria-label={trialDaysLeft != null ? t("admin.subscription.daysLeftAria", { days: trialDaysLeft }) : t("admin.subscription.planAria")}
-                title={trialDaysLeft != null ? t("admin.subscription.daysLeftTitle", { days: trialDaysLeft }) : t("admin.subscription.freePlanTitle")}
+                title={
+                  trialDaysLeft != null
+                    ? t("admin.subscription.daysLeftTitle", { days: trialDaysLeft })
+                    : hasPaidTeacherPlan
+                      ? t("admin.subscription.activePlanTitle")
+                      : t("admin.subscription.freePlanTitle")
+                }
               >
                 <span className="ah-trial-ring" aria-hidden="true" />
                 <IcoTrial />
                 {trialDaysLeft != null && <span className="ah-trial-days" aria-hidden="true">{trialDaysLeft}d</span>}
               </button>
-              {trialOpen && <TrialPopover trialUntil={trialUntil} onClose={closeTrial} onTariffs={onTariffs} />}
+              {trialOpen && (
+                <TrialPopover
+                  trialUntil={trialUntil}
+                  teacherSubscriptionPlan={teacherSubscriptionPlan}
+                  onClose={closeTrial}
+                  onTariffs={onTariffs}
+                />
+              )}
             </div>
           )}
 

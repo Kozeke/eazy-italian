@@ -22,6 +22,10 @@ class CourseBase(BaseModel):
     meta_description: Optional[str] = None
     is_visible_to_students: bool = False
     settings: Optional[Dict[str, Any]] = None
+    # Language the course teaches (e.g. "Italian"). Free-form short string.
+    target_language: Optional[str] = None
+    # Language used to explain content to the learner (e.g. "Russian").
+    native_language: Optional[str] = None
 
 class CourseCreate(BaseModel):
     """Schema for creating a new course"""
@@ -39,6 +43,10 @@ class CourseCreate(BaseModel):
     meta_description: Optional[str] = None
     is_visible_to_students: Optional[bool] = False
     settings: Optional[Dict[str, Any]] = None
+    # Language the course teaches (e.g. "Italian").
+    target_language: Optional[str] = None
+    # Language used to explain content to the learner (e.g. "Russian").
+    native_language: Optional[str] = None
 
     @validator('publish_at')
     def validate_publish_at(cls, v, values):
@@ -69,6 +77,10 @@ class CourseUpdate(BaseModel):
     meta_description: Optional[str] = None
     is_visible_to_students: Optional[bool] = None
     settings: Optional[Dict[str, Any]] = None
+    # Language the course teaches (e.g. "Italian").
+    target_language: Optional[str] = None
+    # Language used to explain content to the learner (e.g. "Russian").
+    native_language: Optional[str] = None
 
 class CourseSummary(BaseModel):
     """Summary of course content"""
@@ -119,6 +131,11 @@ class CourseListResponse(BaseModel):
     is_enrolled: Optional[bool] = False  # Whether the current user is enrolled
     user_subscription: Optional[str] = None  # User's subscription type: 'free', 'premium', 'pro'
     enrolled_courses_count: Optional[int] = 0  # Total courses the user is enrolled in
+    # Language the course teaches (e.g. "Italian"). Surfaced in list views so admin
+    # tables and student dashboards can render/filter by language without a full fetch.
+    target_language: Optional[str] = None
+    # Language used to explain content to the learner (e.g. "Russian").
+    native_language: Optional[str] = None
 
     class Config:
         from_attributes = True

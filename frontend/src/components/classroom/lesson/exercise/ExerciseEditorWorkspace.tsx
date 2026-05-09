@@ -22,7 +22,9 @@
  * mode="embedded"    → flex child inside parent
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ExerciseHeader, { EXERCISE_HEADER_HEIGHT_PX } from './ExerciseHeader';
 import ExerciseEditorPlayer from './ExerciseEditorPlayer';
@@ -48,36 +50,37 @@ function draftToApiPayload(draft: QuestionDraft): Record<string, unknown> {
   return { type, prompt, ...rest };
 }
 
-function validateDraft(draft: QuestionDraft): string[] {
+function validateDraft(draft: QuestionDraft, t: TFunction): string[] {
   const errors: string[] = [];
-  if (!draft.prompt.trim()) errors.push('Question prompt is required.');
+  const v = 'exerciseEditors.workspace.validation';
+  if (!draft.prompt.trim()) errors.push(t(`${v}.promptRequired`));
   if (draft.type === 'multiple_choice') {
-    if (draft.options.length < 2) errors.push('At least 2 options required.');
-    if (draft.correct_option_ids.length === 0) errors.push('Mark at least one correct answer.');
-    if (draft.options.some(o => !o.text.trim())) errors.push('All options must have text.');
+    if (draft.options.length < 2) errors.push(t(`${v}.mcOptionsMin`));
+    if (draft.correct_option_ids.length === 0) errors.push(t(`${v}.mcCorrectMin`));
+    if (draft.options.some(o => !o.text.trim())) errors.push(t(`${v}.mcOptionText`));
   }
   if (draft.type === 'true_false' && !draft.correct_option_id)
-    errors.push('Select True or False as the correct answer.');
+    errors.push(t(`${v}.tfCorrect`));
   if (draft.type === 'open_answer') {
     if (draft.expected_mode === 'keywords' && draft.keywords.every(k => !k.text.trim()))
-      errors.push('Add at least one keyword for grading.');
+      errors.push(t(`${v}.keywordsMin`));
     if (draft.expected_mode === 'regex' && !draft.pattern.trim())
-      errors.push('Enter a regex pattern for grading.');
+      errors.push(t(`${v}.regexPattern`));
   }
   if (draft.type === 'cloze_input' || draft.type === 'cloze_drag') {
     if (draft.gaps.some(g => !g.answers.trim()))
-      errors.push('All gaps must have at least one accepted answer.');
+      errors.push(t(`${v}.gapsAnswers`));
   }
   if (draft.type === 'matching_pairs') {
     if (draft.left_items.some(i => !i.text.trim()) || draft.right_items.some(i => !i.text.trim()))
-      errors.push('All matching items must have text.');
+      errors.push(t(`${v}.matchText`));
     if (draft.pairs.length < draft.left_items.length)
-      errors.push('Connect all left items to a right item.');
+      errors.push(t(`${v}.matchPairs`));
   }
   if (draft.type === 'ordering_words' || draft.type === 'ordering_sentences') {
     const items = draft.type === 'ordering_words' ? draft.tokens : draft.items;
-    if (items.some(t => !t.text.trim())) errors.push('All items must have text.');
-    if (draft.correct_order.length < items.length) errors.push('Set the correct order for all items.');
+    if (items.some(it => !it.text.trim())) errors.push(t(`${v}.orderItemsText`));
+    if (draft.correct_order.length < items.length) errors.push(t(`${v}.orderSet`));
   }
   return errors;
 }
@@ -96,27 +99,6 @@ const T = {
   text:       '#1C1F3A',
   sub:        '#6B6F8E',
   muted:      '#A8ABCA',
-};
-
-const MEDIA_META: Record<MediaBlockType, {
-  label: string; color: string; bg: string; border: string;
-  icon: React.ReactNode; placeholder: string;
-}> = {
-  image: {
-    label: 'Image', color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc',
-    icon: <Image size={20} strokeWidth={1.7} />,
-    placeholder: 'Paste an image URL or click upload →',
-  },
-  video: {
-    label: 'Video', color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd',
-    icon: <Video size={20} strokeWidth={1.7} />,
-    placeholder: 'Paste a YouTube or Vimeo URL',
-  },
-  audio: {
-    label: 'Audio', color: '#0d9488', bg: '#f0fdfa', border: '#5eead4',
-    icon: <Music size={20} strokeWidth={1.7} />,
-    placeholder: 'Paste an audio file URL',
-  },
 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -154,6 +136,7 @@ export default function ExerciseEditorWorkspace({
   onSettingsClick,
   onSave,
 }: ExerciseEditorWorkspaceProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -212,7 +195,7 @@ export default function ExerciseEditorWorkspace({
 
     // In slide mode, questions are optional — skip validation if none added
     const allErrors = (isSlideMode && questions.length === 0) ? [] : questions.flatMap((q, i) =>
-      validateDraft(q).map(e => `Q${i + 1}: ${e}`),
+      validateDraft(q, t).map(e => t('exerciseEditors.workspace.questionErrorLine', { n: i + 1, error: e })),
     );
     if (allErrors.length > 0) { setSaveError(allErrors[0]); return; }
 
@@ -236,7 +219,7 @@ export default function ExerciseEditorWorkspace({
           navigate(returnTo, {
             state: {
               exerciseImportForTest: {
-                title:  title.trim() || (isSlideMode ? 'Untitled slide' : 'Untitled exercise'),
+                title:  title.trim() || (isSlideMode ? t('exerciseEditors.workspace.untitledSlide') : t('exerciseHeader.untitledExercise')),
                 drafts: questions,
                 mediaBlocks,
               },
@@ -247,11 +230,11 @@ export default function ExerciseEditorWorkspace({
         }
       }
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Save failed. Please try again.');
+      setSaveError(err instanceof Error ? err.message : t('exerciseEditors.workspace.saveFailed'));
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, isSlideMode, questions, title, mediaBlocks, onSave, routeState, navigate]);
+  }, [isSaving, isSlideMode, questions, title, mediaBlocks, onSave, routeState, navigate, t]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -328,10 +311,10 @@ export default function ExerciseEditorWorkspace({
               <rect x="2" y="1.5" width="12" height="13" rx="2" fill={T.tint} stroke={T.primary} strokeWidth="1.4"/>
               <path d="M5 6h6M5 8.5h6M5 11h4" stroke={T.primary} strokeWidth="1.1" strokeLinecap="round"/>
             </svg>
-            Blank slide canvas
+            {t('exerciseEditors.workspace.slideCanvasBadge')}
           </span>
           <span style={{ fontSize: 11, color: T.muted }}>
-            — add media blocks and exercises below
+            {t('exerciseEditors.workspace.slideCanvasHint')}
           </span>
         </div>
       )}
@@ -384,7 +367,27 @@ export function MediaBlockCard({
   onChange: (patch: Partial<MediaBlock>) => void;
   onRemove: () => void;
 }) {
-  const meta = MEDIA_META[block.mediaType];
+  const { t } = useTranslation();
+  const meta = {
+    image: {
+      label: t('exerciseEditors.workspace.mediaImageLabel'),
+      color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc',
+      icon: <Image size={20} strokeWidth={1.7} />,
+      placeholder: t('exerciseEditors.workspace.mediaImagePlaceholder'),
+    },
+    video: {
+      label: t('exerciseEditors.workspace.mediaVideoLabel'),
+      color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd',
+      icon: <Video size={20} strokeWidth={1.7} />,
+      placeholder: t('exerciseEditors.workspace.mediaVideoPlaceholder'),
+    },
+    audio: {
+      label: t('exerciseEditors.workspace.mediaAudioLabel'),
+      color: '#0d9488', bg: '#f0fdfa', border: '#5eead4',
+      icon: <Music size={20} strokeWidth={1.7} />,
+      placeholder: t('exerciseEditors.workspace.mediaAudioPlaceholder'),
+    },
+  }[block.mediaType];
   const [urlFocused, setUrlFocused] = useState(false);
 
   return (
@@ -414,7 +417,7 @@ export function MediaBlockCard({
         </span>
         <button
           onClick={onRemove}
-          title="Remove block"
+          title={t('exerciseEditors.workspace.mediaRemoveBlock')}
           style={{
             background: 'none', border: 'none', color: meta.color,
             opacity: 0.55, cursor: 'pointer', padding: 4, borderRadius: 6,
@@ -461,7 +464,7 @@ export function MediaBlockCard({
           type="text"
           value={block.caption}
           onChange={e => onChange({ caption: e.target.value })}
-          placeholder="Caption (optional)"
+          placeholder={t('exerciseEditors.workspace.mediaCaptionPlaceholder')}
           style={{
             height: 34, borderRadius: 9,
             border: `1.5px solid ${T.border}`, background: T.bg,
@@ -484,6 +487,7 @@ export function MediaBlockCard({
 // ─── MediaPreview ─────────────────────────────────────────────────────────────
 
 function MediaPreview({ block }: { block: MediaBlock }) {
+  const { t } = useTranslation();
   if (block.mediaType === 'image') {
     return (
       <div style={{
@@ -495,7 +499,7 @@ function MediaPreview({ block }: { block: MediaBlock }) {
       }}>
         <img
           src={block.url}
-          alt={block.caption || 'Image preview'}
+          alt={block.caption || t('exerciseEditors.workspace.mediaImagePreviewAlt')}
           style={{ maxWidth: '100%', maxHeight: 240, objectFit: 'contain', display: 'block' }}
           onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
         />
@@ -512,7 +516,7 @@ function MediaPreview({ block }: { block: MediaBlock }) {
             style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            title="Video preview"
+            title={t('exerciseEditors.workspace.mediaVideoPreviewTitle')}
           />
         </div>
       );
@@ -523,7 +527,7 @@ function MediaPreview({ block }: { block: MediaBlock }) {
         background: '#f5f3ff', border: '1px solid #c4b5fd',
         fontSize: 12, color: '#7c3aed',
       }}>
-        Preview available after saving.
+        {t('exerciseEditors.workspace.mediaPreviewAfterSave')}
       </div>
     );
   }
@@ -536,6 +540,7 @@ function MediaPreview({ block }: { block: MediaBlock }) {
 // ─── UploadButton ─────────────────────────────────────────────────────────────
 
 function UploadButton({ onUpload }: { onUpload: (url: string) => void }) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [hov, setHov] = useState(false);
   return (
@@ -553,7 +558,7 @@ function UploadButton({ onUpload }: { onUpload: (url: string) => void }) {
         onClick={() => inputRef.current?.click()}
         onMouseEnter={() => setHov(true)}
         onMouseLeave={() => setHov(false)}
-        title="Upload image"
+        title={t('exerciseEditors.workspace.mediaUploadImageTitle')}
         style={{
           height: 38, width: 38, borderRadius: 9, flexShrink: 0,
           border: `1.5px solid ${hov ? '#a5f3fc' : T.border}`,

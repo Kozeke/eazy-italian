@@ -168,6 +168,11 @@ export default function SelectWordFormBlock({
   };
 
   const { title, segments = [], gaps = {} } = exerciseData;
+  // AI-generated learner instruction (course.native_language); falls back to
+  // the original English copy if the block predates instruction generation.
+  const instruction =
+    (exerciseData as unknown as { instruction?: string }).instruction?.trim() ||
+    "Select the correct word form in each gap";
 
   const liveCtx = useContext(LiveSessionContext);
   const isTeacher = liveCtx?.role === "teacher";
@@ -269,7 +274,7 @@ export default function SelectWordFormBlock({
         )}
         
           <div className="dtg-exercise-instruction">
-            Select the correct word form in each gap
+            {instruction}
           </div>
         
       </div>

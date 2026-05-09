@@ -78,6 +78,7 @@ export default function StudentAppLayout() {
         userName={headerUserName}
         userEmail={user?.email ?? ""}
         trialUntil={null}
+        teacherSubscriptionPlan={user?.subscription ?? null}
         darkMode={darkMode}
         onToggleDark={() => setDarkMode((previousMode) => !previousMode)}
         onLogout={handleLogout}

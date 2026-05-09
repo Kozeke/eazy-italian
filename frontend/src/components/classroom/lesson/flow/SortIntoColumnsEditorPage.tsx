@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
@@ -149,12 +150,14 @@ function buildDraftFromColumns(
 export default function SortIntoColumnsEditorPage({
   initialTitle = '',
   initialDraft,
-  label = 'Sort into columns',
+  label,
   onSave,
   segmentId,          // ← ADD
   onCancel,
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.sort-columns');
   const baseDraft = useMemo(() => normaliseDraft(initialDraft), [initialDraft]);
   const [title, setTitle] = useState(initialTitle);
   const [columns, setColumns] = useState<ColumnDraft[]>(() =>
@@ -174,9 +177,9 @@ export default function SortIntoColumnsEditorPage({
   const preparedDraft = useMemo(
     () => ({
       ...buildDraftFromColumns(baseDraft, columns),
-      prompt: title.trim() || label,
+      prompt: title.trim() || resolvedLabel,
     }),
-    [baseDraft, columns, title, label],
+    [baseDraft, columns, title, resolvedLabel],
   );
 
   const columnsAreValid =
@@ -264,7 +267,7 @@ export default function SortIntoColumnsEditorPage({
   const handleSave = async () => {
     if (!canSave) return;
 
-    const resolvedTitle = title.trim() || label;
+    const resolvedTitle = title.trim() || resolvedLabel;
     await onSave(
       resolvedTitle,
       [{
@@ -284,7 +287,7 @@ export default function SortIntoColumnsEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -299,8 +302,8 @@ export default function SortIntoColumnsEditorPage({
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
-            aria-label="Exercise title"
+            placeholder={t('exerciseEditors.common.exerciseTitlePlaceholder')}
+            aria-label={t('exerciseEditors.common.exerciseTitleAria')}
           />
         </div>
 
@@ -310,7 +313,7 @@ export default function SortIntoColumnsEditorPage({
         >
           {previewWords.length === 0 ? (
             <span className="dtg-words-bar-hint">
-              Added words will appear here
+              {t('exerciseEditors.sortColumns.wordsPreviewEmpty')}
             </span>
           ) : (
             previewWords.map((word) => (
@@ -375,7 +378,7 @@ export default function SortIntoColumnsEditorPage({
                   type="text"
                   value={column.title}
                   onChange={(e) => updateColumnTitle(columnIndex, e.target.value)}
-                  placeholder="Column title"
+                  placeholder={t('exerciseEditors.common.columnTitlePlaceholder')}
                   style={{
                     flex: 1,
                     border: 'none',
@@ -404,8 +407,8 @@ export default function SortIntoColumnsEditorPage({
                     cursor: columns.length <= 2 ? 'not-allowed' : 'pointer',
                     flexShrink: 0,
                   }}
-                  aria-label={`Remove column ${columnIndex + 1}`}
-                  title="Удалить колонку"
+                  aria-label={t('exerciseEditors.sortColumns.removeColumnAria', { n: columnIndex + 1 })}
+                  title={t('exerciseEditors.sortColumns.removeColumnTitle')}
                 >
                   <Trash2 size={16} />
                 </button>
@@ -425,7 +428,7 @@ export default function SortIntoColumnsEditorPage({
                     className="dtg-words-bar-hint"
                     style={{ width: '100%' }}
                   >
-                    Drop words here
+                    {t('exerciseEditors.sortColumns.dropWordsHere')}
                   </span>
                 )}
 
@@ -448,7 +451,7 @@ export default function SortIntoColumnsEditorPage({
                       onChange={(e) =>
                         updateWord(columnIndex, word.id, e.target.value)
                       }
-                      placeholder="Write a word"
+                      placeholder={t('exerciseEditors.common.columnWordPlaceholder')}
                       style={{
                         flex: 1,
                         border: 'none',
@@ -472,7 +475,7 @@ export default function SortIntoColumnsEditorPage({
                         cursor: 'pointer',
                         flexShrink: 0,
                       }}
-                      aria-label="Remove word"
+                      aria-label={t('exerciseEditors.sortColumns.removeWordAria')}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -498,7 +501,7 @@ export default function SortIntoColumnsEditorPage({
                 }}
               >
                 <Plus size={14} />
-                Add word
+                {t('exerciseEditors.sortColumns.addWord')}
               </button>
             </div>
           ))}
@@ -543,7 +546,7 @@ export default function SortIntoColumnsEditorPage({
                 }}
               >
                 <Plus size={16} />
-                Add column
+                {t('exerciseEditors.sortColumns.addColumn')}
               </button>
             </div>
           </div>
@@ -563,7 +566,7 @@ export default function SortIntoColumnsEditorPage({
               className="dtg-btn-cancel"
               onClick={onCancel}
             >
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -577,11 +580,11 @@ export default function SortIntoColumnsEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Заполните названия колонок и все слова перед сохранением'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.sortColumns.needCompleteTooltip')
+                  : t('exerciseEditors.common.saveExerciseHelp')
               }
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

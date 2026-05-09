@@ -390,7 +390,12 @@ export default function SortIntoColumnsBlock({
         </div>
       )}
 
-      <div className="bs-prompt">{SORT_INTO_COLUMNS_PROMPT_TEXT}</div>
+      {/* Prefer the AI-generated learner instruction (course.native_language)
+          with the canonical English fallback for legacy blocks. */}
+      <div className="bs-prompt">
+        {(typedItem.data as unknown as { instruction?: string })?.instruction?.trim() ||
+          SORT_INTO_COLUMNS_PROMPT_TEXT}
+      </div>
 
       <div
         className="dtg-pool-bar"

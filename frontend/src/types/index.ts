@@ -16,9 +16,9 @@ export interface User {
   created_at: string;
   updated_at?: string;
   onboarding_completed?: boolean;
-  // ISO datetime when the active subscription expires; null means no paid subscription.
+  // ISO datetime when the active subscription expires; null for free or open-ended Pro.
   subscription_ends_at?: string | null;
-  // Name of the active subscription plan (e.g. "premium", "pro"); null for free users.
+  // Active plan slug from UserSubscription (e.g. "pro", "standard"); null when free.
   subscription?: string | null;
 }
 

@@ -585,6 +585,22 @@ function ClassroomPageInner({
     (courseId ? sessionStorage.getItem(`ai_source_token_${courseId}`) : null) ??
     undefined;
 
+  // ── generationLanguage — the target language the course TEACHES ──────────
+  // Priority: 1. ?language= URL param (written by CreateCourseModal goToClassroom)
+  //           2. sessionStorage ai_language_{courseId} (also written by CreateCourseModal)
+  //           3. 'English' fallback
+  const generationLanguage: string =
+    searchParams.get('language') ??
+    (courseId ? sessionStorage.getItem(`ai_language_${courseId}`) : null) ??
+    'English';
+
+  // Native / explanation language — grammar rules and instructions are written
+  // in this language so the student can understand them.
+  const generationNativeLanguage: string =
+    searchParams.get('native_language') ??
+    (courseId ? sessionStorage.getItem(`ai_native_language_${courseId}`) : null) ??
+    'English';
+
   // Read the outline cached in sessionStorage by CreateCourseModal.
   // Shape: { title, units: [{ title, description, sections: [{ title, description }] }] }
   const [courseOutline, setCourseOutline] = useState<any | null>(null);
@@ -674,9 +690,11 @@ function ClassroomPageInner({
 
   // Generation hook — start() called from inside UnitSelectorModal  (BLOCK A)
   const courseGen = useCourseGeneration({
-    courseId:    courseId ? Number(courseId) : null,
-    level:       generationLevel,
-    sourceToken,                   // ← NEW: undefined when no files were uploaded
+    courseId:       courseId ? Number(courseId) : null,
+    level:          generationLevel,
+    language:       generationLanguage,
+    nativeLanguage: generationNativeLanguage,
+    sourceToken,
     units,
     onUnitDone: (unitId) => {
       // Refresh the unit list so the modal sidebar shows up-to-date titles/status.
@@ -702,6 +720,8 @@ function ClassroomPageInner({
       if (courseId) {
         sessionStorage.removeItem(`ai_outline_${courseId}`);
         sessionStorage.removeItem(`ai_source_token_${courseId}`);
+        sessionStorage.removeItem(`ai_language_${courseId}`);
+        sessionStorage.removeItem(`ai_native_language_${courseId}`);
       }
     },
   });
@@ -1739,7 +1759,7 @@ function ClassroomPageInner({
         onStartCourseGeneration={courseGen.start}
         courseId={courseId ? Number(courseId) : null}
         generationLevel={generationLevel}
-        generationLanguage={editCourseSeed.initialLanguage === 'en' ? 'English' : editCourseSeed.initialLanguage || 'English'}
+        generationLanguage={generationLanguage}
         onEditOutline={(updatedOutline) => {
           // Update in-memory state so CourseGenerationPanel re-renders immediately
           setCourseOutline(updatedOutline);

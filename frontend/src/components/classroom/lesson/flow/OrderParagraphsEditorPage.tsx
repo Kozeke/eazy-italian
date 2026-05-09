@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
@@ -81,12 +82,14 @@ function normaliseDraft(initialDraft?: OrderingSentencesDraft): OrderingSentence
 export default function OrderParagraphsEditorPage({
   initialTitle = '',
   initialDraft,
-  label = 'Order paragraphs',
+  label,
   onSave,
   onCancel,
   segmentId,
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.order-text');
   const [title, setTitle] = useState(initialTitle);
   const [draft, setDraft] = useState<OrderingSentencesDraft>(() =>
     normaliseDraft(initialDraft),
@@ -107,9 +110,9 @@ export default function OrderParagraphsEditorPage({
   const preparedDraft = useMemo(
     () => ({
       ...draft,
-      prompt: draft.prompt.trim() || title.trim() || label,
+      prompt: draft.prompt.trim() || title.trim() || resolvedLabel,
     }),
-    [draft, title, label],
+    [draft, title, resolvedLabel],
   );
 
   const canSave = useMemo(
@@ -119,7 +122,7 @@ export default function OrderParagraphsEditorPage({
 
   const handleSave = async () => {
     if (!canSave) return;
-    const resolvedTitle = title.trim() || label;
+    const resolvedTitle = title.trim() || resolvedLabel;
     await onSave(
       resolvedTitle,
       [{
@@ -139,7 +142,7 @@ export default function OrderParagraphsEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -154,14 +157,14 @@ export default function OrderParagraphsEditorPage({
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
-            aria-label="Exercise title"
+            placeholder={t('exerciseEditors.common.exerciseTitlePlaceholder')}
+            aria-label={t('exerciseEditors.common.exerciseTitleAria')}
           />
         </div>
 
         <div className="dtg-editor-title-preview">
           <div className="dtg-exercise-instruction">
-            Arrange the paragraphs in the correct order
+            {t('exerciseEditors.orderParagraphs.instruction')}
           </div>
         </div>
 
@@ -200,7 +203,7 @@ export default function OrderParagraphsEditorPage({
               className="dtg-btn-cancel"
               onClick={onCancel}
             >
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -214,11 +217,11 @@ export default function OrderParagraphsEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Заполните все предложения перед сохранением'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.orderParagraphs.needCompleteTooltip')
+                  : t('exerciseEditors.common.saveExerciseHelp')
               }
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

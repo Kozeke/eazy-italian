@@ -50,6 +50,7 @@ import {
   GALLERY_SECTIONS,
   findTemplate,
   templateIdForSegmentExerciseKind,
+  type GallerySectionId,
   type TemplateConfig,
 } from "./exerciseTemplateRegistry.tsx";
 import DragToGapEditorPage, {
@@ -323,6 +324,7 @@ function TemplateCard({
   creating: boolean;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const [liked, setLiked] = useState(false);
 
@@ -368,7 +370,7 @@ function TemplateCard({
       </div>
       <div style={{ padding: "10px 12px 12px", textAlign: "center" }}>
         <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: C.text, letterSpacing: "-0.01em", lineHeight: 1.3 }}>
-          {template.label}
+          {t(`exerciseTemplates.labels.${template.id}`)}
         </p>
       </div>
     </div>
@@ -386,6 +388,7 @@ function ListRow({
   creating: boolean;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   return (
     <div
@@ -407,7 +410,7 @@ function ListRow({
           {template.preview}
         </div>
       </div>
-      <span style={{ fontSize: 13, fontWeight: 600, color: C.text, flex: 1 }}>{template.label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: C.text, flex: 1 }}>{t(`exerciseTemplates.labels.${template.id}`)}</span>
       <ChevronRight size={14} color={C.muted} strokeWidth={2} />
     </div>
   );
@@ -416,22 +419,24 @@ function ListRow({
 // ─── GallerySectionGroup ──────────────────────────────────────────────────────
 
 function GallerySectionGroup({
-  sectionName,
+  sectionId,
   templates,
   view,
   creating,
   onSelect,
 }: {
-  sectionName: string;
+  sectionId: GallerySectionId;
   templates: TemplateConfig[];
   view: "grid" | "list";
   creating: string | null;
   onSelect: (id: string) => void;
 }) {
+  const { t } = useTranslation();
+  const sectionTitle = t(`exerciseTemplates.sections.${sectionId}`);
   return (
     <div style={{ marginTop: 28 }}>
       <p style={{ margin: "0 0 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.muted }}>
-        {sectionName}
+        {sectionTitle}
       </p>
       {view === "grid" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
@@ -648,20 +653,21 @@ function Gallery({
   const filtered = useMemo(
     () => {
       // Stores only enabled templates so disabled exercises never appear in the gallery.
-      const enabledTemplates = TEMPLATE_REGISTRY.filter((t) => !DISABLED_TEMPLATE_IDS.has(t.id));
-      return q
-        ? enabledTemplates.filter(
-            (t) => t.label.toLowerCase().includes(q) || t.section.toLowerCase().includes(q),
-          )
-        : enabledTemplates;
+      const enabledTemplates = TEMPLATE_REGISTRY.filter((tmpl) => !DISABLED_TEMPLATE_IDS.has(tmpl.id));
+      if (!q) return enabledTemplates;
+      return enabledTemplates.filter((tmpl) => {
+        const labelLower = t(`exerciseTemplates.labels.${tmpl.id}`).toLowerCase();
+        const sectionLower = t(`exerciseTemplates.sections.${tmpl.section}`).toLowerCase();
+        return labelLower.includes(q) || sectionLower.includes(q);
+      });
     },
-    [q],
+    [q, t],
   );
 
   const bySection = useMemo(() => {
-    const acc: Record<string, TemplateConfig[]> = {};
+    const acc: Partial<Record<GallerySectionId, TemplateConfig[]>> = {};
     for (const sec of GALLERY_SECTIONS) {
-      const items = filtered.filter((t) => t.section === sec);
+      const items = filtered.filter((tmpl) => tmpl.section === sec);
       if (items.length) acc[sec] = items;
     }
     return acc;
@@ -732,10 +738,10 @@ function Gallery({
               {t("exerciseDrafts.noTemplatesMatch", { query: search })}
             </div>
           ) : (
-            Object.entries(bySection).map(([sec, items]) => (
+            (Object.entries(bySection) as [GallerySectionId, TemplateConfig[]][]).map(([sec, items]) => (
               <GallerySectionGroup
                 key={sec}
-                sectionName={sec}
+                sectionId={sec}
                 templates={items}
                 view={view}
                 creating={creating}
@@ -767,6 +773,7 @@ export default function ExerciseDraftsPage({
   onAIGenerated,
   initialEditContext = null,
 }: ExerciseDraftsPageProps) {
+  const { t } = useTranslation();
   const [pageMode, setPageMode] = useState<PageMode>("gallery");
   const [selected, setSelected] = useState<SelectedTemplate | null>(null);
   const [showAIModal, setShowAIModal] = useState(false);
@@ -790,8 +797,8 @@ export default function ExerciseDraftsPage({
     setInlineEditSeed(initialEditContext);
     const label =
       initialEditContext.title?.trim() ||
-      tmpl.label ||
-      "Exercise";
+      t(`exerciseTemplates.labels.${templateId}`) ||
+      t("exerciseHeader.untitledExercise");
     setSelected({
       typeId: templateId,
       label,
@@ -799,7 +806,7 @@ export default function ExerciseDraftsPage({
       initialMediaBlocks: [],
     });
     setPageMode(pageModeForTemplateCustomEditor(tmpl.customEditor));
-  }, [initialEditContext]);
+  }, [initialEditContext, t]);
 
   // If the parent passes onGenerateAI, respect that; otherwise open our modal.
   const handleOpenAI = useCallback(() => {
@@ -846,7 +853,7 @@ export default function ExerciseDraftsPage({
   const handleCreate = useCallback(
     async (templateId: string) => {
       const tmpl = findTemplate(templateId);
-      const label = tmpl?.label ?? "Exercise";
+      const label = tmpl ? t(`exerciseTemplates.labels.${tmpl.id}`) : t("exerciseHeader.untitledExercise");
 
       // ── Custom editor override (e.g. gap-based custom blocks) ─────────────
       if (
@@ -968,7 +975,7 @@ export default function ExerciseDraftsPage({
       setSelected({ typeId: templateId, label, initialQuestions: [emptyDraftFor(draftType)], initialMediaBlocks: [] });
       setPageMode("editor");
     },
-    [onSelectMediaDirect, routerState, navigate],
+    [onSelectMediaDirect, routerState, navigate, t],
   );
 
   // Return URL when the teacher came from the lesson (Add content / Edit exercise)
@@ -1036,7 +1043,7 @@ export default function ExerciseDraftsPage({
   const handleImageBlockSave = useCallback(
     async (data: ImageBlockData, blockId?: string) => {
       // Resolved title used for the block label.
-      const title = data.title || selected?.label || "Image block";
+      const title = data.title || selected?.label || t("exerciseTemplates.labels.img-block");
 
       // Homework-mode path: store in a separate key and navigate back.
       if (routerState?.homeworkMode) {
@@ -1083,7 +1090,7 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "image", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate, t],
   );
 
   /**
@@ -1092,7 +1099,7 @@ export default function ExerciseDraftsPage({
   const handleImageStackedSave = useCallback(
     async (data: ImageStackedData, blockId?: string) => {
       const title =
-        data.title?.trim() || selected?.label || "Images stacked";
+        data.title?.trim() || selected?.label || t("exerciseTemplates.labels.img-carousel");
 
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("image_stacked", title, data);
@@ -1155,7 +1162,7 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "image_stacked", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate, t],
   );
 
   /**
@@ -1164,7 +1171,7 @@ export default function ExerciseDraftsPage({
    */
   const handleGifAnimationSave = useCallback(
     async (data: GifAnimationData, blockId?: string) => {
-      const title = data.caption?.trim() || selected?.label || "GIF animation";
+      const title = data.caption?.trim() || selected?.label || t("exerciseTemplates.labels.img-gif");
 
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("gif_animation", title, data);
@@ -1227,7 +1234,7 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "gif_animation", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate, t],
   );
 
   /**
@@ -1236,7 +1243,7 @@ export default function ExerciseDraftsPage({
   const handleVideoBlockSave = useCallback(
     async (data: VideoBlockData, blockId?: string) => {
       // Stores resolved block title for menu labels and fallback.
-      const title = data.title?.trim() || selected?.label || "Video block";
+      const title = data.title?.trim() || selected?.label || t("exerciseTemplates.labels.video-embed");
 
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("video_embed", title, data);
@@ -1325,7 +1332,7 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "video_embed", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate, t],
   );
 
   /**
@@ -1334,7 +1341,7 @@ export default function ExerciseDraftsPage({
   const handleAudioBlockSave = useCallback(
     async (data: AudioBlockData, blockId?: string) => {
       // Stores resolved block title for menu labels and fallback.
-      const title = data.title?.trim() || selected?.label || "Audio block";
+      const title = data.title?.trim() || selected?.label || t("exerciseTemplates.labels.audio-clip");
 
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("audio_embed", title, data);
@@ -1399,14 +1406,14 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "audio_embed", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate],
+    [onSave, selected, routerState, storeHomeworkExercise, lessonReturnTo, inlineEditSeed, navigate, t],
   );
   //  * Wraps the DragToGapData into the standard onSave(title, payloads, drafts)
   //  * contract so the lesson workspace doesn't need to know about this type.
   //  */
   const handleDragToGapSave = useCallback(
     async (data: DragToGapData, blockId?: string) => {
-      const title = data.title || selected?.label || "Drag word to gap";
+      const title = data.title || selected?.label || t("exerciseTemplates.labels.drag-to-gap");
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("drag_to_gap", title, data);
         return;
@@ -1417,12 +1424,12 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "drag_to_gap", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise],
+    [onSave, selected, routerState, storeHomeworkExercise, t],
   );
 
   const handleTypeWordInGapSave = useCallback(
     async (data: TypeWordInGapData, blockId?: string) => {
-      const title = data.title || selected?.label || "Type word in gap";
+      const title = data.title || selected?.label || t("exerciseTemplates.labels.type-word-in-gap");
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("type_word_in_gap", title, data);
         return;
@@ -1431,12 +1438,12 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "type_word_in_gap", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise],
+    [onSave, selected, routerState, storeHomeworkExercise, t],
   );
 
   const handleTypeWordToImageSave = useCallback(
     async (data: TypeWordToImageData, blockId?: string) => {
-      const title = data.title || selected?.label || "Type word to image";
+      const title = data.title || selected?.label || t("exerciseTemplates.labels.visual-input");
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("type_word_to_image", title, data);
         return;
@@ -1445,12 +1452,12 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "type_word_to_image", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise],
+    [onSave, selected, routerState, storeHomeworkExercise, t],
   );
 
   const handleSelectFormToImageSave = useCallback(
     async (data: SelectFormToImageData, blockId?: string) => {
-      const title = data.title || selected?.label || "Select form to image";
+      const title = data.title || selected?.label || t("exerciseTemplates.labels.visual-select");
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("select_form_to_image", title, data);
         return;
@@ -1459,12 +1466,12 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "select_form_to_image", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise],
+    [onSave, selected, routerState, storeHomeworkExercise, t],
   );
 
   const handleDragToImageSave = useCallback(
     async (data: DragToImageData, blockId?: string) => {
-      const title = data.title || selected?.label || "Drag word to image";
+      const title = data.title || selected?.label || t("exerciseTemplates.labels.visual-drag");
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("drag_to_image", title, data);
         return;
@@ -1473,12 +1480,12 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "drag_to_image", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise],
+    [onSave, selected, routerState, storeHomeworkExercise, t],
   );
 
   const handleSelectWordFormSave = useCallback(
     async (data: SelectWordFormData, blockId?: string) => {
-      const title = data.title || selected?.label || "Select word form";
+      const title = data.title || selected?.label || t("exerciseTemplates.labels.cloze-select");
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("select_word_form", title, data);
         return;
@@ -1487,7 +1494,7 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "select_word_form", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise],
+    [onSave, selected, routerState, storeHomeworkExercise, t],
   );
 
   /**
@@ -1497,7 +1504,7 @@ export default function ExerciseDraftsPage({
    */
   const handleTextBlockSave = useCallback(
     async (data: TextBlockData, blockId?: string) => {
-      const title = data.title || selected?.label || "Text block";
+      const title = data.title || selected?.label || t("exerciseTemplates.labels.text-block");
       if (routerState?.homeworkMode) {
         storeHomeworkExercise("text", title, data);
         return;
@@ -1506,7 +1513,7 @@ export default function ExerciseDraftsPage({
         await onSave(title, [{ type: "text", _aiBlockId: blockId, data }], []);
       }
     },
-    [onSave, selected, routerState, storeHomeworkExercise],
+    [onSave, selected, routerState, storeHomeworkExercise, t],
   );
 
   return (

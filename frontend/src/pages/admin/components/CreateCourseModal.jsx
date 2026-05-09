@@ -1,10 +1,17 @@
 /**
- * CreateCourseModal.jsx  (v3 — file-enriched generation)
+ * CreateCourseModal.jsx  (v4 — language-aware generation)
  *
  * Two modes in one compact modal:
  *   • Quick    — single title input → create course immediately
  *   • Generate — describe your course → AI builds title + units (JSON POST /generate-outline).
  *                Optional file enrichment: CourseFileUploadModal.jsx (multipart /generate-outline-from-files).
+ *
+ * v4 adds smart language detection:
+ *   - Auto-detects the target language from the description ("Italian A1" → Italian)
+ *   - Reads the teacher's native language from their profile (locale / notification_prefs)
+ *   - Shows a compact editable "Teaching X · Explaining in Y" pill below the textarea
+ *   - Passes target_language + native_language to both outline endpoints so the AI
+ *     generates Italian content explained in English (not everything in English)
  *
  * Props:
  *   open       — controls visibility
@@ -19,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useTeacherClassroomTransition } from '../../../contexts/TeacherClassroomTransitionContext';
+import { useAuth } from '../../../hooks/useAuth';
 // Optional second step: teacher attaches PDFs/docs before outline generation.
 import CourseFileUploadModal from './CourseFileUploadModal';
 
@@ -46,13 +54,94 @@ const FONT_BODY    = "'Inter', system-ui, sans-serif";
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-// ─── Shared tariff cache ───────────────────────────────────────────────────────
-// Module-level singleton — survives re-renders and is shared with every other
-// component in the same JS bundle (AdminHeader, GenerateUnitModal, etc.) that
-// reads/writes the same window key, so we never fire a duplicate network request
-// when another component already has a fresh response.
+// ─── Language detection helpers ───────────────────────────────────────────────
 
-const TARIFF_CACHE_TTL = 90_000; // 90 s — fresh enough for quota enforcement
+/**
+ * Maps language names to keyword variants for detection from free-text input.
+ * Ordered by specificity — more specific keywords first.
+ */
+const LANGUAGE_DETECT_MAP = {
+  Italian:    ['italian', 'italiano'],
+  Spanish:    ['spanish', 'español', 'espanol', 'castellano'],
+  French:     ['french', 'français', 'francais'],
+  German:     ['german', 'deutsch'],
+  Russian:    ['russian', 'русский'],
+  Portuguese: ['portuguese', 'português', 'portugues', 'brazilian'],
+  Chinese:    ['chinese', 'mandarin', '中文', 'cantonese'],
+  Japanese:   ['japanese', '日本語'],
+  Korean:     ['korean', '한국어'],
+  Arabic:     ['arabic', 'العربية'],
+  Dutch:      ['dutch', 'nederlands'],
+  Polish:     ['polish', 'polski'],
+  Ukrainian:  ['ukrainian', 'українська'],
+  Turkish:    ['turkish', 'türkçe', 'turkce'],
+  Swedish:    ['swedish', 'svenska'],
+  Norwegian:  ['norwegian', 'norsk'],
+  Greek:      ['greek', 'ελληνικά'],
+  Hebrew:     ['hebrew', 'עברית'],
+  Hindi:      ['hindi', 'हिंदी'],
+  English:    ['english'],
+};
+
+/** Maps locale codes (from user.locale) to full language names. */
+const LOCALE_TO_LANGUAGE = {
+  en: 'English',  ru: 'Russian',  it: 'Italian',  de: 'German',
+  fr: 'French',   es: 'Spanish',  pt: 'Portuguese', zh: 'Chinese',
+  ja: 'Japanese', ko: 'Korean',   ar: 'Arabic',   nl: 'Dutch',
+  pl: 'Polish',   uk: 'Ukrainian', tr: 'Turkish',  sv: 'Swedish',
+  no: 'Norwegian', el: 'Greek',   he: 'Hebrew',   hi: 'Hindi',
+};
+
+/** Language options for the override dropdowns. */
+const ALL_LANGUAGES = Object.keys(LANGUAGE_DETECT_MAP).sort();
+
+/** Country-flag emoji for each language (best-effort). */
+const FLAG_MAP = {
+  Italian: '🇮🇹', Spanish: '🇪🇸', French: '🇫🇷', German: '🇩🇪',
+  English: '🇬🇧', Russian: '🇷🇺', Portuguese: '🇵🇹', Chinese: '🇨🇳',
+  Japanese: '🇯🇵', Korean: '🇰🇷', Arabic: '🇸🇦', Dutch: '🇳🇱',
+  Polish: '🇵🇱', Ukrainian: '🇺🇦', Turkish: '🇹🇷', Swedish: '🇸🇪',
+  Norwegian: '🇳🇴', Greek: '🇬🇷', Hebrew: '🇮🇱', Hindi: '🇮🇳',
+};
+
+/**
+ * Scan free-text for a recognisable language name.
+ * Returns the canonical language name ("Italian") or null.
+ */
+function detectTargetLanguage(text) {
+  const lower = text.toLowerCase();
+  for (const [lang, keywords] of Object.entries(LANGUAGE_DETECT_MAP)) {
+    if (keywords.some(kw => lower.includes(kw))) return lang;
+  }
+  return null;
+}
+
+/**
+ * Derive a display-name language from a user object.
+ * Priority: notification_prefs.native_language → locale → "English"
+ */
+function nativeLanguageFromUser(user) {
+  if (!user) return 'English';
+  // 1. Explicit native_language field (stored in notification_prefs for students;
+  //    some teacher accounts also set this via profile settings).
+  const explicit = user?.notification_prefs?.native_language;
+  if (explicit && typeof explicit === 'string' && explicit.trim()) {
+    const trimmed = explicit.trim();
+    // Normalise to title-case if it matches a known language
+    const normalised = ALL_LANGUAGES.find(l => l.toLowerCase() === trimmed.toLowerCase());
+    return normalised ?? trimmed;
+  }
+  // 2. locale code → full language name
+  const locale = (user?.locale ?? 'en').split('-')[0].toLowerCase();
+  return LOCALE_TO_LANGUAGE[locale] ?? 'English';
+}
+
+// ─── Shared tariff cache ──────────────────────────────────────────────────────
+// Stored on `window` so every component in the same JS bundle shares it.
+// GenerateUnitModal, AdminHeader etc. all write here — CreateCourseModal reads
+// instantly without firing a duplicate network request.
+
+const TARIFF_CACHE_TTL = 90_000; // ms
 
 function getTariffCache() {
   try {
@@ -66,7 +155,7 @@ function setTariffCache(data) {
   try { window.__lingu_tariff_cache = { data, ts: Date.now() }; } catch {}
 }
 
-
+// ─── API helpers ──────────────────────────────────────────────────────────────
 
 function authHeaders() {
   const token = localStorage.getItem('token');
@@ -94,11 +183,23 @@ async function parseJsonResponse(res, fallbackMessage) {
   }
 }
 
-async function apiCreateCourse(title) {
+// Creates a published course row. Optional ``languages`` lets callers persist
+// the AI-flow language context (target_language / native_language) on the
+// course so unit generation, content rendering, and admin filters can read
+// them later without re-asking the teacher.
+async function apiCreateCourse(title, languages = {}) {
+  // Builds the request body, only including language fields when non-empty so
+  // we never overwrite existing values with empty strings.
+  const body = { title, status: 'published', is_visible_to_students: true };
+  const targetLanguage = (languages.targetLanguage || '').trim();
+  const nativeLanguage = (languages.nativeLanguage || '').trim();
+  if (targetLanguage) body.target_language = targetLanguage;
+  if (nativeLanguage) body.native_language = nativeLanguage;
+
   const res = await fetch(buildAdminApiUrl('/admin/courses'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ title, status: 'published', is_visible_to_students: true }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
   return parseJsonResponse(
@@ -134,44 +235,6 @@ async function apiUploadThumbnail(courseId, file) {
     body: form,
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-}
-
-/**
- * Fast path — no uploaded files.
- * POST /api/v1/course-builder/generate-outline   (JSON body)
- * Returns { title, units: [...] }
- */
-async function apiGenerateOutline(description, level) {
-  const res = await fetch(buildAdminApiUrl('/course-builder/generate-outline'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ description, level }),
-  });
-  if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-  return parseJsonResponse(res, 'Outline generation returned an empty or invalid JSON response.');
-}
-
-/**
- * File-enrichment path — teacher uploaded one or more files.
- * POST /api/v1/course-builder/generate-outline-from-files   (multipart)
- * Returns { title, units: [...], source_token: "<uuid>" }
- *
- * source_token is stored in sessionStorage and forwarded to the SSE stream
- * so each unit's content is grounded in the uploaded material.
- */
-async function apiGenerateOutlineFromFiles(description, level, files) {
-  const form = new FormData();
-  form.append('description', description);
-  form.append('level', level);
-  for (const f of files) form.append('files', f);
-
-  const res = await fetch(buildAdminApiUrl('/course-builder/generate-outline-from-files'), {
-    method: 'POST',
-    headers: { ...authHeaders() },   // no Content-Type — browser sets multipart boundary
-    body: form,
-  });
-  if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-  return parseJsonResponse(res, 'Outline generation from files returned an empty or invalid JSON response.');
 }
 
 // ─── Tiny sub-components ──────────────────────────────────────────────────────
@@ -348,12 +411,150 @@ const GeneratingSteps = ({ step }) => {
   );
 };
 
+// ─── Language Context Pill ─────────────────────────────────────────────────────
+/**
+ * Shows the auto-detected "Teaching X · Explaining in Y" summary.
+ * Clicking opens inline dropdowns so the teacher can override either language.
+ */
+const LanguagePill = ({
+  targetLanguage,
+  nativeLanguage,
+  onChangeTarget,
+  onChangeNative,
+  disabled,
+}) => {
+  const [editing, setEditing] = useState(false);
+  const flag = (lang) => FLAG_MAP[lang] ?? '🌐';
+
+  if (!targetLanguage) return null;
+
+  return (
+    <div style={{ marginBottom: 2 }}>
+      {!editing ? (
+        /* ── Pill view ── */
+        <button
+          type="button"
+          onClick={() => !disabled && setEditing(true)}
+          disabled={disabled}
+          title="Click to change languages"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 10px 5px 8px',
+            background: C.tint, border: `1.5px solid ${C.border}`,
+            borderRadius: 10, cursor: disabled ? 'default' : 'pointer',
+            fontFamily: FONT_BODY, fontSize: 12, fontWeight: 500, color: C.primary,
+            transition: 'background .14s, border-color .14s',
+            whiteSpace: 'nowrap', overflow: 'hidden',
+          }}
+          onMouseEnter={e => { if (!disabled) { e.currentTarget.style.background = C.tintDeep; e.currentTarget.style.borderColor = C.primary; } }}
+          onMouseLeave={e => { e.currentTarget.style.background = C.tint; e.currentTarget.style.borderColor = C.border; }}
+        >
+          {/* Teaching badge */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 14 }}>{flag(targetLanguage)}</span>
+            <span>Teaching <strong>{targetLanguage}</strong></span>
+          </span>
+          {/* Divider */}
+          <span style={{ color: C.border, fontWeight: 300 }}>·</span>
+          {/* Explaining badge */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 14 }}>{flag(nativeLanguage)}</span>
+            <span>Explaining in <strong>{nativeLanguage || 'English'}</strong></span>
+          </span>
+          {/* Edit icon */}
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ opacity: .6, marginLeft: 2, flexShrink: 0 }}>
+            <path d="M7 1.5L8.5 3l-5 5H2V6.5l5-5z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      ) : (
+        /* ── Edit panel ── */
+        <div style={{
+          padding: '10px 12px', background: C.tint,
+          border: `1.5px solid ${C.border}`, borderRadius: 12,
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            {/* Target language */}
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: C.sub, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                Language to teach
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 14, pointerEvents: 'none' }}>
+                  {flag(targetLanguage)}
+                </span>
+                <select
+                  value={targetLanguage}
+                  onChange={e => onChangeTarget(e.target.value)}
+                  style={{
+                    width: '100%', padding: '7px 10px 7px 28px',
+                    borderRadius: 9, border: `1.5px solid ${C.border}`,
+                    background: C.white, fontSize: 12.5, color: C.text,
+                    outline: 'none', appearance: 'none', cursor: 'pointer',
+                    fontFamily: FONT_BODY,
+                  }}
+                >
+                  {ALL_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Native / instruction language */}
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: C.sub, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                Explain in
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 14, pointerEvents: 'none' }}>
+                  {flag(nativeLanguage)}
+                </span>
+                <select
+                  value={nativeLanguage || 'English'}
+                  onChange={e => onChangeNative(e.target.value)}
+                  style={{
+                    width: '100%', padding: '7px 10px 7px 28px',
+                    borderRadius: 9, border: `1.5px solid ${C.border}`,
+                    background: C.white, fontSize: 12.5, color: C.text,
+                    outline: 'none', appearance: 'none', cursor: 'pointer',
+                    fontFamily: FONT_BODY,
+                  }}
+                >
+                  {ALL_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Done button */}
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              style={{
+                marginTop: 20, padding: '7px 12px', borderRadius: 9,
+                border: 'none', background: C.primary, color: C.white,
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                fontFamily: FONT_BODY, flexShrink: 0,
+              }}
+            >
+              Done
+            </button>
+          </div>
+
+          <p style={{ fontSize: 11, color: C.sub, margin: 0, lineHeight: 1.4 }}>
+            The course will <strong>teach {targetLanguage}</strong> with explanations written in <strong>{nativeLanguage || 'English'}</strong>.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CreateCourseModal({ open, onClose, onCreated }) {
   // i18n for all user-visible copy (en / ru via profile or app language).
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { startTeacherClassroomOpen } = useTeacherClassroomTransition();
 
   const [mode, setMode]               = useState('quick');
@@ -366,6 +567,12 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   const [genStep, setGenStep]         = useState(0);
   const [error, setError]             = useState(null);
 
+  // ── Language context ──────────────────────────────────────────────────────
+  // targetLanguage: language the course *teaches* (detected from description)
+  // nativeLanguage: language for teacher-facing explanations (from user profile)
+  const [targetLanguage, setTargetLanguage] = useState('');
+  const [nativeLanguage, setNativeLanguage] = useState('English');
+
   // ── File enrichment step (Generate mode only)
   const [fileModalOpen, setFileModalOpen] = useState(false);
 
@@ -376,6 +583,27 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   const quickInputRef = useRef(null);
   const descRef       = useRef(null);
 
+  // ── Seed native language from user profile when modal opens ──────────────
+  useEffect(() => {
+    if (open) {
+      setNativeLanguage(nativeLanguageFromUser(user));
+    }
+  }, [open, user]);
+
+  // ── Auto-detect target language from description as teacher types ─────────
+  // Only applies in Generate mode — in Quick mode there is no description and
+  // we want the teacher's chosen target_language to persist (defaulted to
+  // "Italian" on open so the LanguagePill is always rendered for Quick mode).
+  useEffect(() => {
+    if (mode !== 'generate') return;
+    if (!description.trim()) {
+      setTargetLanguage('');
+      return;
+    }
+    const detected = detectTargetLanguage(description);
+    if (detected) setTargetLanguage(detected);
+  }, [description, mode]);
+
   // Reset on open
   useEffect(() => {
     if (open) {
@@ -383,14 +611,26 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       setQuickTitle('');
       setDescription('');
       setLevel('B1');
+      // Default the teaching language to "Italian" — sensible app-wide default
+      // that also ensures the LanguagePill is always visible in Quick mode.
+      // The teacher can still override it in either mode.
+      setTargetLanguage('Italian');
       setThumbFile(null);
       setThumbPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
       setLoading(false);
       setGenStep(0);
       setError(null);
       setFileModalOpen(false);
-      setQuotaStatus('idle');
-      setTariffData(null);
+      // ── Hydrate quota from cache immediately so the button is never in a
+      // loading spinner state on re-open (cache written by any component on page)
+      const cached = getTariffCache();
+      if (cached) {
+        setTariffData(cached);
+        setQuotaStatus('ok');
+      } else {
+        setQuotaStatus('idle');
+        setTariffData(null);
+      }
       setTimeout(() => quickInputRef.current?.focus(), 80);
     }
   }, [open]);
@@ -399,16 +639,10 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   useEffect(() => {
     if (!open) return;
     if (quotaStatus === 'ok' || quotaStatus === 'loading') return;
-
-    // ── 1. Serve from cache immediately (populated by any component this session)
+    // Check shared window cache first — populated by AdminHeader / GenerateUnitModal
     const cached = getTariffCache();
-    if (cached) {
-      setTariffData(cached);
-      setQuotaStatus('ok');
-      return;
-    }
-
-    // ── 2. No cache — fetch and populate cache for all subsequent components
+    if (cached) { setTariffData(cached); setQuotaStatus('ok'); return; }
+    // Nothing cached — do a real fetch
     let mounted = true;
     setQuotaStatus('loading');
     (async () => {
@@ -419,7 +653,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
         });
         if (!res.ok) throw new Error('quota fetch failed');
         const data = await res.json();
-        setTariffCache(data);
+        setTariffCache(data); // warm cache for subsequent opens / components
         if (mounted) { setTariffData(data); setQuotaStatus('ok'); }
       } catch {
         if (mounted) setQuotaStatus('error');
@@ -434,11 +668,11 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
 
   useEffect(() => {
     if (!open || loading) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (mode === 'quick') quickInputRef.current?.focus();
       else                  descRef.current?.focus();
     }, 60);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [mode, open, loading]);
 
   useEffect(() => {
@@ -476,6 +710,15 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       if (generationParams.sourceToken) {
         params.set('source_token', generationParams.sourceToken);
       }
+      // Forward target language so the SSE unit-generation stream also uses
+      // the correct language (ClassroomPage reads ?language= and passes it to
+      // the stream endpoint).
+      if (generationParams.language) {
+        params.set('language', generationParams.language);
+      }
+      if (generationParams.nativeLanguage) {
+        params.set('native_language', generationParams.nativeLanguage);
+      }
       search = `?${params.toString()}`;
     }
 
@@ -509,7 +752,13 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
     setError(null);
     setLoading(true);
     try {
-      const course = await apiCreateCourse(title);
+      // Persist the selected teaching/explanation languages on the course row
+      // so unit generation, content rendering, and admin filters can read them
+      // later without prompting the teacher again.
+      const course = await apiCreateCourse(title, {
+        targetLanguage,
+        nativeLanguage,
+      });
       if (thumbFile) {
         try { await apiUploadThumbnail(course.id, thumbFile); }
         catch (e) { console.warn('[CreateCourseModal] Thumbnail upload failed.', e); }
@@ -527,7 +776,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       setError(err instanceof Error ? err.message : t('admin.createCourseModal.errorCreateFailed'));
       setLoading(false);
     }
-  }, [quickTitle, onCreated, goToClassroom, thumbFile, t]);
+  }, [quickTitle, onCreated, goToClassroom, thumbFile, targetLanguage, nativeLanguage, t]);
 
   // ── AI GENERATE — Step 2: outline + course creation (second step: CourseFileUploadModal) ──
   //
@@ -555,6 +804,10 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
             const form = new FormData();
             form.append('description', desc);
             form.append('level', level);
+            // ── Language context ───────────────────────────────────────────
+            if (targetLanguage) form.append('target_language', targetLanguage);
+            if (nativeLanguage) form.append('native_language', nativeLanguage);
+            // ──────────────────────────────────────────────────────────────
             for (const f of files) form.append('files', f);
             return form;
           })(),
@@ -569,7 +822,14 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
         const res = await fetch(buildAdminApiUrl('/course-builder/generate-outline'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({ description: desc, level }),
+          body: JSON.stringify({
+            description: desc,
+            level,
+            // ── Language context ─────────────────────────────────────────
+            target_language: targetLanguage || undefined,
+            native_language: nativeLanguage || undefined,
+            // ────────────────────────────────────────────────────────────
+          }),
         });
         if (res.status === 402) { redirectToTariffs(); return; }
         if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
@@ -579,7 +839,12 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       setGenStep(1);
 
       // ── Step 1: create course row ────────────────────────────────────────────
-      const course = await apiCreateCourse(outline.title);
+      // Persist target/native language on the course so future unit & exercise
+      // generation and admin filters can read them without prompting again.
+      const course = await apiCreateCourse(outline.title, {
+        targetLanguage,
+        nativeLanguage,
+      });
       if (thumbFile) {
         try { await apiUploadThumbnail(course.id, thumbFile); }
         catch (e) { console.warn('[CreateCourseModal] Thumbnail upload failed.', e); }
@@ -607,6 +872,13 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
         if (sourceToken) {
           sessionStorage.setItem(`ai_source_token_${course.id}`, sourceToken);
         }
+        // Cache target language so ClassroomPage can pass it to the SSE stream.
+        if (targetLanguage) {
+          sessionStorage.setItem(`ai_language_${course.id}`, targetLanguage);
+        }
+        if (nativeLanguage) {
+          sessionStorage.setItem(`ai_native_language_${course.id}`, nativeLanguage);
+        }
       } catch {
         // sessionStorage full — not critical
       }
@@ -614,64 +886,34 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       await new Promise(r => setTimeout(r, 350));
 
       onCreated?.(course);
-      goToClassroom(course.id, firstUnitId, { level, sourceToken });
+      goToClassroom(course.id, firstUnitId, {
+        level,
+        sourceToken,
+        language:       targetLanguage || undefined,
+        nativeLanguage: nativeLanguage || undefined,
+      });
 
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.createCourseModal.errorGeneric'));
       setLoading(false);
       setGenStep(0);
     }
-  }, [description, level, thumbFile, onCreated, goToClassroom, redirectToTariffs, t]);
+  }, [description, level, targetLanguage, nativeLanguage, thumbFile, onCreated, goToClassroom, redirectToTariffs, t]);
 
-  // ── AI GENERATE — Step 1: resolve quota → show limit UI or open file modal ──
-  // Made async so it can fetch quota on-the-spot when the background effect
-  // hasn't resolved yet (slow network / very first page load). After the inline
-  // fetch the state is updated, which triggers a re-render that switches the
-  // footer to the Upgrade button and shows the limit badge — no silent no-ops.
-  const handleGenerate = useCallback(async () => {
+  // ── AI GENERATE — Step 1: validate, then open file-enrichment modal (Skip → JSON outline; files → multipart).
+  const handleGenerate = useCallback(() => {
+    // Only block when the limit is *confirmed* hit. If quota hasn't loaded yet
+    // we fail open — the backend enforces limits server-side anyway.
+    if (isAtLimit) return;
     const desc = description.trim();
     if (!desc) {
       setError(t('admin.createCourseModal.errorDescRequired'));
       descRef.current?.focus();
       return;
     }
-
-    // ── If quota is already resolved use it directly ──────────────────────
-    if (quotaStatus === 'ok') {
-      if (isAtLimit) return; // footer already shows Upgrade button
-      setError(null);
-      setFileModalOpen(true);
-      return;
-    }
-
-    // ── Quota still loading — fetch inline so we never block silently ─────
-    setQuotaStatus('loading');
-    try {
-      const token = localStorage.getItem('token') ?? '';
-      const res = await fetch(buildAdminApiUrl('/admin/tariffs/me'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('quota fetch failed');
-      const data = await res.json();
-      setTariffCache(data);
-      setTariffData(data);
-      setQuotaStatus('ok');
-
-      // Compute limit from fresh data immediately (state hasn't re-rendered yet)
-      const lim = data.ai_limits?.course_generation ?? data.ai_limits?.course_generations ?? null;
-      const used = data.ai_usage?.course_generations ?? 0;
-      const limitReached = lim !== null && used >= lim;
-
-      if (limitReached) return; // re-render will show quota badge + Upgrade button
-      setError(null);
-      setFileModalOpen(true);
-    } catch {
-      // Fetch failed — allow generation (fail open, backend enforces anyway)
-      setQuotaStatus('error');
-      setError(null);
-      setFileModalOpen(true);
-    }
-  }, [description, isAtLimit, quotaStatus, t]);
+    setError(null);
+    setFileModalOpen(true);
+  }, [description, isAtLimit, t]);
 
   const handleBackdrop = useCallback((e) => {
     if (e.target === e.currentTarget && !loading) onClose();
@@ -680,9 +922,8 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   if (!open) return null;
 
   const isGenerate = mode === 'generate';
-  // canSubmit does not gate on quotaReady — tariff data arrives instantly from
-  // cache on every re-open. The hard guard inside handleGenerate catches the
-  // rare cold-start case where the very first ever fetch is still in flight.
+  // Also block submit while quota is still loading so the button stays disabled
+  // until we know whether the user is under their limit.
   const canSubmit  = isGenerate
     ? (description.trim().length > 0 && !isAtLimit)
     : quickTitle.trim().length > 0;
@@ -863,6 +1104,17 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                 maxLength={120}
                 autoComplete="off"
               />
+
+              {/* ── Language context pill — persisted on the course row ─────────
+                  Pre-populated with "Italian" (target) and the teacher's profile
+                  language (native) so the pill is always visible and editable. */}
+              <LanguagePill
+                targetLanguage={targetLanguage}
+                nativeLanguage={nativeLanguage}
+                onChangeTarget={setTargetLanguage}
+                onChangeNative={setNativeLanguage}
+                disabled={loading}
+              />
             </div>
           )}
 
@@ -910,6 +1162,8 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                       )}
                     </div>
                   )}
+
+                  {/* ── Description textarea ── */}
                   <textarea
                     ref={descRef}
                     className="ccm2-input"
@@ -920,6 +1174,17 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
                     disabled={loading}
                     maxLength={400}
                   />
+
+                  {/* ── Language context pill — appears when a language is detected ── */}
+                  <LanguagePill
+                    targetLanguage={targetLanguage}
+                    nativeLanguage={nativeLanguage}
+                    onChangeTarget={setTargetLanguage}
+                    onChangeNative={setNativeLanguage}
+                    disabled={loading}
+                  />
+
+                  {/* ── CEFR level chips ── */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '.4px', textTransform: 'uppercase', flexShrink: 0 }}>
                       {t('admin.createCourseModal.level')}

@@ -89,8 +89,10 @@ export default function AdminLayout() {
     if (email && email.includes("@")) return email.split("@")[0];
     return t("admin.role.teacher", { defaultValue: "Teacher" });
   }, [t, user]);
-  // Stores subscription end date and controls the tariff icon visibility in the header.
+  // Stores subscription end date for timed plans (Pro often has null — open-ended).
   const trialUntilIso = user?.subscription_ends_at ?? null;
+  // Stores plan slug from /users/me so Pro is not shown as Free when ends_at is missing.
+  const teacherPlanSlug = user?.subscription ?? null;
 
   const handleLogout = async () => {
     const loggedOut = await logout();
@@ -108,6 +110,7 @@ export default function AdminLayout() {
         userName={headerDisplayName}
         userEmail={user?.email ?? ""}
         trialUntil={trialUntilIso}
+        teacherSubscriptionPlan={teacherPlanSlug}
         darkMode={darkMode}
         onToggleDark={() => setDarkMode(d => !d)}
         onLogout={handleLogout}

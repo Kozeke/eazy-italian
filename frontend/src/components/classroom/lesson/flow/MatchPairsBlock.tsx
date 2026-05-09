@@ -470,7 +470,13 @@ export default function MatchPairsBlock({
         </div>
       )}
 
-      <div className="bs-prompt">{MATCH_PAIRS_PROMPT_TEXT}</div>
+      {/* Prefer the AI-generated learner instruction (in the course's
+          native_language). Falls back to the canonical English prompt for
+          legacy blocks that predate instruction generation. */}
+      <div className="bs-prompt">
+        {(typedItem.data as unknown as { instruction?: string })?.instruction?.trim() ||
+          MATCH_PAIRS_PROMPT_TEXT}
+      </div>
 
       <div ref={boardRef} className="mp-player-board">
         <div className="mp-player-columns">

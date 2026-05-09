@@ -9,6 +9,7 @@
  */
 
 import React, { useCallback, useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Plus,
   CheckSquare, ToggleLeft, AlignLeft, PenLine,
@@ -42,21 +43,21 @@ const T = {
 
 // ─── Type metadata ────────────────────────────────────────────────────────────
 
-const TYPE_META: Record<
+const TYPE_STYLES: Record<
   QuestionDraft['type'],
-  { label: string; color: string; bg: string; border: string; icon: React.ReactNode }
+  { color: string; bg: string; border: string; icon: React.ReactNode }
 > = {
-  multiple_choice:    { label: 'Multiple Choice',  color: '#6c6fef', bg: '#eef0fe', border: '#cdd0f7', icon: <CheckSquare    size={12} strokeWidth={2.2}/> },
-  true_false:         { label: 'True / False',      color: '#0284c7', bg: '#eff8ff', border: '#bae0fd', icon: <ToggleLeft     size={12} strokeWidth={2.2}/> },
-  open_answer:        { label: 'Open Answer',       color: '#17a865', bg: '#edfbf4', border: '#9fe6c2', icon: <AlignLeft      size={12} strokeWidth={2.2}/> },
-  cloze_input:        { label: 'Fill in blank',     color: '#c07c11', bg: '#fff8eb', border: '#fcd27a', icon: <PenLine        size={12} strokeWidth={2.2}/> },
-  cloze_drag:         { label: 'Drag to fill',      color: '#d97706', bg: '#fff7ed', border: '#fed7aa', icon: <GripHorizontal size={12} strokeWidth={2.2}/> },
-  matching_pairs:     { label: 'Matching pairs',    color: '#be185d', bg: '#fdf2f8', border: '#fbcfe8', icon: <Link2          size={12} strokeWidth={2.2}/> },
-  ordering_words:     { label: 'Word order',        color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', icon: <ArrowUpDown    size={12} strokeWidth={2.2}/> },
-  ordering_sentences: { label: 'Sentence order',   color: '#4f52c2', bg: '#eef0fe', border: '#c5c8f8', icon: <List           size={12} strokeWidth={2.2}/> },
+  multiple_choice:    { color: '#6c6fef', bg: '#eef0fe', border: '#cdd0f7', icon: <CheckSquare    size={12} strokeWidth={2.2}/> },
+  true_false:         { color: '#0284c7', bg: '#eff8ff', border: '#bae0fd', icon: <ToggleLeft     size={12} strokeWidth={2.2}/> },
+  open_answer:        { color: '#17a865', bg: '#edfbf4', border: '#9fe6c2', icon: <AlignLeft      size={12} strokeWidth={2.2}/> },
+  cloze_input:        { color: '#c07c11', bg: '#fff8eb', border: '#fcd27a', icon: <PenLine        size={12} strokeWidth={2.2}/> },
+  cloze_drag:         { color: '#d97706', bg: '#fff7ed', border: '#fed7aa', icon: <GripHorizontal size={12} strokeWidth={2.2}/> },
+  matching_pairs:     { color: '#be185d', bg: '#fdf2f8', border: '#fbcfe8', icon: <Link2          size={12} strokeWidth={2.2}/> },
+  ordering_words:     { color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', icon: <ArrowUpDown    size={12} strokeWidth={2.2}/> },
+  ordering_sentences: { color: '#4f52c2', bg: '#eef0fe', border: '#c5c8f8', icon: <List           size={12} strokeWidth={2.2}/> },
 };
 
-const ALL_TYPES = Object.keys(TYPE_META) as QuestionDraft['type'][];
+const ALL_TYPES = Object.keys(TYPE_STYLES) as QuestionDraft['type'][];
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,7 @@ export default function ExerciseEditorPlayer({
   onMediaBlockChange,
   onRemoveMediaBlock,
 }: ExerciseEditorPlayerProps) {
+  const { t } = useTranslation();
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [animKey, setAnimKey] = useState(0);
   const prevIndex = useRef(activeIndex);
@@ -222,7 +224,7 @@ export default function ExerciseEditorPlayer({
           }}>
             <AddQuestionButton
               open={showTypeMenu}
-              label={isSlideMode ? 'Add block' : 'Add question'}
+              label={isSlideMode ? t('exerciseEditors.player.addBlock') : t('exerciseEditors.player.addQuestion')}
               onClick={() => setShowTypeMenu(v => !v)}
             />
             {showTypeMenu && (
@@ -241,6 +243,9 @@ export default function ExerciseEditorPlayer({
         isSaving={isSaving}
         onSave={onSave}
         onCancel={onCancel}
+        savingLabel={t('exerciseEditors.player.saving')}
+        saveLabel={t('common.save')}
+        cancelLabel={t('common.cancel')}
       />
 
       <style>{`
@@ -292,6 +297,7 @@ function StepperTab({
   index: number; isActive: boolean; prompt: string;
   canRemove: boolean; onClick: () => void; onRemove: () => void;
 }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   return (
     <div
@@ -343,7 +349,7 @@ function StepperTab({
             cursor: 'pointer', padding: 0, borderRadius: 4,
             transition: 'color 110ms ease',
           }}
-          title="Remove question"
+          title={t('exerciseEditors.player.removeQuestion')}
         >
           <X size={10} strokeWidth={2.5} />
         </button>
@@ -359,7 +365,8 @@ function QuestionCardHeader({
 }: {
   draft: QuestionDraft; index: number; total: number;
 }) {
-  const meta = TYPE_META[draft.type];
+  const { t } = useTranslation();
+  const meta = TYPE_STYLES[draft.type];
   return (
     <div style={{
       display: 'flex',
@@ -386,7 +393,7 @@ function QuestionCardHeader({
         letterSpacing: '0.01em',
       }}>
         {meta.icon}
-        {meta.label}
+        {t(`exerciseEditors.player.questionTypes.${draft.type}`)}
       </span>
     </div>
   );
@@ -426,16 +433,16 @@ function AddQuestionButton({
 
 // ─── Media type metadata ──────────────────────────────────────────────────────
 
-const MEDIA_META: Record<
+const MEDIA_STYLES: Record<
   MediaBlockType,
-  { label: string; color: string; bg: string; border: string; icon: React.ReactNode }
+  { color: string; bg: string; border: string; icon: React.ReactNode }
 > = {
-  image: { label: 'Image',  color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', icon: <Image size={12} strokeWidth={2.2}/> },
-  video: { label: 'Video',  color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd', icon: <Video size={12} strokeWidth={2.2}/> },
-  audio: { label: 'Audio',  color: '#0d9488', bg: '#f0fdfa', border: '#5eead4', icon: <Music size={12} strokeWidth={2.2}/> },
+  image: { color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', icon: <Image size={12} strokeWidth={2.2}/> },
+  video: { color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd', icon: <Video size={12} strokeWidth={2.2}/> },
+  audio: { color: '#0d9488', bg: '#f0fdfa', border: '#5eead4', icon: <Music size={12} strokeWidth={2.2}/> },
 };
 
-const MEDIA_TYPES = Object.keys(MEDIA_META) as MediaBlockType[];
+const MEDIA_TYPES = Object.keys(MEDIA_STYLES) as MediaBlockType[];
 
 // ─── Type picker popover ──────────────────────────────────────────────────────
 
@@ -446,6 +453,7 @@ function TypePickerPopover({
   onClose: () => void;
   onPickMedia?: (t: MediaBlockType) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 39 }} />
@@ -471,7 +479,7 @@ function TypePickerPopover({
               textTransform: 'uppercase', color: T.muted,
               padding: '2px 8px 8px', margin: 0,
             }}>
-              Media
+              {t('exerciseEditors.player.mediaHeading')}
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2, marginBottom: 2 }}>
               {MEDIA_TYPES.map(type => (
@@ -497,7 +505,7 @@ function TypePickerPopover({
           textTransform: 'uppercase', color: T.muted,
           padding: '0 8px 8px', margin: 0,
         }}>
-          Exercise
+          {t('exerciseEditors.player.exerciseHeading')}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
           {ALL_TYPES.map(type => (
@@ -514,7 +522,8 @@ function TypePickerPopover({
 function MediaPickerItem({
   type, onPick,
 }: { type: MediaBlockType; onPick: () => void }) {
-  const meta = MEDIA_META[type];
+  const { t } = useTranslation();
+  const meta = MEDIA_STYLES[type];
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -539,7 +548,7 @@ function MediaPickerItem({
         {meta.icon}
       </span>
       <span style={{ fontSize: 11, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>
-        {meta.label}
+        {t(`exerciseEditors.player.mediaPickers.${type}`)}
       </span>
     </button>
   );
@@ -548,7 +557,8 @@ function MediaPickerItem({
 function TypePickerItem({
   type, onPick,
 }: { type: QuestionDraft['type']; onPick: (t: QuestionDraft['type']) => void }) {
-  const meta = TYPE_META[type];
+  const { t } = useTranslation();
+  const meta = TYPE_STYLES[type];
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -574,7 +584,7 @@ function TypePickerItem({
         {meta.icon}
       </span>
       <span style={{ fontSize: 12, fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>
-        {meta.label}
+        {t(`exerciseEditors.player.questionTypes.${type}`)}
       </span>
     </button>
   );
@@ -584,11 +594,14 @@ function TypePickerItem({
 // CRITICAL: position fixed, edge-to-edge, NO border-radius, NO side margins
 
 function BottomBar({
-  isSaving, onSave, onCancel,
+  isSaving, onSave, onCancel, savingLabel, saveLabel, cancelLabel,
 }: {
   isSaving: boolean;
   onSave: () => void;
   onCancel?: () => void;
+  savingLabel: string;
+  saveLabel: string;
+  cancelLabel: string;
 }) {
   const [saveHov, setSaveHov]     = useState(false);
   const [cancelHov, setCancelHov] = useState(false);
@@ -636,7 +649,7 @@ function BottomBar({
               fontFamily: 'inherit', letterSpacing: '-0.01em',
             }}
           >
-            Cancel
+            {cancelLabel}
           </button>
         )}
 
@@ -663,7 +676,7 @@ function BottomBar({
             fontFamily: 'inherit',
           }}
         >
-          {isSaving ? 'Saving…' : 'Save'}
+          {isSaving ? savingLabel : saveLabel}
         </button>
       </div>
     </div>
@@ -673,6 +686,7 @@ function BottomBar({
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
 function EmptyState({ onAdd, isSlideMode }: { onAdd: () => void; isSlideMode?: boolean }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   return (
     <div style={{
@@ -689,12 +703,12 @@ function EmptyState({ onAdd, isSlideMode }: { onAdd: () => void; isSlideMode?: b
       </div>
       <div>
         <p style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-          {isSlideMode ? 'Empty slide' : 'No questions yet'}
+          {isSlideMode ? t('exerciseEditors.player.emptySlideTitle') : t('exerciseEditors.player.emptyQuestionsTitle')}
         </p>
         <p style={{ fontSize: 13, color: T.sub, margin: 0, lineHeight: 1.6 }}>
           {isSlideMode
-            ? 'Use the button below to add an image, video, audio or exercise block.'
-            : 'Add your first question to start building this exercise.'}
+            ? t('exerciseEditors.player.emptySlideBody')
+            : t('exerciseEditors.player.emptyQuestionsBody')}
         </p>
       </div>
       <button
@@ -713,7 +727,7 @@ function EmptyState({ onAdd, isSlideMode }: { onAdd: () => void; isSlideMode?: b
         }}
       >
         <Plus size={14} strokeWidth={2.2} />
-        {isSlideMode ? 'Add block' : 'Add first question'}
+        {isSlideMode ? t('exerciseEditors.player.emptySlideCta') : t('exerciseEditors.player.emptyQuestionsCta')}
       </button>
     </div>
   );
@@ -722,24 +736,20 @@ function EmptyState({ onAdd, isSlideMode }: { onAdd: () => void; isSlideMode?: b
 // ─── InlineMediaBlock ─────────────────────────────────────────────────────────
 // Rendered inside the scrollable player area (above question cards).
 
-const INLINE_MEDIA_META: Record<MediaBlockType, {
-  label: string; color: string; bg: string; border: string; icon: React.ReactNode;
-  placeholder: string;
+const INLINE_MEDIA_STYLES: Record<MediaBlockType, {
+  color: string; bg: string; border: string; icon: React.ReactNode;
 }> = {
   image: {
-    label: 'Image', color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc',
+    color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc',
     icon: <Image size={16} strokeWidth={1.8}/>,
-    placeholder: 'Paste an image URL or click upload →',
   },
   video: {
-    label: 'Video', color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd',
+    color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd',
     icon: <Video size={16} strokeWidth={1.8}/>,
-    placeholder: 'Paste a YouTube or Vimeo URL',
   },
   audio: {
-    label: 'Audio', color: '#0d9488', bg: '#f0fdfa', border: '#5eead4',
+    color: '#0d9488', bg: '#f0fdfa', border: '#5eead4',
     icon: <Music size={16} strokeWidth={1.8}/>,
-    placeholder: 'Paste an audio file URL',
   },
 };
 
@@ -750,7 +760,10 @@ function InlineMediaBlock({
   onChange: (patch: Partial<MediaBlock>) => void;
   onRemove: () => void;
 }) {
-  const meta = INLINE_MEDIA_META[block.mediaType];
+  const { t } = useTranslation();
+  const meta = INLINE_MEDIA_STYLES[block.mediaType];
+  const placeholder = t(`exerciseEditors.player.inlineMediaPlaceholders.${block.mediaType}`);
+  const label = t(`exerciseEditors.player.mediaPickers.${block.mediaType}`);
   const [urlFocused, setUrlFocused] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -777,7 +790,7 @@ function InlineMediaBlock({
           {meta.icon}
         </span>
         <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: meta.color, letterSpacing: '-0.01em' }}>
-          {meta.label}
+          {label}
         </span>
         <button
           onClick={onRemove}
@@ -804,7 +817,7 @@ function InlineMediaBlock({
             onChange={e => onChange({ url: e.target.value })}
             onFocus={() => setUrlFocused(true)}
             onBlur={() => setUrlFocused(false)}
-            placeholder={meta.placeholder}
+            placeholder={placeholder}
             style={{
               flex: 1, height: 36, borderRadius: 9,
               border: `1.5px solid ${urlFocused ? meta.border : T.border}`,
@@ -824,7 +837,7 @@ function InlineMediaBlock({
               />
               <button
                 type="button" onClick={() => fileRef.current?.click()}
-                title="Upload image"
+                title={t('exerciseEditors.player.uploadImageTitle')}
                 style={{
                   height: 36, width: 36, borderRadius: 9, flexShrink: 0,
                   border: `1.5px solid ${T.border}`, background: T.bg,
@@ -856,7 +869,7 @@ function InlineMediaBlock({
         <input
           type="text" value={block.caption}
           onChange={e => onChange({ caption: e.target.value })}
-          placeholder="Caption (optional)"
+          placeholder={t('exerciseEditors.player.captionOptional')}
           style={{
             height: 32, borderRadius: 9,
             border: `1.5px solid ${T.border}`, background: T.bg,
@@ -877,6 +890,7 @@ function InlineMediaBlock({
 }
 
 function InlineMediaPreview({ block }: { block: MediaBlock }) {
+  const { t } = useTranslation();
   if (block.mediaType === 'image') {
     return (
       <div style={{
@@ -884,7 +898,7 @@ function InlineMediaPreview({ block }: { block: MediaBlock }) {
         maxHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: T.bg,
       }}>
-        <img src={block.url} alt={block.caption || 'Preview'}
+        <img src={block.url} alt={block.caption || t('exerciseEditors.player.inlinePreviewAlt')}
           style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', display: 'block' }}
           onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
         />
@@ -899,7 +913,7 @@ function InlineMediaPreview({ block }: { block: MediaBlock }) {
           <iframe src={`https://www.youtube.com/embed/${yt[1]}`}
             style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen title="Video preview"
+            allowFullScreen title={t('exerciseEditors.player.inlineVideoIframeTitle')}
           />
         </div>
       );
@@ -910,7 +924,7 @@ function InlineMediaPreview({ block }: { block: MediaBlock }) {
         background: '#f5f3ff', border: '1px solid #c4b5fd',
         fontSize: 11, color: '#7c3aed',
       }}>
-        Video URL saved — preview available after saving.
+        {t('exerciseEditors.player.inlineVideoAfterSave')}
       </div>
     );
   }

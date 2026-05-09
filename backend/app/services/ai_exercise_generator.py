@@ -7,8 +7,14 @@ Currently supported exercise types
 ------------------------------------
 drag_to_gap   — student drags word chips into sentence gaps
 
-Token-optimisation strategy (Groq → Ollama)
---------------------------------------------
+Provider routing (exercise generation)
+--------------------------------------
+Default chain is **DeepSeek first**, then **Groq** if the primary raises
+``AIProviderError`` (rate limits, auth, timeouts).  Shared across all teacher
+plans; quota is still enforced per tier in the API layer.
+
+Token-optimisation strategy (passage mode)
+------------------------------------------
 For high sentence / gap counts we use a TWO-PHASE approach:
 
   Phase 1 — PASSAGE GENERATION (plain text, tiny output)
@@ -250,18 +256,139 @@ class _WithOllamaFallback(AIProvider):
         return f"<_WithOllamaFallback primary={self._primary!r} fallback={self._fallback!r}>"
 
 
-def _build_default_provider() -> AIProvider:
-    provider_name = os.environ.get("AI_PROVIDER", "groq").strip().lower()
+class _DeepSeekPrimaryWithGroqFallback(AIProvider):
+    """
+    Tries DeepSeek on every generate/agenerate call, then Groq if DeepSeek fails.
 
-    if provider_name == "groq":
+    Used for interactive exercises so Groq rate limits or missing keys do not
+    block generation when DeepSeek is healthy, and DeepSeek outages still allow
+    a Groq backup when configured.
+    """
+
+    def __init__(self, primary: AIProvider, secondary: AIProvider | None) -> None:
+        # Primary backend (DeepSeek) — always attempted first.
+        self._primary = primary
+        # Optional Groq instance — used only after primary raises AIProviderError.
+        self._secondary = secondary
+        # Exposed for logging/metadata; mirrors whichever backend last succeeded.
+        self.model = getattr(primary, "model", type(primary).__name__)
+
+    def generate(self, prompt: str) -> str:
+        try:
+            out = self._primary.generate(prompt)
+            self.model = getattr(self._primary, "model", type(self._primary).__name__)
+            return out
+        except AIProviderError as exc:
+            if self._secondary is None:
+                raise
+            logger.warning(
+                "DeepSeek primary failed (%s) — retrying with Groq fallback.",
+                exc,
+            )
+            self.model = getattr(self._secondary, "model", type(self._secondary).__name__)
+            return self._secondary.generate(prompt)
+
+    async def agenerate(self, prompt: str) -> str:
+        try:
+            out = await self._primary.agenerate(prompt)
+            self.model = getattr(self._primary, "model", type(self._primary).__name__)
+            return out
+        except AIProviderError as exc:
+            if self._secondary is None:
+                raise
+            logger.warning(
+                "DeepSeek primary failed (%s) — retrying with Groq fallback (async).",
+                exc,
+            )
+            self.model = getattr(self._secondary, "model", type(self._secondary).__name__)
+            return await self._secondary.agenerate(prompt)
+
+    def __repr__(self) -> str:
+        return (
+            f"<_DeepSeekPrimaryWithGroqFallback primary={self._primary!r} "
+            f"secondary={self._secondary!r}>"
+        )
+
+
+def _try_build_groq_secondary() -> AIProvider | None:
+    """
+    Build a Groq provider for the exercise fallback chain, or None if unavailable.
+    """
+    groq_key = (os.environ.get("GROQ_API_KEY") or "").strip()
+    if not groq_key:
+        return None
+    try:
         from app.services.ai.providers.groq_provider import GroqProvider
-        p = GroqProvider()
-        logger.info("AI exercise provider: GroqProvider (model=%s)", p.model)
-        fallback = _build_ollama_provider()
-        if fallback is not None:
-            logger.info("Ollama fallback available — rate-limit errors will auto-retry locally.")
-            return _WithOllamaFallback(primary=p, fallback=fallback)
-        return p
+
+        return GroqProvider()
+    except AIProviderError as exc:
+        # Prevent crash when Groq env is present but misconfigured at runtime.
+        logger.warning("Groq fallback not usable for exercises: %s", exc)
+        return None
+
+
+def _build_deepseek_primary_chain() -> AIProvider:
+    """
+    DeepSeek first; Groq second when GROQ_API_KEY is set and Groq initialises.
+
+    If DeepSeek cannot start but Groq can, returns Groq-only (legacy Groq-only deploys).
+    """
+    from app.services.ai.providers.deepseek_provider import DeepSeekProvider
+
+    # Secondary LLM — may be absent when no Groq key is configured.
+    groq_secondary = _try_build_groq_secondary()
+
+    try:
+        primary_llm = DeepSeekProvider()
+    except AIProviderError as exc:
+        if groq_secondary is None:
+            raise
+        logger.warning(
+            "DeepSeek unavailable (%s) — exercise generation will use Groq only.",
+            exc,
+        )
+        return groq_secondary
+
+    if groq_secondary is not None:
+        logger.info(
+            "AI exercise provider chain: DeepSeek (model=%s) → Groq fallback (model=%s)",
+            primary_llm.model,
+            groq_secondary.model,
+        )
+        return _DeepSeekPrimaryWithGroqFallback(primary=primary_llm, secondary=groq_secondary)
+
+    logger.info(
+        "AI exercise provider: DeepSeek only (model=%s) — no GROQ_API_KEY for fallback.",
+        primary_llm.model,
+    )
+    return primary_llm
+
+
+# Singleton chain reused by segment generation and from-file exercise uploads.
+_exercise_deepseek_groq_chain: AIProvider | None = None
+
+
+def get_exercise_deepseek_groq_chain() -> AIProvider:
+    """
+    Lazily construct and cache the DeepSeek→Groq exercise provider chain.
+
+    One shared instance avoids duplicate HTTP clients and keeps behaviour
+    consistent between ``_default_provider`` and ``get_provider_for_plan``.
+    """
+    global _exercise_deepseek_groq_chain
+    if _exercise_deepseek_groq_chain is None:
+        _exercise_deepseek_groq_chain = _build_deepseek_primary_chain()
+    return _exercise_deepseek_groq_chain
+
+
+def _build_default_provider() -> AIProvider:
+    # Default deployment uses DeepSeek first (Groq remains optional fallback).
+    provider_name = os.environ.get("AI_PROVIDER", "deepseek").strip().lower()
+
+    # Groq and DeepSeek env values both map to the same resilient chain so
+    # legacy AI_PROVIDER=groq no longer forces Groq-first traffic.
+    if provider_name in ("groq", "deepseek", "deepseek_groq"):
+        return get_exercise_deepseek_groq_chain()
 
     # Ollama is not available in this deployment — disabled.
     # if provider_name == "ollama":
@@ -282,12 +409,6 @@ def _build_default_provider() -> AIProvider:
         logger.info("AI exercise provider: OpenAIProvider (model=%s)", p.model)
         return p
 
-    if provider_name == "deepseek":
-        from app.services.ai.providers.deepseek_provider import DeepSeekProvider
-        p = DeepSeekProvider()
-        logger.info("AI exercise provider: DeepSeekProvider (model=%s)", p.model)
-        return p
-
     raise ValueError(
         f"Unknown AI_PROVIDER={provider_name!r}. Valid values: 'groq', 'ollama', 'anthropic', 'openai', 'deepseek'."
     )
@@ -302,21 +423,21 @@ def get_provider_for_plan(plan: str) -> AIProvider:
 
     Routing policy
     --------------
-    free      → DeepSeek
-    standard  → DeepSeek
-    pro       → DeepSeek
-    <unknown> → DeepSeek
+    All plans use the same DeepSeek-primary + Groq-fallback chain for
+    interactive exercises (HTTP layer still enforces per-tier AI quotas).
 
-    The env-var AI_PROVIDER is intentionally ignored here so the tariff
-    routing always wins over any deployment-level default.
+    The ``plan`` argument is reserved for future per-tier routing; today every
+    tier shares the chain returned by ``get_exercise_deepseek_groq_chain``.
     """
-    canonical = (plan or "free").strip().lower()
-
-    # All plans route to DeepSeek.
-    from app.services.ai.providers.deepseek_provider import DeepSeekProvider
-    p = DeepSeekProvider()
-    logger.info("Exercise provider for plan=%r: DeepSeekProvider (model=%s)", plan, p.model)
-    return p
+    # Reserved for future per-plan overrides; identical routing for all tiers today.
+    canonical_plan = (plan or "free").strip().lower()
+    chain = get_exercise_deepseek_groq_chain()
+    logger.info(
+        "Exercise provider for plan=%r: DeepSeek→Groq chain (active_model=%s)",
+        canonical_plan,
+        getattr(chain, "model", "?"),
+    )
+    return chain
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1881,23 +2002,67 @@ async def generate_match_pairs_from_unit_content(
     topic_hint: str | None = None,
     provider=None,
     max_retries: int = 2,
+    native_language: str | None = None,
+    target_language: str | None = None,
     **_ignored,
 ) -> tuple[dict, dict]:
+    """
+    Generate a match-pairs exercise from *unit_content*.
+
+    When both *native_language* and *target_language* are provided (taken from
+    the course row), the two columns are split by language:
+
+        left  column → word / phrase in the TARGET language (the language taught)
+        right column → translation / equivalent in the NATIVE language (mother tongue)
+
+    This makes the exercise a classic vocabulary-translation drill where the
+    student must connect target-language terms to their native-language meanings.
+
+    When only *content_language* / *instruction_language* are available the
+    generator falls back to the previous behaviour (both columns in the same
+    language, pairs are term ↔ definition/synonym/example).
+    """
     _provider = provider or _default_provider
     # Honour an explicit number in the teacher's topic hint (e.g. "Match 5 italian
     # words") before falling back to pair_count and then the hard-coded default.
     effective_pairs = pair_count or _extract_count_from_hint(topic_hint, default=6)
-    if content_language and content_language.strip().lower() not in ("", "auto"):
+
+    # ── Language-column logic ─────────────────────────────────────────────────
+    # Normalise language strings so empty / "auto" values are treated as absent.
+    _native = (native_language or "").strip()
+    _target = (target_language or "").strip()
+    _use_bilingual = bool(
+        _native and _native.lower() not in ("", "auto")
+        and _target and _target.lower() not in ("", "auto")
+        and _native.lower() != _target.lower()
+    )
+
+    if _use_bilingual:
+        # Bilingual mode: left = target language word, right = native language translation.
+        lang_hint = (
+            f" Each pair must be a TRANSLATION pair: "
+            f"'left' is the word or phrase in {_target.upper()} (the language being taught), "
+            f"'right' is its translation in {_native.upper()} (the student's native language). "
+            f"Do NOT mix languages within a single side."
+        )
+        left_label = _target.capitalize()
+        right_label = _native.capitalize()
+    elif content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = f" Pairs must be in {content_language}."
+        left_label = "term or phrase"
+        right_label = "definition or translation"
     else:
         lang_hint = " Use the same language as the source material for all pair content."
+        left_label = "term or phrase"
+        right_label = "definition or translation"
+
     title_lang_hint = (
         f" Write the exercise 'title' in {instruction_language.upper()}."
         if instruction_language and instruction_language.lower() not in ("auto", "")
         else ""
     )
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
- 
+
     fallback_titles = {
         "russian": "Соотнесите пары",
         "italian": "Abbina le coppie",
@@ -1907,7 +2072,7 @@ async def generate_match_pairs_from_unit_content(
         "spanish": "Empareja las parejas",
     }
     fallback_title = fallback_titles.get(instruction_language.lower(), "Match the pairs")
- 
+
     system_prompt = (
         "You are a language-exercise designer. "
         "Respond ONLY with valid JSON — no markdown, no explanation."
@@ -1923,12 +2088,12 @@ async def generate_match_pairs_from_unit_content(
         "{\n"
         '  "title": "<descriptive exercise title>",\n'
         '  "pairs": [\n'
-        '    {"left": "term or phrase", "right": "definition or translation"},\n'
+        f'    {{"left": "<{left_label}>", "right": "<{right_label}>"}},\n'
         "    ...\n"
         "  ]\n"
         "}"
     )
- 
+
     prompt = f"{system_prompt}\n\n{user_prompt}"
 
     last_exc: Exception | None = None
@@ -1941,6 +2106,8 @@ async def generate_match_pairs_from_unit_content(
                 "generation_model":    getattr(_provider, "model", "unknown"),
                 "generation_attempts": attempt + 1,
                 "exercise_type":       "match_pairs",
+                "bilingual_mode":      _use_bilingual,
+                **({"left_language": _target, "right_language": _native} if _use_bilingual else {}),
             }
             return data, metadata
         except Exception as exc:
@@ -3606,3 +3773,144 @@ async def generate_exercise(
         topic_hint=topic_hint,
         **kwargs,
     )
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# EXERCISE INSTRUCTION GENERATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Produces a single short learner-facing instruction line ("how to do this
+# exercise") in the requested language. Used by exercise_generation_flow to
+# attach an ``instruction`` field to each generated block so the frontend can
+# render localized guidance instead of the hardcoded English text in each
+# *Block.tsx* component.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+# English fallback instructions, mirrored from the hardcoded strings in the
+# corresponding *Block.tsx files. Used when the AI call is skipped or fails
+# (offline tests, provider outage, unsupported language fallback path).
+_FALLBACK_INSTRUCTIONS_EN: dict[str, str] = {
+    "drag_to_gap":          "Drag words into the correct gaps",
+    "type_word_in_gap":     "Type the correct word in each gap",
+    "select_word_form":     "Select the correct word form in each gap",
+    "match_pairs":          "Match each left word with the correct right word",
+    "build_sentence":       "Build the correct sentence from the words",
+    "order_paragraphs":     "Arrange the paragraphs in the correct order",
+    "sort_into_columns":    "Sort each item into the correct column",
+    "drag_word_to_image":   "Drag words onto the correct images",
+    "type_word_to_image":   "Type the correct word under each image",
+    "select_form_to_image": "Select the correct form under each image",
+    "test_without_timer":   "Answer the questions",
+    "test_with_timer":      "Answer the questions before time runs out",
+    "true_false":           "Decide whether each statement is true or false",
+    "true-false":           "Decide whether each statement is true or false",
+    "text":                 "Read the text carefully",
+    "image":                "Look at the image",
+    "image_stacked":        "Look at the images",
+}
+
+
+def _normalize_instruction_language(language: str | None) -> str:
+    """Normalize a free-form language label for comparison.
+
+    Strips whitespace, lowercases, and maps a few common aliases (``"auto"``
+    and empty values) to ``"english"`` so they hit the canonical fallback
+    branch.
+    """
+    # Holds the cleaned, lowercased label used for comparisons.
+    cleaned = (language or "").strip().lower()
+    if cleaned in ("", "auto"):
+        return "english"
+    return cleaned
+
+
+def _english_fallback_for(exercise_type: str) -> str:
+    """Return a hardcoded English instruction for *exercise_type*.
+
+    Used as the safety net when the AI call is skipped (English target),
+    fails, or the exercise type is unknown.
+    """
+    return _FALLBACK_INSTRUCTIONS_EN.get(
+        exercise_type,
+        "Complete the exercise",
+    )
+
+
+async def generate_exercise_instruction(
+    exercise_type: str,
+    instruction_language: str,
+    *,
+    provider: AIProvider | None = None,
+) -> str:
+    """Generate a one-line learner instruction in *instruction_language*.
+
+    The output is a short imperative sentence (max ~12 words) that tells the
+    learner what to do — e.g. "Перетащите слова в правильные пропуски" for
+    ``drag_to_gap`` in Russian. It mirrors the hardcoded English line in each
+    *Block.tsx* so the frontend can render it directly.
+
+    Behaviour
+    ---------
+    * Returns the static English fallback when ``instruction_language`` is
+      empty / ``"auto"`` / ``"english"`` — no LLM call is made in that case
+      because the frontend already has English copy hardcoded.
+    * Otherwise builds a tiny prompt and asks the configured AI provider for
+      a translated/localized instruction.
+    * On any provider failure or empty output, returns the English fallback
+      so the calling pipeline never breaks because of localization.
+
+    Parameters
+    ----------
+    exercise_type
+        Registry key from ``EXERCISE_GENERATORS`` (e.g. ``"drag_to_gap"``).
+    instruction_language
+        Free-form language label persisted on the course
+        (``Course.native_language``), e.g. ``"Russian"`` / ``"Italian"``.
+    provider
+        Optional AI provider override (defaults to the module-level provider
+        chain used by every other generator in this file).
+    """
+    # English fast-path: no LLM call needed; the frontend already has English copy.
+    fallback = _english_fallback_for(exercise_type)
+    target = _normalize_instruction_language(instruction_language)
+    if target == "english":
+        return fallback
+
+    # Builds a minimal prompt — we only need a single short line back, no JSON.
+    prompt = (
+        "Translate the following short exercise instruction into "
+        f"{instruction_language}.\n"
+        "Rules:\n"
+        "- Output ONLY the translated sentence — no quotes, no labels, no JSON.\n"
+        "- Keep it short and imperative (max ~12 words).\n"
+        "- Use natural learner-facing wording for a language-learning app.\n"
+        f"\nEnglish instruction: {fallback}"
+    )
+
+    _provider = provider or _default_provider
+    try:
+        raw = await _provider.agenerate(prompt)
+    except Exception as exc:  # noqa: BLE001 — never let localization break a generation pipeline
+        logger.warning(
+            "generate_exercise_instruction: provider error for type=%r lang=%r: %s; using English fallback.",
+            exercise_type, instruction_language, exc,
+        )
+        return fallback
+
+    # Stores the cleaned single-line instruction returned by the model.
+    cleaned = (raw or "").strip()
+    if not cleaned:
+        return fallback
+
+    # Strip surrounding quotes / markdown that LLMs occasionally add despite
+    # the explicit "no quotes" rule above.
+    cleaned = cleaned.strip().strip("`").strip()
+    if (cleaned.startswith('"') and cleaned.endswith('"')) or (
+        cleaned.startswith("'") and cleaned.endswith("'")
+    ):
+        cleaned = cleaned[1:-1].strip()
+
+    # Defensive cap: keep the first line only — the AI is asked for one line
+    # but multi-line replies sneak through occasionally.
+    cleaned = cleaned.splitlines()[0].strip() if cleaned else fallback
+    return cleaned or fallback

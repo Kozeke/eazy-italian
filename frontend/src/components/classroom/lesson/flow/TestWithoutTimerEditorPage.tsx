@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
@@ -133,13 +134,15 @@ function applyGeneratedBlock(block: GeneratedBlock, prev: TestDraft): TestDraft 
 export default function TestWithoutTimerEditorPage({
   initialTitle = '',
   initialDraft,
-  label = 'Тест без таймера',
+  label,
   onSave,
   onCancel,
   segmentId,
   exerciseType = 'test_without_timer',
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.mc-no-timer');
   const [draft, setDraft] = useState<TestDraft>(() =>
     normaliseDraft(initialTitle, initialDraft),
   );
@@ -174,7 +177,7 @@ export default function TestWithoutTimerEditorPage({
   const handleSave = async () => {
     if (!canSave) return;
     await onSave(
-      draft.title.trim() || label,
+      draft.title.trim() || resolvedLabel,
       [{
         type: 'test_without_timer',
         // Carry the AI-assigned block id so AdminRoutes.handleExerciseSave
@@ -182,7 +185,7 @@ export default function TestWithoutTimerEditorPage({
         // cause a duplicate block to be appended to the segment).
         _aiBlockId: generatedBlockId ?? undefined,
         data: {
-          title: draft.title.trim() || label,
+          title: draft.title.trim() || resolvedLabel,
           questions: questionDrafts,
           payloads: questionDrafts.map(draftToApiPayload),
         },
@@ -204,7 +207,7 @@ export default function TestWithoutTimerEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={draft.title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -277,7 +280,7 @@ export default function TestWithoutTimerEditorPage({
               className="dtg-btn-cancel"
               onClick={onCancel}
             >
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -291,11 +294,11 @@ export default function TestWithoutTimerEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Заполните вопрос и варианты ответа перед сохранением'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.testEditor.needCompleteTooltip')
+                  : t('exerciseEditors.common.saveExerciseHelp')
               }
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

@@ -218,7 +218,12 @@ export default function OrderParagraphsBlock({
         </div>
       )}
 
-      <div className="bs-prompt">{ORDER_PARAGRAPHS_PROMPT_TEXT}</div>
+      {/* Prefer the AI-generated learner instruction (course.native_language)
+          with the canonical English fallback for legacy blocks. */}
+      <div className="bs-prompt">
+        {(typedItem.data as unknown as { instruction?: string })?.instruction?.trim() ||
+          ORDER_PARAGRAPHS_PROMPT_TEXT}
+      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {orderedItems.map((currentItem, index) => {

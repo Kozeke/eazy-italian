@@ -43,6 +43,10 @@ interface Course {
   created_by: number;
   created_at: string;
   updated_at: string | null;
+  // Language the course teaches (e.g. "Italian"). Persisted on the courses table.
+  target_language?: string | null;
+  // Language used to explain content to the learner (e.g. "Russian"). Persisted on the courses table.
+  native_language?: string | null;
 }
 
 export default function AdminCoursesPage() {

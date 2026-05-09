@@ -524,7 +524,7 @@ STRICT RULES
 - Section 1 title MUST be exactly "Introduction & Learning Outcomes".
 - Follow the teacher's directive exactly — do not add sub-topics not listed there.
 - No two sections may cover the same grammar point or concept.
-- Titles must be concise (2–6 words) and written in {request.language}.
+- Titles must be concise (2–6 words) and written in {request.instruction_language}.
 
 ════════════════════════════════════════
 OUTPUT FORMAT
@@ -581,11 +581,13 @@ The "sections" array must contain between 2 and {n} objects."""
             raw_title = str(sec.get("title", "")).strip()
             # Enforce the first segment title
             if i == 0:
+                # Keep whatever title the LLM produced for the intro section
+                # (it should already be in instruction_language from the planner
+                # prompt).  Only fall back to English if the LLM returned nothing.
                 title = raw_title if raw_title else "Introduction & Learning Outcomes"
-                if title.lower() not in ("introduction & learning outcomes",
-                                         "introduction and learning outcomes",
-                                         "intro & learning outcomes"):
-                    title = "Introduction & Learning Outcomes"
+                # Do NOT force-overwrite with the English string — the planner
+                # prompt instructs titles to be in instruction_language, so if
+                # the model returned e.g. "Введение и учебные цели" keep it.
             else:
                 title = raw_title or f"{request.topic} — Part {i + 1}"
 
@@ -697,7 +699,7 @@ STRICT RULES
   identify the EXPLANATION / READING parts only; ignore the exercise questions.
 - Each section's excerpt must be taken from a DIFFERENT part of the source text.
 - No two sections may cover the same grammar point, vocabulary set, or concept.
-- Titles must be concise (2–6 words), in {request.language}.
+- Titles must be concise (2–6 words), in {request.instruction_language}.
 
 ════════════════════════════════════════
 SOURCE DOCUMENT
@@ -901,63 +903,70 @@ Rules:
                 )
 
             if two_blocks:
+                _il = request.instruction_language  # shorthand
                 block_spec = f"""Return ONLY a single valid JSON object — no markdown fences, no preamble:
 
 {{
   "title": "{title}",
-  "description": "<one sentence: what the student will gain from this whole unit>",
+  "description": "<one sentence in {_il}: what the student will gain from this whole unit>",
   "texts": [
     {{
-      "title": "Learning Aims & Outcomes",
+      "title": "<Block 1 title translated to {_il}, meaning: Learning Aims & Outcomes>",
       "content": "<block 1 markdown — see requirements below>"
     }},
     {{
-      "title": "What We Will Cover",
+      "title": "<Block 2 title translated to {_il}, meaning: What We Will Cover>",
       "content": "<block 2 markdown — see requirements below>"
     }}
   ]
 }}
 
-Block 1 — "Learning Aims & Outcomes" (80–120 words):
-  ## Learning Aims
-  2-3 sentences: what the student will be able to do by the end of this unit.
+CRITICAL: every "title" field and every ## / ### heading inside "content" MUST be in {_il}.
+Do NOT use English for any heading or title — translate them all to {_il}.
+
+Block 1 (80–120 words in {_il}):
+  ## <heading in {_il} meaning "Learning Aims">
+  2-3 sentences in {_il}: what the student will be able to do by the end of this unit.
   Why this topic matters in real life.
 
-  ### Learning Outcomes
-  Bullet list of 3-5 concrete, measurable outcomes.
-  Example: "- Use **Past Simple** to describe completed events."
+  ### <heading in {_il} meaning "Learning Outcomes">
+  Bullet list of 3-5 concrete, measurable outcomes written in {_il}.
 
-Block 2 — "What We Will Cover" (80–120 words):
-  ## Unit Overview
-  1-2 sentences introducing the flow of the unit.
+Block 2 (80–120 words in {_il}):
+  ## <heading in {_il} meaning "Unit Overview">
+  1-2 sentences in {_il} introducing the flow of the unit.
 
-  ### Unit Roadmap
-  Numbered list of the upcoming sections (use exact titles from the list above),
-  each with one sentence on what it teaches. This is a PREVIEW only."""
+  ### <heading in {_il} meaning "Unit Roadmap">
+  Numbered list of the upcoming sections (use their exact titles),
+  each with one sentence in {_il} on what it teaches. PREVIEW only."""
             else:
+                _il = request.instruction_language  # shorthand
                 block_spec = f"""Return ONLY a single valid JSON object — no markdown fences, no preamble:
 
 {{
   "title": "{title}",
-  "description": "<one sentence: what the student will gain from this whole unit>",
+  "description": "<one sentence in {_il}: what the student will gain from this whole unit>",
   "texts": [
     {{
-      "title": "Unit Overview",
+      "title": "<title translated to {_il}, meaning: Unit Overview>",
       "content": "<combined block markdown — see requirements below>"
     }}
   ]
 }}
 
-Single block (120–180 words):
-  ## Learning Aims
-  2-3 sentences on what the student will be able to do after this unit. Why it matters.
+CRITICAL: every "title" field and every ## / ### heading inside "content" MUST be in {_il}.
+Do NOT use English for any heading or title — translate them all to {_il}.
 
-  ### What We Will Cover
-  Numbered list of upcoming sections (use exact titles from the list above),
-  each with one sentence preview.
+Single block (120–180 words in {_il}):
+  ## <heading in {_il} meaning "Learning Aims">
+  2-3 sentences in {_il} on what the student will be able to do after this unit. Why it matters.
 
-  ### Getting Started
-  1-2 motivating sentences."""
+  ### <heading in {_il} meaning "What We Will Cover">
+  Numbered list of upcoming sections (use their exact titles),
+  each with one sentence preview in {_il}.
+
+  ### <heading in {_il} meaning "Getting Started">
+  1-2 motivating sentences in {_il}."""
 
             prompt = f"""You are an expert {request.language} language teacher writing engaging lesson content.
 
@@ -974,7 +983,8 @@ Upcoming sections (in order):
 {block_spec}
 
 General rules:
-- Written entirely in {request.language}.
+- Grammar explanations, learning outcomes, and all prose MUST be written in {request.instruction_language}.
+- {request.language} words, phrases, and example sentences appear as TARGET LANGUAGE examples (shown in italics or quotes), NOT as the explanation language.
 - Use Markdown: ##, ###, **bold**, bullet/numbered lists.
 - Do NOT teach any individual sub-topic in depth — this is an orientation section only.
 - Do NOT include exercises, tasks, or fill-in-the-blank activities.
@@ -1031,7 +1041,8 @@ Write the educational text block for this lesson segment:
   Segment title : {title}
   Teaching topic: {teaching_topic}
   Level         : {request.level} (CEFR)
-  Language      : {request.language}
+  Teaches       : {request.language} (target language — vocabulary/examples in this language)
+  Explain in    : {request.instruction_language} (grammar rules and instructions in this language)
   Segment index : {segment_index + 1}
 {scope_instruction}
 Return ONLY a single valid JSON object — no markdown fences, no preamble:
@@ -1044,13 +1055,14 @@ Return ONLY a single valid JSON object — no markdown fences, no preamble:
 }}
 
 Requirements for "text_content":
-- Written in {request.language}.
+- ALL prose explanations (grammar rules, key points, notes) MUST be written in {request.instruction_language}.
+- {request.language} vocabulary, example sentences, and phrases appear as TARGET LANGUAGE content — shown in *italics* or quotes, never as the explanation language.
 - 120–250 words — substantive but focused.
 - Structure (use all three):
-    1. ## Rule / Explanation  — the key rule or concept for THIS topic in 2-4 sentences.
-    2. ### Key Points  — 3-5 bullet points with bold key terms and concise explanations.
-    3. ### Examples  — 4-6 concrete example sentences demonstrating THIS topic only.
-       Format each example as:  ✓ *sentence* — brief note why it's correct.
+    1. ## Rule / Explanation  — the key rule or concept in {request.instruction_language}, 2-4 sentences.
+    2. ### Key Points  — 3-5 bullet points in {request.instruction_language} with bold {request.language} key terms.
+    3. ### Examples  — 4-6 {request.language} example sentences.
+       Format each as:  ✓ *{request.language} sentence* — brief note in {request.instruction_language} why it's correct.
 - Use Markdown: ##, ###, **bold**, *italic*, bullet lists ( - ).
 - Make it engaging: use relatable scenarios (daily life, travel, work).
 - Do NOT include exercises or tasks — text only.
@@ -1790,6 +1802,10 @@ Requirements for "text_content":
                         content_language=request.content_language,
                         instruction_language=request.instruction_language,
                         generator_params={},
+                        # Use the same AI provider that generated the unit text so
+                        # exercises don't fall back to _default_provider (Groq) and
+                        # fail when GROQ_API_KEY is absent or rate-limited.
+                        provider=self.provider,
                     )
                     result.exercises_created += 1
                     logger.debug(

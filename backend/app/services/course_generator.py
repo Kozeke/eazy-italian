@@ -33,6 +33,17 @@ class CourseGenerateRequest(BaseModel):
     level: CourseLevel
     num_units: int = Field(5, ge=1, le=20)
     language: str = Field("Italian", description="Target language for the course")
+    # Persisted on the resulting Course row when present. When not provided we
+    # fall back to ``language`` for ``target_language`` and leave
+    # ``native_language`` NULL.
+    target_language: str | None = Field(
+        default=None,
+        description="Language the course teaches (persisted on the Course row).",
+    )
+    native_language: str | None = Field(
+        default=None,
+        description="Language used to explain content to the learner (persisted on the Course row).",
+    )
 
 
 # ── Service ─────────────────────────────────────────────────────────────────────
@@ -88,12 +99,20 @@ class CourseGeneratorService:
         """
         blueprint = await self.generate_preview(request)
 
+        # Resolves persisted language fields. ``target_language`` defaults to the
+        # generator's ``language`` (e.g. "Italian") when the caller did not pass
+        # an explicit value, so existing single-arg call sites continue to work.
+        resolved_target_language = (request.target_language or request.language or "").strip() or None
+        resolved_native_language = (request.native_language or "").strip() or None
+
         # Create Course
         course = Course(
             title=request.title,
             description=request.description,
             level=request.level,
             status=CourseStatus.DRAFT,
+            target_language=resolved_target_language,
+            native_language=resolved_native_language,
             created_by=teacher_id,
         )
         db.add(course)

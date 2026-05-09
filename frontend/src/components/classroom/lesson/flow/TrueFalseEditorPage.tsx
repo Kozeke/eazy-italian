@@ -4,6 +4,7 @@
  * True/False exercise editor page that reuses shared test editor layout and footer actions.
  */
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
@@ -138,13 +139,15 @@ function applyGeneratedBlock(block: GeneratedBlock, prev: TestDraft): TestDraft 
 export default function TrueFalseEditorPage({
   initialTitle = '',
   initialDraft,
-  label = 'True / False',
+  label,
   onSave,
   onCancel,
   segmentId,
   exerciseType = 'true_false',
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.true-false');
   const [draft, setDraft] = useState<TestDraft>(() =>
     normaliseDraft(initialTitle, initialDraft),
   );
@@ -181,7 +184,7 @@ export default function TrueFalseEditorPage({
 
   const handleSave = async () => {
     if (!canSave) return;
-    const resolvedTitle = draft.title.trim() || label;
+    const resolvedTitle = draft.title.trim() || resolvedLabel;
     const type = draft.time_limit_minutes > 0 ? 'test_with_timer' : 'test_without_timer';
 
     await onSave(
@@ -212,7 +215,7 @@ export default function TrueFalseEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={draft.title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -254,7 +257,7 @@ export default function TrueFalseEditorPage({
               className="dtg-btn-cancel"
               onClick={onCancel}
             >
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -268,11 +271,11 @@ export default function TrueFalseEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Добавьте валидные вопросы True / False'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.trueFalseEditor.needValidQuestionsTooltip')
+                  : t('exerciseEditors.common.saveExerciseHelp')
               }
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

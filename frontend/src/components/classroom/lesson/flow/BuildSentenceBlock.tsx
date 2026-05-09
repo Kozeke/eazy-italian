@@ -448,7 +448,10 @@ export default function BuildSentenceBlock({
           </div>
         )}
         <div className="dtg-exercise-instruction">
-          Build the correct sentence from the words
+          {/* Prefer the AI-generated learner instruction (course.native_language)
+              with a stable English fallback for legacy blocks. */}
+          {(typedItem.data as unknown as { instruction?: string })?.instruction?.trim() ||
+            "Build the correct sentence from the words"}
         </div>
       </div>
 

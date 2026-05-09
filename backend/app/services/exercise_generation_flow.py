@@ -39,8 +39,17 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.services.ai.providers.base import AIProviderError
-from app.services.ai_exercise_generator import generate_exercise
+from app.services.ai.providers.base import AIProvider, AIProviderError
+from app.services.ai_exercise_generator import (
+    generate_exercise,
+    generate_exercise_instruction,
+)
+
+# Sentinel value matching the historical default of ``instruction_language``
+# across this module's public functions. When a caller does not override the
+# parameter we fall back to ``course.native_language`` so generated text and
+# learner instructions are emitted in the language the course teaches in.
+_DEFAULT_INSTRUCTION_LANGUAGE = "english"
 
 # Re-use content assembly from the test flow — single source of truth.
 from app.services.test_generation_flow import (
@@ -155,6 +164,9 @@ async def generate_exercise_for_segment(
     # consumed their own quota bucket (unit_generation / course_generation)
     # and must not be blocked by the standalone exercise_generation limit.
     teacher_plan: str | None = None,  # noqa: ARG001
+    # When set (e.g. by UnitGenerator), forces the same LLM stack as unit text
+    # instead of the module default chain (avoids surprise Groq fallback).
+    provider: AIProvider | None = None,
 ) -> tuple[dict, dict]:
     """
     Full pipeline for any exercise type:
@@ -181,6 +193,11 @@ async def generate_exercise_for_segment(
     HTTPException 500  Any other unexpected failure.
     """
     params = generator_params or {}
+    # Forwards optional provider into type-specific generators; omitted when None
+    # so they keep using _default_provider inside ai_exercise_generator.
+    exercise_call_kwargs = dict(params)
+    if provider is not None:
+        exercise_call_kwargs["provider"] = provider
 
     logger.info(
         "Starting %s generation — segment_id=%d, unit_id=%d, created_by=%d",
@@ -213,15 +230,58 @@ async def generate_exercise_for_segment(
         "Assembled unit content — %d chars for unit_id=%d", len(unit_content), unit_id
     )
 
+    # ── 2b. Resolve course-level language settings ────────────────────────────
+    # native_language / target_language are stored on the Course row.
+    # They are forwarded to generators that use them (currently: match_pairs).
+    # Generators that don't need them absorb them via **_ignored.
+    course_native_language: str | None = None
+    course_target_language: str | None = None
+    try:
+        from app.models.course import Course  # noqa: PLC0415
+
+        if getattr(unit, "course_id", None):
+            course = db.query(Course).filter(Course.id == unit.course_id).first()
+            if course is not None:
+                course_native_language = getattr(course, "native_language", None) or None
+                course_target_language = getattr(course, "target_language", None) or None
+                logger.debug(
+                    "Resolved course languages — native=%r target=%r (course_id=%d)",
+                    course_native_language, course_target_language, unit.course_id,
+                )
+    except Exception as _lang_exc:  # noqa: BLE001
+        # Never let a language-lookup failure block exercise generation.
+        logger.warning("Could not resolve course languages: %s", _lang_exc)
+
+    # ── 2c. Default instruction_language to the course's native_language ─────
+    # When the caller leaves ``instruction_language`` at its historical default
+    # ("english") we override it with the course's persisted native_language so
+    # generated titles AND the new learner-facing ``instruction`` field come
+    # out in the language the course is taught in. Callers that pass an
+    # explicit non-default value (e.g. from a teacher-side override) win.
+    effective_instruction_language = instruction_language
+    if (
+        course_native_language
+        and (instruction_language or "").strip().lower() == _DEFAULT_INSTRUCTION_LANGUAGE
+    ):
+        effective_instruction_language = course_native_language
+        logger.info(
+            "Defaulting instruction_language to course.native_language=%r (was %r) for course_id=%s.",
+            course_native_language,
+            instruction_language,
+            getattr(unit, "course_id", None),
+        )
+
     # ── 3. Generate via LLM ───────────────────────────────────────────────────
     try:
         exercise_data, metadata = await generate_exercise(
             exercise_type=exercise_type,
             unit_content=unit_content,
             content_language=content_language,
-            instruction_language=instruction_language,
+            instruction_language=effective_instruction_language,
             topic_hint=topic_hint,
-            **params,
+            native_language=course_native_language,
+            target_language=course_target_language,
+            **exercise_call_kwargs,
         )
     except NotImplementedError as exc:
         raise HTTPException(
@@ -257,6 +317,31 @@ async def generate_exercise_for_segment(
         metadata.get("generation_model", "?"),
         metadata.get("generation_attempts", "?"),
     )
+
+    # ── 3b. Attach a localized learner instruction ───────────────────────────
+    # The frontend renders ``data.instruction`` in each exercise block when
+    # present (falling back to the hardcoded English copy). We only generate
+    # this when the per-type generator did not already supply one — that way
+    # a future generator can opt out of the extra LLM round-trip by emitting
+    # its own instruction string.
+    if not exercise_data.get("instruction"):
+        try:
+            generated_instruction = await generate_exercise_instruction(
+                exercise_type=exercise_type,
+                instruction_language=effective_instruction_language,
+            )
+        except Exception as _instr_exc:  # noqa: BLE001
+            # Localization is best-effort; never let it block persistence.
+            logger.warning(
+                "Failed to generate learner instruction for type=%s lang=%r: %s",
+                exercise_type, effective_instruction_language, _instr_exc,
+            )
+            generated_instruction = ""
+
+        if generated_instruction:
+            exercise_data["instruction"] = generated_instruction
+            metadata["instruction"] = generated_instruction
+            metadata["instruction_language"] = effective_instruction_language
 
     # ── 4. Persist block ──────────────────────────────────────────────────────
     default_title = exercise_data.get("title") or exercise_type.replace("_", " ").title()

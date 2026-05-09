@@ -461,7 +461,8 @@
       "daysLeftAria": "Subscription: {{days}} days left",
       "planAria": "Subscription plan",
       "daysLeftTitle": "{{days}} days left",
-      "freePlanTitle": "Free plan - click to upgrade"
+      "freePlanTitle": "Free plan - click to upgrade",
+      "activePlanTitle": "Active subscription"
     },
     "userMenu": {
       "label": "User menu",
@@ -485,7 +486,8 @@
         "aria": "Subscription info",
         "paidDateOnly": "Paid until {{date}}",
         "paidOneDayLeft": "Paid until {{date}} · 1 day left",
-        "paidManyDaysLeft": "Paid until {{date}} · {{days}} days left"
+        "paidManyDaysLeft": "Paid until {{date}} · {{days}} days left",
+        "openEndedActive": "Your plan is active. No end date — open-ended access."
       },
       "updatesNewAria": "New"
     },
@@ -895,6 +897,35 @@
         "generatingShort": "Generating...",
         "fillAllUnits": "This will fill all {{count}} units with AI content.",
         "allUnitsGenerated": "All units generated! Select a unit below to start teaching."
+      },
+      "outlineReview": {
+        "introBadge": "INTRO",
+        "segmentPlanTitle": "Segment plan",
+        "planningSegments": "Planning segments…",
+        "planLoadError": "Couldn't load plan — will generate with default segments",
+        "retry": "Retry",
+        "planNeedsDbUnit": "This outline row has no saved unit yet. Reload the course or recreate this unit to preview the plan.",
+        "editUnitTitle": "Edit unit title",
+        "removeUnitTitle": "Remove this unit from outline",
+        "clickEditDescription": "Click to edit description",
+        "clickAddDescription": "Click to add description…",
+        "openUnit": "Open this unit",
+        "open": "Open",
+        "bannerAllDone_one": "All {{count}} unit generated",
+        "bannerAllDone_other": "All {{count}} units generated",
+        "bannerGenerating": "Generating… {{done}} / {{total}} units done",
+        "unitsReadyToReview_one": "{{count}} unit ready to review",
+        "unitsReadyToReview_other": "{{count}} units ready to review",
+        "subtitleAllDone": "Click any unit card to open it",
+        "subtitleGenerating": "Done units can be opened while others are still generating",
+        "subtitleReview": "Review & edit below, then click Generate to start",
+        "percentComplete": "{{percent}}% complete",
+        "noUnitsInOutline": "No units in this outline",
+        "footerGenerating": "Generating content… done units are available to open above",
+        "footerAllDone": "All units are ready — click Open on any card above to enter it.",
+        "footerExpandHint": "Expand any unit to preview its segment plan before generating",
+        "addUnit": "Add unit",
+        "adding": "Adding…"
       }
     },
     "header": {
@@ -1237,6 +1268,233 @@
     "aiBannerTitle": "Generate with AI",
     "aiBannerSubtitle": "Describe your exercise and let AI build it for you",
     "closeGalleryAria": "Close"
+  },
+  "exerciseTemplates": {
+    "sections": {
+      "text_reading": "Text & Reading",
+      "images": "Images",
+      "audio_video": "Audio & Video",
+      "words_gaps": "Words & Gaps",
+      "tests": "Tests",
+      "put_in_order": "Put in Order"
+    },
+    "labels": {
+      "text-block": "Text block",
+      "img-block": "Image block",
+      "img-carousel": "Image carousel",
+      "img-gif": "GIF animation",
+      "video-embed": "Embed video",
+      "audio-clip": "Audio clip",
+      "audio-repeat": "Listen & repeat",
+      "drag-to-gap": "Drag word to gap",
+      "type-word-in-gap": "Type word in gap",
+      "cloze-select": "Select word form",
+      "visual-drag": "Drag word to image",
+      "visual-input": "Type word to image",
+      "visual-select": "Select form to image",
+      "mc-no-timer": "Test without timer",
+      "mc-timer": "Test with timer",
+      "true-false": "True / False",
+      "order-sentence": "Build a sentence",
+      "sort-columns": "Sort into columns",
+      "order-text": "Order paragraphs",
+      "anagram": "Make a word",
+      "matching": "Match pairs"
+    }
+  },
+  "exerciseEditors": {
+    "gap": {
+      "instructionDrag": "Drag words into the correct gaps",
+      "instructionType": "Type words into the correct gaps",
+      "wordsBarChipsEmpty": "Words will appear here after you fill the gaps",
+      "typingHintDefault": "Students type answers directly in the gaps",
+      "mainPlaceholder": "Enter the exercise text",
+      "addGapTooltip": "Add a gap",
+      "addGapAria": "Show gap insert button",
+      "insertGapTooltip": "Insert gap at cursor",
+      "insertGapAria": "Insert gap at cursor",
+      "correctAnswer": "Correct answer",
+      "deleteGapTooltip": "Delete gap",
+      "deleteGapAria": "Delete gap",
+      "answerPlaceholder": "Enter the correct answer…",
+      "saveAnswer": "Save answer",
+      "gapAriaFilled": "Gap with answer \"{{answer}}\" — click to edit",
+      "gapAriaEmpty": "Empty gap — click to add correct answer",
+      "needAllGapsTooltip": "Fill every gap before saving",
+      "saveExerciseTooltip": "Save exercise"
+    },
+    "common": {
+      "exerciseTitlePlaceholder": "Exercise title (shown to students)",
+      "exerciseTitleAria": "Exercise title",
+      "saveExerciseHelp": "Save exercise",
+      "completeRequiredHint": "Complete all required fields before saving",
+      "leftItemPlaceholder": "Left item",
+      "rightItemPlaceholder": "Right item",
+      "columnTitlePlaceholder": "Column title",
+      "columnWordPlaceholder": "Word",
+      "saveForms": "Save answer forms"
+    },
+    "matchPairs": {
+      "instruction": "Match each left word with the correct right word",
+      "leftColumn": "Left word",
+      "rightColumn": "Right word",
+      "addCouple": "Add couple",
+      "removePairAria": "Remove pair",
+      "removePairTitle": "Remove pair",
+      "needCompleteTooltip": "Fill both columns in every row before saving"
+    },
+    "sortColumns": {
+      "wordsPreviewEmpty": "Added words will appear here",
+      "dropWordsHere": "Drop words here",
+      "removeColumnTitle": "Remove column",
+      "removeColumnAria": "Remove column {{n}}",
+      "removeWordAria": "Remove word",
+      "addWord": "Add word",
+      "addColumn": "Add column",
+      "needCompleteTooltip": "Fill every column title and all words before saving"
+    },
+    "orderParagraphs": {
+      "instruction": "Arrange the paragraphs in the correct order",
+      "needCompleteTooltip": "Fill all paragraphs before saving"
+    },
+    "buildSentence": {
+      "instruction": "Build the correct sentence from the words",
+      "needCompleteTooltip": "Add the prompt and all words before saving"
+    },
+    "textBlock": {
+      "editorAriaSuffix": "editor",
+      "titlePlaceholder": "Exercise name",
+      "showPreview": "Show preview",
+      "hidePreview": "Hide preview",
+      "markdownHintPrefix": "Markdown:",
+      "markdownBold": "bold",
+      "markdownItalic": "italic",
+      "markdownHeading": "heading",
+      "markdownList": "list",
+      "textareaPlaceholder": "Markdown text…\n\n## Rule\n**Example:** *essere* for states.\n- io sono\n- tu sei",
+      "previewHeading": "Preview",
+      "needContentTooltip": "Enter text before saving",
+      "saveBlockTooltip": "Save block"
+    },
+    "selectWordForm": {
+      "instruction": "Select the correct word form in each gap",
+      "correctFormsLabel": "Correct forms",
+      "panelHint": "Check the correct forms and add more options below.",
+      "variantPlaceholder": "Option {{n}}",
+      "markVariantAria": "Mark variant {{n}} as correct",
+      "addVariant": "Add option",
+      "removeVariant": "Remove",
+      "gapAriaFilled": "Gap with {{count}} correct forms — click to edit",
+      "gapAriaEmpty": "Empty gap — click to add dropdown forms"
+    },
+    "trueFalseEditor": {
+      "needValidQuestionsTooltip": "Add valid True / False questions before saving"
+    },
+    "testEditor": {
+      "needCompleteTooltip": "Complete each question and answer options before saving"
+    },
+    "selectFormImage": {
+      "instruction": "Select the correct form under each image",
+      "addOption": "Add option",
+      "optionPlaceholder": "Form {{n}}",
+      "optionAria": "Form {{n}}",
+      "needCompleteTooltip": "Add an image and mark at least one correct form on every card",
+      "boardAria": "Image cards with selectable forms",
+      "markCorrectAria": "Mark form {{n}} as correct",
+      "removeFormAria": "Remove form {{n}}",
+      "removeOptionTitle": "Remove option"
+    },
+    "dragToImage": {
+      "instructionDrag": "Drag words onto the correct images",
+      "instructionType": "Type the correct word for each image",
+      "boardAria": "Image answer cards",
+      "removeCardAria": "Remove image card",
+      "removeCardTitle": "Remove card",
+      "replaceImageTitle": "Replace image",
+      "uploadImageTitle": "Upload image",
+      "correctWordPlaceholder": "Correct word",
+      "correctWordAria": "Correct word",
+      "aiImageHint": "AI image hint",
+      "addCardAria": "Add image card",
+      "addCardTitle": "Add card",
+      "needCompleteTooltip": "Complete all cards before saving",
+      "saveTooltip": "Save exercise",
+      "wordsBarEmpty": "Words will appear here after you fill the cards",
+      "uploading": "Uploading…",
+      "upload": "Upload"
+    },
+    "workspace": {
+      "validation": {
+        "promptRequired": "Question prompt is required.",
+        "mcOptionsMin": "At least 2 options required.",
+        "mcCorrectMin": "Mark at least one correct answer.",
+        "mcOptionText": "All options must have text.",
+        "tfCorrect": "Select True or False as the correct answer.",
+        "keywordsMin": "Add at least one keyword for grading.",
+        "regexPattern": "Enter a regex pattern for grading.",
+        "gapsAnswers": "All gaps must have at least one accepted answer.",
+        "matchText": "All matching items must have text.",
+        "matchPairs": "Connect all left items to a right item.",
+        "orderItemsText": "All items must have text.",
+        "orderSet": "Set the correct order for all items."
+      },
+      "questionErrorLine": "Q{{n}}: {{error}}",
+      "saveFailed": "Save failed. Please try again.",
+      "untitledSlide": "Untitled slide",
+      "slideCanvasBadge": "Blank slide canvas",
+      "slideCanvasHint": "— add media blocks and exercises below",
+      "mediaRemoveBlock": "Remove block",
+      "mediaCaptionPlaceholder": "Caption (optional)",
+      "mediaImagePreviewAlt": "Image preview",
+      "mediaVideoPreviewTitle": "Video preview",
+      "mediaPreviewAfterSave": "Preview available after saving.",
+      "mediaUploadImageTitle": "Upload image",
+      "mediaImageLabel": "Image",
+      "mediaVideoLabel": "Video",
+      "mediaAudioLabel": "Audio",
+      "mediaImagePlaceholder": "Paste an image URL or click upload →",
+      "mediaVideoPlaceholder": "Paste a YouTube or Vimeo URL",
+      "mediaAudioPlaceholder": "Paste an audio file URL"
+    },
+    "player": {
+      "questionTypes": {
+        "multiple_choice": "Multiple Choice",
+        "true_false": "True / False",
+        "open_answer": "Open Answer",
+        "cloze_input": "Fill in blank",
+        "cloze_drag": "Drag to fill",
+        "matching_pairs": "Matching pairs",
+        "ordering_words": "Word order",
+        "ordering_sentences": "Sentence order"
+      },
+      "mediaHeading": "Media",
+      "exerciseHeading": "Exercise",
+      "addBlock": "Add block",
+      "addQuestion": "Add question",
+      "removeQuestion": "Remove question",
+      "saving": "Saving…",
+      "emptySlideTitle": "Empty slide",
+      "emptySlideBody": "Use the button below to add an image, video, audio or exercise block.",
+      "emptyQuestionsTitle": "No questions yet",
+      "emptyQuestionsBody": "Add your first question to start building this exercise.",
+      "emptySlideCta": "Add block",
+      "emptyQuestionsCta": "Add first question",
+      "inlineVideoAfterSave": "Video URL saved — preview available after saving.",
+      "inlinePreviewAlt": "Preview",
+      "inlineVideoIframeTitle": "Video preview",
+      "mediaPickers": {
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio"
+      },
+      "inlineMediaPlaceholders": {
+        "image": "Paste an image URL or click upload →",
+        "video": "Paste a YouTube or Vimeo URL",
+        "audio": "Paste an audio file URL"
+      },
+      "captionOptional": "Caption (optional)",
+      "uploadImageTitle": "Upload image"
+    }
   },
   "mediaEditor": {
     "cancel": "Cancel",

@@ -89,6 +89,12 @@ export default function DragToGapBlock({
   };
 
   const { title, segments = [], gaps = {} } = exerciseData;
+  // AI-generated learner instruction in the course's native_language. Falls
+  // back to the original English copy when absent so legacy blocks keep
+  // working unchanged.
+  const instruction =
+    (exerciseData as unknown as { instruction?: string }).instruction?.trim() ||
+    "Drag words into the correct gaps";
 
   // Used so lesson completion runs for students only (teacher follows along in guided mode)
   const liveCtx = useContext(LiveSessionContext);
@@ -312,7 +318,7 @@ export default function DragToGapBlock({
           )}
           <div className="dtg-exercise-instruction">
             {/* <MoveHorizontal size={13} /> */}
-            Drag words into the correct gaps
+            {instruction}
           </div>
         </div>
       )}

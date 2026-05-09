@@ -65,6 +65,11 @@ export default function DragWordToImageBlock({
   };
 
   const { title, cards = [] } = exerciseData;
+  // AI-generated learner instruction (course.native_language); falls back to
+  // the original English copy if the block predates instruction generation.
+  const instruction =
+    (exerciseData as unknown as { instruction?: string }).instruction?.trim() ||
+    "Drag words onto the correct images";
 
   // Skips onComplete when the viewer is the teacher (mirrors TypeWordInGapBlock)
   const liveCtx = useContext(LiveSessionContext);
@@ -280,7 +285,7 @@ export default function DragWordToImageBlock({
           <div className="dtg-exercise-title">{title}</div>
         )}
         <div className="dtg-exercise-instruction">
-          Drag words onto the correct images
+          {instruction}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
@@ -119,12 +120,14 @@ function normaliseDraft(initialDraft?: OrderingWordsDraft): OrderingWordsDraft {
 export default function BuildSentenceEditorPage({
   initialTitle = '',
   initialDraft,
-  label = 'Build a sentence',
+  label,
   onSave,
   onCancel,
   segmentId,
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.order-sentence');
   const [title, setTitle] = useState(initialTitle);
   const [draft, setDraft] = useState<OrderingWordsDraft>(() =>
     normaliseDraft(initialDraft),
@@ -145,9 +148,9 @@ export default function BuildSentenceEditorPage({
   const preparedDraft = useMemo(
     () => ({
       ...draft,
-      prompt: draft.prompt.trim() || title.trim() || label,
+      prompt: draft.prompt.trim() || title.trim() || resolvedLabel,
     }),
-    [draft, title, label],
+    [draft, title, resolvedLabel],
   );
 
   const canSave = useMemo(
@@ -157,7 +160,7 @@ export default function BuildSentenceEditorPage({
 
   const handleSave = async () => {
     if (!canSave) return;
-    const resolvedTitle = title.trim() || label;
+    const resolvedTitle = title.trim() || resolvedLabel;
     await onSave(
       resolvedTitle,
       [{
@@ -177,7 +180,7 @@ export default function BuildSentenceEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -192,14 +195,14 @@ export default function BuildSentenceEditorPage({
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
-            aria-label="Exercise title"
+            placeholder={t('exerciseEditors.common.exerciseTitlePlaceholder')}
+            aria-label={t('exerciseEditors.common.exerciseTitleAria')}
           />
         </div>
 
         <div className="dtg-editor-title-preview">
           <div className="dtg-exercise-instruction">
-            Build the correct sentence from the words
+            {t('exerciseEditors.buildSentence.instruction')}
           </div>
         </div>
 
@@ -239,7 +242,7 @@ export default function BuildSentenceEditorPage({
               className="dtg-btn-cancel"
               onClick={onCancel}
             >
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -253,11 +256,11 @@ export default function BuildSentenceEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Заполните задание и все слова перед сохранением'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.buildSentence.needCompleteTooltip')
+                  : t('exerciseEditors.common.saveExerciseHelp')
               }
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

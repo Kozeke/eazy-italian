@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, X } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
@@ -185,12 +186,14 @@ function buildDraftFromRows(
 export default function MatchPairsEditorPage({
   initialTitle = '',
   initialDraft,
-  label = 'Match pairs',
+  label,
   onSave,
   onCancel,
   segmentId,          // ← ADD THIS
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.matching');
   const baseDraft = useMemo(() => normaliseDraft(initialDraft), [initialDraft]);
   const [title, setTitle] = useState(initialTitle);
   const [rows, setRows] = useState<PairRowDraft[]>(() => normaliseRows(initialDraft));
@@ -211,9 +214,9 @@ export default function MatchPairsEditorPage({
       buildDraftFromRows(
         baseDraft,
         rows,
-        title.trim() || label,
+        title.trim() || resolvedLabel,
       ),
-    [baseDraft, rows, title, label],
+    [baseDraft, rows, title, resolvedLabel],
   );
 
   const rowsAreValid =
@@ -253,7 +256,7 @@ export default function MatchPairsEditorPage({
 
   const handleSave = async () => {
     if (!canSave) return;
-    const resolvedTitle = title.trim() || label;
+    const resolvedTitle = title.trim() || resolvedLabel;
     await onSave(
       resolvedTitle,
       [{
@@ -273,7 +276,7 @@ export default function MatchPairsEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -288,14 +291,14 @@ export default function MatchPairsEditorPage({
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
-            aria-label="Exercise title"
+            placeholder={t('exerciseEditors.common.exerciseTitlePlaceholder')}
+            aria-label={t('exerciseEditors.common.exerciseTitleAria')}
           />
         </div>
 
         <div className="dtg-editor-title-preview">
           <div className="dtg-exercise-instruction">
-            Match each left word with the correct right word
+            {t('exerciseEditors.matchPairs.instruction')}
           </div>
         </div>
 
@@ -317,8 +320,8 @@ export default function MatchPairsEditorPage({
 
         <div className="mp-editor-card">
           <div className="mp-editor-head">
-            <div className="mp-editor-col-label">Left word</div>
-            <div className="mp-editor-col-label">Right word</div>
+            <div className="mp-editor-col-label">{t('exerciseEditors.matchPairs.leftColumn')}</div>
+            <div className="mp-editor-col-label">{t('exerciseEditors.matchPairs.rightColumn')}</div>
             <div />
           </div>
 
@@ -329,22 +332,22 @@ export default function MatchPairsEditorPage({
                   type="text"
                   value={row.left}
                   onChange={(e) => updateRow(row.id, 'left', e.target.value)}
-                  placeholder="Write left word"
+                  placeholder={t('exerciseEditors.common.leftItemPlaceholder')}
                   className="mp-editor-input"
                 />
                 <input
                   type="text"
                   value={row.right}
                   onChange={(e) => updateRow(row.id, 'right', e.target.value)}
-                  placeholder="Write right word"
+                  placeholder={t('exerciseEditors.common.rightItemPlaceholder')}
                   className="mp-editor-input"
                 />
                 <button
                   type="button"
                   className="mp-editor-remove"
                   onClick={() => removeRow(row.id)}
-                  aria-label="Remove pair"
-                  title="Remove pair"
+                  aria-label={t('exerciseEditors.matchPairs.removePairAria')}
+                  title={t('exerciseEditors.matchPairs.removePairTitle')}
                 >
                   <X size={15} />
                 </button>
@@ -359,7 +362,7 @@ export default function MatchPairsEditorPage({
               onClick={addRow}
             >
               <Plus size={15} />
-              Add couple
+              {t('exerciseEditors.matchPairs.addCouple')}
             </button>
           </div>
         </div>
@@ -378,7 +381,7 @@ export default function MatchPairsEditorPage({
               className="dtg-btn-cancel"
               onClick={onCancel}
             >
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -392,11 +395,11 @@ export default function MatchPairsEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Заполните обе колонки перед сохранением'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.matchPairs.needCompleteTooltip')
+                  : t('exerciseEditors.common.saveExerciseHelp')
               }
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

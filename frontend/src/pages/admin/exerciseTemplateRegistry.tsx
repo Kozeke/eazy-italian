@@ -27,18 +27,18 @@ import type { QuestionDraft } from "../../components/classroom/lesson/editors/Qu
 
 // --- Template shape -----------------------------------------------------------
 
-export type GallerySection =
-  | "Text & Reading"
-  | "Images"
-  | "Audio & Video"
-  | "Words & Gaps"
-  | "Tests"
-  | "Put in Order";
+/** Stable section ids for gallery grouping and i18n (`exerciseTemplates.sections.*`). */
+export type GallerySectionId =
+  | "text_reading"
+  | "images"
+  | "audio_video"
+  | "words_gaps"
+  | "tests"
+  | "put_in_order";
 
 export interface TemplateConfig {
   id: string;
-  section: GallerySection;
-  label: string;
+  section: GallerySectionId;
   preview: ReactNode;
   /** Skip editor - inject a media block of this kind directly. */
   mediaKind?: "image" | "video" | "audio";
@@ -522,47 +522,47 @@ function TypeWordInGapPreview() {
 
 export const TEMPLATE_REGISTRY: TemplateConfig[] = [
   // Text & Reading
-  { id: "text-block",   section: "Text & Reading", label: "Text block",          preview: <TextBlockPreview />,   customEditor: "text_block" },
+  { id: "text-block",   section: "text_reading", preview: <TextBlockPreview />,   customEditor: "text_block" },
   // Images
-  { id: "img-block",    section: "Images",       label: "Image block",          preview: <ImageBlockPreview />,  customEditor: "image_block" },
+  { id: "img-block",    section: "images",       preview: <ImageBlockPreview />,  customEditor: "image_block" },
   // Keep the old stacked card hidden to avoid confusion with Image carousel.
   // { id: "img-stack",    section: "Images",       label: "Images stacked",       preview: <ImgStackPreview />,    customEditor: "image_stacked" },
   // Route Image carousel to the ImageStacked editor/block implementation.
-  { id: "img-carousel", section: "Images",       label: "Image carousel",       preview: <ImgCarouselPreview />, customEditor: "image_stacked" },
-  { id: "img-gif",      section: "Images",       label: "GIF animation",        preview: <GifPreview />,         customEditor: "gif_animation" },
+  { id: "img-carousel", section: "images",       preview: <ImgCarouselPreview />, customEditor: "image_stacked" },
+  { id: "img-gif",      section: "images",       preview: <GifPreview />,         customEditor: "gif_animation" },
   // Audio & Video
-  { id: "video-embed",  section: "Audio & Video", label: "Embed video",         preview: <VideoPreview />,       customEditor: "video_block" },
-  { id: "audio-clip",   section: "Audio & Video", label: "Audio clip",          preview: <AudioPreview />,       customEditor: "audio_block" },
-  { id: "audio-repeat", section: "Audio & Video", label: "Listen & repeat",     preview: <AudioRepeatPreview />, combo: { mediaKind: "audio", draftType: "open_answer" } },
+  { id: "video-embed",  section: "audio_video", preview: <VideoPreview />,       customEditor: "video_block" },
+  { id: "audio-clip",   section: "audio_video", preview: <AudioPreview />,       customEditor: "audio_block" },
+  { id: "audio-repeat", section: "audio_video", preview: <AudioRepeatPreview />, combo: { mediaKind: "audio", draftType: "open_answer" } },
   // Words & Gaps
-  { id: "drag-to-gap",  section: "Words & Gaps",  label: "Drag word to gap",    preview: <DragToGapPreview />,   customEditor: "drag_to_gap" },
-  { id: "type-word-in-gap", section: "Words & Gaps", label: "Type word in gap", preview: <TypeWordInGapPreview />, customEditor: "type_word_in_gap" },
+  { id: "drag-to-gap",  section: "words_gaps",  preview: <DragToGapPreview />,   customEditor: "drag_to_gap" },
+  { id: "type-word-in-gap", section: "words_gaps", preview: <TypeWordInGapPreview />, customEditor: "type_word_in_gap" },
   // Classic cloze templates are hidden while the custom gap editors are in use.
   // { id: "cloze-drag",   section: "Words & Gaps",  label: "Drag word (classic)", preview: <ClozeDragPreview />,   draftType: "cloze_drag" },
   // { id: "cloze-input",  section: "Words & Gaps",  label: "Type word (classic)", preview: <ClozeInputPreview />,  draftType: "cloze_input" },
-  { id: "cloze-select", section: "Words & Gaps",  label: "Select word form",    preview: <ClozeSelectPreview />, customEditor: "select_word_form" },
-  { id: "visual-drag",  section: "Words & Gaps",  label: "Drag word to image",  preview: <VisualDragPreview />,  customEditor: "drag_to_image" },
-  { id: "visual-input", section: "Words & Gaps",  label: "Type word to image",  preview: <VisualInputPreview />, customEditor: "type_word_to_image" },
-  { id: "visual-select",section: "Words & Gaps",  label: "Select form to image",preview: <VisualSelectPreview />,customEditor: "select_form_to_image" },
+  { id: "cloze-select", section: "words_gaps",  preview: <ClozeSelectPreview />, customEditor: "select_word_form" },
+  { id: "visual-drag",  section: "words_gaps",  preview: <VisualDragPreview />,  customEditor: "drag_to_image" },
+  { id: "visual-input", section: "words_gaps",  preview: <VisualInputPreview />, customEditor: "type_word_to_image" },
+  { id: "visual-select",section: "words_gaps",  preview: <VisualSelectPreview />,customEditor: "select_form_to_image" },
   // Tests
-  { id: "mc-no-timer",  section: "Tests",         label: "Test without timer",  preview: <MCPreview />,          customEditor: "test_without_timer" },
-  { id: "mc-timer",     section: "Tests",         label: "Test with timer",     preview: <MCPreview hasTimer />, customEditor: "test_with_timer" },
-  { id: "true-false",   section: "Tests",         label: "True / False",        preview: <TrueFalsePreview />,   customEditor: "true_false" },
+  { id: "mc-no-timer",  section: "tests",         preview: <MCPreview />,          customEditor: "test_without_timer" },
+  { id: "mc-timer",     section: "tests",         preview: <MCPreview hasTimer />, customEditor: "test_with_timer" },
+  { id: "true-false",   section: "tests",         preview: <TrueFalsePreview />,   customEditor: "true_false" },
   // Put in Order
-  { id: "order-sentence",section: "Put in Order", label: "Build a sentence",    preview: <OrderSentencePreview />, customEditor: "build_sentence" },
-  { id: "sort-columns", section: "Put in Order",  label: "Sort into columns",   preview: <SortColumnsPreview />, customEditor: "sort_into_columns" },
-  { id: "order-text",   section: "Put in Order",  label: "Order paragraphs",    preview: <OrderTextPreview />,   customEditor: "order_paragraphs" },
-  { id: "anagram",      section: "Put in Order",  label: "Make a word",         preview: <AnagramPreview />,     draftType: "ordering_words" },
-  { id: "matching",     section: "Put in Order",  label: "Match pairs",         preview: <MatchingPreview />,    customEditor: "match_pairs" },
+  { id: "order-sentence",section: "put_in_order", preview: <OrderSentencePreview />, customEditor: "build_sentence" },
+  { id: "sort-columns", section: "put_in_order",  preview: <SortColumnsPreview />, customEditor: "sort_into_columns" },
+  { id: "order-text",   section: "put_in_order",  preview: <OrderTextPreview />,   customEditor: "order_paragraphs" },
+  { id: "anagram",      section: "put_in_order",  preview: <AnagramPreview />,     draftType: "ordering_words" },
+  { id: "matching",     section: "put_in_order",  preview: <MatchingPreview />,    customEditor: "match_pairs" },
 ];
 
-export const GALLERY_SECTIONS: readonly GallerySection[] = [
-  "Text & Reading",
-  "Images",
-  "Audio & Video",
-  "Words & Gaps",
-  "Tests",
-  "Put in Order",
+export const GALLERY_SECTIONS: readonly GallerySectionId[] = [
+  "text_reading",
+  "images",
+  "audio_video",
+  "words_gaps",
+  "tests",
+  "put_in_order",
 ];
 
 export function findTemplate(id: string): TemplateConfig | undefined {

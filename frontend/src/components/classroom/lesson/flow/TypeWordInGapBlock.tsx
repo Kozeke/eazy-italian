@@ -154,6 +154,11 @@ export default function TypeWordInGapBlock({
   };
 
   const { title, segments = [], gaps = {} } = exerciseData;
+  // AI-generated learner instruction (course.native_language); falls back to
+  // the original English copy if the block predates instruction generation.
+  const instruction =
+    (exerciseData as unknown as { instruction?: string }).instruction?.trim() ||
+    "Type the correct word in each gap";
 
   // Detect teacher role for monitoring view
   const liveCtx = useContext(LiveSessionContext);
@@ -228,7 +233,7 @@ export default function TypeWordInGapBlock({
         )}
         <div className="dtg-exercise-instruction">
           <Keyboard size={13} />
-          Type the correct word in each gap
+          {instruction}
         </div>
       </div>
 

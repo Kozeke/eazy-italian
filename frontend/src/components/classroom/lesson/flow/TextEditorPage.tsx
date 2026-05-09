@@ -266,7 +266,8 @@ export default function TextEditorPage({
   }, [label, title, t, i18n.language]);
 
   /** Shown in the fixed header when the gallery label is absent. */
-  const resolvedGalleryLabel = label ?? t("aiExerciseGenerator.types.text.label");
+  const resolvedGalleryLabel =
+    label ?? t("exerciseTemplates.labels.text-block");
 
   return (
     <div className="dtg-editor-root">
@@ -282,15 +283,15 @@ export default function TextEditorPage({
       <div
         className="dtg-editor-content"
         style={{ paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14 }}
-        aria-label={`${resolvedGalleryLabel} editor`}
+        aria-label={`${resolvedGalleryLabel} ${t("exerciseEditors.textBlock.editorAriaSuffix")}`}
       >
         <div className="dtg-title-row">
           <input
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название упражнения"
-            aria-label="Exercise title"
+            placeholder={t("exerciseEditors.textBlock.titlePlaceholder")}
+            aria-label={t("exerciseEditors.common.exerciseTitleAria")}
           />
         </div>
 
@@ -323,7 +324,7 @@ export default function TextEditorPage({
               }}
             >
               {showPreview ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
-              {showPreview ? "Скрыть предпросмотр" : "Показать предпросмотр"}
+              {showPreview ? t("exerciseEditors.textBlock.hidePreview") : t("exerciseEditors.textBlock.showPreview")}
             </button>
 
             <AIExerciseGenerateButton
@@ -333,19 +334,20 @@ export default function TextEditorPage({
           </div>
 
           <p style={{ margin: 0, fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-            Markdown: <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>**жирный**</code>
+            {t("exerciseEditors.textBlock.markdownHintPrefix")}{" "}
+            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>**{t("exerciseEditors.textBlock.markdownBold")}**</code>
             {" "}
-            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>*курсив*</code>
+            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>*{t("exerciseEditors.textBlock.markdownItalic")}*</code>
             {" "}
-            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>## Заголовок</code>
+            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>## {t("exerciseEditors.textBlock.markdownHeading")}</code>
             {" "}
-            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>- список</code>
+            <code style={{ background: C.bg, borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>- {t("exerciseEditors.textBlock.markdownList")}</code>
           </p>
 
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder={"Текст в Markdown…\n\n## Правило\n**Пример:** *essere* для состояний.\n- io sono\n- tu sei"}
+            placeholder={t("exerciseEditors.textBlock.textareaPlaceholder")}
             rows={14}
             style={{
               width: "100%",
@@ -370,7 +372,7 @@ export default function TextEditorPage({
         {showPreview && content.trim() && (
           <div style={{ marginTop: 18 }}>
             <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Предпросмотр
+              {t("exerciseEditors.textBlock.previewHeading")}
             </p>
 
             <div style={{
@@ -424,7 +426,7 @@ export default function TextEditorPage({
 
           <div className="dtg-footer-btns">
             <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -434,9 +436,9 @@ export default function TextEditorPage({
               ].filter(Boolean).join(" ")}
               onClick={handleSave}
               disabled={!canSave || saving}
-              title={!canSave ? "Введите текст перед сохранением" : "Сохранить блок"}
+              title={!canSave ? t("exerciseEditors.textBlock.needContentTooltip") : t("exerciseEditors.textBlock.saveBlockTooltip")}
             >
-              {saving ? "Сохранение…" : "Сохранить"}
+              {saving ? t("mediaEditor.saving") : t("common.save")}
             </button>
           </div>
         </div>

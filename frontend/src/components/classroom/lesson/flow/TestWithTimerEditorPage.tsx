@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
@@ -139,13 +140,15 @@ function applyGeneratedBlock(block: GeneratedBlock, prev: TestDraft): TestDraft 
 export default function TestWithTimerEditorPage({
   initialTitle = '',
   initialDraft,
-  label = 'Тест с таймером',
+  label,
   onSave,
   onCancel,
   segmentId,
   exerciseType = 'test_with_timer',
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.mc-timer');
   const [draft, setDraft] = useState<TestDraft>(() =>
     normaliseDraft(initialTitle, initialDraft),
   );
@@ -180,13 +183,13 @@ export default function TestWithTimerEditorPage({
   const handleSave = async () => {
     if (!canSave) return;
     await onSave(
-      draft.title.trim() || label,
+      draft.title.trim() || resolvedLabel,
       [
         {
           type: 'test_with_timer',
           _aiBlockId: generatedBlockId ?? undefined,
           data: {
-            title: draft.title.trim() || label,
+            title: draft.title.trim() || resolvedLabel,
             time_limit_minutes: draft.time_limit_minutes || DEFAULT_TIME_LIMIT,
             questions: questionDrafts,
             payloads: questionDrafts.map(draftToApiPayload),
@@ -207,7 +210,7 @@ export default function TestWithTimerEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={draft.title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -247,7 +250,7 @@ export default function TestWithTimerEditorPage({
               className="dtg-btn-cancel"
               onClick={onCancel}
             >
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -261,11 +264,11 @@ export default function TestWithTimerEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Заполните вопрос и варианты ответа перед сохранением'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.testEditor.needCompleteTooltip')
+                  : t('exerciseEditors.common.saveExerciseHelp')
               }
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

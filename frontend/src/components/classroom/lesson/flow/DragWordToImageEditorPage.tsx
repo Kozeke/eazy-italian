@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Plus, Upload, X } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
@@ -50,7 +51,7 @@ export type { Props as DragWordToImageEditorProps };
 export default function DragWordToImageEditorPage({
   initialTitle = '',
   initialData,
-  label = 'Перенести слово к изображению',
+  label,
   showWordsBar = true,
   exerciseType = 'drag_to_image',
   onSave,
@@ -58,6 +59,12 @@ export default function DragWordToImageEditorPage({
   segmentId,
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel =
+    label ??
+    (exerciseType === 'type_word_to_image'
+      ? t('exerciseTemplates.labels.visual-input')
+      : t('exerciseTemplates.labels.visual-drag'));
   const [title, setTitle] = useState(initialData?.title ?? initialTitle);
   const [cards, setCards] = useState<DragToImageCard[]>(
     initialData?.cards?.length ? initialData.cards : [createEmptyCard()],
@@ -182,7 +189,7 @@ export default function DragWordToImageEditorPage({
     <div className="dtg-editor-root">
       <ExerciseHeader
         title={title}
-        headerLabel={label}
+        headerLabel={resolvedLabel}
         editableTitleInHeader={false}
         onSettingsClick={onSettingsClick}
         onClose={onCancel}
@@ -191,22 +198,24 @@ export default function DragWordToImageEditorPage({
       <div
         className="dtg-editor-content"
         style={{ paddingTop: EXERCISE_HEADER_HEIGHT_PX + 14 }}
-        aria-label={label}
+        aria-label={resolvedLabel}
       >
         <div className="dtg-title-row">
           <input
             className="dtg-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Exercise title (shown to students)"
-            aria-label="Exercise title"
+            placeholder={t('exerciseEditors.common.exerciseTitlePlaceholder')}
+            aria-label={t('exerciseEditors.common.exerciseTitleAria')}
           />
         </div>
 
         {/* ── Student-facing preview: instruction shown in the block */}
         <div className="dtg-editor-title-preview">
           <div className="dtg-exercise-instruction">
-            Drag words onto the correct images
+            {exerciseType === 'type_word_to_image'
+              ? t('exerciseEditors.dragToImage.instructionType')
+              : t('exerciseEditors.dragToImage.instructionDrag')}
           </div>
         </div>
 
@@ -230,7 +239,7 @@ export default function DragWordToImageEditorPage({
           <div className="dtg-words-bar">
             {filledChips.length === 0 ? (
               <span className="dtg-words-bar-hint">
-                Слова появятся здесь после заполнения карточек
+                {t('exerciseEditors.dragToImage.wordsBarEmpty')}
               </span>
             ) : (
               filledChips.map(({ id, word }) => (
@@ -242,7 +251,7 @@ export default function DragWordToImageEditorPage({
           </div>
         )}
 
-        <div className="dti-editor-board" aria-label="Image answer cards">
+        <div className="dti-editor-board" aria-label={t('exerciseEditors.dragToImage.boardAria')}>
           {cards.map((card, index) => {
             const isFilled = card.answer.trim() !== '';
             const hasImage = card.imageUrl.trim() !== '';
@@ -256,8 +265,8 @@ export default function DragWordToImageEditorPage({
                     type="button"
                     className="dti-editor-card-remove"
                     onClick={() => removeCard(card.id)}
-                    aria-label="Remove image card"
-                    title="Удалить карточку"
+                    aria-label={t('exerciseEditors.dragToImage.removeCardAria')}
+                    title={t('exerciseEditors.dragToImage.removeCardTitle')}
                   >
                     <X size={14} />
                   </button>
@@ -285,8 +294,8 @@ export default function DragWordToImageEditorPage({
                     .join(' ')}
                   disabled={isUploading}
                   onClick={() => fileInputRefs.current[card.id]?.click()}
-                  aria-label={hasImage ? 'Replace image' : 'Upload image'}
-                  title={hasImage ? 'Заменить изображение' : 'Загрузить изображение'}
+                  aria-label={hasImage ? t('exerciseEditors.dragToImage.replaceImageTitle') : t('exerciseEditors.dragToImage.uploadImageTitle')}
+                  title={hasImage ? t('exerciseEditors.dragToImage.replaceImageTitle') : t('exerciseEditors.dragToImage.uploadImageTitle')}
                 >
                   {hasImage ? (
                     <img
@@ -297,7 +306,7 @@ export default function DragWordToImageEditorPage({
                   ) : (
                     <span className="dti-image-slot-upload">
                       <Upload size={18} />
-                      <span>{isUploading ? 'Uploading...' : 'Upload'}</span>
+                      <span>{isUploading ? t('exerciseEditors.dragToImage.uploading') : t('exerciseEditors.dragToImage.upload')}</span>
                     </span>
                   )}
                 </button>
@@ -308,8 +317,8 @@ export default function DragWordToImageEditorPage({
                     value={card.answer}
                     onChange={(e) => updateCard(card.id, { answer: e.target.value })}
                     className="dti-answer-input"
-                    placeholder="Correct word"
-                    aria-label="Correct word"
+                    placeholder={t('exerciseEditors.dragToImage.correctWordPlaceholder')}
+                    aria-label={t('exerciseEditors.dragToImage.correctWordAria')}
                   />
                   <span
                     className={[
@@ -322,7 +331,7 @@ export default function DragWordToImageEditorPage({
 
                 {/* AI-generated scene description — used as image hint */}
                 {card.description && (
-                  <p className="dti-card-description" title="AI image hint">
+                  <p className="dti-card-description" title={t('exerciseEditors.dragToImage.aiImageHint')}>
                     {card.description}
                   </p>
                 )}
@@ -340,8 +349,8 @@ export default function DragWordToImageEditorPage({
             type="button"
             className="dti-add-card"
             onClick={addCard}
-            aria-label="Add image card"
-            title="Добавить карточку"
+            aria-label={t('exerciseEditors.dragToImage.addCardAria')}
+            title={t('exerciseEditors.dragToImage.addCardTitle')}
           >
             <Plus size={18} />
           </button>
@@ -360,7 +369,7 @@ export default function DragWordToImageEditorPage({
         <div className="dtg-footer">
           <div className="dtg-footer-btns">
             <button type="button" className="dtg-btn-cancel" onClick={onCancel}>
-              Отмена
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -374,12 +383,12 @@ export default function DragWordToImageEditorPage({
               disabled={!canSave}
               title={
                 !canSave
-                  ? 'Добавьте изображение и слово в каждую карточку'
-                  : 'Сохранить упражнение'
+                  ? t('exerciseEditors.dragToImage.needCompleteTooltip')
+                  : t('exerciseEditors.dragToImage.saveTooltip')
               }
             >
               <Check size={14} />
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>

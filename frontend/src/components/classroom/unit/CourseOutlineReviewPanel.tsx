@@ -16,13 +16,18 @@
  * • Lazy-loads segment plan per unit on expand via POST /units/{id}/plan
  * • Plan is cached per {title, description} — re-fetched ONLY when those
  *   values actually changed after a save, never on a plain expand/collapse
- * • Done units show an "Open unit →" pill; clicking it calls onSelectUnit
+ * • Any unit (including done) can expand to preview the segment plan; done
+ *   units also show an Open button beside the chevron
+ * • Done units: "Open" calls onSelectUnit; header click still toggles expand
+ * • Copy lives in locales: classroom.unitSelector.outlineReview (+ courseGeneration)
  * • Auto-saves edits to PATCH /course-builder/{courseId}/outline on blur
  *
  * Design tokens: Primary #6C6FEF · Dark #4F52C2 · Tint #EEF0FE · Bg #F7F7FA
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import {
   AlertCircle,
   ArrowRight,
@@ -190,7 +195,8 @@ function StatusIcon({ status }: { status: UnitGenStatus | undefined }) {
 
 // ─── Segment plan row ─────────────────────────────────────────────────────────
 
-function SegmentPlanRow({ item }: { item: SegmentPlanItem }) {
+function SegmentPlanRow({ item, t }: { item: SegmentPlanItem; t: TFunction }) {
+  // Whether this row is the lesson intro segment (localized badge)
   const isIntro = item.is_intro;
   return (
     <div style={{
@@ -226,7 +232,7 @@ function SegmentPlanRow({ item }: { item: SegmentPlanItem }) {
               marginRight: 5, verticalAlign: 'middle',
               lineHeight: 1.5, letterSpacing: '0.03em',
             }}>
-              INTRO
+              {t('classroom.unitSelector.outlineReview.introBadge')}
             </span>
           )}
           {item.title}
@@ -263,6 +269,8 @@ interface UnitCardProps {
   onOutlineChanged?: (updatedOutline: any) => void;
   onSelectUnit?: (unit: any) => void;
   onRemoveUnit?: (index: number) => void;
+  /** i18n helper for all teacher-visible strings in this card */
+  t: TFunction;
 }
 
 function UnitCard({
@@ -278,7 +286,9 @@ function UnitCard({
   onOutlineChanged,
   onSelectUnit,
   onRemoveUnit,
+  t,
 }: UnitCardProps) {
+  // Whether the segment-plan block is expanded
   const [expanded,     setExpanded]     = useState(false);
   const [hovered,      setHovered]      = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -327,7 +337,8 @@ function UnitCard({
   const loadPlan = useCallback(async () => {
     if (!dbUnit?.id || planLoading) return;
 
-    const curTitle = title.trim() || outlineUnit?.title || `Unit ${index + 1}`;
+    const fallbackTitle = t('classroom.unitSelector.unnamedUnit', { index: index + 1 });
+    const curTitle = title.trim() || outlineUnit?.title || fallbackTitle;
     const curDesc  = description.trim() || outlineUnit?.description || '';
 
     if (
@@ -344,12 +355,14 @@ function UnitCard({
       const plans = await fetchSegmentPlan(dbUnit.id, curTitle, curDesc, level, language);
       setSegmentPlans(plans);
       planGeneratedFor.current = { title: curTitle, description: curDesc };
-    } catch (err: any) {
-      setPlanError(err?.message ?? 'Failed to load plan');
+    } catch {
+      // Show a single localized message — avoids leaking raw HTTP text into the UI
+      setSegmentPlans(null);
+      setPlanError(t('classroom.unitSelector.outlineReview.planLoadError'));
     } finally {
       setPlanLoading(false);
     }
-  }, [dbUnit?.id, planLoading, segmentPlans, title, description, outlineUnit, index, level, language]);
+  }, [dbUnit?.id, planLoading, segmentPlans, title, description, outlineUnit, index, level, language, t]);
 
   const handleToggle = () => {
     setExpanded((prev) => {
@@ -392,7 +405,7 @@ function UnitCard({
 
   const handleTitleBlur = () => {
     setEditingTitle(false);
-    const trimmed = title.trim() || outlineUnit?.title || `Unit ${index + 1}`;
+    const trimmed = title.trim() || outlineUnit?.title || t('classroom.unitSelector.unnamedUnit', { index: index + 1 });
     setTitle(trimmed);
     void saveChanges(trimmed, description);
   };
@@ -484,14 +497,14 @@ function UnitCard({
                 lineHeight: 1.3, flex: 1, minWidth: 0,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                {title || `Unit ${index + 1}`}
+                {title || t('classroom.unitSelector.unnamedUnit', { index: index + 1 })}
               </p>
             )}
 
             {/* Pencil button — always rendered, opacity driven by React hovered state */}
             {!isGenerating && !editingTitle && !isDone && (
               <button
-                title="Edit unit title"
+                title={t('classroom.unitSelector.outlineReview.editUnitTitle')}
                 onClick={(e) => { e.stopPropagation(); setEditingTitle(true); }}
                 style={{
                   flexShrink: 0,
@@ -506,14 +519,14 @@ function UnitCard({
                 }}
               >
                 <Pencil size={11} />
-                {hovered && <span>Edit</span>}
+                {hovered && <span>{t('classroom.unitList.actions.edit')}</span>}
               </button>
             )}
 
             {/* Delete button — shown on hover when not generating and not done */}
             {!isGenerating && !isDone && onRemoveUnit && (
               <button
-                title="Remove this unit from outline"
+                title={t('classroom.unitSelector.outlineReview.removeUnitTitle')}
                 onClick={(e) => { e.stopPropagation(); onRemoveUnit(index); }}
                 style={{
                   flexShrink: 0,
@@ -563,7 +576,7 @@ function UnitCard({
             />
           ) : (
             <p
-              title={!isGenerating && !isDone ? 'Click to edit description' : undefined}
+              title={!isGenerating && !isDone ? t('classroom.unitSelector.outlineReview.clickEditDescription') : undefined}
               onClick={(e) => {
                 if (!isGenerating && !isDone) { e.stopPropagation(); setEditingDesc(true); }
               }}
@@ -580,7 +593,7 @@ function UnitCard({
             >
               {description || (
                 <span style={{ color: DS.textSubtle, fontStyle: 'italic' }}>
-                  {isDone ? '' : 'Click to add description…'}
+                  {isDone ? '' : t('classroom.unitSelector.outlineReview.clickAddDescription')}
                 </span>
               )}
             </p>
@@ -609,31 +622,32 @@ function UnitCard({
         }}>
           <StatusIcon status={status} />
 
-          {/*
-            Done units: show "Open →" button that navigates to the unit.
-            Replaces the chevron entirely — the plan expand is less relevant once
-            content has been generated.
-          */}
+          {/* Done units: Open navigates; chevron still toggles segment plan */}
           {isDone && onSelectUnit && dbUnit ? (
-            <button
-              title="Open this unit"
-              onClick={(e) => { e.stopPropagation(); onSelectUnit(dbUnit); }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '4px 10px', borderRadius: 7,
-                border: `1.5px solid ${DS.borderFocus}`,
-                background: hovered ? DS.tint : DS.white,
-                color: DS.primary,
-                fontSize: 11, fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'background 0.15s',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = DS.tintStrong; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = hovered ? DS.tint : DS.white; }}
-            >
-              Open <ArrowRight size={11} />
-            </button>
+            <>
+              <button
+                title={t('classroom.unitSelector.outlineReview.openUnit')}
+                onClick={(e) => { e.stopPropagation(); onSelectUnit(dbUnit); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '4px 10px', borderRadius: 7,
+                  border: `1.5px solid ${DS.borderFocus}`,
+                  background: hovered ? DS.tint : DS.white,
+                  color: DS.primary,
+                  fontSize: 11, fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s',
+                  whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = DS.tintStrong; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = hovered ? DS.tint : DS.white; }}
+              >
+                {t('classroom.unitSelector.outlineReview.open')} <ArrowRight size={11} />
+              </button>
+              <span style={{ color: DS.textSubtle, display: 'flex' }}>
+                {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              </span>
+            </>
           ) : (
             <span style={{ color: DS.textSubtle }}>
               {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
@@ -642,8 +656,8 @@ function UnitCard({
         </div>
       </div>
 
-      {/* ── Segment plan (expand, not shown for done units) ───────────────── */}
-      {expanded && !isDone && (
+      {/* ── Segment plan (expand any unit — including done — to inspect the AI plan) ─ */}
+      {expanded && (
         <div style={{
           borderTop: `1px solid ${DS.bg}`,
           padding: '10px 14px 10px 50px',
@@ -655,24 +669,30 @@ function UnitCard({
             display: 'flex', alignItems: 'center', gap: 5,
           }}>
             <Layers size={10} />
-            Segment Plan
+            {t('classroom.unitSelector.outlineReview.segmentPlanTitle')}
           </p>
 
-          {planLoading && (
+          {!dbUnit?.id && (
+            <p style={{ margin: 0, fontSize: 12, color: DS.textMuted, lineHeight: 1.45 }}>
+              {t('classroom.unitSelector.outlineReview.planNeedsDbUnit')}
+            </p>
+          )}
+
+          {dbUnit?.id && planLoading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', color: DS.textMuted }}>
               <Loader2 size={14} style={{ animation: 'corp-spin 0.7s linear infinite' }} />
-              <span style={{ fontSize: 12 }}>Planning segments…</span>
+              <span style={{ fontSize: 12 }}>{t('classroom.unitSelector.outlineReview.planningSegments')}</span>
             </div>
           )}
 
-          {planError && !planLoading && (
+          {dbUnit?.id && planError && !planLoading && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '6px 10px', borderRadius: 8,
               background: DS.dangerBg, color: DS.danger, fontSize: 11,
             }}>
               <AlertCircle size={13} />
-              <span style={{ flex: 1 }}>Couldn't load plan — will generate with default segments</span>
+              <span style={{ flex: 1 }}>{planError}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -688,15 +708,15 @@ function UnitCard({
                   display: 'flex', alignItems: 'center', gap: 3,
                 }}
               >
-                <RotateCcw size={10} /> Retry
+                <RotateCcw size={10} /> {t('classroom.unitSelector.outlineReview.retry')}
               </button>
             </div>
           )}
 
-          {segmentPlans && !planLoading && (
+          {dbUnit?.id && segmentPlans && !planLoading && (
             <div>
               {segmentPlans.map((seg) => (
-                <SegmentPlanRow key={seg.index} item={seg} />
+                <SegmentPlanRow key={seg.index} item={seg} t={t} />
               ))}
             </div>
           )}
@@ -721,6 +741,8 @@ export default function CourseOutlineReviewPanel({
   onOutlineChanged,
   onSelectUnit,
 }: CourseOutlineReviewPanelProps) {
+  // Localizes banner, footer, and unit-card chrome for the outline review step
+  const { t } = useTranslation();
   const outlineUnits: any[] = outline?.units ?? [];
   const totalUnits = outlineUnits.length;
   const doneCount  = Object.values(unitStatuses).filter((s) => s === 'done').length;
@@ -762,7 +784,11 @@ export default function CourseOutlineReviewPanel({
   const handleAddUnit = React.useCallback(async () => {
     if (!courseId || isGenerating || addingUnit) return;
     setAddingUnit(true);
-    const newUnit = { title: `Unit ${outlineUnits.length + 1}`, description: '', sections: [] };
+    const newUnit = {
+      title: t('classroom.unitSelector.unnamedUnit', { index: outlineUnits.length + 1 }),
+      description: '',
+      sections: [],
+    };
     const next = [...outlineUnits, newUnit];
     try {
       await patchOutline(
@@ -776,7 +802,7 @@ export default function CourseOutlineReviewPanel({
       onOutlineChanged?.({ ...(outline ?? {}), units: next });
     } catch { /* silently ignore */ }
     finally { setAddingUnit(false); }
-  }, [courseId, isGenerating, addingUnit, outlineUnits, outline, onOutlineChanged]);
+  }, [courseId, isGenerating, addingUnit, outlineUnits, outline, onOutlineChanged, t]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -805,17 +831,17 @@ export default function CourseOutlineReviewPanel({
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {allDone
-                ? `All ${doneCount} unit${doneCount !== 1 ? 's' : ''} generated`
+                ? t('classroom.unitSelector.outlineReview.bannerAllDone', { count: doneCount })
                 : isGenerating
-                  ? `Generating… ${doneCount} / ${totalUnits} units done`
-                  : `${totalUnits} unit${totalUnits !== 1 ? 's' : ''} ready to review`}
+                  ? t('classroom.unitSelector.outlineReview.bannerGenerating', { done: doneCount, total: totalUnits })
+                  : t('classroom.unitSelector.outlineReview.unitsReadyToReview', { count: totalUnits })}
             </p>
             <p style={{ margin: 0, fontSize: 11, color: DS.primary, marginTop: 1 }}>
               {allDone
-                ? 'Click any unit card to open it'
+                ? t('classroom.unitSelector.outlineReview.subtitleAllDone')
                 : isGenerating
-                  ? 'Done units can be opened while others are still generating'
-                  : 'Review & edit below, then click Generate to start'}
+                  ? t('classroom.unitSelector.outlineReview.subtitleGenerating')
+                  : t('classroom.unitSelector.outlineReview.subtitleReview')}
             </p>
           </div>
 
@@ -841,7 +867,7 @@ export default function CourseOutlineReviewPanel({
                 b.style.background = DS.white; b.style.borderColor = DS.borderFocus;
               }}
             >
-              <Pencil size={12} /> Edit outline
+              <Pencil size={12} /> {t('classroom.unitSelector.courseGeneration.editOutline')}
             </button>
           )}
         </div>
@@ -857,7 +883,7 @@ export default function CourseOutlineReviewPanel({
               }} />
             </div>
             <p style={{ margin: '4px 0 0', fontSize: 10, color: DS.primary, fontWeight: 600 }}>
-              {generationPercent}% complete
+              {t('classroom.unitSelector.outlineReview.percentComplete', { percent: generationPercent })}
             </p>
           </div>
         )}
@@ -872,7 +898,7 @@ export default function CourseOutlineReviewPanel({
             padding: '40px 0', color: DS.textSubtle, gap: 10,
           }}>
             <BookOpen size={32} color={DS.borderFocus} />
-            <p style={{ margin: 0, fontSize: 13 }}>No units in this outline</p>
+            <p style={{ margin: 0, fontSize: 13 }}>{t('classroom.unitSelector.outlineReview.noUnitsInOutline')}</p>
           </div>
         )}
 
@@ -896,6 +922,7 @@ export default function CourseOutlineReviewPanel({
               onOutlineChanged={onOutlineChanged}
               onSelectUnit={onSelectUnit}
               onRemoveUnit={!isGenerating ? handleRemoveUnit : undefined}
+              t={t}
             />
           );
         })}
@@ -933,7 +960,7 @@ export default function CourseOutlineReviewPanel({
             {addingUnit
               ? <Loader2 size={13} style={{ animation: 'corp-spin 0.7s linear infinite' }} />
               : <Plus size={13} />}
-            {addingUnit ? 'Adding…' : 'Add unit'}
+            {addingUnit ? t('classroom.unitSelector.outlineReview.adding') : t('classroom.unitSelector.outlineReview.addUnit')}
           </button>
         )}
 
@@ -953,16 +980,16 @@ export default function CourseOutlineReviewPanel({
             color: DS.primary, fontSize: 12, fontWeight: 600,
           }}>
             <Loader2 size={16} style={{ animation: 'corp-spin 0.7s linear infinite' }} />
-            Generating content… done units are available to open above
+            {t('classroom.unitSelector.outlineReview.footerGenerating')}
           </div>
         ) : allDone ? (
           <p style={{ flex: 1, margin: 0, fontSize: 11, color: DS.textMuted }}>
-            All units are ready — click <strong>Open</strong> on any card above to enter it.
+            {t('classroom.unitSelector.outlineReview.footerAllDone')}
           </p>
         ) : (
           <>
             <p style={{ flex: 1, margin: 0, fontSize: 11, color: DS.textMuted }}>
-              Expand any unit to preview its segment plan before generating
+              {t('classroom.unitSelector.outlineReview.footerExpandHint')}
             </p>
             <button
               onClick={onStart}
@@ -992,7 +1019,7 @@ export default function CourseOutlineReviewPanel({
               }}
             >
               <Sparkles size={15} />
-              Generate Course
+              {t('classroom.unitSelector.courseGeneration.generateCourseButton')}
             </button>
           </>
         )}

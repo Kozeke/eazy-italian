@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import DragWordToImageEditorPage, {
   type DragToImageCard as TypeWordToImageCard,
   type DragToImageData as TypeWordToImageData,
@@ -19,17 +20,19 @@ export type { TypeWordToImageCard, TypeWordToImageData };
 export default function TypeWordToImageEditorPage({
   initialTitle = '',
   initialData,
-  label = 'Вписать слово к изображению',
+  label,
   onSave,
   onCancel,
   segmentId,
   onSettingsClick,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('exerciseTemplates.labels.visual-input');
   return (
     <DragWordToImageEditorPage
       initialTitle={initialTitle}
       initialData={initialData}
-      label={label}
+      label={resolvedLabel}
       showWordsBar={false}
       onSave={onSave}
       onCancel={onCancel}

@@ -4,12 +4,12 @@ app/api/v1/endpoints/course_generation.py
 Endpoints:
 
   POST /course-builder/generate-outline
-    JSON body — description + level only (no files).
+    JSON body — description + level + optional target_language + native_language.
     Returns { title, units: [...] }
     No DB writes.  Fast (~3–6 s).
 
   POST /course-builder/generate-outline-from-files
-    Multipart form — description, level, files[].
+    Multipart form — description, level, files[], optional target_language, native_language.
     Parses uploaded files → builds context-aware outline.
     Returns { title, units: [...], source_token: "<uuid>" }
     source_token lets the SSE stream retrieve the extracted text.
@@ -29,7 +29,7 @@ import json
 import logging
 import time
 import uuid
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -74,6 +74,13 @@ _source_cache: dict[str, tuple[str, float]] = {}
 class OutlineRequest(BaseModel):
     description: str = Field(..., min_length=4, max_length=1000)
     level: str = Field(default="B1")
+    # Language the course will TEACH (e.g. "Italian", "Spanish").
+    # When provided the prompt is explicit about the target vs. instruction language.
+    target_language: Optional[str] = Field(default=None)
+    # Native / explanation language of the teacher (e.g. "English", "Russian").
+    # Unit titles and descriptions will be written in this language so the
+    # teacher can review the outline without guessing.
+    native_language: Optional[str] = Field(default=None)
 
     @field_validator("level", mode="before")
     @classmethod
@@ -116,9 +123,21 @@ class PatchOutlineRequest(BaseModel):
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 
-def _build_outline_prompt(description: str, level: str, source_content: str = "") -> str:
+def _build_outline_prompt(
+    description: str,
+    level: str,
+    source_content: str = "",
+    target_language: str = "",
+    native_language: str = "",
+) -> str:
     """
     Build the outline-generation prompt.
+
+    When *target_language* and *native_language* are provided the prompt
+    explicitly distinguishes between the language being taught and the
+    language used for teacher-facing descriptions, so "Italian A1" actually
+    produces Italian content explained in English rather than everything in
+    English.
 
     If *source_content* is provided it is embedded as reference material so
     the AI grounds unit titles/descriptions in the actual uploaded text.
@@ -132,39 +151,146 @@ def _build_outline_prompt(description: str, level: str, source_content: str = ""
             f"---\n{excerpt}\n---\n"
         )
 
-    return f"""You are an expert language-teaching curriculum designer.
+    # ── Language context block ────────────────────────────────────────────────
+    tl = (target_language or "").strip()
+    nl = (native_language or "").strip()
 
-A teacher wants to create this course:
+    # Build the language mandate block — placed at the TOP of the prompt so
+    # the model sees it before anything else (LLMs weight early instructions
+    # much more heavily than trailing rules, especially smaller/faster models).
+    if tl and nl:
+        # The critical distinction: what to TEACH vs. what language to WRITE IN.
+        # We also embed a concrete example in the JSON template itself so the
+        # model cannot miss it.
+        lang_mandate = (
+            f"LANGUAGE RULES — read before anything else:\n"
+            f"1. Every \"title\" and \"description\" field in your JSON output MUST be written in {nl}. "
+            f"No exceptions. Do NOT write titles or descriptions in English or {tl}.\n"
+            f"2. This course TEACHES {tl}. Each unit description must include 2–4 example "
+            f"{tl} words or phrases in quotes so the teacher can see real {tl} content is planned.\n"
+            f"3. The course title must be in {nl} and reference {tl}, "
+            f"e.g. \"{tl} B1: повседневное общение\" (if {nl} is Russian) "
+            f"or \"{tl} B1: comunicazione quotidiana\" (if {nl} is Italian).\n\n"
+        )
+        course_context = (
+            f"  Teaches             : {tl} (target language — appears only as EXAMPLES inside descriptions)\n"
+            f"  Write outline in    : {nl} (ALL titles and descriptions must be in {nl})\n"
+            f"  CEFR Level          : {level}\n"
+        )
+        # Show a concrete example in the JSON template in the target language
+        unit_example = (
+            f"    {{\n"
+            f"      \"title\": \"<unit title in {nl} — max 60 chars>\",\n"
+            f"      \"description\": \"<1–2 sentences in {nl} describing what students learn; include {tl} examples like 'ciao', 'prego'>\",\n"
+            f"      \"sections\": [\n"
+            f"        {{\n"
+            f"          \"title\": \"<section title in {nl} — max 50 chars>\",\n"
+            f"          \"description\": \"<one sentence in {nl} on this section's focus>\"\n"
+            f"        }}\n"
+            f"      ]\n"
+            f"    }}"
+        )
+        structural_rules = (
+            f"- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.\n"
+            f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections (distinct teachable sub-topics).\n"
+            f"- ALL text in the JSON (titles, descriptions) must be in {nl}. {tl} appears only as inline examples.\n"
+            f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
+            f"- Strictly valid JSON: no trailing commas, no comments."
+        )
+    elif tl:
+        lang_mandate = (
+            f"LANGUAGE RULE: This course TEACHES {tl}. "
+            f"Write titles and descriptions in English, but embed 2–4 example {tl} words "
+            f"or phrases inside each unit description so the outline reflects real {tl} content.\n\n"
+        )
+        course_context = (
+            f"  Target Language : {tl}\n"
+            f"  CEFR Level      : {level}\n"
+        )
+        unit_example = (
+            f"    {{\n"
+            f"      \"title\": \"<unit title in English — max 60 chars>\",\n"
+            f"      \"description\": \"<1–2 sentences in English; include {tl} examples in quotes>\",\n"
+            f"      \"sections\": [\n"
+            f"        {{\n"
+            f"          \"title\": \"<section title in English — max 50 chars>\",\n"
+            f"          \"description\": \"<one sentence on this section's focus>\"\n"
+            f"        }}\n"
+            f"      ]\n"
+            f"    }}"
+        )
+        structural_rules = (
+            f"- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.\n"
+            f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections.\n"
+            f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
+            f"- Strictly valid JSON: no trailing commas, no comments."
+        )
+    elif nl:
+        lang_mandate = (
+            f"LANGUAGE RULE: Write ALL titles and descriptions in {nl}.\n\n"
+        )
+        course_context = (
+            f"  Write outline in: {nl}\n"
+            f"  CEFR Level      : {level}\n"
+        )
+        unit_example = (
+            f"    {{\n"
+            f"      \"title\": \"<unit title in {nl} — max 60 chars>\",\n"
+            f"      \"description\": \"<1–2 sentences in {nl}>\",\n"
+            f"      \"sections\": [\n"
+            f"        {{\n"
+            f"          \"title\": \"<section title in {nl} — max 50 chars>\",\n"
+            f"          \"description\": \"<one sentence in {nl}>\"\n"
+            f"        }}\n"
+            f"      ]\n"
+            f"    }}"
+        )
+        structural_rules = (
+            f"- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.\n"
+            f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections.\n"
+            f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
+            f"- Strictly valid JSON: no trailing commas, no comments."
+        )
+    else:
+        lang_mandate = ""
+        course_context = f"  CEFR Level: {level}\n"
+        unit_example = (
+            f"    {{\n"
+            f"      \"title\": \"<unit title — specific topic, max 60 chars>\",\n"
+            f"      \"description\": \"<1–2 sentences on what students will learn in this unit>\",\n"
+            f"      \"sections\": [\n"
+            f"        {{\n"
+            f"          \"title\": \"<section title — max 50 chars>\",\n"
+            f"          \"description\": \"<one sentence on this section's focus>\"\n"
+            f"        }}\n"
+            f"      ]\n"
+            f"    }}"
+        )
+        structural_rules = (
+            f"- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.\n"
+            f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections.\n"
+            f"- Titles and descriptions must match the language of the description (default: English).\n"
+            f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
+            f"- Strictly valid JSON: no trailing commas, no comments."
+        )
 
-  Description : {description}
-  CEFR Level  : {level}
-{content_block}
-Design a complete, pedagogically sound course outline.
+    return f"""{lang_mandate}You are an expert language-teaching curriculum designer.
 
+Course to design:
+
+  Description: {description}
+{course_context}{content_block}
 Return ONLY a single valid JSON object — no markdown fences, no preamble, no comments.
 
 {{
-  "title": "<concise professional course title — max 80 chars>",
+  "title": "<course title — max 80 chars>",
   "units": [
-    {{
-      "title": "<unit title — specific topic, max 60 chars>",
-      "description": "<1–2 sentences on what students will learn in this unit>",
-      "sections": [
-        {{
-          "title": "<section title — max 50 chars>",
-          "description": "<one sentence on this section's focus>"
-        }}
-      ]
-    }}
+{unit_example}
   ]
 }}
 
 Rules:
-- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.
-- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections (distinct teachable sub-topics).
-- Titles and descriptions must be in the same language as the description (default: English).
-{"- Ground unit topics directly in the reference material above." if source_content else ""}
-- Strictly valid JSON: no trailing commas, no comments.
+{structural_rules}
 
 Return ONLY the JSON object."""
 
@@ -399,15 +525,33 @@ async def generate_course_outline(
     Fast path — no uploaded files.  Single LLM call returns the full
     course outline (unit titles, descriptions, section titles/descriptions).
     No DB writes.
+
+    Body now accepts optional ``target_language`` (the language being taught,
+    e.g. "Italian") and ``native_language`` (the teacher's explanation
+    language, e.g. "English").  When provided the prompt is explicit about
+    which language the course *teaches* vs. which language to write the
+    outline *in*, fixing the bug where "Italian A1" produced all-English output.
     """
-    logger.info("generate-outline: %r level=%s", body.description[:60], body.level)
+    logger.info(
+        "generate-outline: %r level=%s target=%r native=%r",
+        body.description[:60], body.level,
+        body.target_language or "-", body.native_language or "-",
+    )
     # Consumes one AI course-generation credit based on the teacher's active tariff.
     check_and_consume_teacher_ai_quota(db, current_user, "course_generation")
     provider, plan = _get_provider_for_user(current_user, db)
     logger.info("generate-outline: plan=%r provider=%s", plan, type(provider).__name__)
     try:
         outline = _parse_outline(
-            await _call_ai(_build_outline_prompt(body.description, body.level), provider)
+            await _call_ai(
+                _build_outline_prompt(
+                    body.description,
+                    body.level,
+                    target_language=body.target_language or "",
+                    native_language=body.native_language or "",
+                ),
+                provider,
+            )
         )
         logger.info("generate-outline: '%s' (%d units)", outline.title, len(outline.units))
         return outline
@@ -421,9 +565,11 @@ async def generate_course_outline(
 
 @router.post("/generate-outline-from-files", response_model=CourseOutlineWithTokenResponse)
 async def generate_course_outline_from_files(
-    description: str        = Form(..., min_length=4, max_length=1000),
-    level:       str        = Form(default="B1"),
-    files: list[UploadFile] = File(default=[]),
+    description:     str        = Form(..., min_length=4, max_length=1000),
+    level:           str        = Form(default="B1"),
+    target_language: str        = Form(default=""),
+    native_language: str        = Form(default=""),
+    files: list[UploadFile]     = File(default=[]),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher),
 ) -> CourseOutlineWithTokenResponse:
@@ -438,6 +584,8 @@ async def generate_course_outline_from_files(
     The frontend caches this token and forwards it to the SSE stream endpoint
     (?source_token=) so that each unit is generated with the relevant excerpt
     of the source material as context.
+
+    ``target_language`` / ``native_language`` work the same as the JSON endpoint.
     """
     # Consumes one AI course-generation credit based on the teacher's active tariff.
     check_and_consume_teacher_ai_quota(db, current_user, "course_generation")
@@ -451,8 +599,10 @@ async def generate_course_outline_from_files(
         level_norm = "B1"
 
     logger.info(
-        "generate-outline-from-files: %r level=%s files=%d",
-        description[:60], level_norm, len(files),
+        "generate-outline-from-files: %r level=%s target=%r native=%r files=%d",
+        description[:60], level_norm,
+        target_language or "-", native_language or "-",
+        len(files),
     )
 
     # ── Extract text from all uploaded files ─────────────────────────────────
@@ -468,7 +618,13 @@ async def generate_course_outline_from_files(
     try:
         outline = _parse_outline(
             await _call_ai(
-                _build_outline_prompt(description, level_norm, source_content),
+                _build_outline_prompt(
+                    description,
+                    level_norm,
+                    source_content,
+                    target_language=target_language or "",
+                    native_language=native_language or "",
+                ),
                 provider,
             )
         )
@@ -522,10 +678,11 @@ async def _stream_generation(
     course_id: int,
     level: str,
     language: str,
+    native_language: str,       # explanation language (e.g. "Russian")
     source_content: str,        # "" when no files were uploaded
-    teacher_plan: str = "free", # teacher's subscription plan for provider routing
-    user: "User | None" = None, # authenticated teacher — required for quota checks
-    done_unit_ids: set[int] | None = None,  # unit ids already completed on a previous connection
+    teacher_plan: str = "free",
+    user: "User | None" = None,
+    done_unit_ids: set[int] | None = None,
 ) -> AsyncIterator[str]:
     from app.core.database import SessionLocal
     from app.models.unit import Unit as UnitModel
@@ -602,26 +759,28 @@ async def _stream_generation(
                     topic=unit.title,
                     level=level,
                     language=language,
+                    instruction_language=native_language,
                     num_segments=_DEFAULT_NUM_SEGMENTS,
                     exercise_types=_DEFAULT_EXERCISE_TYPES,
                     teacher_id=user.id if user else (getattr(unit, "created_by", 0) or 0),
                     # Forward extracted file text so each unit is grounded in
                     # the teacher's uploaded materials.  Empty string when no
                     # files were provided — UnitGeneratorService ignores it.
-                    source_content=source_content or None,
-                    plan=teacher_plan,
+                    source_content=source_content,
                 ),
                 db,
             ))
-            while True:
+
+            while not generation_task.done():
                 try:
-                    result = await asyncio.wait_for(
+                    await asyncio.wait_for(
                         asyncio.shield(generation_task),
                         timeout=heartbeat_interval_seconds,
                     )
-                    break
                 except asyncio.TimeoutError:
                     yield ": heartbeat\n\n"
+
+            result = generation_task.result()
             units_done += 1
             yield _sse({
                 "type": "unit_done",
@@ -651,21 +810,23 @@ async def _stream_generation(
 
 @router.get("/{course_id}/stream")
 async def stream_course_generation(
-    course_id:    int,
-    level:        str          = Query(default="B1"),
-    language:     str          = Query(default="English"),
-    token:        str          = Query(..., description="JWT — EventSource cannot set headers."),
-    source_token: str | None   = Query(default=None, description="UUID from generate-outline-from-files."),
-    done_unit_ids: str | None  = Query(default=None, description="Comma-separated unit IDs already finished on client reconnect."),
+    course_id:       int,
+    level:           str        = Query(default="B1"),
+    language:        str        = Query(default="English"),
+    native_language: str        = Query(default="English"),
+    token:           str        = Query(..., description="JWT — EventSource cannot set headers."),
+    source_token:    str | None = Query(default=None),
+    done_unit_ids:   str | None = Query(default=None),
 ):
     """
-    GET /course-builder/{course_id}/stream?level=B2&token=<jwt>[&source_token=<uuid>][&done_unit_ids=1,2,3]
+    GET /course-builder/{course_id}/stream
+        ?level=B1&language=Italian&native_language=Russian&token=<jwt>
 
-    SSE stream triggered by the teacher clicking "Generate Course Content".
-
-    If *source_token* is supplied the server pops the cached extracted file
-    text and forwards it to each unit-generation call as source_content.
-    The token is single-use and expires after 30 minutes.
+    *language*        — the language the course TEACHES (e.g. "Italian").
+                        Drives vocabulary, example sentences and phrases.
+    *native_language* — explanation language (e.g. "Russian").
+                        Grammar rules and instructions are written in this
+                        language so students can understand explanations.
     """
     user, error_code = _verify_token(token)
     if not user:
@@ -732,6 +893,7 @@ async def stream_course_generation(
             course_id,
             level,
             language,
+            native_language,
             source_content,
             teacher_plan,
             user,
@@ -763,7 +925,8 @@ async def patch_course_outline(
 
     - If the edited list has *more* units than currently exist, the extras
       are ignored (no new units are created here).
-    - If fewer, only the existing ones up to the payload length are updated.
+    - If fewer, the excess DB unit stubs are DELETED so the SSE stream only
+      generates the units the teacher kept.
     - Section changes are stored in the outline only (returned in the
       response) and will influence the SSE generation prompt via the
       unit title; the DB has no separate segment records for sections yet.
@@ -784,7 +947,7 @@ async def patch_course_outline(
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="No units found for this course.")
 
-        # Verify the course belongs to the requesting teacher via the first unit
+        # Update kept units (title / description / timestamp)
         import datetime as _dt
         for idx, edited in enumerate(body.units):
             if idx >= len(db_units):
@@ -793,6 +956,20 @@ async def patch_course_outline(
             db_unit.title       = edited.title.strip() or db_unit.title
             db_unit.description = edited.description.strip()
             db_unit.updated_at  = _dt.datetime.utcnow()
+
+        # If the teacher removed units from the outline (payload shorter than DB),
+        # delete the excess DB unit stubs so the SSE stream doesn't generate them.
+        if len(body.units) < len(db_units):
+            units_to_delete = db_units[len(body.units):]
+            for excess_unit in units_to_delete:
+                db.delete(excess_unit)
+            logger.info(
+                "patch_course_outline: course_id=%d deleted %d excess unit(s) "
+                "(outline shrank from %d → %d)",
+                course_id, len(units_to_delete), len(db_units), len(body.units),
+            )
+            # Trim so the response loop below only covers kept units
+            db_units = db_units[: len(body.units)]
 
         db.commit()
 

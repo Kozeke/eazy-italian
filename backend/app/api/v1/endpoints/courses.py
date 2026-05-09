@@ -198,6 +198,8 @@ async def get_admin_courses(
             content_summary=course.content_summary,
             enrolled_students_count=enrolled_students_count,
             first_unit_id=first_unit_by_course.get(course.id),
+            target_language=getattr(course, 'target_language', None),
+            native_language=getattr(course, 'native_language', None),
         ))
     
     return result
@@ -231,6 +233,10 @@ async def create_course(
     if existing:
         slug = f"{slug}-{datetime.utcnow().timestamp()}"
     
+    # Normalises optional language fields so we never persist empty strings.
+    target_language = (course_data.target_language or "").strip() or None
+    native_language = (course_data.native_language or "").strip() or None
+
     # Create course
     course = Course(
         title=course_data.title,
@@ -247,6 +253,8 @@ async def create_course(
         is_visible_to_students=is_visible_to_students,
         settings=course_data.settings or {},
         slug=slug,
+        target_language=target_language,
+        native_language=native_language,
         created_by=current_user.id
     )
     
@@ -271,6 +279,8 @@ async def create_course(
         is_visible_to_students=course.is_visible_to_students,
         settings=course.settings,
         slug=course.slug,
+        target_language=course.target_language,
+        native_language=course.native_language,
         created_by=course.created_by,
         updated_by=course.updated_by,
         created_at=course.created_at,
@@ -329,6 +339,8 @@ async def get_admin_course(
         is_visible_to_students=course.is_visible_to_students,
         settings=course.settings,
         slug=course.slug,
+        target_language=getattr(course, 'target_language', None),
+        native_language=getattr(course, 'native_language', None),
         created_by=course.created_by,
         updated_by=course.updated_by,
         created_at=course.created_at,
@@ -414,6 +426,8 @@ async def update_course(
         is_visible_to_students=course.is_visible_to_students,
         settings=course.settings,
         slug=course.slug,
+        target_language=getattr(course, 'target_language', None),
+        native_language=getattr(course, 'native_language', None),
         created_by=course.created_by,
         updated_by=course.updated_by,
         created_at=course.created_at,
@@ -681,6 +695,8 @@ async def publish_course(
         is_visible_to_students=course.is_visible_to_students,
         settings=course.settings,
         slug=course.slug,
+        target_language=getattr(course, 'target_language', None),
+        native_language=getattr(course, 'native_language', None),
         created_by=course.created_by,
         updated_by=course.updated_by,
         created_at=course.created_at,
@@ -838,7 +854,9 @@ async def get_courses(
             published_units_count=course.published_units_count,
             is_enrolled=is_enrolled,
             user_subscription=subscription_name,
-            enrolled_courses_count=enrolled_courses_count
+            enrolled_courses_count=enrolled_courses_count,
+            target_language=getattr(course, 'target_language', None),
+            native_language=getattr(course, 'native_language', None),
         ))
  
     return result
@@ -988,6 +1006,8 @@ async def get_course(
         is_visible_to_students=course.is_visible_to_students,
         settings=course.settings,
         slug=course.slug,
+        target_language=getattr(course, 'target_language', None),
+        native_language=getattr(course, 'native_language', None),
         created_by=course.created_by,
         updated_by=course.updated_by,
         created_at=course.created_at,
