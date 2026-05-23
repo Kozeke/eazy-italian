@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 
 /* ─── CSS (verbatim from landing__2_.html, adapted for JSX injection) ─── */
 const CSS = `
@@ -668,6 +669,13 @@ function LangSwitcher() {
 export default function LandingPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"unit" | "exercise" | "course">("unit");
+
+  // First-time visitors default to English; switcher choice is cached in localStorage.
+  useEffect(() => {
+    if (!localStorage.getItem("i18nextLng")) {
+      void i18n.changeLanguage("en");
+    }
+  }, []);
   const [activeStep, setActiveStep] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [billingDuration, setBillingDuration] = useState<"1m" | "3m" | "6m" | "12m">("1m");

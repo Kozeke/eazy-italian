@@ -25,6 +25,7 @@ import {
 import { LinguAiLogo } from '../global/LinguAiLogo';
 import { API_V1_BASE } from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import i18n, { normalizeInterfaceLanguage } from '../../i18n';
 import { useAuth } from '../../hooks/useAuth';
 import type { User as AuthUser } from '../../types';
 
@@ -245,6 +246,8 @@ export default function RegisterPage() {
           email, password,
           first_name, last_name,
           role,
+          // Persist UI language so post-login sync does not revert to backend default (ru).
+          locale: normalizeInterfaceLanguage(i18n.language),
         }),
       });
       if (!res.ok) {

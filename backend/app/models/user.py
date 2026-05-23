@@ -24,7 +24,7 @@ class User(Base):
     role = Column(Enum(UserRole), default=UserRole.STUDENT, nullable=False)
     password_hash = Column(String, nullable=False)
     email_verified_at = Column(DateTime, nullable=True)
-    locale = Column(String, default="ru", nullable=False)
+    locale = Column(String, default="en", nullable=False)
     notification_prefs = Column(JSON, default=dict)
     is_active = Column(Boolean, default=True, nullable=False)
     last_login = Column(DateTime(timezone=True), nullable=True)

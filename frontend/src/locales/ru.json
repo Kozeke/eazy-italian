@@ -163,6 +163,7 @@
     "pwStrong": "Надёжный",
     "enterCodePlaceholder": "Введите код",
     "couldNotCheckEmail": "Не удалось проверить email. Попробуйте ещё раз.",
+    "couldNotSendRegistrationCode": "Не удалось отправить код подтверждения. Попробуйте ещё раз.",
     "invalidCodeError": "Неверный код. Попробуйте ещё раз."
   },
   "dashboard": {

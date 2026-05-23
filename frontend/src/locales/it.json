@@ -163,6 +163,7 @@
       "pwStrong": "Forte",
       "enterCodePlaceholder": "Inserisci il codice",
       "couldNotCheckEmail": "Impossibile verificare l'email. Riprova.",
+      "couldNotSendRegistrationCode": "Impossibile inviare il codice di verifica. Riprova.",
       "invalidCodeError": "Codice non valido. Riprova."
     },
     "dashboard": {

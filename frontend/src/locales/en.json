@@ -163,6 +163,7 @@
     "pwStrong": "Strong",
     "enterCodePlaceholder": "Enter code",
     "couldNotCheckEmail": "Could not check email. Please try again.",
+    "couldNotSendRegistrationCode": "Could not send verification code. Please try again.",
     "invalidCodeError": "Invalid code. Please try again."
   },
   "dashboard": {

@@ -87,8 +87,10 @@ i18n
     interpolation: {
       escapeValue: false,
     },
+    // English by default; only an explicit switcher choice in localStorage overrides it.
+    lng: 'en',
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage'],
       caches: ['localStorage'],
     },
   });

@@ -476,10 +476,12 @@ function UserDropdown({ userName, userEmail, darkMode, onToggleDark, onLogout, o
       </div>
       <button type="button" className="ah-dd-item" role="menuitem" onClick={runThenClose(onProfileSettings)}><span className="ah-dd-ico"><IcoSettings /></span>{t("admin.header.profileSettings")}</button>
       <button type="button" className="ah-dd-item" role="menuitem" onClick={runThenClose(onTariffs)}><span className="ah-dd-ico"><IcoStar /></span>{t("admin.tariffs.tabs.tariffs")}</button>
+      {/* Dark theme toggle — hidden until theme support is ready
       <button type="button" className="ah-dd-item" role="menuitemcheckbox" aria-checked={darkMode} onClick={handle(onToggleDark)}>
         <span className="ah-dd-ico"><IcoMoon /></span>{t("admin.theme.dark")}
         <div className={`ah-toggle ${darkMode ? "ah-toggle--on" : ""}`} aria-hidden="true"><div className="ah-toggle-thumb" /></div>
       </button>
+      */}
       <div className="ah-dd-sep" role="separator" />
       <button type="button" className="ah-dd-item ah-dd-item--danger" role="menuitem" onClick={handle(onLogout)}><span className="ah-dd-ico"><IcoLogout /></span>{t("nav.logout")}</button>
     </div>

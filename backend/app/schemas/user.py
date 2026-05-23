@@ -8,7 +8,7 @@ class UserBase(BaseModel):
     email: EmailStr
     first_name: str
     last_name: str
-    locale: str = "ru"
+    locale: str = "en"
 
 class UserCreate(UserBase):
     password: str

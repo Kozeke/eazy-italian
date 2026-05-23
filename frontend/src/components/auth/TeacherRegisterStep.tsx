@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from "react";
+import i18n, { normalizeInterfaceLanguage } from "../../i18n";
 import { STEPS, WizardState } from "./TeacherRegisterFlow";
 import { LinguAiLogo } from "../global/LinguAiLogo";
 
@@ -64,7 +65,7 @@ export default function TeacherRegisterStep({ wizard, patch, goTo }: Props) {
           email:      form.email.trim().toLowerCase(),
           password:   form.password,
           role:       "teacher",
-          locale:     "en",
+          locale:     normalizeInterfaceLanguage(i18n.language),
         }),
       });
 
