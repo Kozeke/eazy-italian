@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { LinguAiLogo } from '../global/LinguAiLogo';
 import { API_V1_BASE } from '../../services/api';
+import { useTranslation } from 'react-i18next';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ type Step = 'email' | 'account-type' | 'student-info' | 'activation' | 'greeting
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [step,      setStep]      = useState<Step>('email');
   const [email,     setEmail]     = useState('');
@@ -132,7 +134,7 @@ export default function RegisterPage() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
-      setError('Please enter a valid email address.'); return;
+      setError(t('auth.validEmailRequired')); return;
     }
     setError('');
     setLoading(true);
@@ -142,15 +144,15 @@ export default function RegisterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      if (!res.ok) throw new Error('Could not check email. Please try again.');
+      if (!res.ok) throw new Error(t('auth.couldNotCheckEmail'));
       const data = await res.json();
       if (data.exists) {
-        setError('This email is already registered. Sign in instead.');
+        setError(t('auth.emailAlreadyRegistered'));
         return;
       }
       setStep('account-type');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not check email. Please try again.');
+      setError(err instanceof Error ? err.message : t('auth.couldNotCheckEmail'));
     } finally {
       setLoading(false);
     }
@@ -169,7 +171,7 @@ export default function RegisterPage() {
   // Step 3 — verify the pre-registration OTP (user doesn't exist yet)
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otp.trim()) { setOtpError('Please enter the code.'); return; }
+    if (!otp.trim()) { setOtpError(t('auth.pleaseEnterCode')); return; }
     setOtpError('');
     setOtpLoading(true);
     try {
@@ -180,11 +182,11 @@ export default function RegisterPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || 'Invalid code. Please try again.');
+        throw new Error(data.detail || t('auth.invalidCodeError'));
       }
       setStep('greeting');
     } catch (err) {
-      setOtpError(err instanceof Error ? err.message : 'Verification failed.');
+      setOtpError(err instanceof Error ? err.message : t('auth.invalidCodeError'));
     } finally {
       setOtpLoading(false);
     }
@@ -194,10 +196,10 @@ export default function RegisterPage() {
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !password.trim()) {
-      setError('Please fill in all fields.'); return;
+      setError(t('auth.fillAllFieldsError')); return;
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.'); return;
+      setError(t('auth.passwordMin8Error')); return;
     }
     setError('');
     setLoading(true);
@@ -220,7 +222,7 @@ export default function RegisterPage() {
       }
       setStep('trial');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
+      setError(err instanceof Error ? err.message : t('auth.registrationFailedError'));
     } finally {
       setLoading(false);
     }
@@ -248,8 +250,8 @@ export default function RegisterPage() {
         {/* ── 1. Email ──────────────────────────────────────────────────────── */}
         {step === 'email' && (
           <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-            <Title>Create your account</Title>
-            <Sub>Start with your email address.</Sub>
+            <Title>{t('auth.createYourAccount')}</Title>
+            <Sub>{t('auth.startWithEmail')}</Sub>
             <form
               onSubmit={handleEmailSubmit}
               style={{ display:'flex', flexDirection:'column', gap:'7px', marginTop:'10px' }}
@@ -257,19 +259,19 @@ export default function RegisterPage() {
               <InputRow
                 icon={<Mail style={{ width:16, height:16 }} />}
                 type="email"
-                placeholder="Email"
+                placeholder={t('auth.email')}
                 value={email}
                 onChange={setEmail}
                 autoFocus
               />
               {error && <Err>{error}</Err>}
               <BigBtn type="submit" loading={loading} icon={<ArrowRight style={{ width:15, height:15 }} />}>
-                Continue
+                {t('auth.continueBtn')}
               </BigBtn>
             </form>
             <p style={{ textAlign:'center', fontSize:'12px', color:c.mutedText, marginTop:'8px' }}>
-              Already have an account?{' '}
-              <LinkBtn onClick={() => navigate('/login')}>Sign in</LinkBtn>
+              {t('auth.alreadyHaveAccountHint')}{' '}
+              <LinkBtn onClick={() => navigate('/login')}>{t('auth.signInLink')}</LinkBtn>
             </p>
           </div>
         )}
@@ -278,21 +280,21 @@ export default function RegisterPage() {
         {step === 'account-type' && (
           <div>
             <BackRow onClick={() => { setStep('email'); setError(''); }} />
-            <Title>Choose account type</Title>
+            <Title>{t('auth.chooseAccountType')}</Title>
             <Sub style={{ marginBottom:'14px' }}>
-              You can switch between types later from your profile.
+              {t('auth.switchTypeInfo')}
             </Sub>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
               <RoleCard
                 emoji="👩‍🏫"
-                label="For teaching"
-                description="You're a teacher or school admin"
+                label={t('auth.forTeaching')}
+                description={t('auth.teacherCardDesc')}
                 onSelect={() => handleRoleSelect('teacher')}
               />
               <RoleCard
                 emoji="🙋"
-                label="For learning"
-                description="You're a student taking classes"
+                label={t('auth.forLearning')}
+                description={t('auth.studentCardDesc')}
                 onSelect={() => handleRoleSelect('student')}
               />
             </div>
@@ -303,12 +305,9 @@ export default function RegisterPage() {
         {step === 'student-info' && (
           <div>
             <BackRow onClick={() => { setStep('account-type'); setError(''); }} />
-            <Title>Активация аккаунта ученика</Title>
+            <Title>{t('auth.studentActivationTitle')}</Title>
             <p style={{ fontSize:'13px', color:c.bodyText, lineHeight:1.65, marginTop:'8px' }}>
-              Обучение на платформе возможно только при наличии преподавателя. Сообщите вашему
-              преподавателю email, который вы использовали для регистрации, и попросите добавить
-              вас в список учеников на платформе. После этого вам станут доступны виртуальные
-              классы для обучения.
+              {t('auth.studentActivationText')}
             </p>
             <p style={{
               marginTop:'14px', padding:'10px 12px',
@@ -340,15 +339,15 @@ export default function RegisterPage() {
         {/* ── 4. Greeting ───────────────────────────────────────────────────── */}
         {step === 'greeting' && (
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center' }}>
-            <Title style={{ fontSize:'19px', marginBottom:'8px' }}>Welcome!</Title>
+            <Title style={{ fontSize:'19px', marginBottom:'8px' }}>{t('auth.welcomeTitle')}</Title>
             <p style={{
               fontSize:'12px', color:c.bodyText, lineHeight:1.6,
               maxWidth:'260px', margin:'0 auto 16px',
             }}>
-              Thousands of teachers and online schools use EZ Italian daily to build engaging, modern lessons.
+              {t('auth.welcomeBody')}
             </p>
             <BigBtn onClick={() => setStep('details')} icon={<ArrowRight style={{ width:15, height:15 }} />}>
-              Next
+              {t('auth.nextBtn')}
             </BigBtn>
           </div>
         )}
@@ -356,23 +355,23 @@ export default function RegisterPage() {
         {/* ── 5. Details ────────────────────────────────────────────────────── */}
         {step === 'details' && (
           <div>
-            <Title style={{ marginBottom:'14px' }}>Complete registration</Title>
+            <Title style={{ marginBottom:'14px' }}>{t('auth.completeRegistration')}</Title>
             <form
               onSubmit={handleDetailsSubmit}
               style={{ display:'flex', flexDirection:'column', gap:'9px' }}
             >
-              <SideLabelRow label="Full name *">
+              <SideLabelRow label={t('auth.fullNameLabel')}>
                 <InputRow
                   icon={<User style={{ width:16, height:16 }} />}
-                  placeholder="Enter your full name"
+                  placeholder={t('auth.fullNamePlaceholder')}
                   value={fullName}
                   onChange={setFullName}
                   autoFocus
                 />
               </SideLabelRow>
-              <SideLabelRow label="Password *">
+              <SideLabelRow label={t('auth.passwordFieldLabel')}>
                 <PwInput
-                  placeholder="Min. 8 characters"
+                  placeholder={t('auth.passwordMinCharsHint')}
                   value={password}
                   onChange={setPassword}
                 />
@@ -384,7 +383,7 @@ export default function RegisterPage() {
                 icon={<ArrowRight style={{ width:15, height:15 }} />}
                 style={{ marginTop:'4px' }}
               >
-                Continue
+                {t('auth.continueBtn')}
               </BigBtn>
             </form>
           </div>
@@ -405,18 +404,18 @@ export default function RegisterPage() {
                 <path d="M10 23L18 31L34 14" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <Title style={{ fontSize:'18px', marginBottom:'8px' }}>Trial period</Title>
+            <Title style={{ fontSize:'18px', marginBottom:'8px' }}>{t('auth.trialPeriodTitle')}</Title>
             <p style={{
               fontSize:'12px', color:c.bodyText, lineHeight:1.6,
               maxWidth:'260px', margin:'0 auto 16px',
             }}>
-              We've activated a free 31-day trial so you can explore everything the platform has to offer.
+              {t('auth.trialPeriodBody')}
             </p>
             <BigBtn
               onClick={() => navigate('/admin/dashboard')}
               icon={<ArrowRight style={{ width:15, height:15 }} />}
             >
-              Let's go!
+              {t('auth.letsGoBtn')}
             </BigBtn>
           </div>
         )}
@@ -453,6 +452,7 @@ function ActivationStep({
   onResend: () => void;
   onEditEmail: () => void;
 }) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
 
@@ -462,9 +462,9 @@ function ActivationStep({
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:0 }}>
 
       {/* Heading */}
-      <Title style={{ marginBottom:'6px' }}>Account activation</Title>
+      <Title style={{ marginBottom:'6px' }}>{t('auth.accountActivationTitle')}</Title>
       <p style={{ fontSize:'12px', color:c.bodyText, lineHeight:1.55, marginBottom:'10px', maxWidth:'240px' }}>
-        Enter the 4-digit code we sent to your email:
+        {t('auth.enterCodeEmailHint')}
       </p>
 
       {/* Email + edit */}
@@ -485,10 +485,10 @@ function ActivationStep({
 
       {/* Sub-heading */}
       <p style={{ fontSize:'14px', fontWeight:700, color:c.headingText, marginBottom:'2px' }}>
-        Check your inbox
+        {t('auth.checkYourInbox')}
       </p>
       <p style={{ fontSize:'12px', color:c.mutedText, marginBottom:'12px' }}>
-        We sent a 6-digit code to <strong style={{ color:c.headingText }}>{email}</strong>
+        {t('auth.weSentCodeTo')} <strong style={{ color:c.headingText }}>{email}</strong>
       </p>
 
       {/* Input row — single text input + inline arrow button */}
@@ -513,7 +513,7 @@ function ActivationStep({
               ref={inputRef}
               type="text"
               inputMode="numeric"
-              placeholder="Enter code"
+              placeholder={t('auth.enterCodePlaceholder')}
               value={otp}
               onChange={e => onOtpChange(e.target.value.replace(/\D/g,'').slice(0,6))}
               onFocus={() => setFocused(true)}
@@ -554,7 +554,7 @@ function ActivationStep({
         {timerOn ? (
           <p style={{ fontSize:'12px', color:c.mutedText, display:'flex', alignItems:'center', gap:'4px' }}>
             <RotateCcw style={{ width:12, height:12 }} />
-            Resend code in {resendSecs}s
+            {t('auth.resendCodeIn', { secs: resendSecs })}
           </p>
         ) : (
           <button
@@ -565,24 +565,24 @@ function ActivationStep({
               fontSize:'12px', fontWeight:500, color:c.linkColor, padding:0,
             }}
           >
-            Resend code
+            {t('auth.resendCodeBtn')}
           </button>
         )}
         {timerOn && (
           <p style={{ fontSize:'11px', color:c.mutedText }}>
-            Resend available in {resendSecs} seconds
+            {t('auth.resendAvailableIn', { secs: resendSecs })}
           </p>
         )}
       </div>
 
       {/* Support link */}
       <p style={{ fontSize:'11px', color:c.mutedText, marginTop:'12px' }}>
-        Having trouble?{' '}
+        {t('auth.havingTrouble')}{' '}
         <a
           href="mailto:support@ezitalian.com"
           style={{ color:c.linkColor, textDecoration:'underline' }}
         >
-          Contact support
+          {t('auth.contactSupport')}
         </a>
       </p>
     </div>
@@ -627,6 +627,7 @@ function Shell({ children, hideLogo }: { children: React.ReactNode; hideLogo?: b
 function RoleCard({ emoji, label, description, onSelect }: {
   emoji: string; label: string; description: string; onSelect: () => void;
 }) {
+  const { t } = useTranslation();
   const [hov, setHov] = useState(false);
   return (
     <div
@@ -659,7 +660,7 @@ function RoleCard({ emoji, label, description, onSelect }: {
         fontSize:'12px', fontWeight:700, cursor:'pointer',
         transition:'background 0.15s',
       }}>
-        Select
+        {t('auth.selectCard')}
       </button>
     </div>
   );
@@ -710,12 +711,13 @@ export function InputRow({
 export function PwInput({ placeholder, value, onChange }: {
   placeholder?: string; value: string; onChange: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   const [show, setShow]     = useState(false);
   const [focused, setFocused] = useState(false);
   const s = !value ? 0 : value.length < 6 ? 1 : value.length < 10 && !/[A-Z]/.test(value) ? 2
     : value.length >= 10 && /[A-Z]/.test(value) && /[0-9]/.test(value) ? 4 : 3;
   const fill  = ['','#EF4444','#F59E0B','#94A3B8','#4B5563'];
-  const label = ['','Too short','Weak','Good','Strong'];
+  const label = ['', t('auth.pwTooShort'), t('auth.pwWeak'), t('auth.pwGood'), t('auth.pwStrong')];
   return (
     <div>
       <div style={{
@@ -823,6 +825,7 @@ function Err({ children, style }: { children: React.ReactNode; style?: React.CSS
 }
 
 function BackRow({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
   const [hov, setHov] = useState(false);
   return (
     <button type="button" onClick={onClick}
@@ -833,7 +836,7 @@ function BackRow({ onClick }: { onClick: () => void }) {
         fontSize:'12px', fontWeight:500, color: hov ? '#4B5563' : c.mutedText,
         marginBottom:'10px', padding:0, transition:'color 0.15s',
       }}>
-      <ArrowLeft style={{ width:14, height:14 }} />Back
+      <ArrowLeft style={{ width:14, height:14 }} />{t('auth.backBtn')}
     </button>
   );
 }

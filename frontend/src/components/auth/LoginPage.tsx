@@ -14,6 +14,7 @@ import { API_V1_BASE } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { LinguAiLogo } from '../global/LinguAiLogo';
+import { useTranslation } from 'react-i18next';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 type LoginMode = 'password' | 'magic';
@@ -98,6 +99,7 @@ function LoginShell({ children }: { children: React.ReactNode }) {
 
 /* ─── Segmented tabs ─────────────────────────────────────────── */
 function SegTabs({ mode, onChange }: { mode: LoginMode; onChange: (m: LoginMode) => void }) {
+  const { t } = useTranslation();
   return (
     <div style={{
       display: 'flex',
@@ -135,7 +137,7 @@ function SegTabs({ mode, onChange }: { mode: LoginMode; onChange: (m: LoginMode)
             {m === 'magic' && (
               <Sparkles style={{ width: 11, height: 11, opacity: active ? 0.75 : 0.45 }} />
             )}
-            {m === 'password' ? 'Password' : 'Magic code'}
+            {m === 'password' ? t('auth.tabPassword') : t('auth.tabMagic')}
           </button>
         );
       })}
@@ -262,6 +264,7 @@ export default function LoginPage() {
   const navigate  = useNavigate();
   const location  = useLocation();
   const { login } = useAuth();
+  const { t }     = useTranslation();
 
   const [mode, setMode]           = useState<LoginMode>('password');
   const [email, setEmail]         = useState('');
@@ -297,14 +300,14 @@ export default function LoginPage() {
   /* Unchanged password login */
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) { setError('Please fill in all fields.'); return; }
+    if (!email.trim() || !password.trim()) { setError(t('auth.fillAllFieldsError')); return; }
     setError('');
     setLoading(true);
     try {
       const user = await login(email, password);
       handleAfterLogin(user);
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'Login failed.';
+      const msg = err.response?.data?.detail || err.message || t('auth.loginFailed');
       setError(msg);
       toast.error(msg);
     } finally {
@@ -315,7 +318,7 @@ export default function LoginPage() {
   /* Magic code send — only proceeds if the email exists in the system */
   const handleSendMagicCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) { setError('Please enter a valid email.'); return; }
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) { setError(t('auth.invalidEmailError')); return; }
     setError('');
     setLoading(true);
     try {
@@ -328,13 +331,13 @@ export default function LoginPage() {
         const data = await res.json().catch(() => ({}));
         // 404 means no account with this email
         if (res.status === 404) {
-          throw new Error('No account found with this email. Please register first.');
+          throw new Error(t('auth.noAccountFound'));
         }
-        throw new Error(data.detail || data.message || 'Failed to send code.');
+        throw new Error(data.detail || data.message || t('auth.failedToSendCode'));
       }
       setMagicSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send magic code.');
+      setError(err instanceof Error ? err.message : t('auth.failedToSendMagicCode'));
     } finally {
       setLoading(false);
     }
@@ -382,7 +385,7 @@ export default function LoginPage() {
             fontWeight: 900,
             color: c.textMain,
           }}>
-            Welcome back
+            {t('auth.welcomeBackTitle')}
           </h1>
           <p style={{
             margin: '4px 0 0',
@@ -390,7 +393,7 @@ export default function LoginPage() {
             color: c.textSub,
             lineHeight: 1.5,
           }}>
-            Sign in to continue to your classroom workspace.
+            {t('auth.signInSubtitle')}
           </p>
         </div>
 
@@ -413,7 +416,7 @@ export default function LoginPage() {
                 <Field
                   icon={<Mail style={{ width: 16, height: 16 }} />}
                   type="email"
-                  placeholder="Email"
+                  placeholder={t('auth.email')}
                   value={email}
                   onChange={setEmail}
                   autoFocus
@@ -422,7 +425,7 @@ export default function LoginPage() {
                 <Field
                   icon={<Key style={{ width: 16, height: 16 }} />}
                   type={showPw ? 'text' : 'password'}
-                  placeholder="Password"
+                  placeholder={t('auth.password')}
                   value={password}
                   onChange={setPassword}
                   rightSlot={
@@ -451,7 +454,7 @@ export default function LoginPage() {
                     onMouseEnter={e => (e.currentTarget.style.color = c.forgotHover)}
                     onMouseLeave={e => (e.currentTarget.style.color = c.forgotColor)}
                   >
-                    Forgot password?
+                    {t('auth.forgotPasswordHint')}
                   </button>
                 </div>
 
@@ -463,7 +466,7 @@ export default function LoginPage() {
                   icon={<ArrowRight style={{ width: 15, height: 15 }} />}
                   style={{ marginTop: '4px' }}
                 >
-                  Sign in
+                  {t('auth.signIn')}
                 </PrimaryBtn>
               </form>
             )}
@@ -477,7 +480,7 @@ export default function LoginPage() {
                 <Field
                   icon={<Mail style={{ width: 16, height: 16 }} />}
                   type="email"
-                  placeholder="Email"
+                  placeholder={t('auth.email')}
                   value={email}
                   onChange={setEmail}
                   autoFocus
@@ -498,7 +501,7 @@ export default function LoginPage() {
                   lineHeight: 1.5,
                 }}>
                   <Sparkles style={{ width: 13, height: 13, flexShrink: 0, marginTop: '1px' }} />
-                  We'll send a one-time code to your inbox — no password needed.
+                  {t('auth.magicCodeHint')}
                 </p>
 
                 {error && <ErrorMsg>{error}</ErrorMsg>}
@@ -509,7 +512,7 @@ export default function LoginPage() {
                   icon={<Sparkles style={{ width: 13, height: 13 }} />}
                   style={{ marginTop: '4px' }}
                 >
-                  Send magic code
+                  {t('auth.sendMagicCode')}
                 </PrimaryBtn>
               </form>
             )}
@@ -521,7 +524,7 @@ export default function LoginPage() {
               fontSize: '12px',
               color: c.mutedText,
             }}>
-              No account?{' '}
+              {t('auth.noAccountHint')}{' '}
               <button
                 type="button"
                 onClick={() => navigate('/register')}
@@ -530,7 +533,7 @@ export default function LoginPage() {
                   fontSize: '12px', fontWeight: 600, color: c.linkColor, padding: 0,
                 }}
               >
-                Sign up free
+                {t('auth.signUpFree')}
               </button>
             </p>
           </div>

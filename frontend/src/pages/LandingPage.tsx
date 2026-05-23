@@ -1,9 +1,11 @@
 /**
  * LandingPage.tsx
  * Rebuilt from landing__2_.html — design system: #6C6FEF primary, Syne + Inter fonts.
+ * Fully internationalised — EN / RU / IT via i18next.
  */
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 /* ─── CSS (verbatim from landing__2_.html, adapted for JSX injection) ─── */
 const CSS = `
@@ -30,6 +32,7 @@ const CSS = `
 
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes spin   { to { transform: rotate(360deg); } }
+@keyframes langDropIn { from { opacity:0; transform:translateY(-6px) scale(.97); } to { opacity:1; transform:none; } }
 
 html { scroll-behavior: smooth; }
 body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text-main); line-height: 1.6; -webkit-font-smoothing: antialiased; }
@@ -59,6 +62,36 @@ nav {
   transition: background .18s, transform .12s !important;
 }
 .btn-nav:hover { background: var(--primary-dk) !important; transform: translateY(-1px); }
+
+/* ── LANG SWITCHER ── */
+.lang-switcher { position: relative; }
+.lang-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--white); border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 5px 11px;
+  font-size: 13px; font-weight: 600; color: var(--text-sub);
+  cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+  white-space: nowrap;
+}
+.lang-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--tint); }
+.lang-btn.open { border-color: var(--primary); color: var(--primary); background: var(--tint); }
+.lang-dropdown {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: var(--white); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 4px;
+  box-shadow: var(--shadow-md); min-width: 130px;
+  animation: langDropIn .15s ease-out both;
+  z-index: 200;
+}
+.lang-opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 7px;
+  font-size: 13px; font-weight: 500; color: var(--text-sub);
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.lang-opt:hover { background: var(--tint); color: var(--primary); }
+.lang-opt.active { background: var(--tint); color: var(--primary-dk); font-weight: 700; }
+.lang-flag { font-size: 16px; line-height: 1; }
 
 /* ── HERO ── */
 .hero {
@@ -237,6 +270,7 @@ h2 em { font-style: normal; color: var(--primary); }
 .sort-chip { border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
 
 /* ── AI GENERATION ── */
+.ai-section-wrap { padding: 88px 24px; }
 .ai-tab { background: none; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; color: var(--text-sub); cursor: pointer; transition: all .18s; font-family: 'Inter', sans-serif; }
 .ai-tab:hover { border-color: var(--primary); color: var(--primary); background: var(--tint); }
 .ai-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -244,6 +278,8 @@ h2 em { font-style: normal; color: var(--primary); }
 .ai-point-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
 .ai-point-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
 .ai-point-body { font-size: 13px; color: var(--text-sub); line-height: 1.6; }
+/* Prevent grid children from overflowing on narrow screens */
+.features-grid > *, .testi-grid > *, .pricing-grid > * { min-width: 0; }
 .course-gen-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .course-gen-row:last-of-type { border-bottom: none; }
 .cg-num { width: 22px; height: 22px; border-radius: 6px; background: var(--tint); color: var(--primary-dk); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -268,20 +304,58 @@ h2 em { font-style: normal; color: var(--primary); }
 .testi-role { font-size: 12px; color: var(--text-muted); }
 
 /* ── PRICING ── */
-.pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 48px; }
-.price-card { background: var(--white); border-radius: var(--r-lg); border: 1px solid var(--border); padding: 32px; box-shadow: var(--shadow-sm); }
+/* Billing toggle */
+.billing-toggle { display: flex; align-items: center; gap: 6px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 4px; flex-wrap: wrap; width: fit-content; margin-top: 36px; box-shadow: var(--shadow-sm); }
+.billing-btn { display: flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: 9px; border: none; background: transparent; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s; white-space: nowrap; }
+.billing-btn:hover { color: var(--primary); background: var(--tint); }
+.billing-btn.active { background: var(--primary); color: #fff; }
+.billing-discount { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+.billing-btn.active .billing-discount { background: rgba(255,255,255,0.22); color: #fff; }
+.billing-btn:not(.active) .billing-discount { background: #EAF3DE; color: #3B6D11; }
+
+/* Cards grid — 3 fixed cols on desktop */
+.pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 28px; }
+.price-card { background: var(--white); border-radius: var(--r-lg); border: 1px solid var(--border); padding: 28px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; transition: transform .2s, box-shadow .2s; }
+.price-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
 .price-card.featured { background: var(--primary); border-color: var(--primary); }
-.price-card.featured .price-name, .price-card.featured .price-val, .price-card.featured .price-per, .price-card.featured .price-feature { color: #fff; }
-.price-card.featured .check { color: rgba(255,255,255,0.8); }
-.price-card.featured .price-divider { border-color: rgba(255,255,255,0.2); }
-.price-name { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
-.price-val { font-family: 'Syne', sans-serif; font-size: 48px; font-weight: 800; color: var(--text-main); line-height: 1; }
-.price-per { font-size: 13px; color: var(--text-muted); margin-top: 4px; margin-bottom: 16px; }
-.price-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
-.price-feature { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-sub); margin-bottom: 10px; }
-.check { color: #22c55e; font-weight: 700; }
-.price-cta { margin-top: 24px; }
-.price-cta a { display: block; text-align: center; text-decoration: none; padding: 13px 24px; border-radius: var(--r); font-size: 15px; font-weight: 700; transition: opacity .18s; }
+.price-card.featured .price-name,
+.price-card.featured .price-subtitle,
+.price-card.featured .price-val,
+.price-card.featured .price-currency { color: #fff; }
+.price-card.featured .price-per { color: rgba(255,255,255,0.65); }
+.price-card.featured .price-divider { border-color: rgba(255,255,255,0.18); }
+.price-card.featured .feat-row-label { color: rgba(255,255,255,0.75); }
+.price-card.featured .feat-row-val { color: #fff; }
+.price-card.featured .feat-row-val.unlimited { color: #a5f3fc; }
+.price-card.featured .feat-row-val.check { color: #86efac; }
+.price-card.featured .feat-row-val.dash { color: rgba(255,255,255,0.4); }
+
+/* Header */
+.price-name { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; color: var(--text-main); }
+.price-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+/* Price display */
+.price-amount-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+.price-val { font-family: 'Syne', sans-serif; font-size: 44px; font-weight: 800; color: var(--text-main); line-height: 1; }
+.price-currency { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--text-muted); align-self: flex-start; margin-top: 6px; }
+.price-savings { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: #EAF3DE; color: #3B6D11; white-space: nowrap; align-self: center; }
+.price-card.featured .price-savings { background: rgba(255,255,255,0.22); color: #fff; }
+.price-per { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+
+/* Feature table */
+.price-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; flex-shrink: 0; }
+.feat-rows { flex: 1; display: flex; flex-direction: column; gap: 11px; }
+.feat-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.feat-row-label { font-size: 13px; color: var(--text-sub); flex: 1; }
+.feat-row-val { font-size: 13px; font-weight: 700; color: var(--text-main); white-space: nowrap; }
+.feat-row-val.check { color: #22c55e; }
+.feat-row-val.dash { color: var(--text-muted); font-weight: 400; }
+.feat-row-val.unlimited { color: var(--primary-dk); }
+
+/* CTA */
+.price-cta { margin-top: 24px; flex-shrink: 0; }
+.price-cta a { display: block; text-align: center; text-decoration: none; padding: 13px 24px; border-radius: var(--r); font-size: 15px; font-weight: 700; transition: opacity .18s, transform .12s; }
+.price-cta a:hover { opacity: .88; transform: translateY(-1px); }
 
 /* ── CTA SECTION ── */
 .cta-section { background: var(--tint); border-top: 1px solid var(--tint-mid); border-bottom: 1px solid var(--tint-mid); padding: 88px 24px; }
@@ -296,16 +370,212 @@ footer { max-width: 1100px; margin: 0 auto; padding: 48px 24px; display: flex; f
 .footer-links a:hover { color: var(--primary); }
 .footer-copy { font-size: 13px; color: var(--text-muted); }
 
-/* ── RESPONSIVE ── */
-@media (max-width: 720px) {
-  .how-wrap { grid-template-columns: 1fr; }
-  nav .nav-links a:not(.btn-nav) { display: none; }
-  .db-grid { grid-template-columns: repeat(2, 1fr); }
-  /* Single column on small screens — three equal columns would squeeze feature copy. */
-  .features-grid { grid-template-columns: 1fr; }
+/* ── HAMBURGER ── */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  padding: 9px;
+  border-radius: 9px;
+  background: transparent;
+  border: none;
+  transition: background .15s;
+  flex-shrink: 0;
 }
+.nav-hamburger:hover { background: var(--tint); }
+.nav-hamburger span {
+  display: block; width: 20px; height: 2px; border-radius: 2px;
+  background: var(--text-main); transition: all .25s ease;
+}
+.nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ── MOBILE MENU OVERLAY ── */
+.mobile-menu {
+  display: none;
+  position: fixed;
+  top: 64px; left: 0; right: 0; bottom: 0;
+  background: rgba(247,247,250,0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 98;
+  flex-direction: column;
+  padding: 20px 16px 32px;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  overflow-y: auto;
+  animation: fadeUp .2s ease both;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu a {
+  font-size: 16px; font-weight: 500; color: var(--text-sub);
+  text-decoration: none; padding: 15px 18px; border-radius: 12px;
+  transition: background .15s, color .15s;
+}
+.mobile-menu a:hover { background: var(--tint); color: var(--primary); }
+.mobile-menu-divider { width: 100%; height: 1px; background: var(--border); margin: 8px 0; }
+.mobile-menu .btn-mobile-cta {
+  margin-top: 8px;
+  display: block; text-align: center;
+  background: var(--primary); color: #fff; border-radius: 12px;
+  padding: 15px 24px; font-size: 16px; font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 4px 18px rgba(108,111,239,0.28);
+}
+
+/* ── RESPONSIVE ── */
+
+/* Large desktop: no change needed */
+
+/* Medium desktop / wide tablet (≤ 1100px) */
+@media (max-width: 1100px) {
+  nav {
+    padding: 0 24px;
+  }
+}
+
+/* Tablet (≤ 1024px) */
+@media (max-width: 1024px) {
+  .db-grid { grid-template-columns: repeat(3, 1fr); }
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+  .pricing-grid { grid-template-columns: 1fr; max-width: 480px; margin-left: auto; margin-right: auto; }
+  .billing-toggle { flex-wrap: wrap; }
+}
+
+/* Tablet (≤ 860px) */
+@media (max-width: 860px) {
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-band-inner { gap: 28px; }
+}
+
+/* Mobile landscape / small tablet (≤ 768px) */
+@media (max-width: 768px) {
+  /* Nav */
+  nav { padding: 0 16px; height: 60px; }
+  nav .nav-links { display: none; }
+  .nav-hamburger { display: flex; }
+  .mobile-menu { top: 60px; }
+
+  /* Typography */
+  h1 { font-size: clamp(30px, 8vw, 52px); letter-spacing: -1px; }
+  h2 { font-size: clamp(24px, 6vw, 38px); letter-spacing: -.5px; }
+  .hero-sub { font-size: 16px; }
+  .section-sub { font-size: 15px; }
+
+  /* Hero */
+  .hero { padding: 72px 20px 48px; }
+  .hero-cta { flex-direction: column; align-items: center; }
+  .hero-cta a { width: 100%; max-width: 320px; text-align: center; }
+
+  /* Hero visual — shrink the dashboard mock */
+  .hero-visual { margin-top: 40px; border-radius: 12px; }
+  .db-wrap { height: 340px; }
+  .db-topbar { height: 44px; }
+  .db-main { padding-top: 44px; }
+  .db-content { padding: 14px 12px; }
+  .db-content-inner { padding: 16px; }
+  .db-page-title { font-size: 16px; margin-bottom: 12px; }
+  .db-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .db-course-thumb { height: 72px; font-size: 28px; }
+  .db-course-name { font-size: 11px; }
+  .db-create-card { min-height: 110px; }
+
+  /* Sections */
+  section { padding: 64px 20px; }
+
+  /* Features */
+  .features-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .feat-card { padding: 22px 18px; }
+
+  /* How it works */
+  .how-wrap { grid-template-columns: 1fr; gap: 32px; }
+
+  /* Exercise pills — flatten to wrap */
+  .exercise-pills-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .exercise-pills-side {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+  .exercise-pills-side .ex-pill { transform: none !important; }
+
+  /* Stats band */
+  .stats-band { padding: 40px 20px; }
+  .stats-band-inner { gap: 24px; }
+  .stat-num { font-size: 34px; }
+
+  /* Testimonials */
+  .testi-grid { grid-template-columns: 1fr; }
+
+  /* Pricing */
+  .pricing-grid { max-width: 440px; }
+  .billing-toggle { width: 100%; justify-content: center; }
+
+  /* AI generation */
+  .ai-section-wrap { padding: 64px 20px; }
+
+  /* CTA section */
+  .cta-section { padding: 64px 20px; }
+  .cta-inner h2 { font-size: clamp(24px, 6vw, 36px); }
+
+  /* Footer */
+  footer { padding: 40px 20px; }
+  .footer-links { flex-wrap: wrap; justify-content: center; gap: 16px; }
+}
+
+/* Mobile portrait (≤ 480px) */
 @media (max-width: 480px) {
+  h1 { font-size: clamp(26px, 9vw, 40px); }
+  .hero { padding: 56px 16px 44px; }
+  section { padding: 52px 16px; }
+
+  /* Simplify dashboard mock */
+  .db-wrap { height: 280px; }
+  .db-sidebar { display: none; }
+  .db-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .db-course-thumb { height: 58px; font-size: 22px; }
+  .db-search { display: none; }
+  .db-toolbar { display: none; }
+
+  /* Features: single column */
+  .features-grid { grid-template-columns: 1fr; }
+
+  /* Stats: wrap to 2 cols */
+  .stats-band-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    justify-items: center;
+  }
+  .stat-num { font-size: 30px; }
+
+  /* Pricing */
+  .pricing-grid { max-width: 100%; }
+
+  /* Buttons */
+  .btn-primary { font-size: 15px; padding: 13px 24px; }
+  .btn-ghost { font-size: 15px; padding: 13px 20px; }
+
+  /* Hero badge wraps */
+  .hero-badge { font-size: 12px; padding: 5px 12px; text-align: center; }
+
+  /* Footer */
+  .footer-links { gap: 14px; }
+}
+
+/* Very small (≤ 360px) */
+@media (max-width: 360px) {
   .db-grid { grid-template-columns: 1fr; }
+  .db-create-card { display: none; }
+  h1 { font-size: 26px; }
+  nav { height: 56px; }
+  .mobile-menu { top: 56px; }
 }
 `;
 
@@ -323,11 +593,99 @@ const LogoSVG = ({ width = 150, height = 36 }: { width?: number; height?: number
   </svg>
 );
 
+/* ─── Globe icon ─── */
+const GlobeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+  </svg>
+);
+
+/* ─── Language Switcher ─── */
+const LANGS = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
+  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
+] as const;
+
+function LangSwitcher() {
+  const { i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = LANGS.find(l => l.code === i18n.language) ?? LANGS[0];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const select = (code: string) => { i18n.changeLanguage(code); setOpen(false); };
+
+  return (
+    <div className="lang-switcher" ref={ref}>
+      <button
+        className={`lang-btn${open ? ' open' : ''}`}
+        onClick={() => setOpen(o => !o)}
+        aria-label="Change language"
+        type="button"
+      >
+        <GlobeIcon />
+        <span className="lang-flag">{current.flag}</span>
+        <span>{current.code.toUpperCase()}</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ opacity: 0.5, marginLeft: 2 }}>
+          <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="lang-dropdown" role="listbox">
+          {LANGS.map(l => (
+            <div
+              key={l.code}
+              className={`lang-opt${l.code === i18n.language ? ' active' : ''}`}
+              onClick={() => select(l.code)}
+              role="option"
+              aria-selected={l.code === i18n.language}
+            >
+              <span className="lang-flag">{l.flag}</span>
+              <span>{l.label}</span>
+              {l.code === i18n.language && (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: 'auto' }}>
+                  <path d="M2 6L5 9L10 3" stroke="#4F52C2" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Main Component ─── */
 export default function LandingPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"unit" | "exercise" | "course">("unit");
   const [activeStep, setActiveStep] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [billingDuration, setBillingDuration] = useState<"1m" | "3m" | "6m" | "12m">("1m");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Pricing constants (mirrors AdminTariffsPage)
+  const STANDARD_BASE = 12;
+  const PRO_BASE = 39;
+  const DURATION_MONTHS: Record<string, number> = { "1m": 1, "3m": 3, "6m": 6, "12m": 12 };
+  const DURATION_DISCOUNT: Record<string, number> = { "1m": 0, "3m": 0.05, "6m": 0.10, "12m": 0.20 };
+  const BILLING_DISCOUNTS: Record<string, string> = { "3m": "-5%", "6m": "-10%", "12m": "-20%" };
+  const months = DURATION_MONTHS[billingDuration];
+  const discount = DURATION_DISCOUNT[billingDuration];
+  const standardTotal = Math.round(STANDARD_BASE * months * (1 - discount));
+  const proTotal = Math.round(PRO_BASE * months * (1 - discount));
+  const standardSavings = discount > 0 ? `Save $${Math.round(STANDARD_BASE * months * discount)}` : null;
+  const proSavings = discount > 0 ? `Save $${Math.round(PRO_BASE * months * discount)}` : null;
+  const durationLabel = billingDuration === "1m" ? "per month" : billingDuration === "3m" ? "per 3 months" : billingDuration === "6m" ? "per 6 months" : "per year";
 
   const resetTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -340,6 +698,19 @@ export default function LandingPage() {
     resetTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
+
+  // Close mobile menu on resize to desktop
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth > 768) setMobileMenuOpen(false); };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileMenuOpen]);
 
   const handleStepClick = (i: number) => {
     setActiveStep(i);
@@ -355,25 +726,44 @@ export default function LandingPage() {
         <a href="#" className="nav-logo">
           <LogoSVG />
         </a>
+        {/* Desktop links */}
         <div className="nav-links">
-          <a href="#features">Features</a>
-          <a href="#exercises">Exercises</a>
-          <a href="#ai-generation">AI Generation</a>
-          {/* <a href="#how">How it works</a> */}
-          <a href="#pricing">Pricing</a>
-          <Link to="/login">Log in</Link>
-          <Link to="/register" className="btn-nav">Get started free</Link>
+          <a href="#features">{t('landing.nav.features', 'Features')}</a>
+          <a href="#exercises">{t('landing.nav.exercises', 'Exercises')}</a>
+          <a href="#ai-generation">{t('landing.nav.aiGeneration', 'AI Generation')}</a>
+          <a href="#pricing">{t('landing.nav.pricing', 'Pricing')}</a>
+          <Link to="/login">{t('landing.nav.login', 'Log in')}</Link>
+          <LangSwitcher />
+          <Link to="/register" className="btn-nav">{t('landing.nav.getStarted', 'Get started free')}</Link>
         </div>
+        {/* Hamburger */}
+        <button
+          className={`nav-hamburger${mobileMenuOpen ? " open" : ""}`}
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+        >
+          <span /><span /><span />
+        </button>
       </nav>
+
+      {/* ── MOBILE MENU ── */}
+      <div className={`mobile-menu${mobileMenuOpen ? " open" : ""}`} role="dialog" aria-modal="true">
+        <a href="#features" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.features', 'Features')}</a>
+        <a href="#exercises" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.exercises', 'Exercises')}</a>
+        <a href="#ai-generation" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.aiGeneration', 'AI Generation')}</a>
+        <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.pricing', 'Pricing')}</a>
+        <div className="mobile-menu-divider" />
+        <Link to="/login" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.login', 'Log in')}</Link>
+        <Link to="/register" className="btn-mobile-cta" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.getStarted', 'Get started free')} →</Link>
+      </div>
 
       {/* ── HERO ── */}
       <div className="hero">
-        <div className="hero-badge"><span></span> AI-Powered Language Teaching Platform</div>
-        <h1>Teach languages<br />smarter with <em>AI</em></h1>
-        <p className="hero-sub">Build structured courses, generate lessons in minutes, and track every student's progress — all in one beautiful platform.</p>
+        <div className="hero-badge"><span></span> {t('landing.hero.badge', 'AI-Powered Language Teaching Platform')}</div>
+        <h1>{t('landing.hero.title1', 'Teach languages')}<br />{t('landing.hero.title2', 'smarter with')} <em>{t('landing.hero.titleHighlight', 'AI')}</em></h1>
+        <p className="hero-sub">{t('landing.hero.subtitle', 'Build structured courses, generate lessons in minutes, and track every student\'s progress — all in one beautiful platform.')}</p>
         <div className="hero-cta">
-          <Link to="/register" className="btn-primary">Start for free →</Link>
-          {/* <a href="#how" className="btn-ghost">See how it works</a> */}
+          <Link to="/register" className="btn-primary">{t('landing.hero.startFree', 'Start for free →')}</Link>
         </div>
 
         {/* Dashboard preview */}
@@ -478,17 +868,17 @@ export default function LandingPage() {
 
       {/* ── FEATURES ── */}
       <section id="features">
-        <div className="section-label">Features</div>
-        <h2>Everything you need to<br /><em>teach brilliantly</em></h2>
-        <p className="section-sub">One platform — from content creation to classroom management and grading.</p>
+        <div className="section-label">{t('landing.featuresSection.label', 'Features')}</div>
+        <h2>{t('landing.featuresSection.heading', 'Everything you need to')}<br /><em>{t('landing.featuresSection.headingHighlight', 'teach brilliantly')}</em></h2>
+        <p className="section-sub">{t('landing.featuresSection.subtext', 'One platform — from content creation to classroom management and grading.')}</p>
         <div className="features-grid">
           {[
-            { icon: "📚", bg: "#EEF0FE", title: "Structured course builder", body: "Organise teaching into courses, units, and lessons. Drag to reorder, nest freely, and always give students a clear path forward." },
-            { icon: "✨", bg: "#fef3c7", title: "AI content generation", body: "Describe a topic — get a full lesson deck, interactive exercises, and a graded test generated in minutes. No blank-page anxiety." },
-            { icon: "🎓", bg: "#dcfce7", title: "Live classroom mode", body: "Assign lessons to classrooms. Students follow at their own pace through slides, drag-and-drop tasks, and timed tests." },
-            { icon: "📊", bg: "#e0f2fe", title: "Progress & analytics", body: "See every student's completion, scores, and time spent at a glance. Spot weak areas and intervene before they fall behind." },
-            { icon: "🎯", bg: "#fce7f3", title: "Rich exercise types", body: "Drag-to-gap, match pairs, sort into columns, type word, true/false, build sentence — 12+ interactive exercise types built in." },
-            { icon: "🏠", bg: "#f0fdf4", title: "Homework & self-study", body: "Assign homework that students complete independently. Submissions are collected and graded automatically, saving hours each week." },
+            { icon: "📚", bg: "#EEF0FE", title: t('landing.featuresSection.f1Title', 'Structured course builder'), body: t('landing.featuresSection.f1Body', 'Organise teaching into courses, units, and lessons. Drag to reorder, nest freely, and always give students a clear path forward.') },
+            { icon: "✨", bg: "#fef3c7", title: t('landing.featuresSection.f2Title', 'AI content generation'), body: t('landing.featuresSection.f2Body', 'Describe a topic — get a full lesson deck, interactive exercises, and a graded test generated in minutes. No blank-page anxiety.') },
+            { icon: "🎓", bg: "#dcfce7", title: t('landing.featuresSection.f3Title', 'Live classroom mode'), body: t('landing.featuresSection.f3Body', 'Assign lessons to classrooms. Students follow at their own pace through slides, drag-and-drop tasks, and timed tests.') },
+            { icon: "📊", bg: "#e0f2fe", title: t('landing.featuresSection.f4Title', 'Progress & analytics'), body: t('landing.featuresSection.f4Body', 'See every student\'s completion, scores, and time spent at a glance. Spot weak areas and intervene before they fall behind.') },
+            { icon: "🎯", bg: "#fce7f3", title: t('landing.featuresSection.f5Title', 'Rich exercise types'), body: t('landing.featuresSection.f5Body', 'Drag-to-gap, match pairs, sort into columns, type word, true/false, build sentence — 12+ interactive exercise types built in.') },
+            { icon: "🏠", bg: "#f0fdf4", title: t('landing.featuresSection.f6Title', 'Homework & self-study'), body: t('landing.featuresSection.f6Body', 'Assign homework that students complete independently. Submissions are collected and graded automatically, saving hours each week.') },
           ].map((f) => (
             <div className="feat-card" key={f.title}>
               <div className="feat-icon" style={{ background: f.bg }}>{f.icon}</div>
@@ -501,14 +891,14 @@ export default function LandingPage() {
 
       {/* ── EXERCISE TYPES ── */}
       <section id="exercises" style={{ overflow: "hidden" }}>
-        <div className="section-label">Exercise library</div>
-        <h2>12+ interactive<br /><em>exercise types</em></h2>
-        <p className="section-sub">Every exercise is interactive, auto-graded, and works seamlessly on desktop and mobile.</p>
+        <div className="section-label">{t('landing.exercisesSection.label', 'Exercise library')}</div>
+        <h2>{t('landing.exercisesSection.heading', '12+ interactive')}<br /><em>{t('landing.exercisesSection.headingHighlight', 'exercise types')}</em></h2>
+        <p className="section-sub">{t('landing.exercisesSection.subtext', 'Every exercise is interactive, auto-graded, and works seamlessly on desktop and mobile.')}</p>
 
         <div style={{ position: "relative", marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 32, alignItems: "center", width: "100%", maxWidth: 900, margin: "0 auto" }}>
+          <div className="exercise-pills-layout" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 32, alignItems: "center", width: "100%", maxWidth: 900, margin: "0 auto" }}>
             {/* LEFT */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
+            <div className="exercise-pills-side" style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
               {[
                 { bg: "linear-gradient(135deg,#f87171,#fb923c)", rot: "-2deg", label: "🖼 Image & GIF" },
                 { bg: "linear-gradient(135deg,#fb923c,#facc15)", rot: "-1deg", label: "▶ YouTube video" },
@@ -530,7 +920,7 @@ export default function LandingPage() {
             </div>
 
             {/* RIGHT */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
+            <div className="exercise-pills-side" style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
               {[
                 { bg: "linear-gradient(135deg,#f87171,#a855f7)", rot: "2deg", label: "🖼 Word to image" },
                 { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "-1.5deg", label: "📝 Build sentence" },
@@ -593,22 +983,22 @@ export default function LandingPage() {
       </section>
 
       {/* ── AI GENERATION ── */}
-      <div style={{ background: "var(--white)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "88px 24px" }} id="ai-generation">
+      <div className="ai-section-wrap" style={{ background: "var(--white)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "88px 24px" }} id="ai-generation">
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <div className="section-label">AI generation</div>
-          <h2>Describe it. AI<br /><em>builds it for you.</em></h2>
-          <p className="section-sub">Generate full units, individual exercises, or entire courses — all from a simple description.</p>
+          <div className="section-label">{t('landing.aiSection.label', 'AI generation')}</div>
+          <h2>{t('landing.aiSection.heading', 'Describe it. AI')}<br /><em>{t('landing.aiSection.headingHighlight', 'builds it for you.')}</em></h2>
+          <p className="section-sub">{t('landing.aiSection.subtext', 'Generate full units, individual exercises, or entire courses — all from a simple description.')}</p>
 
           {/* Tab switcher */}
           <div style={{ display: "flex", gap: 8, marginTop: 40, marginBottom: 36, flexWrap: "wrap" }}>
-            <button className={`ai-tab${activeTab === "unit" ? " active" : ""}`} onClick={() => setActiveTab("unit")}>✦ Generate unit</button>
-            <button className={`ai-tab${activeTab === "exercise" ? " active" : ""}`} onClick={() => setActiveTab("exercise")}>⬜ Generate exercise</button>
-            <button className={`ai-tab${activeTab === "course" ? " active" : ""}`} onClick={() => setActiveTab("course")}>📚 Generate course</button>
+            <button className={`ai-tab${activeTab === "unit" ? " active" : ""}`} onClick={() => setActiveTab("unit")}>✦ {t('landing.aiSection.tabUnit', 'Generate unit')}</button>
+            <button className={`ai-tab${activeTab === "exercise" ? " active" : ""}`} onClick={() => setActiveTab("exercise")}>⬜ {t('landing.aiSection.tabExercise', 'Generate exercise')}</button>
+            <button className={`ai-tab${activeTab === "course" ? " active" : ""}`} onClick={() => setActiveTab("course")}>📚 {t('landing.aiSection.tabCourse', 'Generate course')}</button>
           </div>
 
           {/* UNIT tab */}
           {activeTab === "unit" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24, alignItems: "start" }}>
               <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
                 <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
                   <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
@@ -634,10 +1024,9 @@ export default function LandingPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
                 {[
-                  { icon: "✦", bg: "#EEF0FE", title: "One prompt, full unit", body: "Describe the topic and level — AI generates 3 lesson segments complete with slides, exercises, and a graded test." },
-                  { icon: "📂", bg: "#dcfce7", title: "Or upload your materials", body: "Got existing worksheets or PDFs? Upload them and AI extracts the content into an editable lesson automatically." },
-                  { icon: "✏️", bg: "#fef3c7", title: "Always editable", body: "Every slide, every exercise question, every test item is fully editable after generation. AI gives you the head start." },
-                  { icon: "🎯", bg: "#e0f2fe", title: "Choose what to generate", body: "Select which segments to generate and in what order. Skip what you already have — generate only what you need." },
+                  { icon: "✦", bg: "#EEF0FE", title: t('landing.aiSection.p1Title', 'One prompt, full unit'), body: t('landing.aiSection.p1Body', 'Describe the topic and level — AI generates 3 lesson segments complete with slides, exercises, and a graded test.') },
+                  { icon: "📂", bg: "#dcfce7", title: t('landing.aiSection.p2Title', 'Or upload your materials'), body: t('landing.aiSection.p2Body', 'Got existing worksheets or PDFs? Upload them and AI extracts the content into an editable lesson automatically.') },
+                  { icon: "✏️", bg: "#fef3c7", title: t('landing.aiSection.p3Title', 'Always editable'), body: t('landing.aiSection.p3Body', 'Every slide, every exercise question, every test item is fully editable after generation. AI gives you the head start.') },
                 ].map((p) => (
                   <div className="ai-point" key={p.title}>
                     <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
@@ -653,7 +1042,7 @@ export default function LandingPage() {
 
           {/* EXERCISE tab */}
           {activeTab === "exercise" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24, alignItems: "start" }}>
               <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
                 <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
                   <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
@@ -672,10 +1061,9 @@ export default function LandingPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
                 {[
-                  { icon: "✦", bg: "#EEF0FE", title: "Exercise-level AI", body: "Generate a single exercise of any type — drag-to-gap, match pairs, sort columns, true/false — from just a description." },
-                  { icon: "💡", bg: "#fef3c7", title: "Smart prompt suggestions", body: "One-click prompt chips help you get started: \"Write a text on the topic\", \"Practice past tense with\", and more." },
-                  { icon: "👁", bg: "#dcfce7", title: "Preview before adding", body: "See the generated exercise with words in gaps before adding it to your lesson. Regenerate if needed." },
-                  { icon: "📄", bg: "#e0f2fe", title: "Generate from your materials", body: "Switch to \"By materials\" and upload a PDF or text — AI builds exercises from your own content instantly." },
+                  { icon: "✦", bg: "#EEF0FE", title: t('landing.aiSection.e1Title', 'Exercise-level AI'), body: t('landing.aiSection.e1Body', 'Generate a single exercise of any type — drag-to-gap, match pairs, sort columns, true/false — from just a description.') },
+                  { icon: "💡", bg: "#fef3c7", title: t('landing.aiSection.e2Title', 'Smart prompt suggestions'), body: t('landing.aiSection.e2Body', 'One-click prompt chips help you get started: "Write a text on the topic", "Practice past tense with", and more.') },
+                  { icon: "👁", bg: "#dcfce7", title: t('landing.aiSection.e3Title', 'Preview before adding'), body: t('landing.aiSection.e3Body', 'See the generated exercise with words in gaps before adding it to your lesson. Regenerate if needed.') },
                 ].map((p) => (
                   <div className="ai-point" key={p.title}>
                     <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
@@ -691,7 +1079,7 @@ export default function LandingPage() {
 
           {/* COURSE tab */}
           {activeTab === "course" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24, alignItems: "start" }}>
               <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
                 <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
                   <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
@@ -713,10 +1101,9 @@ export default function LandingPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
                 {[
-                  { icon: "📚", bg: "#EEF0FE", title: "Full course in minutes", body: "Describe your course — level, audience, topic — and AI builds a complete outline with units, segments, slides, and exercises." },
-                  { icon: "🔄", bg: "#fef3c7", title: "Edit the outline first", body: "Review and adjust the AI-generated unit outline before generating content — add, remove, or reorder units freely." },
-                  { icon: "⚡", bg: "#dcfce7", title: "Parallel generation", body: "All units generate in parallel. A 6-unit course with slides, tasks, and tests is ready in under 2 minutes." },
-                  { icon: "🎯", bg: "#e0f2fe", title: "Always teacher-reviewed", body: "Generated content is a head start — every slide, exercise, and test question is editable before publishing to students." },
+                  { icon: "📚", bg: "#EEF0FE", title: t('landing.aiSection.c1Title', 'Full course in minutes'), body: t('landing.aiSection.c1Body', 'Describe your course — level, audience, topic — and AI builds a complete outline with units, segments, slides, and exercises.') },
+                  { icon: "🔄", bg: "#fef3c7", title: t('landing.aiSection.c2Title', 'Edit the outline first'), body: t('landing.aiSection.c2Body', 'Review and adjust the AI-generated unit outline before generating content — add, remove, or reorder units freely.') },
+                  { icon: "⚡", bg: "#dcfce7", title: t('landing.aiSection.c3Title', 'Parallel generation'), body: t('landing.aiSection.c3Body', 'All units generate in parallel. A 6-unit course with slides, tasks, and tests is ready in under 2 minutes.') },
                 ].map((p) => (
                   <div className="ai-point" key={p.title}>
                     <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
@@ -735,10 +1122,10 @@ export default function LandingPage() {
       {/* ── STATS BAND ── */}
       <div className="stats-band">
         <div className="stats-band-inner">
-          <div><div className="stat-num">12+</div><div className="stat-label">Exercise types</div></div>
-          <div><div className="stat-num">3 min</div><div className="stat-label">Avg. lesson generation time</div></div>
-          <div><div className="stat-num">100%</div><div className="stat-label">Auto-graded tests</div></div>
-          <div><div className="stat-num">∞</div><div className="stat-label">Students per classroom</div></div>
+          <div><div className="stat-num">12+</div><div className="stat-label">{t('landing.stats.exerciseTypes', 'Exercise types')}</div></div>
+          <div><div className="stat-num">3 min</div><div className="stat-label">{t('landing.stats.generationTime', 'Avg. lesson generation time')}</div></div>
+          <div><div className="stat-num">100%</div><div className="stat-label">{t('landing.stats.autoGraded', 'Auto-graded tests')}</div></div>
+          <div><div className="stat-num">∞</div><div className="stat-label">{t('landing.stats.students', 'Students per classroom')}</div></div>
         </div>
       </div>
 
@@ -882,20 +1269,20 @@ export default function LandingPage() {
 
       {/* ── TESTIMONIALS ── */}
       <section>
-        <div className="section-label">What teachers say</div>
-        <h2>Built for language<br /><em>educators, by educators</em></h2>
+        <div className="section-label">{t('landing.testimonialsSection.label', 'What teachers say')}</div>
+        <h2>{t('landing.testimonialsSection.heading', 'Built for language')}<br /><em>{t('landing.testimonialsSection.headingHighlight', 'educators, by educators')}</em></h2>
         <div className="testi-grid">
           {[
-            { initials: "SM", bg: "#6C6FEF", name: "Silvia M.", role: "Italian teacher, Milan", text: "I used to spend entire Sundays preparing lesson materials. Now I describe the topic, tweak the AI output, and I'm done in 20 minutes. My students love the interactive exercises." },
-            { initials: "LP", bg: "#10b981", name: "Lorenzo P.", role: "Language school director, Rome", text: "The live classroom mode changed how I teach. I can see in real time who is stuck on slide 4 and who has already finished the test. No more guessing." },
-            { initials: "CF", bg: "#f59e0b", name: "Chiara F.", role: "Private tutor, Florence", text: "The analytics panel is genuinely useful. I identified that 60% of my class was struggling with subjunctive before anyone told me — the data just showed it." },
-          ].map((t) => (
-            <div className="testi-card" key={t.name}>
+            { initials: "SM", bg: "#6C6FEF", name: t('landing.testimonialsSection.t1Name', 'Silvia M.'), role: t('landing.testimonialsSection.t1Role', 'Italian teacher, Milan'), text: t('landing.testimonialsSection.t1Text', 'I used to spend entire Sundays preparing lesson materials. Now I describe the topic, tweak the AI output, and I\'m done in 20 minutes. My students love the interactive exercises.') },
+            { initials: "LP", bg: "#10b981", name: t('landing.testimonialsSection.t2Name', 'Lorenzo P.'), role: t('landing.testimonialsSection.t2Role', 'Language school director, Rome'), text: t('landing.testimonialsSection.t2Text', 'The live classroom mode changed how I teach. I can see in real time who is stuck on slide 4 and who has already finished the test. No more guessing.') },
+            { initials: "CF", bg: "#f59e0b", name: t('landing.testimonialsSection.t3Name', 'Chiara F.'), role: t('landing.testimonialsSection.t3Role', 'Private tutor, Florence'), text: t('landing.testimonialsSection.t3Text', 'The analytics panel is genuinely useful. I identified that 60% of my class was struggling with subjunctive before anyone told me — the data just showed it.') },
+          ].map((tst) => (
+            <div className="testi-card" key={tst.name}>
               <div className="testi-stars">★★★★★</div>
-              <p className="testi-text">"{t.text}"</p>
+              <p className="testi-text">"{tst.text}"</p>
               <div className="testi-author">
-                <div className="avatar" style={{ background: t.bg, width: 36, height: 36, fontSize: 13 }}>{t.initials}</div>
-                <div><div className="testi-name">{t.name}</div><div className="testi-role">{t.role}</div></div>
+                <div className="avatar" style={{ background: tst.bg, width: 36, height: 36, fontSize: 13 }}>{tst.initials}</div>
+                <div><div className="testi-name">{tst.name}</div><div className="testi-role">{tst.role}</div></div>
               </div>
             </div>
           ))}
@@ -904,68 +1291,117 @@ export default function LandingPage() {
 
       {/* ── PRICING ── */}
       <section id="pricing">
-        <div className="section-label">Pricing</div>
-        <h2>Simple, transparent<br /><em>pricing</em></h2>
-        <p className="section-sub">Start for free. Upgrade when you're ready. No hidden fees.</p>
+        <div className="section-label">{t('landing.pricingSection.label', 'Pricing')}</div>
+        <h2>{t('landing.pricingSection.heading', 'Simple, transparent')}<br /><em>{t('landing.pricingSection.headingHighlight', 'pricing')}</em></h2>
+        <p className="section-sub">{t('landing.pricingSection.subtext', 'Start for free. Upgrade when you\'re ready. No credit card required.')}</p>
+
+        {/* Billing duration toggle */}
+        <div className="billing-toggle">
+          {(["1m", "3m", "6m", "12m"] as const).map((d) => (
+            <button
+              key={d}
+              className={`billing-btn${billingDuration === d ? " active" : ""}`}
+              onClick={() => setBillingDuration(d)}
+            >
+              {d === "1m" ? "Monthly" : d === "3m" ? "3 months" : d === "6m" ? "6 months" : "Annual"}
+              {BILLING_DISCOUNTS[d] && (
+                <span className="billing-discount">{BILLING_DISCOUNTS[d]}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
         <div className="pricing-grid">
-          {/* Free */}
+          {/* ── Free ── */}
           <div className="price-card">
-            <div className="price-name">Free</div>
-            <div className="price-val">€0</div>
-            <div className="price-per">forever free</div>
+            <div className="price-name">{t('landing.pricingSection.freeName', 'Free')}</div>
+            <div className="price-subtitle">{t('landing.pricingSection.freeSubtitle', 'Get started at no cost')}</div>
+            <div className="price-amount-row">
+              <span className="price-currency">$</span>
+              <span className="price-val">0</span>
+            </div>
+            <div className="price-per">{t('landing.pricingSection.freePer', 'forever free')}</div>
             <hr className="price-divider" />
-            <div className="price-feature"><div className="check">✓</div> 1 course, 3 units</div>
-            <div className="price-feature"><div className="check">✓</div> Up to 15 students</div>
-            <div className="price-feature"><div className="check">✓</div> 5 AI generations / month</div>
-            <div className="price-feature"><div className="check">✓</div> Basic analytics</div>
+            <div className="feat-rows">
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExercises', 'AI exercise generations')}</span><span className="feat-row-val">10 / mo</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowUnits', 'AI unit generations')}</span><span className="feat-row-val">3 / mo</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val">1 total</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val dash">—</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val dash">—</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.basic', 'Basic')}</span></div>
+            </div>
             <div className="price-cta">
-              <Link to="/register" className="btn-ghost" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--text-sub)", border: "1px solid var(--border)", borderRadius: "var(--r)" }}>Get started</Link>
+              <Link to="/register" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--text-sub)", border: "1.5px solid var(--border)", borderRadius: "var(--r)", background: "var(--bg)" }}>{t('landing.pricingSection.freeCta', 'Get started')}</Link>
             </div>
           </div>
-          {/* Pro - featured */}
+
+          {/* ── Standard ── */}
+          <div className="price-card" style={{ borderColor: "#a7f3d0" }}>
+            <div className="price-name">{t('landing.pricingSection.standardName', 'Standard')}</div>
+            <div className="price-subtitle">{t('landing.pricingSection.standardSubtitle', 'For active teachers')}</div>
+            <div className="price-amount-row">
+              <span className="price-currency" style={{ color: "var(--text-sub)" }}>$</span>
+              <span className="price-val">{standardTotal}</span>
+              {standardSavings && <span className="price-savings">{standardSavings}</span>}
+            </div>
+            <div className="price-per">{durationLabel} · ${STANDARD_BASE}/mo base</div>
+            <hr className="price-divider" />
+            <div className="feat-rows">
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExercises', 'AI exercise generations')}</span><span className="feat-row-val">100 / mo</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowUnits', 'AI unit generations')}</span><span className="feat-row-val">20 / mo</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val">5 / mo</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val check">✓</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val check">✓</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.full', 'Full')}</span></div>
+            </div>
+            <div className="price-cta">
+              <Link to="/register" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--primary-dk)", border: "1.5px solid var(--primary)", borderRadius: "var(--r)", background: "var(--tint)" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
+            </div>
+          </div>
+
+          {/* ── Pro — featured ── */}
           <div className="price-card featured">
-            <div style={{ display: "inline-block", background: "rgba(255,255,255,.2)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 12px", borderRadius: 99, marginBottom: 12, letterSpacing: ".5px" }}>MOST POPULAR</div>
-            <div className="price-name">Pro</div>
-            <div className="price-val">€19</div>
-            <div className="price-per">per month, billed monthly</div>
-            <hr className="price-divider" />
-            <div className="price-feature"><div className="check">✓</div> Unlimited courses & units</div>
-            <div className="price-feature"><div className="check">✓</div> Unlimited students</div>
-            <div className="price-feature"><div className="check">✓</div> Unlimited AI generations</div>
-            <div className="price-feature"><div className="check">✓</div> Full analytics dashboard</div>
-            <div className="price-feature"><div className="check">✓</div> Homework & self-study mode</div>
-            <div className="price-feature"><div className="check">✓</div> Priority support</div>
-            <div className="price-cta">
-              <Link to="/register" style={{ display: "block", background: "#fff", color: "var(--primary-dk)", borderRadius: "var(--r)", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Start free trial</Link>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,.18)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99, marginBottom: 10, letterSpacing: ".5px" }}>
+              ★ {t('landing.pricingSection.mostPopular', 'MOST POPULAR')}
             </div>
-          </div>
-          {/* School */}
-          <div className="price-card">
-            <div className="price-name">School</div>
-            <div className="price-val">€49</div>
-            <div className="price-per">per month · up to 10 teachers</div>
+            <div className="price-name">{t('landing.pricingSection.proName', 'Pro')}</div>
+            <div className="price-subtitle">{t('landing.pricingSection.proSubtitle', 'Unlimited AI, for serious educators')}</div>
+            <div className="price-amount-row">
+              <span className="price-currency">$</span>
+              <span className="price-val">{proTotal}</span>
+              {proSavings && <span className="price-savings">{proSavings}</span>}
+            </div>
+            <div className="price-per">{durationLabel} · ${PRO_BASE}/mo base</div>
             <hr className="price-divider" />
-            <div className="price-feature"><div className="check">✓</div> Everything in Pro</div>
-            <div className="price-feature"><div className="check">✓</div> Team management</div>
-            <div className="price-feature"><div className="check">✓</div> Shared course library</div>
-            <div className="price-feature"><div className="check">✓</div> School-wide analytics</div>
-            <div className="price-feature"><div className="check">✓</div> Dedicated onboarding</div>
+            <div className="feat-rows">
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExercises', 'AI exercise generations')}</span><span className="feat-row-val unlimited">{t('landing.pricingSection.unlimited', 'Unlimited')}</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowUnits', 'AI unit generations')}</span><span className="feat-row-val unlimited">{t('landing.pricingSection.unlimited', 'Unlimited')}</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val unlimited">{t('landing.pricingSection.unlimited', 'Unlimited')}</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val check">✓</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val check">✓</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.fullExports', 'Full + exports')}</span></div>
+            </div>
             <div className="price-cta">
-              <Link to="/register" className="btn-ghost" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--text-sub)", border: "1px solid var(--border)", borderRadius: "var(--r)" }}>Contact us</Link>
+              <Link to="/register" style={{ display: "block", background: "#fff", color: "var(--primary-dk)", borderRadius: "var(--r)", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
             </div>
           </div>
         </div>
+
+        {/* Footnote */}
+        <p style={{ marginTop: 20, fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
+          {t('landing.pricingSection.footnote', 'All plans include homework mode, 12+ exercise types, and student progress tracking. Prices in USD · Billed via Stripe · Cancel anytime.')}
+        </p>
       </section>
 
       {/* ── CTA ── */}
       <div className="cta-section">
         <div className="cta-inner">
-          <div className="section-label" style={{ textAlign: "center" }}>Ready to start?</div>
-          <h2>Join teachers already<br /><em>saving hours every week</em></h2>
-          <p>Create your free account in 60 seconds. No credit card required.</p>
+          <div className="section-label" style={{ textAlign: "center" }}>{t('landing.ctaSection.label', 'Ready to start?')}</div>
+          <h2>{t('landing.ctaSection.heading', 'Join teachers already')}<br /><em>{t('landing.ctaSection.headingHighlight', 'saving hours every week')}</em></h2>
+          <p>{t('landing.ctaSection.body', 'Create your free account in 60 seconds. No credit card required.')}</p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <Link to="/register" className="btn-primary">Get started free →</Link>
-            <Link to="/login" className="btn-ghost">Sign in</Link>
+            <Link to="/register" className="btn-primary">{t('landing.ctaSection.primaryBtn', 'Get started free →')}</Link>
+            <Link to="/login" className="btn-ghost">{t('landing.ctaSection.secondaryBtn', 'Sign in')}</Link>
           </div>
         </div>
       </div>
@@ -974,12 +1410,12 @@ export default function LandingPage() {
       <footer>
         <LogoSVG width={120} height={30} />
         <div className="footer-links">
-          <a href="#">Privacy</a>
-          <a href="#">Terms</a>
-          <a href="#">Support</a>
-          <a href="#">Contact</a>
+          <a href="#">{t('landing.footerSection.privacy', 'Privacy')}</a>
+          <a href="#">{t('landing.footerSection.terms', 'Terms')}</a>
+          <a href="#">{t('landing.footerSection.support', 'Support')}</a>
+          <a href="#">{t('landing.footerSection.contact', 'Contact')}</a>
         </div>
-        <div className="footer-copy">© {new Date().getFullYear()} LinguAI. All rights reserved.</div>
+        <div className="footer-copy">© {new Date().getFullYear()} LinguAI. {t('landing.footerSection.rights', 'All rights reserved.')}</div>
       </footer>
     </>
   );

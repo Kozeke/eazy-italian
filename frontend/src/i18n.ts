@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import ruTranslations from './locales/ru.json';
 import enTranslations from './locales/en.json';
+import itTranslations from './locales/it.json';
 
 // Lists locales that are currently available in UI selectors and profile data.
 const SUPPORTED_INTERFACE_LANGUAGES = ['ru', 'en', 'it'] as const;
@@ -19,7 +20,6 @@ const resources = {
   ru: {
     translation: {
       ...ruTranslations,
-      // Add missing admin navigation translations
       'admin.nav.dashboard': 'Панель управления',
       'admin.nav.units': 'Уроки',
       'admin.nav.videos': 'Видео',
@@ -39,7 +39,6 @@ const resources = {
   en: {
     translation: {
       ...enTranslations,
-      // Add missing admin navigation translations
       'admin.nav.dashboard': 'Dashboard',
       'admin.nav.units': 'Units',
       'admin.nav.videos': 'Videos',
@@ -58,22 +57,21 @@ const resources = {
   },
   it: {
     translation: {
-      ...enTranslations,
-      // TODO: replace with dedicated Italian translations when locale file is ready.
+      ...itTranslations,
       'admin.nav.dashboard': 'Dashboard',
-      'admin.nav.units': 'Units',
-      'admin.nav.videos': 'Videos',
-      'admin.nav.tasks': 'Tasks',
-      'admin.nav.tests': 'Tests',
-      'admin.nav.questionBank': 'Question Bank',
-      'admin.nav.students': 'Students',
-      'admin.nav.emailCampaigns': 'Email Campaigns',
-      'admin.nav.grades': 'Grades',
-      'admin.nav.progress': 'Progress',
-      'admin.nav.settings': 'Settings',
-      'admin.nav.auditLog': 'Audit Log',
-      'admin.search.placeholder': 'Search everything...',
-      'admin.actions.new': 'New',
+      'admin.nav.units': 'Unità',
+      'admin.nav.videos': 'Video',
+      'admin.nav.tasks': 'Compiti',
+      'admin.nav.tests': 'Test',
+      'admin.nav.questionBank': 'Banca domande',
+      'admin.nav.students': 'Studenti',
+      'admin.nav.emailCampaigns': 'Campagne email',
+      'admin.nav.grades': 'Voti',
+      'admin.nav.progress': 'Progresso',
+      'admin.nav.settings': 'Impostazioni',
+      'admin.nav.auditLog': 'Registro audit',
+      'admin.search.placeholder': 'Cerca...',
+      'admin.actions.new': 'Nuovo',
     }
   }
 };
@@ -83,7 +81,7 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'ru',
+    fallbackLng: 'en',
     supportedLngs: [...SUPPORTED_INTERFACE_LANGUAGES],
     debug: false,
     interpolation: {

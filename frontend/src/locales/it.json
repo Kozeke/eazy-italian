@@ -1,0 +1,1719 @@
+{
+    "common": {
+      "loading": "Caricamento...",
+      "error": "Errore",
+      "success": "Successo",
+      "cancel": "Annulla",
+      "save": "Salva",
+      "delete": "Elimina",
+      "edit": "Modifica",
+      "add": "Aggiungi",
+      "back": "Indietro",
+      "next": "Avanti",
+      "previous": "Precedente",
+      "submit": "Invia",
+      "close": "Chiudi",
+      "search": "Cerca...",
+      "filters": "Filtri"
+    },
+    "errorPage": {
+      "title": "Something went wrong",
+      "subtitle": "We couldn't complete that action. Your editor may be out of sync. Try going back, then reopen the lesson or refresh the page.",
+      "goBack": "Go back",
+      "backHome": "Back to home"
+    },
+    "subscriptionCheckout": {
+      "successTitle": "Welcome to LinguAI Pro",
+      "successSubtitle": "Your subscription is active. You can use your new limits right away.",
+      "successHint": "If something looks out of date, refresh the page or open Plan & billing.",
+      "goToCourses": "Go to my courses",
+      "goToPlans": "Plan & billing",
+      "backHome": "Back to home",
+      "cancelTitle": "Checkout cancelled",
+      "cancelSubtitle": "No payment was completed. Your account is unchanged.",
+      "cancelHint": "You can subscribe anytime from the admin area.",
+      "viewPlans": "View plans"
+    },
+    "nav": {
+      "login": "Login",
+      "register": "Register",
+      "logout": "Logout",
+      "dashboard": "Dashboard",
+      "courses": "Courses",
+      "units": "Units",
+      "myCourses": "My Courses",
+      "tasks": "Tasks",
+      "tests": "Tests",
+      "profile": "Profile"
+    },
+    "auth": {
+      "login": "Accedi",
+      "register": "Registrati",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Conferma password",
+      "firstName": "Nome",
+      "lastName": "Cognome",
+      "loginButton": "Accedi",
+      "registerButton": "Registrati",
+      "alreadyHaveAccount": "Hai già un account?",
+      "alreadyHaveAccountQuestion": "Hai già un account?",
+      "dontHaveAccount": "Non hai un account?",
+      "dontHaveAccountQuestion": "Non hai un account?",
+      "passwordsDoNotMatch": "Le password non coincidono",
+      "invalidCredentials": "Credenziali non valide",
+      "or": "Oppure",
+      "rememberMe": "Ricordami",
+      "forgotPassword": "Password dimenticata?",
+      "role": "Ruolo",
+      "chooseRole": "Scegli ruolo",
+      "roleStudent": "Studente",
+      "roleTeacher": "Insegnante",
+      "roleStudentDesc": "Voglio imparare l'italiano",
+      "roleTeacherDesc": "Voglio insegnare l'italiano",
+      "roleRequired": "Seleziona un ruolo",
+      "createAccount": "Crea account e inizia ad imparare",
+      "welcomeBack": "Accedi al tuo account",
+      "logIn": "Accedi",
+      "signUp": "Registrati",
+      "signingUp": "Registrazione...",
+      "loggingIn": "Accesso...",
+      "firstNameRequired": "Il nome è obbligatorio",
+      "firstNamePlaceholder": "Mario",
+      "lastNameRequired": "Il cognome è obbligatorio",
+      "lastNamePlaceholder": "Rossi",
+      "emailRequired": "L'email è obbligatoria",
+      "emailInvalid": "Formato email non valido",
+      "emailPlaceholder": "nome@esempio.com",
+      "passwordRequired": "La password è obbligatoria",
+      "passwordMinLength": "La password deve avere almeno 6 caratteri",
+      "confirmPasswordRequired": "Conferma la tua password",
+      "iAmA": "Sono un",
+      "termsAgreement": "Registrandoti, accetti i nostri",
+      "terms": "Termini di servizio",
+      "and": "e la",
+      "privacy": "Privacy Policy",
+      "registerSuccess": "Registrazione completata!",
+      "registerError": "Errore di registrazione",
+      "loginSuccess": "Accesso effettuato!",
+      "loginError": "Errore di accesso",
+      "loginHeroTitle": "Impara l'italiano come sulle migliori piattaforme online",
+      "loginHeroSubtitle": "Accesso a lezioni interattive, compiti e test in un pratico pannello.",
+      "loginHeroRating": "Valutazione media degli studenti",
+      "loginHeroNote": "Account demo insegnante e studente disponibili a destra — accedi e prova la piattaforma.",
+      "registerHeroTitle": "Crea un account e inizia ad imparare l'italiano oggi",
+      "registerHeroSubtitle": "Accesso a lezioni video, compiti interattivi, test e monitoraggio del progresso — tutto in un posto.",
+      "registerHeroNote": "Puoi registrarti come studente o insegnante. Il ruolo può essere modificato da un amministratore in seguito.",
+      "welcomeBackTitle": "Bentornato",
+      "signInSubtitle": "Accedi per continuare nel tuo spazio classe.",
+      "tabPassword": "Password",
+      "tabMagic": "Codice magico",
+      "signIn": "Accedi",
+      "sendMagicCode": "Invia codice magico",
+      "magicCodeHint": "Ti invieremo un codice unico nella tua casella di posta — nessuna password necessaria.",
+      "noAccountHint": "Nessun account?",
+      "signUpFree": "Registrati gratis",
+      "forgotPasswordHint": "Password dimenticata?",
+      "invalidEmailError": "Inserisci un'email valida.",
+      "noAccountFound": "Nessun account trovato con questa email. Registrati prima.",
+      "createYourAccount": "Crea il tuo account",
+      "startWithEmail": "Inizia con il tuo indirizzo email.",
+      "continueBtn": "Continua",
+      "alreadyHaveAccountHint": "Hai già un account?",
+      "signInLink": "Accedi",
+      "chooseAccountType": "Scegli il tipo di account",
+      "switchTypeInfo": "Puoi cambiare tipo di account in seguito dal tuo profilo.",
+      "forTeaching": "Per insegnare",
+      "teacherCardDesc": "Sei un insegnante o amministratore scolastico",
+      "forLearning": "Per imparare",
+      "studentCardDesc": "Sei uno studente che frequenta le lezioni",
+      "selectCard": "Seleziona",
+      "studentActivationTitle": "Attivazione account studente",
+      "studentActivationText": "Studiare sulla piattaforma è possibile solo con un insegnante. Comunica al tuo insegnante l'email usata per la registrazione e chiedigli di aggiungerti all'elenco degli studenti. Dopo di ciò avrai accesso alle classi virtuali.",
+      "welcomeTitle": "Benvenuto!",
+      "welcomeBody": "Migliaia di insegnanti e scuole online usano LinguAI ogni giorno per creare lezioni moderne e coinvolgenti.",
+      "nextBtn": "Avanti",
+      "completeRegistration": "Completa la registrazione",
+      "fullNameLabel": "Nome completo *",
+      "fullNamePlaceholder": "Inserisci il tuo nome completo",
+      "passwordFieldLabel": "Password *",
+      "passwordMinCharsHint": "Min. 8 caratteri",
+      "trialPeriodTitle": "Periodo di prova",
+      "trialPeriodBody": "Abbiamo attivato una prova gratuita di 31 giorni per esplorare tutte le funzionalità della piattaforma.",
+      "letsGoBtn": "Andiamo!",
+      "validEmailRequired": "Inserisci un indirizzo email valido.",
+      "emailAlreadyRegistered": "Questa email è già registrata. Accedi invece.",
+      "fillAllFieldsError": "Compila tutti i campi.",
+      "passwordMin8Error": "La password deve avere almeno 8 caratteri.",
+      "registrationFailedError": "Registrazione fallita. Riprova.",
+      "pleaseEnterCode": "Inserisci il codice.",
+      "accountActivationTitle": "Attivazione account",
+      "enterCodeEmailHint": "Inserisci il codice che ti abbiamo inviato:",
+      "checkYourInbox": "Controlla la tua casella",
+      "weSentCodeTo": "Abbiamo inviato un codice a 6 cifre a",
+      "resendCodeIn": "Reinvia il codice tra {{secs}}s",
+      "resendCodeBtn": "Reinvia il codice",
+      "resendAvailableIn": "Reinvio disponibile tra {{secs}} secondi",
+      "havingTrouble": "Hai problemi?",
+      "contactSupport": "Contatta il supporto",
+      "backBtn": "Indietro",
+      "pwTooShort": "Troppo corta",
+      "pwWeak": "Debole",
+      "pwGood": "Buona",
+      "pwStrong": "Forte",
+      "enterCodePlaceholder": "Inserisci il codice",
+      "couldNotCheckEmail": "Impossibile verificare l'email. Riprova.",
+      "invalidCodeError": "Codice non valido. Riprova."
+    },
+    "dashboard": {
+      "welcome": "Welcome",
+      "myCourses": "My Courses",
+      "completedUnits": "Completed Units",
+      "averageScore": "Average Score",
+      "timeSpent": "Time Spent",
+      "recentActivity": "Recent Activity",
+      "upcomingDeadlines": "Upcoming Deadlines"
+    },
+    "units": {
+      "title": "Units",
+      "description": "Learn Italian language lessons",
+      "level": "Level",
+      "duration": "Duration",
+      "start": "Start Lesson",
+      "continue": "Continue",
+      "completed": "Completed",
+      "badge": "My Italian course",
+      "subtitle": "Learn Italian step by step: videos, tasks and tests, like on Udemy or Coursera.",
+      "searchLabel": "Search units",
+      "searchPlaceholder": "Find a unit by name or description",
+      "searchHint": "For example: \"Greetings\", \"Family\", \"Numbers\"",
+      "listTitle": "All course units",
+      "filteredLabel": "units",
+      "of": "of",
+      "emptyTitle": "No units available",
+      "emptySubtitle": "There are no published learning units yet. Once the instructor adds them, they will appear here.",
+      "allLevels": "All levels",
+      "showing": "Showing {{start}}–{{end}} of {{total}}"
+    },
+    "tasks": {
+      "title": "Tasks",
+      "description": "Complete tasks to reinforce material",
+      "dueDate": "Due Date",
+      "status": "Status",
+      "submitted": "Submitted",
+      "graded": "Graded",
+      "pending": "Pending"
+    },
+    "tests": {
+      "title": "Tests",
+      "badge": "Knowledge Check",
+      "subtitle": "Test your knowledge and reinforce material with interactive quizzes",
+      "description": "Test your knowledge with quizzes",
+      "timeLimit": "Time Limit",
+      "questions": "Questions",
+      "start": "Start Test",
+      "continue": "Resume",
+      "viewResult": "View Result",
+      "passingScore": "Passing score",
+      "completed": "Completed",
+      "score": "Score",
+      "searchPlaceholder": "Search by name or description",
+      "level": "Level",
+      "allLevels": "All levels",
+      "listTitle": "All available tests",
+      "filteredLabel": "tests",
+      "of": "of",
+      "testsCount": "tests",
+      "features": "Interactive questions and instant results",
+      "minutes": "min",
+      "emptyTitle": "No tests available",
+      "emptySubtitle": "There are no available tests yet. Once the instructor adds them, they will appear here.",
+      "errorLoading": "Error loading tests",
+      "showing": "Showing {{start}}–{{end}} of {{total}}"
+    },
+    "courses": {
+      "title": "Courses",
+      "badge": "Italian Courses",
+      "subtitle": "Learn Italian through structured courses with video lessons, tasks and tests",
+      "searchLabel": "Search courses",
+      "searchPlaceholder": "Find a course by name or description",
+      "filterByLevel": "Filter by level",
+      "allLevels": "All levels",
+      "mixed": "Mixed",
+      "listTitle": "All available courses",
+      "filteredLabel": "courses",
+      "of": "of",
+      "coursesCount": "courses",
+      "features": "Video lessons, practical tasks and tests",
+      "units": "units",
+      "viewCourse": "View course",
+      "emptyTitle": "No courses available",
+      "emptySubtitle": "There are no published courses yet. Once the instructor adds them, they will appear here.",
+      "errorLoading": "Error loading courses",
+      "showing": "Showing {{start}}–{{end}} of {{total}}",
+      "upgradeRequired": "Please upgrade to Premium to enroll in more courses",
+      "enrolledSuccess": "Successfully enrolled in course",
+      "enrollError": "Failed to enroll in course",
+      "enrolled": "Enrolled",
+      "hours": "hours",
+      "yourProgress": "Your progress",
+      "upgradeToPremium": "Upgrade to Premium",
+      "continueLearning": "Continue Learning",
+      "enrollNow": "Enroll Now",
+      "noResults": "No results found. Try changing your filters.",
+      "resetFilters": "Reset filters"
+    },
+    "myCourses": {
+      "title": "My Courses",
+      "badge": "My Courses",
+      "subtitle": "Continue your learning journey. All your enrolled courses in one place.",
+      "continue": "Continue",
+      "progress": "Progress",
+      "completed": "Completed",
+      "units": "units",
+      "lastAccessed": "Last accessed",
+      "emptyTitle": "You don't have any courses yet",
+      "emptySubtitle": "Enroll in a course to start learning. Browse the courses catalog to find the right course for you.",
+      "emptyButton": "Browse Courses",
+      "errorLoading": "Error loading courses"
+    },
+    "profile": {
+      "title": "Profile",
+      "personalInfo": "Personal Information",
+      "settings": "Settings",
+      "changePassword": "Change Password"
+    },
+    "layout": {
+      "studentHint": "Follow your Italian course step by step: dashboard, units, tasks and tests.",
+      "studentArea": "Student area",
+      "roleStudent": "Student"
+    },
+    "admin": {
+      "students": "Students",
+      "overview": "Overview",
+      "manage": "Manage",
+      "nav": {
+        "dashboard": "Dashboard",
+        "courses": "Corsi",
+        "units": "Unità",
+        "videos": "Video",
+        "tasks": "Compiti",
+        "tests": "Test",
+        "questionBank": "Banca domande",
+        "students": "Studenti",
+        "emailCampaigns": "Campagne email",
+        "grades": "Voti",
+        "progress": "Progresso",
+        "settings": "Impostazioni",
+        "auditLog": "Registro audit",
+        "sectionMain": "Strumenti di insegnamento"
+      },
+      "search": {
+        "placeholder": "Search everything..."
+      },
+      "actions": {
+        "new": "New",
+        "newCourse": "New Course",
+        "save": "Save",
+        "publish": "Publish",
+        "preview": "Preview",
+        "edit": "Edit",
+        "delete": "Delete",
+        "duplicate": "Duplicate",
+        "archive": "Archive"
+      },
+      "dashboard": {
+        "title": "Dashboard",
+        "kpi": {
+          "activeStudents": "Active Students",
+          "pendingSubmissions": "Pending Submissions",
+          "testsInProgress": "Tests in Progress",
+          "emailCampaigns": "Email Campaigns"
+        },
+        "quickActions": {
+          "createUnit": "Create Unit",
+          "createTask": "Create Task",
+          "createTest": "Create Test",
+          "newEmailCampaign": "New Email Campaign"
+        },
+        "recentActivity": "Recent Activity",
+        "alerts": "Alerts"
+      },
+      "status": {
+        "draft": "Draft",
+        "published": "Published",
+        "scheduled": "Scheduled",
+        "archived": "Archived"
+      },
+      "role": "Instructor",
+      "profileSettings": {
+        "pageTitle": "Personal profile",
+        "tabSettings": "Settings",
+        "tabDescription": "Description",
+        "back": "Back to catalog",
+        "editAvatar": "Edit",
+        "name": "Name",
+        "email": "Email",
+        "password": "Password",
+        "changePassword": "Change",
+        "passwordHint": "Password changes are not available in the app yet. Sign out and use “Forgot password” on the login page if you need to reset access.",
+        "phone": "Phone",
+        "phonePlaceholder": "Your phone number",
+        "uiLanguage": "Interface language",
+        "nativeLanguage": "Native language",
+        "country": "Country",
+        "timezone": "Time zone",
+        "bioLabel": "About you",
+        "bioPlaceholder": "Tell students about your teaching style, credentials, or availability.",
+        "saved": "Changes saved",
+        "saveError": "Could not save changes. Check the form and try again.",
+        "langRussian": "Russian",
+        "langEnglish": "English",
+        "langItalian": "Italian",
+        "countryIT": "Italy",
+        "countryRU": "Russia",
+        "countryKZ": "Kazakhstan",
+        "countryUS": "United States",
+        "countryGB": "United Kingdom",
+        "countryDE": "Germany",
+        "countryFR": "France"
+      },
+      "footer": {
+        "hint": "Manage your content, students and analytics from this instructor panel."
+      },
+      "grades": {
+        "title": "Grades",
+        "student": "Student",
+        "course": "Course",
+        "unit": "Unit",
+        "test": "Test",
+        "score": "Score",
+        "result": "Result",
+        "date": "Date",
+        "actions": "Actions",
+        "passed": "Passed",
+        "failed": "Failed",
+        "viewErrors": "View errors",
+        "showing": "Showing {{start}}–{{end}} of {{total}}",
+        "noGrades": "No grades",
+        "noGradesDescription": "Tests have not been taken by students yet.",
+        "testDetails": "Test Details",
+        "question": "Question",
+        "studentAnswer": "Student Answer",
+        "correctAnswer": "Correct Answer",
+        "questionNumber": "Question #{{id}}",
+        "error": "Error",
+        "emptyAnswer": "—"
+      },
+      "course": {
+        "status": {
+          "draft": "Draft",
+          "published": "Published",
+          "scheduled": "Scheduled",
+          "archived": "Archived"
+        }
+      },
+      "courses": {
+        "searchPlaceholder": "Search courses...",
+        "create": "Create course",
+        "units": "units",
+        "loadError": "Failed to load courses",
+        "deleted": "Course deleted",
+        "deleteError": "Failed to delete course",
+        "view": {
+          "grid": "Grid",
+          "list": "List"
+        },
+        "count": {
+          "filtered": "{{filtered}} of {{total}} courses",
+          "total": "{{count}} course(s)"
+        },
+        "noResults": {
+          "title": "No courses match",
+          "subtitle": "Try adjusting your search or clearing the filters.",
+          "clear": "Clear filters"
+        },
+        "delete": {
+          "title": "Delete course?",
+          "subtitle": "will be permanently removed. This cannot be undone.",
+          "action": "Delete",
+          "deleting": "Deleting..."
+        },
+        "empty": {
+          "welcome": "Welcome to your studio",
+          "titlePrefix": "Build your first",
+          "titleHighlight": "AI-powered course",
+          "subtitle": "Create engaging language courses with AI-generated slides, tasks and tests.",
+          "aiBuilder": "AI course builder",
+          "lessonByLesson": "Lesson by lesson",
+          "liveAnalytics": "Live analytics",
+          "autoTestGen": "Auto test gen",
+          "createFirst": "Create First Course",
+          "note": "Takes ~2 minutes - AI does the heavy lifting"
+        }
+      },
+      "createCourseModal": {
+        "title": "New Course",
+        "ariaDialog": "Create course",
+        "tabQuick": "Quick",
+        "tabGenerate": "Generate",
+        "thumbnailZoneAria": "Click or drag to upload thumbnail",
+        "thumbnailAlt": "Course thumbnail",
+        "changePhoto": "Change photo",
+        "uploadPhoto": "Upload photo",
+        "removeThumbnailAria": "Remove thumbnail",
+        "genStepOutline": "Crafting course outline…",
+        "genStepStructure": "Building course structure…",
+        "genStepAlmost": "Almost ready…",
+        "quickPlaceholder": "e.g. English for Business B2",
+        "descPlaceholder": "e.g. A B2 business English course for professionals, covering emails, negotiations, and presentations.",
+        "level": "Level",
+        "createCourse": "Create course",
+        "generateCourse": "Generate course",
+        "creating": "Creating…",
+        "generating": "Generating…",
+        "errorTitleRequired": "Please enter a course title.",
+        "errorDescRequired": "Please describe your course.",
+        "errorCreateFailed": "Failed to create course.",
+        "errorGeneric": "Something went wrong. Please try again.",
+        "defaultUnitTitle": "Unit {{n}}",
+        "fileUpload": {
+          "removeFileTitle": "Remove file",
+          "dropLine": "Drop files here or",
+          "browse": "browse",
+          "formatsHint": "PDF and DOCX only · up to {{maxMb}} MB total · max {{maxFiles}} files",
+          "errorMaxFiles": "Maximum {{max}} files allowed.",
+          "errorInvalidType": "\"{{name}}\" must be a PDF or DOCX file.",
+          "errorTotalTooBig": "Total size cannot exceed {{maxMb}} MB.",
+          "errorFileExceedsTotalBudget": "\"{{name}}\" is larger than the {{maxMb}} MB total limit.",
+          "headerTitle": "Enrich with your materials",
+          "headerSubtitle": "Upload files to give the AI more context. This step is optional.",
+          "filesAdded": "{{count}} / {{max}} files · {{usedMb}} / {{maxMb}} MB",
+          "skipForNow": "Skip for now",
+          "generate": "Generate",
+          "generateWithCount_one": "Generate with {{count}} file",
+          "generateWithCount_other": "Generate with {{count}} files"
+        }
+      },
+      "help": {
+        "button": "Help",
+        "menuLabel": "Help menu",
+        "gettingStarted": "Getting started",
+        "tutorialArticles": "Tutorial articles",
+        "updates": "Updates",
+        "newUpdates": "New updates available",
+        "blog": "Blog",
+        "youtube": "YouTube channel",
+        "support": "Support service"
+      },
+      "subscription": {
+        "info": "Subscription info",
+        "planTab": "Plan",
+        "limitsTab": "Limits",
+        "standardPlan": "Standard",
+        "freePlan": "Free",
+        "active": "Active",
+        "paidUntil": "Paid until",
+        "daysLeft": "days left",
+        "upgradeHint": "Upgrade to unlock all features",
+        "goToPlans": "Go to plans",
+        "limitsPlaceholder": "Usage limits will appear here.",
+        "daysLeftAria": "Subscription: {{days}} days left",
+        "planAria": "Subscription plan",
+        "daysLeftTitle": "{{days}} days left",
+        "freePlanTitle": "Free plan - click to upgrade",
+        "activePlanTitle": "Active subscription"
+      },
+      "userMenu": {
+        "label": "User menu",
+        "openForUser": "Open user menu for {{userName}}"
+      },
+      "header": {
+        "expiredTitle": "Your plan has expired",
+        "expiredMessage": " — your students can still access existing courses, but AI generation is paused.",
+        "renewCta": "Renew plan →",
+        "expiredAria": "Subscription expired notice",
+        "renewAria": "Go to tariffs page to renew plan",
+        "logoAria": "LinguAI home",
+        "limitsLoadError": "Could not load usage.",
+        "quotaExercises": "Exercise generations",
+        "quotaUnits": "Unit generations",
+        "quotaCourses": "Course generations",
+        "quotaNotOnPlan": "Not on this plan",
+        "profileSettings": "Profile settings",
+        "defaultDisplayName": "Teacher",
+        "trialPopover": {
+          "aria": "Subscription info",
+          "paidDateOnly": "Paid until {{date}}",
+          "paidOneDayLeft": "Paid until {{date}} · 1 day left",
+          "paidManyDaysLeft": "Paid until {{date}} · {{days}} days left",
+          "openEndedActive": "Your plan is active. No end date — open-ended access."
+        },
+        "updatesNewAria": "New"
+      },
+      "theme": {
+        "dark": "Dark theme"
+      },
+      "tariffs": {
+        "title": "Tariffs",
+        "tabs": {
+          "tariffs": "Tariffs",
+          "payments": "Payments",
+          "bonuses": "Bonuses & promos",
+          "certificates": "Gift certificates"
+        },
+        "currentPlan": "Your current plan",
+        "courses": "Courses",
+        "loadingShort": "…",
+        "dash": "—",
+        "billingHeading": "Billing (Standard & Pro)",
+        "billingPeriod": {
+          "1m": "1 mo",
+          "3m": "3 mo",
+          "6m": "6 mo",
+          "12m": "1 yr"
+        },
+        "plans": {
+          "free": "Free",
+          "standard": "Standard",
+          "pro": "Pro"
+        },
+        "planSubtitles": {
+          "free": "AI starter",
+          "standard": "AI growth",
+          "pro": "No caps on AI generation"
+        },
+        "featureLabels": {
+          "aiExerciseGenerations": "AI exercise generations",
+          "aiUnitGenerations": "AI unit generations",
+          "aiCourseGenerations": "AI course generations",
+          "publishToStudents": "Publish to students"
+        },
+        "featureValues": {
+          "tenPerMo": "10 / mo",
+          "threePerMo": "3 / mo",
+          "oneTotal": "1 total",
+          "hundredPerMo": "100 / mo",
+          "twentyPerMo": "20 / mo",
+          "fivePerMo": "5 / mo",
+          "unlimited": "Unlimited",
+          "check": "✓",
+          "dash": "—"
+        },
+        "hints": {
+          "freeQuota": "Maximum creations included on the free tier.",
+          "standardQuota": "Included quota for this plan.",
+          "proUnlimited": "Unlimited creations on the Pro plan.",
+          "addonPlaceholder": "Add-on details can be expanded later."
+        },
+        "forever": "Forever",
+        "zeroUsd": "0 USD",
+        "connect": "Connect",
+        "current": "Current",
+        "freeTierNote": "Included — no checkout",
+        "subscribe": "Subscribe {{plan}} ({{price}} USD)",
+        "stripeCheckoutError": "Could not start checkout. Check that Stripe is configured or try again.",
+        "perPeriod": "per {{period}}",
+        "saveAmount": "save ${{amount}}",
+        "yearSavingsHint": "If you pay for 1 year you could save: ${{saved}}",
+        "status": {
+          "expired": "Expired",
+          "until": "Until {{date}}",
+          "aiUsagePeriod": "AI usage · {{period}}"
+        },
+        "addons": {
+          "title": "Additional features",
+          "aiAssistant": "AI Assistant",
+          "tokensPerMo": "Tokens / mo",
+          "included": "Included",
+          "perMonth": "per month",
+          "details": "Details"
+        },
+        "placeholderSection": "This section is not implemented yet.",
+        "checkoutDescription": "Checkout — {{plan}} ({{duration}})"
+      },
+      "supportChat": {
+        "title": "Support Chat",
+        "subtitle": "We usually reply within a few hours",
+        "closeChatAria": "Close chat",
+        "loadingMessages": "Loading messages...",
+        "emptyTitle": "Hi! How can we help?",
+        "emptyDescription": "Send us a message and our team will get back to you as soon as possible.",
+        "supportLabel": "Support",
+        "readStatus": "Read",
+        "inputPlaceholder": "Type a message... (Enter to send)",
+        "sendMessageAria": "Send message",
+        "openWidgetAria": "Open support chat",
+        "closeWidgetAria": "Close support chat",
+        "errors": {
+          "load": "Could not load messages.",
+          "send": "Failed to send. Please try again."
+        }
+      }
+    },
+    "classroom": {
+      "page": {
+        "goBack": "Go back",
+        "emptyLessonDescription": "Your teacher hasn't added any content to this unit yet.",
+        "emptyLessonCheckBackSoon": "Check back soon!",
+        "courseSaved": "Course saved",
+        "courseSaveFailed": "Could not save course",
+        "unitPublished": "Unit published",
+        "unitPublishFailed": "Could not publish the unit",
+        "createUnitFailed": "Could not create the unit. Please try again.",
+        "upgradeRequired": "Upgrade your plan",
+        "upgradeRequiredDescription": "Publishing units is not available on the Free plan. Upgrade to Standard or Pro to make your content visible to students.",
+        "viewPlans": "View plans & upgrade",
+        "maybeLater": "Maybe later",
+        "lastUnitInfo": "This is the last unit in the course.",
+        "materialsLoadFailed": "Could not load materials.",
+        "openUnitBeforeUpload": "Open a unit before uploading materials.",
+        "materialUploadedSingle": "Material uploaded.",
+        "materialUploadedMany": "{{count}} materials uploaded.",
+        "materialUploadFailed": "Could not upload materials.",
+        "loading": "Loading...",
+        "unitNotPublished": "Unit not published",
+        "leaveClassroomTitle": "Leave classroom?",
+        "leaveDialogDraftDescription": "This unit is still a draft. Publish it from the sidebar when you are ready, or you can leave the classroom and come back later.",
+        "leaveDialogTeacherDescription": "You will return to your courses. Unsaved changes in open editors may be lost.",
+        "leaveDialogStudentDescription": "You will return to My Classes.",
+        "stay": "Stay",
+        "leave": "Leave",
+        "switchDraftUnitDescription": "This unit is still a draft. You can publish it from the sidebar first, or switch units anyway-your draft will stay in this course until you publish.",
+        "stayOnThisUnit": "Stay on this unit",
+        "switchUnit": "Switch unit",
+        "noCourseInUrl": "No course specified in the URL.",
+        "mediaKind": {
+          "image": "Image",
+          "video": "Video",
+          "audio": "Audio",
+          "media": "Media"
+        }
+      },
+      "lessonWorkspace": {
+        "sectionLabel": "Section {{index}}",
+        "slidesUnavailable": "Slides unavailable:",
+        "tryAgainLater": "Please try again later.",
+        "studentAnswers": "Student answers",
+        "viewStudentAnswers": "View student answers"
+      },
+      "lessonShared": {
+        "somethingWentWrong": "Something went wrong"
+      },
+      "verticalPlayer": {
+        "lesson": "Lesson",
+        "section": "Section"
+      },
+      "homework": {
+        "status": {
+          "pendingReview": "Pending teacher review",
+          "awaitingStudent": "Needs revision",
+          "completed": "Completed",
+          "assigned": "In progress"
+        },
+        "fromLesson": "From lesson",
+        "submitForReview": "Submit for review",
+        "pickExercise": "Pick exercise",
+        "createExercise": "Create exercise",
+        "emptyTitle": "Homework is not assigned",
+        "emptySubtitle": "The teacher has not added tasks yet"
+      },
+      "sectionBlock": {
+        "media": {
+          "imageLabel": "Image",
+          "videoLabel": "Video",
+          "audioLabel": "Audio",
+          "carouselLabel": "Image Carousel",
+          "imagePlaceholder": "Paste an image URL...",
+          "videoPlaceholder": "Paste a YouTube / Vimeo URL...",
+          "audioPlaceholder": "Paste an audio file URL..."
+        },
+        "previewAlt": "Preview",
+        "videoPreviewTitle": "Video preview",
+        "previewAfterSave": "Preview available after saving.",
+        "removeMediaAria": "Remove {{label}} block",
+        "uploadImageTitle": "Upload image",
+        "captionOptional": "Caption (optional)",
+        "imageAlt": "Image",
+        "videoTitle": "Video",
+        "sectionTitleAria": "Section title",
+        "renameSection": "Rename section",
+        "sectionCounter": "Section {{current}} of {{total}}",
+        "addContent": "Add content",
+        "noContentYet": "No content in this section yet."
+      },
+      "exerciseMenu": {
+        "copyToHomework": "Copy to homework",
+        "hideFromStudent": "Hide from student",
+        "focusExercise": "Focus on exercise",
+        "resetAnswers": "Reset answers",
+        "toHomework": "To homework",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "editExercise": "Edit exercise",
+        "edit": "Edit",
+        "newVersion": "New version",
+        "deleteExercise": "Delete exercise",
+        "copyExerciseTo": "Copy exercise to...",
+        "blockOptionsAria": "Block options",
+        "resetConfirm": {
+          "title": "Reset for all students?",
+          "body": "Answers of all connected students will be cleared.",
+          "confirm": "Reset"
+        }
+      },
+      "bottomNav": {
+        "lessonNavigationAria": "Lesson navigation",
+        "progressAria": "{{percent}}% complete",
+        "previousSectionAria": "Previous section",
+        "previous": "Previous",
+        "nextSectionAria": "Next section",
+        "next": "Next"
+      },
+      "generateUnitModal": {
+        "title": "Generate Unit",
+        "tabAi": "AI Generate",
+        "tabFile": "From File",
+        "quotaUnlimited": "Unlimited unit generations",
+        "quotaAtLimit": "Monthly limit reached",
+        "quotaUsed": "{{used}} of {{limit}} unit generations used this month",
+        "quotaUpgrade": "Upgrade →",
+        "errorTopicRequired": "Please enter a topic before generating.",
+        "errorFileRequired": "Please select a file.",
+        "errorFilePdfOnly": "Only PDF files are supported for generation from file.",
+        "errorGenerationFailed": "Generation failed.",
+        "errorEmptyResponse": "Unexpected empty response.",
+        "errorUnexpected": "An unexpected error occurred.",
+        "labelTopic": "Topic *",
+        "topicPlaceholder": "e.g. Present Simple tense, Vocabulary: Food & Drink...",
+        "labelDescription": "Description (optional)",
+        "descriptionPlaceholder": "Describe what you'd like the AI to focus on — learning goals, context, vocabulary, grammar, or any other details to guide generation.",
+        "fileDropHint": "Drop a PDF here or click to browse",
+        "fileFormatsHint": ".pdf — max 20 MB",
+        "removeFileAria": "Remove file",
+        "advancedSettings": "Advanced settings",
+        "labelLevel": "Level",
+        "labelLanguage": "Language",
+        "labelSegments": "Segments",
+        "labelExerciseTypes": "Exercise types",
+        "exerciseTypesHint": "All selected types will be distributed across segments.",
+        "exerciseTypesCounts": "({{types}} types × {{segments}} segments)",
+        "labelInstructionLanguage": "Instruction Language",
+        "instructionLangHint": "Language used for exercise titles and UI labels shown to students.",
+        "includeImagesTitle": "Include Images",
+        "includeImagesHint": "Adds SVG illustrations (+30–60 s)",
+        "generatingFull": "Generating {{segments}} with text blocks, exercises{{imagesNote}}. This may take {{duration}} seconds.",
+        "generatingImagesNote": ", and illustrations",
+        "oneSegmentPhrase": "1 segment",
+        "nSegmentsPhrase": "{{n}} segments",
+        "durationShort": "20–60",
+        "durationLong": "60–120",
+        "limitReachedUpgrade": "Monthly limit reached · Upgrade",
+        "generatingButton": "Generating content…",
+        "generateOneSegment": "Generate 1 section",
+        "generateNSegments": "Generate {{n}} sections",
+        "generateFromFileButton": "Generate from File",
+        "generationComplete": "Generation complete!",
+        "successSegmentsCreated": "Sections created: {{count}}",
+        "successImagesCreated": " · Images: {{count}}",
+        "successBlocks_one": "{{count}} block",
+        "successBlocks_other": "{{count}} blocks",
+        "generateMore": "Generate more",
+        "done": "Done",
+        "courseLanguages": {
+          "English": "English",
+          "Russian": "Russian",
+          "German": "German",
+          "French": "French",
+          "Spanish": "Spanish"
+        },
+        "instructionLang": {
+          "english": "English",
+          "russian": "Russian"
+        },
+        "exerciseTypes": {
+          "drag_to_gap": "Drag to Gap",
+          "type_word_in_gap": "Type in Gap",
+          "select_word_form": "Select Form",
+          "match_pairs": "Match Pairs",
+          "build_sentence": "Build Sentence",
+          "order_paragraphs": "Order Paragraphs",
+          "sort_into_columns": "Sort Columns",
+          "true_false": "True/False",
+          "test_without_timer": "Test without timer",
+          "test_with_timer": "Test with timer"
+        }
+      },
+      "additionalMaterialsModal": {
+        "title": "Additional materials",
+        "unitLabel": "Unit: {{title}}",
+        "unitMaterialsFallback": "Unit materials",
+        "closeAria": "Close materials modal",
+        "uploadTitle": "Upload documents for this unit",
+        "uploadFormats": "PDF, DOC, DOCX, TXT, RTF",
+        "uploading": "Uploading...",
+        "refreshing": "Refreshing...",
+        "uploadFiles": "Upload files",
+        "loading": "Loading latest materials...",
+        "empty": "No materials uploaded yet.",
+        "emptyStudentHint": "Your teacher will add files here.",
+        "download": "Download",
+        "fileTypeGeneric": "File"
+      },
+      "sectionPanel": {
+        "sectionNavigator": "Section navigator",
+        "unitNavigator": "Unit navigator",
+        "sections": "Sections",
+        "completedProgress": "{{done}} / {{total}} completed",
+        "noSectionsYet": "No sections yet",
+        "availableSectionsAria": "Available sections",
+        "noUnitsYet": "No units yet",
+        "availableUnitsAria": "Available units",
+        "itemCount": "{{count}} item",
+        "addSection": "Add section",
+        "publishUnit": "Publish unit",
+        "finishUnit": "Finish unit",
+        "additionalMaterials": "Additional materials",
+        "aria": {
+          "dragToReorder": "Drag to reorder {{title}}",
+          "removeSection": "Remove section {{title}}"
+        },
+        "removeDialog": {
+          "title": "Remove this section?",
+          "body": "Are you sure you want to remove \"{{title}}\"? This cannot be undone.",
+          "remove": "Remove"
+        }
+      },
+      "unitList": {
+        "nowStudying": "Now studying",
+        "slidesCount": "{{count}} slides",
+        "tasksCount": "{{count}} task",
+        "testsCount": "{{count}} test",
+        "openUnit": "Open unit",
+        "linkCopied": "Link copied",
+        "linkCopyFailed": "Could not copy link",
+        "share": {
+          "forTeacher": "For teacher",
+          "forStudent": "For student",
+          "menuLabel": "Copy classroom link"
+        },
+        "aria": {
+          "reorder": "Reorder",
+          "shareUnit": "Share unit",
+          "copyUnitLink": "Copy link to unit",
+          "openShareMenu": "Share — copy link for teacher or student",
+          "moreOptions": "More options"
+        },
+        "actions": {
+          "generateAi": "Generate with AI",
+          "hideUnit": "Hide unit",
+          "copy": "Copy",
+          "edit": "Edit",
+          "delete": "Delete"
+        }
+      },
+      "unitSelector": {
+        "defaultCourseInitial": "C",
+        "courseThumbnailAlt": "Course thumbnail",
+        "share": "Share",
+        "moreCourseOptions": "More course options",
+        "courseSettings": "Course settings",
+        "copyCourse": "Copy course",
+        "deleteCourse": "Delete course",
+        "tabs": {
+          "contents": "Contents",
+          "description": "Description"
+        },
+        "descriptionComingSoon": "Description coming soon",
+        "searchPlaceholder": "Search units",
+        "searchAria": "Search units",
+        "filter": "Filter",
+        "availableUnitsAria": "Available units",
+        "reorderFailed": "Could not save unit order. Try again.",
+        "generatedBadge": "Generated",
+        "generatingBadge": "Generating...",
+        "createUnit": "Create unit",
+        "creating": "Creating...",
+        "generate": "Generate",
+        "empty": {
+          "noMatches": "No matches found",
+          "noUnits": "No units available",
+          "resetSearch": "Reset search"
+        },
+        "unitLabel": "Unit {{index}} - {{title}}",
+        "unnamedUnit": "Unit {{index}}",
+        "progressBanner": {
+          "allGenerated": "All {{total}} units generated - click any unit to start teaching",
+          "generatingWithErrors": "Generating... {{done}}/{{total}} done (some errors)",
+          "generatingBackground": "Generating in background... {{done}}/{{total}} units done"
+        },
+        "courseGeneration": {
+          "generatedReady": "Course generated - {{count}} unit ready",
+          "generatingProgress": "Generating... {{done}} / {{total}} units done",
+          "outlineReady": "AI outline ready - {{count}} units",
+          "reviewBeforeGeneratePrefix": "Review the structure below, then click",
+          "generateCourseButton": "Generate Course",
+          "editOutline": "Edit Outline",
+          "generatingShort": "Generating...",
+          "fillAllUnits": "This will fill all {{count}} units with AI content.",
+          "allUnitsGenerated": "All units generated! Select a unit below to start teaching."
+        },
+        "outlineReview": {
+          "introBadge": "INTRO",
+          "segmentPlanTitle": "Segment plan",
+          "planningSegments": "Planning segments…",
+          "planLoadError": "Couldn't load plan — will generate with default segments",
+          "retry": "Retry",
+          "planNeedsDbUnit": "This outline row has no saved unit yet. Reload the course or recreate this unit to preview the plan.",
+          "editUnitTitle": "Edit unit title",
+          "removeUnitTitle": "Remove this unit from outline",
+          "clickEditDescription": "Click to edit description",
+          "clickAddDescription": "Click to add description…",
+          "openUnit": "Open this unit",
+          "open": "Open",
+          "bannerAllDone_one": "All {{count}} unit generated",
+          "bannerAllDone_other": "All {{count}} units generated",
+          "bannerGenerating": "Generating… {{done}} / {{total}} units done",
+          "unitsReadyToReview_one": "{{count}} unit ready to review",
+          "unitsReadyToReview_other": "{{count}} units ready to review",
+          "subtitleAllDone": "Click any unit card to open it",
+          "subtitleGenerating": "Done units can be opened while others are still generating",
+          "subtitleReview": "Review & edit below, then click Generate to start",
+          "percentComplete": "{{percent}}% complete",
+          "noUnitsInOutline": "No units in this outline",
+          "footerGenerating": "Generating content… done units are available to open above",
+          "footerAllDone": "All units are ready — click Open on any card above to enter it.",
+          "footerExpandHint": "Expand any unit to preview its segment plan before generating",
+          "addUnit": "Add unit",
+          "adding": "Adding…"
+        }
+      },
+      "header": {
+        "classroomSectionsAria": "Classroom sections",
+        "lessonTab": "Lesson",
+        "homeworkTab": "Homework",
+        "homeworkItemsAria": "{{count}} homework items",
+        "backToClassesAria": "Back to My Classes",
+        "classes": "Classes",
+        "changeUnit": "Change Unit",
+        "chooseUnit": "Choose Unit",
+        "unitShort": "Unit",
+        "chooseShort": "Choose",
+        "addStudentAria": "Add student to this class"
+      },
+      "enrollStudentModal": {
+        "title": "Enroll a student",
+        "selectLabel": "Students",
+        "selectPlaceholder": "Select a student…",
+        "optionInCourse": "enrolled in this course",
+        "optionNotInCourse": "not enrolled in this course",
+        "optionOnline": "in class now",
+        "alreadyInCourseHint": "This student is already enrolled. Pick someone who is not enrolled to add them.",
+        "addToCourse": "Add to course",
+        "enrollingButton": "Adding…",
+        "loading": "Loading students…",
+        "empty": "No students yet. Create student accounts from Admin → Students.",
+        "loadError": "Could not load your students.",
+        "enrolledToast": "{{name}} is now enrolled in this course.",
+        "alreadyEnrolledToast": "{{name}} is already enrolled in this course.",
+        "enrollFailed": "Could not enroll this student.",
+        "close": "Close"
+      },
+      "studentAnswersPanel": {
+        "title": "Answers",
+        "allStudents": "All students",
+        "loadingRoster": "Loading roster...",
+        "noEnrolledStudents": "No enrolled students",
+        "noStudentsOnline": "No students online",
+        "fallbackStudentName": "Student {{id}}",
+        "feedbackPlaceholder": "Feedback for the student (optional)",
+        "markComplete": "Mark complete",
+        "needsStudentReview": "Needs student review",
+        "viewingSavedHomework": "Viewing saved homework",
+        "viewingLiveAnswers": "Viewing live answers",
+        "homeworkStatus": {
+          "pendingReview": "In review",
+          "awaitingStudent": "Student",
+          "completed": "Done",
+          "assigned": "Draft"
+        },
+        "help": {
+          "homework": "Select a student to view their saved homework like in the lesson player",
+          "lesson": "Select a student to view their live answers in the lesson player"
+        },
+        "aria": {
+          "panel": "Student answers",
+          "help": "Help",
+          "close": "Close answers panel",
+          "studentsList": "Students"
+        }
+      }
+    },
+    "landing": {
+      "nav": {
+        "features": "Funzionalità",
+        "exercises": "Esercizi",
+        "aiGeneration": "Generazione AI",
+        "pricing": "Prezzi",
+        "login": "Accedi",
+        "getStarted": "Inizia gratis"
+      },
+      "hero": {
+        "badge": "Piattaforma AI per l'insegnamento delle lingue",
+        "title1": "Insegna le lingue",
+        "title2": "in modo più intelligente con",
+        "titleHighlight": "AI",
+        "subtitle": "Crea corsi strutturati, genera lezioni in minuti e monitora il progresso di ogni studente — tutto in una bellissima piattaforma.",
+        "startFree": "Inizia gratis →"
+      },
+      "featuresSection": {
+        "label": "Funzionalità della piattaforma",
+        "heading": "Tutto quello che ti serve per",
+        "headingHighlight": "insegnare meglio",
+        "items": [
+          {
+            "icon": "✦",
+            "title": "Costruttore di corsi AI",
+            "body": "Descrivi l'argomento e lascia che l'AI generi un curriculum completo — unità, lezioni ed esercizi — in minuti."
+          },
+          {
+            "icon": "🎯",
+            "title": "Classe in diretta",
+            "body": "Insegna in tempo reale. Vedi su quale slide è ogni studente, chi è in difficoltà e le risposte in diretta — tutto in uno schermo."
+          },
+          {
+            "icon": "📊",
+            "title": "Analisi del progresso",
+            "body": "Dashboard dettagliati per studente e per classe. Identifica le lacune prima che gli studenti te lo dicano."
+          },
+          {
+            "icon": "🧩",
+            "title": "20+ tipi di esercizi",
+            "body": "Trascina nelle lacune, abbina coppie, vero/falso, ascolto, costruisci frasi e altro — tutti generati o creati in un solo editor."
+          },
+          {
+            "icon": "📁",
+            "title": "Compiti e studio autonomo",
+            "body": "Assegna esercizi come compiti. Gli studenti li completano a proprio ritmo; tu rivedi e dai feedback in un posto solo."
+          },
+          {
+            "icon": "🌐",
+            "title": "Qualsiasi lingua",
+            "body": "Italiano, inglese, spagnolo, francese, tedesco, russo — LinguAI funziona per qualsiasi corso di lingue."
+          }
+        ]
+      },
+      "exercisesSection": {
+        "label": "Esercizi interattivi",
+        "heading": "20+ tipi di esercizi,",
+        "headingHighlight": "tutti generati con AI"
+      },
+      "aiSection": {
+        "label": "Generazione AI",
+        "heading": "Genera un corso completo",
+        "headingHighlight": "in secondi",
+        "tabUnit": "Generazione unità",
+        "tabExercise": "Generazione esercizio",
+        "tabCourse": "Generazione corso",
+        "points": [
+          {
+            "title": "Descrivi, non progettare",
+            "body": "Inserisci un argomento, livello e lingua — l'AI scrive contenuti strutturati così passi il tempo a insegnare, non a formattare."
+          },
+          {
+            "title": "Modifica ogni risultato",
+            "body": "Ogni slide ed esercizio generato dall'AI è completamente modificabile. Tu controlli; l'AI rimuove il problema del foglio bianco."
+          },
+          {
+            "title": "Funziona dai tuoi file",
+            "body": "Carica un PDF o Word e l'AI costruisce esercizi direttamente dai tuoi materiali."
+          }
+        ]
+      },
+      "howItWorksSection": {
+        "label": "Come funziona",
+        "heading": "Dall'idea alla lezione",
+        "headingHighlight": "in 4 passi",
+        "steps": [
+          {
+            "title": "Crea un corso",
+            "body": "Aggiungi titolo e descrizione — o lascia che l'AI generi uno schema completo da sola."
+          },
+          {
+            "title": "Costruisci le unità",
+            "body": "Usa il generatore AI o l'editor manuale per riempire ogni unità con slide, testi e esercizi interattivi."
+          },
+          {
+            "title": "Insegna in diretta",
+            "body": "Apri la classe e condividi il link. Gli studenti si connettono da qualsiasi dispositivo; vedi il progresso di tutti in tempo reale."
+          },
+          {
+            "title": "Rivedi e migliora",
+            "body": "Compiti, voti e analisi mostrano esattamente dove gli studenti hanno avuto difficoltà — così la prossima lezione è sempre migliore."
+          }
+        ]
+      },
+      "testimonialsSection": {
+        "label": "Cosa dicono gli insegnanti",
+        "heading": "Creato per gli",
+        "headingHighlight": "insegnanti di lingue",
+        "items": [
+          {
+            "text": "Prima passavo intere domeniche a preparare materiali. Ora descrivo l'argomento, correggo l'output AI e ho finito in 20 minuti. Ai miei studenti piacciono gli esercizi interattivi.",
+            "name": "Silvia M.",
+            "role": "Insegnante d'italiano, Milano"
+          },
+          {
+            "text": "La modalità classe dal vivo ha cambiato il mio modo di insegnare. Vedo in tempo reale chi è bloccato alla slide 4 e chi ha già finito il test. Niente più congetture.",
+            "name": "Lorenzo P.",
+            "role": "Direttore scuola di lingue, Roma"
+          },
+          {
+            "text": "Il pannello di analisi è davvero utile. Ho scoperto che il 60% della mia classe aveva difficoltà con il congiuntivo prima che qualcuno me lo dicesse — i dati lo mostravano.",
+            "name": "Chiara F.",
+            "role": "Tutor privata, Firenze"
+          }
+        ]
+      },
+      "pricingSection": {
+        "label": "Prezzi",
+        "heading": "Prezzi semplici e",
+        "headingHighlight": "trasparenti",
+        "subtext": "Inizia gratis. Aggiorna quando sei pronto. Nessun costo nascosto.",
+        "mostPopular": "PIÙ POPOLARE",
+        "plans": {
+          "free": {
+            "name": "Gratuito",
+            "price": "€0",
+            "period": "gratis per sempre",
+            "features": [
+              "1 corso, 3 unità",
+              "Fino a 15 studenti",
+              "5 generazioni AI / mese",
+              "Analisi di base"
+            ],
+            "cta": "Inizia"
+          },
+          "pro": {
+            "name": "Pro",
+            "price": "€19",
+            "period": "al mese, fatturazione mensile",
+            "features": [
+              "Corsi e unità illimitati",
+              "Studenti illimitati",
+              "Generazioni AI illimitate",
+              "Dashboard analisi completo",
+              "Compiti e modalità studio autonomo",
+              "Supporto prioritario"
+            ],
+            "cta": "Inizia la prova gratuita"
+          },
+          "school": {
+            "name": "Scuola",
+            "price": "€49",
+            "period": "al mese · fino a 10 insegnanti",
+            "features": [
+              "Tutto il piano Pro",
+              "Gestione del team",
+              "Libreria corsi condivisa",
+              "Analisi scolastica",
+              "Onboarding dedicato"
+            ],
+            "cta": "Contattaci"
+          }
+        }
+      },
+      "ctaSection": {
+        "label": "Pronto per iniziare?",
+        "heading": "Unisciti agli insegnanti che",
+        "headingHighlight": "risparmiano ore ogni settimana",
+        "body": "Crea il tuo account gratuito in 60 secondi. Nessuna carta di credito richiesta.",
+        "primaryBtn": "Inizia gratis →",
+        "secondaryBtn": "Accedi"
+      },
+      "footerSection": {
+        "privacy": "Privacy",
+        "terms": "Termini",
+        "support": "Supporto",
+        "contact": "Contatti",
+        "copyright": "© {{year}} LinguAI. Tutti i diritti riservati."
+      }
+    },
+    "aiExerciseGenerator": {
+      "title": "AI Exercise Generator",
+      "tabs": {
+        "describe": "Describe",
+        "materials": "From materials"
+      },
+      "topicLabel": "Topic or prompt",
+      "topicPlaceholder": "Describe what you want to practise…",
+      "languageField": "Language",
+      "difficultyField": "Difficulty",
+      "advancedSettings": "Advanced settings",
+      "gapsLabel": "Gaps",
+      "gapTypeLabel": "Gap type",
+      "pairsLabel": "Pairs",
+      "contentLanguage": {
+        "detectAuto": "Detect automatically",
+        "english": "English"
+      },
+      "difficulty": {
+        "beginner": "Beginner (A1–A2)",
+        "intermediate": "Intermediate (B1–B2)",
+        "advanced": "Advanced (C1–C2)"
+      },
+      "countAuto": "Auto",
+      "gapType": {
+        "verbsOnly": "Verbs only",
+        "nounsOnly": "Nouns only",
+        "adjectivesOnly": "Adjectives only",
+        "mixed": "Mixed (verbs + nouns)",
+        "prepositionsOnly": "Prepositions only",
+        "irregularVerbs": "Irregular verbs",
+        "phrasalVerbs": "Phrasal verbs"
+      },
+      "types": {
+        "text": {
+          "label": "Text block",
+          "description": "Markdown reading or grammar explanation"
+        },
+        "image": {
+          "label": "Image block",
+          "description": "AI illustration from your topic or unit content"
+        },
+        "image_stacked": {
+          "label": "Stacked images",
+          "description": "Several related images from your materials"
+        },
+        "drag_to_gap": {
+          "label": "Drag to Gap",
+          "description": "Drag word chips into sentence gaps"
+        },
+        "type_word_in_gap": {
+          "label": "Type in Gap",
+          "description": "Type the missing word"
+        },
+        "select_word_form": {
+          "label": "Select Form",
+          "description": "Pick the correct word form"
+        },
+        "match_pairs": {
+          "label": "Match Pairs",
+          "description": "Match terms to definitions"
+        },
+        "build_sentence": {
+          "label": "Build Sentence",
+          "description": "Rearrange shuffled words"
+        },
+        "order_paragraphs": {
+          "label": "Order Paragraphs",
+          "description": "Sort scrambled paragraphs"
+        },
+        "sort_into_columns": {
+          "label": "Sort into Columns",
+          "description": "Sort items into two categories"
+        },
+        "true_false": {
+          "label": "True / False",
+          "description": "Mark statements as true or false"
+        },
+        "test_without_timer": {
+          "label": "Test without timer",
+          "description": "Multiple-choice questions with no countdown"
+        },
+        "test_with_timer": {
+          "label": "Test with timer",
+          "description": "Multiple-choice questions; set the time limit in the editor"
+        },
+        "select_form_to_image": {
+          "label": "Image + Select",
+          "description": "Pick the word that matches the image"
+        },
+        "drag_to_image": {
+          "label": "Drag word to image",
+          "description": "Drag answer chips onto each picture"
+        },
+        "type_word_to_image": {
+          "label": "Image + Type",
+          "description": "Type the word that matches the image"
+        }
+      },
+      "quota": {
+        "unlimited": "Unlimited exercise generations",
+        "atLimit": "Monthly limit reached",
+        "usedThisMonth": "{{used}} of {{limit}} exercise generations used this month",
+        "upgrade": "Upgrade →"
+      },
+      "review": {
+        "success": "Exercise generated successfully!",
+        "generatedFallback": "Generated exercise",
+        "ratePrompt": "Rate this result:",
+        "regenerate": "Regenerate",
+        "addToExercise": "Add to exercise"
+      },
+      "materials": {
+        "dropHint": "Drop a PDF or Word document, or click to browse",
+        "fileTypes": ".pdf, .docx — max 10 MB"
+      },
+      "errors": {
+        "descriptionRequired": "Please enter a description for your exercise.",
+        "segmentMissing": "This block is not linked to a lesson section yet. Close this dialog, open or create a section in the lesson, then try again.",
+        "generationFailed": "Generation failed.",
+        "network": "Network error. Please try again."
+      },
+      "generate": "Generate {{label}}",
+      "generating": "Generating…",
+      "limitCta": "Monthly limit reached · Upgrade",
+      "upgradeModal": {
+        "durationLabel": "1 mo",
+        "planName": "Standard",
+        "priceLabel": "12.00 USD",
+        "planTag1": "AI exercise generations: 100 / mo",
+        "planTag2": "AI unit generations: 20 / mo",
+        "planTag3": "Publish to students: ✓",
+        "yearSavings": "If you pay for 1 year you could save: 27 USD"
+      }
+    },
+    "exerciseHeader": {
+      "linguaiHome": "LinguAI home",
+      "settings": "Settings",
+      "backToTemplateGallery": "Back to template gallery",
+      "titlePlaceholder": "Untitled exercise…",
+      "untitledExercise": "Untitled exercise",
+      "unsavedChanges": "Unsaved changes",
+      "saved": "✓ Saved",
+      "helpHoverHint": "Click for help — editor overview and AI generation",
+      "helpAriaLabel": "Help: open guide to exercise type, editor usage, and AI generation",
+      "helpTitle": "Help",
+      "closeHelp": "Close help",
+      "helpLine1": "Exercise type: \"{{label}}\".",
+      "helpLine2": "Use the workspace below to add prompts, answers, and media, then save to attach this block to your lesson.",
+      "helpLine3": "AI: Many editors include “Generate with AI” or a sparkle button to draft content from a short description and, when you opened this screen from a lesson segment, from that unit’s materials.",
+      "helpLine4": "Review and edit every AI draft before saving. Each run counts toward your plan’s monthly exercise-generation quota.",
+      "textBlockHelpLine2": "This block is Markdown text only (reading passages or explanations). Images, audio, and video are added as separate blocks elsewhere in the lesson — not inside this editor.",
+      "generateButton": "Generate"
+    },
+    "exerciseDrafts": {
+      "galleryTitle": "Choose exercise template",
+      "galleryHelpHover": "Tips on exercises and AI generation (click)",
+      "galleryHelpDialogTitle": "Exercises & AI",
+      "galleryHelpAboutExercises": "Lesson exercises are interactive blocks students complete in the player—questions, ordering, matching, media-rich tasks, and more. Templates differ by how students interact; you do not need to memorize each one. Use search or the sections below, open a template, and build the content in its editor.",
+      "galleryHelpAiHeading": "AI generation",
+      "galleryHelpAboutAi": "Use Generate with AI on this page to describe the activity you want and insert the draft into your lesson. If you opened this screen from a lesson segment, the tool can use that unit’s context. Always review and edit before saving. Each generation counts toward your plan’s monthly exercise-generation quota.",
+      "galleryHelpAria": "Open help: exercises in general and AI generation",
+      "searchPlaceholder": "Search templates…",
+      "noTemplatesMatch": "No templates match \"{{query}}\"",
+      "aiBannerTitle": "Generate with AI",
+      "aiBannerSubtitle": "Describe your exercise and let AI build it for you",
+      "closeGalleryAria": "Close"
+    },
+    "exerciseTemplates": {
+      "sections": {
+        "text_reading": "Text & Reading",
+        "images": "Images",
+        "audio_video": "Audio & Video",
+        "words_gaps": "Words & Gaps",
+        "tests": "Tests",
+        "put_in_order": "Put in Order"
+      },
+      "labels": {
+        "text-block": "Text block",
+        "img-block": "Image block",
+        "img-carousel": "Image carousel",
+        "img-gif": "GIF animation",
+        "video-embed": "Embed video",
+        "audio-clip": "Audio clip",
+        "audio-repeat": "Listen & repeat",
+        "drag-to-gap": "Drag word to gap",
+        "type-word-in-gap": "Type word in gap",
+        "cloze-select": "Select word form",
+        "visual-drag": "Drag word to image",
+        "visual-input": "Type word to image",
+        "visual-select": "Select form to image",
+        "mc-no-timer": "Test without timer",
+        "mc-timer": "Test with timer",
+        "true-false": "True / False",
+        "order-sentence": "Build a sentence",
+        "sort-columns": "Sort into columns",
+        "order-text": "Order paragraphs",
+        "anagram": "Make a word",
+        "matching": "Match pairs"
+      }
+    },
+    "exerciseEditors": {
+      "gap": {
+        "instructionDrag": "Drag words into the correct gaps",
+        "instructionType": "Type words into the correct gaps",
+        "wordsBarChipsEmpty": "Words will appear here after you fill the gaps",
+        "typingHintDefault": "Students type answers directly in the gaps",
+        "mainPlaceholder": "Enter the exercise text",
+        "addGapTooltip": "Add a gap",
+        "addGapAria": "Show gap insert button",
+        "insertGapTooltip": "Insert gap at cursor",
+        "insertGapAria": "Insert gap at cursor",
+        "correctAnswer": "Correct answer",
+        "deleteGapTooltip": "Delete gap",
+        "deleteGapAria": "Delete gap",
+        "answerPlaceholder": "Enter the correct answer…",
+        "saveAnswer": "Save answer",
+        "gapAriaFilled": "Gap with answer \"{{answer}}\" — click to edit",
+        "gapAriaEmpty": "Empty gap — click to add correct answer",
+        "needAllGapsTooltip": "Fill every gap before saving",
+        "saveExerciseTooltip": "Save exercise"
+      },
+      "common": {
+        "exerciseTitlePlaceholder": "Exercise title (shown to students)",
+        "exerciseTitleAria": "Exercise title",
+        "saveExerciseHelp": "Save exercise",
+        "completeRequiredHint": "Complete all required fields before saving",
+        "leftItemPlaceholder": "Left item",
+        "rightItemPlaceholder": "Right item",
+        "columnTitlePlaceholder": "Column title",
+        "columnWordPlaceholder": "Word",
+        "saveForms": "Save answer forms"
+      },
+      "matchPairs": {
+        "instruction": "Match each left word with the correct right word",
+        "leftColumn": "Left word",
+        "rightColumn": "Right word",
+        "addCouple": "Add couple",
+        "removePairAria": "Remove pair",
+        "removePairTitle": "Remove pair",
+        "needCompleteTooltip": "Fill both columns in every row before saving"
+      },
+      "sortColumns": {
+        "wordsPreviewEmpty": "Added words will appear here",
+        "dropWordsHere": "Drop words here",
+        "removeColumnTitle": "Remove column",
+        "removeColumnAria": "Remove column {{n}}",
+        "removeWordAria": "Remove word",
+        "addWord": "Add word",
+        "addColumn": "Add column",
+        "needCompleteTooltip": "Fill every column title and all words before saving"
+      },
+      "orderParagraphs": {
+        "instruction": "Arrange the paragraphs in the correct order",
+        "needCompleteTooltip": "Fill all paragraphs before saving"
+      },
+      "buildSentence": {
+        "instruction": "Build the correct sentence from the words",
+        "needCompleteTooltip": "Add the prompt and all words before saving"
+      },
+      "textBlock": {
+        "editorAriaSuffix": "editor",
+        "titlePlaceholder": "Exercise name",
+        "showPreview": "Show preview",
+        "hidePreview": "Hide preview",
+        "markdownHintPrefix": "Markdown:",
+        "markdownBold": "bold",
+        "markdownItalic": "italic",
+        "markdownHeading": "heading",
+        "markdownList": "list",
+        "textareaPlaceholder": "Markdown text…\n\n## Rule\n**Example:** *essere* for states.\n- io sono\n- tu sei",
+        "previewHeading": "Preview",
+        "needContentTooltip": "Enter text before saving",
+        "saveBlockTooltip": "Save block"
+      },
+      "selectWordForm": {
+        "instruction": "Select the correct word form in each gap",
+        "correctFormsLabel": "Correct forms",
+        "panelHint": "Check the correct forms and add more options below.",
+        "variantPlaceholder": "Option {{n}}",
+        "markVariantAria": "Mark variant {{n}} as correct",
+        "addVariant": "Add option",
+        "removeVariant": "Remove",
+        "gapAriaFilled": "Gap with {{count}} correct forms — click to edit",
+        "gapAriaEmpty": "Empty gap — click to add dropdown forms"
+      },
+      "trueFalseEditor": {
+        "needValidQuestionsTooltip": "Add valid True / False questions before saving"
+      },
+      "testEditor": {
+        "needCompleteTooltip": "Complete each question and answer options before saving"
+      },
+      "selectFormImage": {
+        "instruction": "Select the correct form under each image",
+        "addOption": "Add option",
+        "optionPlaceholder": "Form {{n}}",
+        "optionAria": "Form {{n}}",
+        "needCompleteTooltip": "Add an image and mark at least one correct form on every card",
+        "boardAria": "Image cards with selectable forms",
+        "markCorrectAria": "Mark form {{n}} as correct",
+        "removeFormAria": "Remove form {{n}}",
+        "removeOptionTitle": "Remove option"
+      },
+      "dragToImage": {
+        "instructionDrag": "Drag words onto the correct images",
+        "instructionType": "Type the correct word for each image",
+        "boardAria": "Image answer cards",
+        "removeCardAria": "Remove image card",
+        "removeCardTitle": "Remove card",
+        "replaceImageTitle": "Replace image",
+        "uploadImageTitle": "Upload image",
+        "correctWordPlaceholder": "Correct word",
+        "correctWordAria": "Correct word",
+        "aiImageHint": "AI image hint",
+        "addCardAria": "Add image card",
+        "addCardTitle": "Add card",
+        "needCompleteTooltip": "Complete all cards before saving",
+        "saveTooltip": "Save exercise",
+        "wordsBarEmpty": "Words will appear here after you fill the cards",
+        "uploading": "Uploading…",
+        "upload": "Upload"
+      },
+      "workspace": {
+        "validation": {
+          "promptRequired": "Question prompt is required.",
+          "mcOptionsMin": "At least 2 options required.",
+          "mcCorrectMin": "Mark at least one correct answer.",
+          "mcOptionText": "All options must have text.",
+          "tfCorrect": "Select True or False as the correct answer.",
+          "keywordsMin": "Add at least one keyword for grading.",
+          "regexPattern": "Enter a regex pattern for grading.",
+          "gapsAnswers": "All gaps must have at least one accepted answer.",
+          "matchText": "All matching items must have text.",
+          "matchPairs": "Connect all left items to a right item.",
+          "orderItemsText": "All items must have text.",
+          "orderSet": "Set the correct order for all items."
+        },
+        "questionErrorLine": "Q{{n}}: {{error}}",
+        "saveFailed": "Save failed. Please try again.",
+        "untitledSlide": "Untitled slide",
+        "slideCanvasBadge": "Blank slide canvas",
+        "slideCanvasHint": "— add media blocks and exercises below",
+        "mediaRemoveBlock": "Remove block",
+        "mediaCaptionPlaceholder": "Caption (optional)",
+        "mediaImagePreviewAlt": "Image preview",
+        "mediaVideoPreviewTitle": "Video preview",
+        "mediaPreviewAfterSave": "Preview available after saving.",
+        "mediaUploadImageTitle": "Upload image",
+        "mediaImageLabel": "Image",
+        "mediaVideoLabel": "Video",
+        "mediaAudioLabel": "Audio",
+        "mediaImagePlaceholder": "Paste an image URL or click upload →",
+        "mediaVideoPlaceholder": "Paste a YouTube or Vimeo URL",
+        "mediaAudioPlaceholder": "Paste an audio file URL"
+      },
+      "player": {
+        "questionTypes": {
+          "multiple_choice": "Multiple Choice",
+          "true_false": "True / False",
+          "open_answer": "Open Answer",
+          "cloze_input": "Fill in blank",
+          "cloze_drag": "Drag to fill",
+          "matching_pairs": "Matching pairs",
+          "ordering_words": "Word order",
+          "ordering_sentences": "Sentence order"
+        },
+        "mediaHeading": "Media",
+        "exerciseHeading": "Exercise",
+        "addBlock": "Add block",
+        "addQuestion": "Add question",
+        "removeQuestion": "Remove question",
+        "saving": "Saving…",
+        "emptySlideTitle": "Empty slide",
+        "emptySlideBody": "Use the button below to add an image, video, audio or exercise block.",
+        "emptyQuestionsTitle": "No questions yet",
+        "emptyQuestionsBody": "Add your first question to start building this exercise.",
+        "emptySlideCta": "Add block",
+        "emptyQuestionsCta": "Add first question",
+        "inlineVideoAfterSave": "Video URL saved — preview available after saving.",
+        "inlinePreviewAlt": "Preview",
+        "inlineVideoIframeTitle": "Video preview",
+        "mediaPickers": {
+          "image": "Image",
+          "video": "Video",
+          "audio": "Audio"
+        },
+        "inlineMediaPlaceholders": {
+          "image": "Paste an image URL or click upload →",
+          "video": "Paste a YouTube or Vimeo URL",
+          "audio": "Paste an audio file URL"
+        },
+        "captionOptional": "Caption (optional)",
+        "uploadImageTitle": "Upload image"
+      }
+    },
+    "mediaEditor": {
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…",
+      "showPreview": "Show preview",
+      "hidePreview": "Hide preview",
+      "preview": "Preview",
+      "saveNeedImage": "Add an image before saving",
+      "saveNeedGif": "Add a GIF before saving",
+      "saveNeedVideo": "Add a video source before saving",
+      "saveNeedAudio": "Add an audio source before saving",
+      "saveNeedTwoImages": "Add at least two images before saving",
+      "imageBlockFallback": "Image block",
+      "imageCarouselFallback": "Image carousel",
+      "gifAnimationFallback": "GIF animation",
+      "videoBlockFallback": "Video block",
+      "audioBlockFallback": "Audio block",
+      "imageUrl": "Image URL",
+      "gifUrl": "GIF URL",
+      "videoUrl": "Video URL",
+      "audioUrl": "Audio URL",
+      "videoSource": "Video source",
+      "audioSource": "Audio source",
+      "uploadFile": "Upload file",
+      "uploadGif": "Upload .gif",
+      "urlShortPlaceholder": "https://…",
+      "urlPlaceholderImage": "https://example.com/image.png",
+      "urlPlaceholderGif": "https://example.com/animation.gif",
+      "urlPlaceholderVideo": "https://youtube.com/watch?v=... or direct .mp4 URL",
+      "urlPlaceholderAudio": "https://example.com/audio.mp3",
+      "gifUrlWarning": "This URL may not be a .gif — check that it is an animated GIF.",
+      "clickUploadImage": "Click to upload an image",
+      "clickUploadGif": "Click to upload a GIF",
+      "clickUploadVideo": "Click to upload a video",
+      "clickUploadAudio": "Click to upload audio",
+      "formatsImage": "PNG, JPG, GIF, SVG, WEBP",
+      "formatsGifHelp": "Accepts .gif files — animated GIFs recommended",
+      "formatsVideo": "MP4, WEBM, MOV, OGG",
+      "formatsAudio": "MP3, WAV, OGG, AAC, M4A",
+      "imageLoadedHint": "Image loaded — see preview below.",
+      "gifLoadedHint": "GIF loaded — see preview below.",
+      "altTextLabel": "Alt text",
+      "altTextHint": "(accessibility description)",
+      "altPlaceholderImage": "e.g. A diagram showing Italian verb conjugation",
+      "altPlaceholderGif": "e.g. Animation showing verb conjugation steps",
+      "previewAltImage": "Educational illustration",
+      "previewAltGif": "Animated illustration",
+      "imageLoadError": "Image could not be loaded",
+      "imageLoadErrorHint": "Check that the URL is correct and publicly accessible.",
+      "gifLoadError": "Could not load animation",
+      "gifLoadErrorHint": "Check the URL is correct and publicly accessible.",
+      "captionLabel": "Caption",
+      "optionalShort": "(optional)",
+      "videoCaptionPlaceholder": "e.g. Watch the dialogue and repeat the expressions",
+      "audioCaptionPlaceholder": "e.g. Listen and repeat each sentence",
+      "loopAnimation": "Loop animation",
+      "loopOnHint": "GIF will play on repeat",
+      "loopOffHint": "GIF plays once then stops",
+      "paused": "Paused",
+      "noLoopBadge": "NO LOOP",
+      "gifBadge": "GIF",
+      "studentPlayPauseHint": "Students will see the play/pause button to control the animation.",
+      "pausePreviewAria": "Pause preview",
+      "playPreviewAria": "Play preview",
+      "stackedIntro": "Add at least two images for the carousel. Each row becomes one slide.",
+      "imageRow": "Image {{n}}",
+      "delete": "Delete",
+      "atLeastTwoRows": "At least 2 rows required",
+      "needTwoImagesTitle": "Need at least 2 images",
+      "selectFile": "Select file…",
+      "altShortPlaceholder": "Alt text (accessibility)",
+      "addImage": "Add image",
+      "tabUrl": "URL",
+      "tabFile": "File",
+      "videoIframeTitle": "Video preview",
+      "videoLoadError": "Video could not be loaded. Check URL or uploaded file.",
+      "audioLoadError": "Audio could not be loaded. Check URL or uploaded file.",
+      "emptyVideoPreview": "Paste a video URL to preview",
+      "emptyVideoHint": "YouTube, Vimeo, and direct video links are supported.",
+      "emptyAudioPreview": "Paste an audio URL to preview",
+      "emptyAudioHint": "Direct audio file links are supported."
+    }
+  }

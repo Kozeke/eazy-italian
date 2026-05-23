@@ -103,7 +103,67 @@
     "loginHeroNote": "Teacher and student demo accounts available on the right — login and test the platform.",
     "registerHeroTitle": "Create an account and start learning Italian today",
     "registerHeroSubtitle": "Access to video lessons, interactive tasks, tests and progress tracking — all in one place.",
-    "registerHeroNote": "You can register as a student or teacher. The role can be changed by an administrator later."
+    "registerHeroNote": "You can register as a student or teacher. The role can be changed by an administrator later.",
+    "welcomeBackTitle": "Welcome back",
+    "signInSubtitle": "Sign in to continue to your classroom workspace.",
+    "tabPassword": "Password",
+    "tabMagic": "Magic code",
+    "signIn": "Sign in",
+    "sendMagicCode": "Send magic code",
+    "magicCodeHint": "We'll send a one-time code to your inbox — no password needed.",
+    "noAccountHint": "No account?",
+    "signUpFree": "Sign up free",
+    "forgotPasswordHint": "Forgot password?",
+    "invalidEmailError": "Please enter a valid email.",
+    "noAccountFound": "No account found with this email. Please register first.",
+    "createYourAccount": "Create your account",
+    "startWithEmail": "Start with your email address.",
+    "continueBtn": "Continue",
+    "alreadyHaveAccountHint": "Already have an account?",
+    "signInLink": "Sign in",
+    "chooseAccountType": "Choose account type",
+    "switchTypeInfo": "You can switch between types later from your profile.",
+    "forTeaching": "For teaching",
+    "teacherCardDesc": "You're a teacher or school admin",
+    "forLearning": "For learning",
+    "studentCardDesc": "You're a student taking classes",
+    "selectCard": "Select",
+    "studentActivationTitle": "Student account activation",
+    "studentActivationText": "Learning on the platform is only possible with a teacher. Tell your teacher the email you used for registration and ask them to add you to the students list. After that, you will have access to virtual classrooms.",
+    "welcomeTitle": "Welcome!",
+    "welcomeBody": "Thousands of teachers and online schools use LinguAI daily to build engaging, modern lessons.",
+    "nextBtn": "Next",
+    "completeRegistration": "Complete registration",
+    "fullNameLabel": "Full name *",
+    "fullNamePlaceholder": "Enter your full name",
+    "passwordFieldLabel": "Password *",
+    "passwordMinCharsHint": "Min. 8 characters",
+    "trialPeriodTitle": "Trial period",
+    "trialPeriodBody": "We've activated a free 31-day trial so you can explore everything the platform has to offer.",
+    "letsGoBtn": "Let's go!",
+    "validEmailRequired": "Please enter a valid email address.",
+    "emailAlreadyRegistered": "This email is already registered. Sign in instead.",
+    "fillAllFieldsError": "Please fill in all fields.",
+    "passwordMin8Error": "Password must be at least 8 characters.",
+    "registrationFailedError": "Registration failed. Please try again.",
+    "pleaseEnterCode": "Please enter the code.",
+    "accountActivationTitle": "Account activation",
+    "enterCodeEmailHint": "Enter the code we sent to your email:",
+    "checkYourInbox": "Check your inbox",
+    "weSentCodeTo": "We sent a 6-digit code to",
+    "resendCodeIn": "Resend code in {{secs}}s",
+    "resendCodeBtn": "Resend code",
+    "resendAvailableIn": "Resend available in {{secs}} seconds",
+    "havingTrouble": "Having trouble?",
+    "contactSupport": "Contact support",
+    "backBtn": "Back",
+    "pwTooShort": "Too short",
+    "pwWeak": "Weak",
+    "pwGood": "Good",
+    "pwStrong": "Strong",
+    "enterCodePlaceholder": "Enter code",
+    "couldNotCheckEmail": "Could not check email. Please try again.",
+    "invalidCodeError": "Invalid code. Please try again."
   },
   "dashboard": {
     "welcome": "Welcome",
@@ -992,22 +1052,19 @@
   "landing": {
     "nav": {
       "features": "Features",
-      "pricing": "Pricing"
+      "exercises": "Exercises",
+      "aiGeneration": "AI Generation",
+      "pricing": "Pricing",
+      "login": "Log in",
+      "getStarted": "Get started free"
     },
     "hero": {
-      "badge": "Italiano con piacere",
-      "title": "Learn Italian easily and effectively",
-      "subtitle": "Modern platform for learning Italian with personalized approach and interactive materials",
-      "cta": "Get Started",
-      "secondaryCta": "Sign In",
-      "watchDemo": "Watch Demo",
-      "preview": "Video lessons + tasks + tests",
-      "cardTitle": "Complete Italian language course",
-      "cardSubtitle": "Combination of video lectures, interactive tasks and adaptive tests.",
-      "cardHours": "hours of video",
-      "cardLessons": "lessons",
-      "cardExam": "exam preparation",
-      "disclaimer": "Free access to the first unit. You can cancel your subscription at any time."
+      "badge": "AI-Powered Language Teaching Platform",
+      "title1": "Teach languages",
+      "title2": "smarter with",
+      "titleHighlight": "AI",
+      "subtitle": "Build structured courses, generate lessons in minutes, and track every student's progress — all in one beautiful platform.",
+      "startFree": "Start for free →"
     },
     "benefits": {
       "title": "Why Choose Us",
@@ -1099,6 +1156,178 @@
       "blog": "Blog",
       "careers": "Careers",
       "copyright": "© 2024 EZ Italian. All rights reserved."
+    },
+    "featuresSection": {
+      "label": "Platform features",
+      "heading": "Everything you need to teach",
+      "headingHighlight": "smarter",
+      "items": [
+        {
+          "icon": "✦",
+          "title": "AI Course Builder",
+          "body": "Describe your course topic and let AI generate a full structured curriculum — units, lessons, and exercises — in minutes."
+        },
+        {
+          "icon": "🎯",
+          "title": "Live Classroom Mode",
+          "body": "Teach in real time. See which slide every student is on, who's stuck, and whose answers are live — all on one screen."
+        },
+        {
+          "icon": "📊",
+          "title": "Progress Analytics",
+          "body": "Detailed per-student and per-class dashboards. Identify gaps before students even tell you about them."
+        },
+        {
+          "icon": "🧩",
+          "title": "20+ Exercise Types",
+          "body": "Drag-to-gap, match pairs, true/false, listening, build-a-sentence and more — all generated or hand-crafted in one editor."
+        },
+        {
+          "icon": "📁",
+          "title": "Homework & Self-Study",
+          "body": "Assign exercises as homework. Students complete them at their own pace; you review and give feedback in one place."
+        },
+        {
+          "icon": "🌐",
+          "title": "Any Language",
+          "body": "Italian, English, Spanish, French, German, Russian — LinguAI works for any language course you teach."
+        }
+      ]
+    },
+    "exercisesSection": {
+      "label": "Interactive exercises",
+      "heading": "20+ exercise types,",
+      "headingHighlight": "all AI-generated"
+    },
+    "aiSection": {
+      "label": "AI Generation",
+      "heading": "Generate a full course",
+      "headingHighlight": "in seconds",
+      "tabUnit": "Unit generation",
+      "tabExercise": "Exercise generation",
+      "tabCourse": "Course generation",
+      "points": [
+        {
+          "title": "Describe, don't design",
+          "body": "Type a topic, level, and language — AI writes structured content so you spend time teaching, not formatting."
+        },
+        {
+          "title": "Edit every output",
+          "body": "Every AI-generated slide and exercise is fully editable. You stay in control; AI just removes the blank-page problem."
+        },
+        {
+          "title": "Works from your files",
+          "body": "Upload a PDF or Word document and the AI builds exercises directly from your own materials."
+        }
+      ]
+    },
+    "howItWorksSection": {
+      "label": "How it works",
+      "heading": "From idea to lesson",
+      "headingHighlight": "in 4 steps",
+      "steps": [
+        {
+          "title": "Create a course",
+          "body": "Add a course title and description — or let AI generate a full outline from just a topic and level."
+        },
+        {
+          "title": "Build your units",
+          "body": "Use the AI generator or the manual editor to fill each unit with slides, reading blocks, and interactive exercises."
+        },
+        {
+          "title": "Teach live",
+          "body": "Open the classroom and share the link. Students join on any device; you see everyone's progress in real time."
+        },
+        {
+          "title": "Review & improve",
+          "body": "Homework, grades, and analytics show exactly where students struggled — so your next lesson is always better."
+        }
+      ]
+    },
+    "testimonialsSection": {
+      "label": "What teachers say",
+      "heading": "Built for language",
+      "headingHighlight": "educators, by educators",
+      "items": [
+        {
+          "text": "I used to spend entire Sundays preparing lesson materials. Now I describe the topic, tweak the AI output, and I'm done in 20 minutes. My students love the interactive exercises.",
+          "name": "Silvia M.",
+          "role": "Italian teacher, Milan"
+        },
+        {
+          "text": "The live classroom mode changed how I teach. I can see in real time who is stuck on slide 4 and who has already finished the test. No more guessing.",
+          "name": "Lorenzo P.",
+          "role": "Language school director, Rome"
+        },
+        {
+          "text": "The analytics panel is genuinely useful. I identified that 60% of my class was struggling with subjunctive before anyone told me — the data just showed it.",
+          "name": "Chiara F.",
+          "role": "Private tutor, Florence"
+        }
+      ]
+    },
+    "pricingSection": {
+      "label": "Pricing",
+      "heading": "Simple, transparent",
+      "headingHighlight": "pricing",
+      "subtext": "Start for free. Upgrade when you're ready. No hidden fees.",
+      "mostPopular": "MOST POPULAR",
+      "plans": {
+        "free": {
+          "name": "Free",
+          "price": "€0",
+          "period": "forever free",
+          "features": [
+            "1 course, 3 units",
+            "Up to 15 students",
+            "5 AI generations / month",
+            "Basic analytics"
+          ],
+          "cta": "Get started"
+        },
+        "pro": {
+          "name": "Pro",
+          "price": "€19",
+          "period": "per month, billed monthly",
+          "features": [
+            "Unlimited courses & units",
+            "Unlimited students",
+            "Unlimited AI generations",
+            "Full analytics dashboard",
+            "Homework & self-study mode",
+            "Priority support"
+          ],
+          "cta": "Start free trial"
+        },
+        "school": {
+          "name": "School",
+          "price": "€49",
+          "period": "per month · up to 10 teachers",
+          "features": [
+            "Everything in Pro",
+            "Team management",
+            "Shared course library",
+            "School-wide analytics",
+            "Dedicated onboarding"
+          ],
+          "cta": "Contact us"
+        }
+      }
+    },
+    "ctaSection": {
+      "label": "Ready to start?",
+      "heading": "Join teachers already",
+      "headingHighlight": "saving hours every week",
+      "body": "Create your free account in 60 seconds. No credit card required.",
+      "primaryBtn": "Get started free →",
+      "secondaryBtn": "Sign in"
+    },
+    "footerSection": {
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "support": "Support",
+      "contact": "Contact",
+      "copyright": "© {{year}} LinguAI. All rights reserved."
     }
   },
   "aiExerciseGenerator": {
