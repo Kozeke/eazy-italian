@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, X } from 'lucide-react';
 
 /**
@@ -266,16 +267,35 @@ type AddStudentModalProps = {
 };
 
 /**
- * Provides a curated set of native language options for quick selection.
+ * NATIVE_LANGUAGE_OPTIONS stores canonical values sent to the API with i18n label keys.
  */
 const NATIVE_LANGUAGE_OPTIONS = [
-  'Русский',
-  'Қазақша',
-  'English',
-  'Italiano',
-  'Español',
-  'Français',
-];
+  { value: 'Russian', labelKey: 'admin.studentsPage.modal.langRussian' },
+  { value: 'Kazakh', labelKey: 'admin.studentsPage.modal.langKazakh' },
+  { value: 'English', labelKey: 'admin.studentsPage.modal.langEnglish' },
+  { value: 'Italian', labelKey: 'admin.studentsPage.modal.langItalian' },
+  { value: 'Spanish', labelKey: 'admin.studentsPage.modal.langSpanish' },
+  { value: 'French', labelKey: 'admin.studentsPage.modal.langFrench' },
+] as const;
+
+/**
+ * NATIVE_LANGUAGE_ALIASES maps legacy stored labels to canonical option values.
+ */
+const NATIVE_LANGUAGE_ALIASES: Record<string, string> = {
+  Русский: 'Russian',
+  Қазақша: 'Kazakh',
+  Italiano: 'Italian',
+  Español: 'Spanish',
+  Français: 'French',
+};
+
+/**
+ * normalizeNativeLanguage converts legacy profile values to canonical dropdown values.
+ */
+function normalizeNativeLanguage(value: string | undefined) {
+  if (!value) return NATIVE_LANGUAGE_OPTIONS[0].value;
+  return NATIVE_LANGUAGE_ALIASES[value] ?? value;
+}
 
 /**
  * Provides common timezone presets displayed in the form dropdown.
@@ -303,6 +323,7 @@ export default function AddStudentModal({
   mode = 'create',
   initialData,
 }: AddStudentModalProps) {
+  const { t } = useTranslation();
   /**
    * Tracks all editable field values displayed in the modal form.
    */
@@ -310,7 +331,7 @@ export default function AddStudentModal({
     email: '',
     phone: '',
     firstName: '',
-    nativeLanguage: NATIVE_LANGUAGE_OPTIONS[0],
+    nativeLanguage: NATIVE_LANGUAGE_OPTIONS[0].value,
     timezone: TIMEZONE_OPTIONS[0].value,
   });
   // Stores combined pending state so modal locks during save/delete requests.
@@ -326,13 +347,14 @@ export default function AddStudentModal({
       email: '',
       phone: '',
       firstName: '',
-      nativeLanguage: NATIVE_LANGUAGE_OPTIONS[0],
+      nativeLanguage: NATIVE_LANGUAGE_OPTIONS[0].value,
       timezone: TIMEZONE_OPTIONS[0].value,
     };
     // Stores merged initial state so edit mode opens with prefilled values.
     const mergedInitialData: AddStudentFormData = {
       ...emptyFormData,
       ...initialData,
+      nativeLanguage: normalizeNativeLanguage(initialData?.nativeLanguage),
     };
     setFormData({
       email: mergedInitialData.email,
@@ -382,11 +404,20 @@ export default function AddStudentModal({
   };
 
   // Stores title text so one modal supports both create and edit flows.
-  const modalTitle = mode === 'edit' ? 'Редактировать ученика' : 'Создать ученика';
+  const modalTitle =
+    mode === 'edit'
+      ? t('admin.studentsPage.modal.editTitle')
+      : t('admin.studentsPage.modal.createTitle');
   // Stores submit button label for the selected modal mode.
-  const submitButtonLabel = mode === 'edit' ? 'Сохранить' : 'Создать';
+  const submitButtonLabel =
+    mode === 'edit'
+      ? t('admin.studentsPage.modal.save')
+      : t('admin.studentsPage.modal.create');
   // Stores dialog aria label for accessibility tools.
-  const dialogAriaLabel = mode === 'edit' ? 'Редактировать ученика' : 'Создать ученика';
+  const dialogAriaLabel =
+    mode === 'edit'
+      ? t('admin.studentsPage.modal.editAria')
+      : t('admin.studentsPage.modal.createAria');
 
   if (!open) return null;
 
@@ -411,7 +442,7 @@ export default function AddStudentModal({
               onClick={onClose}
               disabled={isBusy}
               className="asm-close"
-              aria-label="Закрыть"
+              aria-label={t('admin.studentsPage.modal.close')}
             >
               <X className="h-5 w-5" />
             </button>
@@ -425,40 +456,40 @@ export default function AddStudentModal({
 
           <div className="asm-rows">
             <div className="asm-row">
-              <label className="asm-label">Почта</label>
+              <label className="asm-label">{t('admin.studentsPage.modal.email')}</label>
               <input
                 type="email"
                 value={formData.email}
                 onChange={(event) => updateField('email', event.target.value)}
-                placeholder="Эл. почта ученика"
+                placeholder={t('admin.studentsPage.modal.emailPlaceholder')}
                 className="asm-input"
               />
             </div>
 
             <div className="asm-row">
-              <label className="asm-label">Телефон</label>
+              <label className="asm-label">{t('admin.studentsPage.modal.phone')}</label>
               <input
                 type="tel"
                 value={formData.phone}
                 onChange={(event) => updateField('phone', event.target.value)}
-                placeholder="Номер телефона ученика"
+                placeholder={t('admin.studentsPage.modal.phonePlaceholder')}
                 className="asm-input"
               />
             </div>
 
             <div className="asm-row">
-              <label className="asm-label">Имя</label>
+              <label className="asm-label">{t('admin.studentsPage.modal.firstName')}</label>
               <input
                 type="text"
                 value={formData.firstName}
                 onChange={(event) => updateField('firstName', event.target.value)}
-                placeholder="Имя ученика"
+                placeholder={t('admin.studentsPage.modal.firstNamePlaceholder')}
                 className="asm-input"
               />
             </div>
 
             <div className="asm-row">
-              <label className="asm-label">Родной язык</label>
+              <label className="asm-label">{t('admin.studentsPage.modal.nativeLanguage')}</label>
               <div className="asm-select-wrap">
                 <select
                   value={formData.nativeLanguage}
@@ -466,8 +497,8 @@ export default function AddStudentModal({
                   className="asm-select"
                 >
                   {NATIVE_LANGUAGE_OPTIONS.map((language) => (
-                    <option key={language} value={language}>
-                      {language}
+                    <option key={language.value} value={language.value}>
+                      {t(language.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -476,7 +507,7 @@ export default function AddStudentModal({
             </div>
 
             <div className="asm-row">
-              <label className="asm-label">Часовой пояс</label>
+              <label className="asm-label">{t('admin.studentsPage.modal.timezone')}</label>
               <div className="asm-select-wrap">
                 <select
                   value={formData.timezone}
@@ -494,14 +525,16 @@ export default function AddStudentModal({
             </div>
             {mode === 'edit' && (
               <div className="asm-row">
-                <label className="asm-label">Удалить ученика</label>
+                <label className="asm-label">{t('admin.studentsPage.modal.deleteStudent')}</label>
                 <button
                   type="button"
                   onClick={handleDelete}
                   disabled={isBusy}
                   className="asm-delete-btn"
                 >
-                  {isDeleting ? 'Удаление...' : 'Удалить'}
+                  {isDeleting
+                    ? t('admin.studentsPage.modal.deleting')
+                    : t('admin.studentsPage.modal.delete')}
                 </button>
               </div>
             )}
@@ -519,14 +552,16 @@ export default function AddStudentModal({
               disabled={isBusy}
               className="asm-btn-secondary"
             >
-              Отмена
+              {t('admin.studentsPage.modal.cancel')}
             </button>
             <button
               onClick={handleCreate}
               disabled={isBusy}
               className="asm-btn-primary"
             >
-              {isSubmitting ? 'Сохранение...' : submitButtonLabel}
+              {isSubmitting
+                ? t('admin.studentsPage.modal.saving')
+                : submitButtonLabel}
             </button>
           </div>
         </div>

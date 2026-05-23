@@ -2,9 +2,10 @@
  * Admin students page renders a compact list-style roster with search and quick actions.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import i18n from "../../i18n";
 import {
-  AlertCircle,
   ChevronDown,
   Grid2X2,
   List,
@@ -406,13 +407,13 @@ type StudentRow = {
 type StudentFilterTab = "all" | "online" | "marathons";
 
 /**
- * SORT_OPTIONS defines available sorting presets in the toolbar select.
+ * SORT_OPTION_KEYS maps sort mode values to i18n label keys in admin.studentsPage.sort.
  */
-const SORT_OPTIONS = [
-  { value: "created_desc", label: "По дате создания" },
-  { value: "created_asc", label: "По дате создания (старые)" },
-  { value: "name_asc", label: "По имени (А-Я)" },
-  { value: "name_desc", label: "По имени (Я-А)" },
+const SORT_OPTION_KEYS = [
+  { value: "created_desc", labelKey: "admin.studentsPage.sort.createdDesc" },
+  { value: "created_asc", labelKey: "admin.studentsPage.sort.createdAsc" },
+  { value: "name_asc", labelKey: "admin.studentsPage.sort.nameAsc" },
+  { value: "name_desc", labelKey: "admin.studentsPage.sort.nameDesc" },
 ] as const;
 
 /**
@@ -432,7 +433,10 @@ function createAvatarToneClass(studentId: number) {
  * buildDisplayName joins first and last names while handling empty values.
  */
 function buildDisplayName(student: StudentRow) {
-  return `${student.firstName} ${student.lastName}`.trim() || "Без имени";
+  return (
+    `${student.firstName} ${student.lastName}`.trim() ||
+    i18n.t("admin.studentsPage.noName")
+  );
 }
 
 /**
@@ -440,13 +444,15 @@ function buildDisplayName(student: StudentRow) {
  */
 function resolveInitial(student: StudentRow) {
   const fullName = buildDisplayName(student);
-  if (fullName !== "Без имени") {
+  const noNameLabel = i18n.t("admin.studentsPage.noName");
+  if (fullName !== noNameLabel) {
     return fullName[0].toUpperCase();
   }
   return student.email?.[0]?.toUpperCase() || "?";
 }
 
 export default function AdminStudentsPage() {
+  const { t, i18n: i18nInstance } = useTranslation();
   // Stores authenticated user info so create-student payload can include teacher id.
   const { user } = useAuth();
   /**
@@ -469,7 +475,18 @@ export default function AdminStudentsPage() {
    * selectedSort stores selected sort mode from the dropdown.
    */
   const [selectedSort, setSelectedSort] =
-    useState<(typeof SORT_OPTIONS)[number]["value"]>("created_desc");
+    useState<(typeof SORT_OPTION_KEYS)[number]["value"]>("created_desc");
+  /**
+   * sortOptions builds localized labels for the toolbar sort dropdown.
+   */
+  const sortOptions = useMemo(
+    () =>
+      SORT_OPTION_KEYS.map((option) => ({
+        value: option.value,
+        label: t(option.labelKey),
+      })),
+    [t],
+  );
   /**
    * isListView toggles between list and grid icons (list is default as in screenshot).
    */
@@ -573,7 +590,7 @@ export default function AdminStudentsPage() {
       setCreateStudentError(
         typeof backendMessage === "string"
           ? backendMessage
-          : "Не удалось сохранить ученика. Проверьте данные и попробуйте снова.",
+          : t("admin.studentsPage.createError"),
       );
     } finally {
       setIsCreatingStudent(false);
@@ -586,10 +603,10 @@ export default function AdminStudentsPage() {
     if (!createdStudentCredentials) return;
     // Stores multiline share text matching fields displayed in credentials modal.
     const shareMessage = [
-      "Данные для входа ученика в личный кабинет:",
-      `Страница входа: ${createdStudentCredentials.loginUrl}`,
-      `Почта аккаунта: ${createdStudentCredentials.email}`,
-      `Пароль: ${createdStudentCredentials.password}`,
+      t("admin.studentsPage.credentials.shareHeader"),
+      `${t("admin.studentsPage.credentials.loginPage")}: ${createdStudentCredentials.loginUrl}`,
+      `${t("admin.studentsPage.credentials.accountEmail")}: ${createdStudentCredentials.email}`,
+      `${t("admin.studentsPage.credentials.password")}: ${createdStudentCredentials.password}`,
     ].join("\n");
     await navigator.clipboard.writeText(shareMessage);
   };
@@ -599,15 +616,15 @@ export default function AdminStudentsPage() {
   const handleSendCredentialsEmail = () => {
     if (!createdStudentCredentials) return;
     // Stores email subject used in prefilled outbound message.
-    const emailSubject = "Данные для входа в личный кабинет";
+    const emailSubject = t("admin.studentsPage.credentials.emailSubject");
     // Stores email body with credentials so teacher can send it immediately.
     const emailBody = [
-      "Здравствуйте!",
+      t("admin.studentsPage.credentials.emailGreeting"),
       "",
-      "Отправляю данные для входа ученика в личный кабинет:",
-      `Страница входа: ${createdStudentCredentials.loginUrl}`,
-      `Почта аккаунта: ${createdStudentCredentials.email}`,
-      `Пароль: ${createdStudentCredentials.password}`,
+      t("admin.studentsPage.credentials.emailIntro"),
+      `${t("admin.studentsPage.credentials.loginPage")}: ${createdStudentCredentials.loginUrl}`,
+      `${t("admin.studentsPage.credentials.accountEmail")}: ${createdStudentCredentials.email}`,
+      `${t("admin.studentsPage.credentials.password")}: ${createdStudentCredentials.password}`,
     ].join("\n");
     const mailtoUrl = `mailto:${encodeURIComponent(createdStudentCredentials.email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
     window.location.href = mailtoUrl;
@@ -643,13 +660,13 @@ export default function AdminStudentsPage() {
       if (selectedSort === "name_asc") {
         return buildDisplayName(left).localeCompare(
           buildDisplayName(right),
-          "ru",
+          i18nInstance.language,
         );
       }
       if (selectedSort === "name_desc") {
         return buildDisplayName(right).localeCompare(
           buildDisplayName(left),
-          "ru",
+          i18nInstance.language,
         );
       }
       const leftDate = new Date(left.registrationDate).getTime();
@@ -658,36 +675,35 @@ export default function AdminStudentsPage() {
       return rightDate - leftDate;
     });
     return nextStudents;
-  }, [filteredStudents, selectedSort]);
+  }, [filteredStudents, selectedSort, i18nInstance.language]);
 
   return (
     <div className="std-root">
       <style>{STUDENTS_PAGE_CSS}</style>
       <div className="std-page">
-        <h1 className="std-title">Ученики</h1>
+        <h1 className="std-title">{t("admin.studentsPage.title")}</h1>
 
+        {/* Unpaid plan banner — hidden until billing is wired up
         <div className="std-warning">
           <div className="std-warning-text">
             <AlertCircle size={16} />
-            <span>
-              Тариф не оплачен. Оплатите тариф для возобновления доступа к
-              платформе.
-            </span>
+            <span>{t("admin.studentsPage.unpaidWarning")}</span>
           </div>
           <button
             type="button"
             className="std-warning-btn"
           >
-            Выбрать тариф
+            {t("admin.studentsPage.choosePlan")}
           </button>
         </div>
+        */}
 
         <div className="std-search">
           <Search size={14} />
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Поиск учеников"
+            placeholder={t("admin.studentsPage.searchPlaceholder")}
           />
         </div>
 
@@ -698,21 +714,21 @@ export default function AdminStudentsPage() {
               onClick={() => setSelectedTab("all")}
               className={`std-tab ${selectedTab === "all" ? "on" : ""}`}
             >
-              Все
+              {t("admin.studentsPage.tabs.all")}
             </button>
             <button
               type="button"
               onClick={() => setSelectedTab("online")}
               className={`std-tab ${selectedTab === "online" ? "on" : ""}`}
             >
-              Онлайн-уроки
+              {t("admin.studentsPage.tabs.online")}
             </button>
             <button
               type="button"
               onClick={() => setSelectedTab("marathons")}
               className={`std-tab ${selectedTab === "marathons" ? "on" : ""}`}
             >
-              Марафоны
+              {t("admin.studentsPage.tabs.marathons")}
             </button>
           </div>
 
@@ -722,7 +738,7 @@ export default function AdminStudentsPage() {
                 type="button"
                 onClick={() => setIsListView(false)}
                 className={`std-vbtn ${!isListView ? "on" : ""}`}
-                title="Сетка"
+                title={t("admin.studentsPage.viewGrid")}
               >
                 <Grid2X2 size={14} />
               </button>
@@ -730,12 +746,16 @@ export default function AdminStudentsPage() {
                 type="button"
                 onClick={() => setIsListView(true)}
                 className={`std-vbtn ${isListView ? "on" : ""}`}
-                title="Список"
+                title={t("admin.studentsPage.viewList")}
               >
                 <List size={14} />
               </button>
             </div>
-            <button type="button" className="std-icon-btn" title="Фильтры">
+            <button
+              type="button"
+              className="std-icon-btn"
+              title={t("admin.studentsPage.filters")}
+            >
               <SlidersHorizontal size={14} />
             </button>
             <div className="std-select-wrap">
@@ -743,12 +763,12 @@ export default function AdminStudentsPage() {
                 value={selectedSort}
                 onChange={(event) =>
                   setSelectedSort(
-                    event.target.value as (typeof SORT_OPTIONS)[number]["value"],
+                    event.target.value as (typeof SORT_OPTION_KEYS)[number]["value"],
                   )
                 }
                 className="std-select"
               >
-                {SORT_OPTIONS.map((option) => (
+                {sortOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -759,7 +779,9 @@ export default function AdminStudentsPage() {
           </div>
         </div>
 
-        <p className="std-result-count">Кол-во учеников {sortedStudents.length}</p>
+        <p className="std-result-count">
+          {t("admin.studentsPage.resultCount", { count: sortedStudents.length })}
+        </p>
 
         <div className="std-list">
           <button
@@ -768,7 +790,7 @@ export default function AdminStudentsPage() {
             className="std-create-btn"
           >
             <Plus size={14} />
-            <span>Создать ученика</span>
+            <span>{t("admin.studentsPage.createStudent")}</span>
           </button>
 
           {sortedStudents.map((student) => (
@@ -800,14 +822,14 @@ export default function AdminStudentsPage() {
                 className="std-profile-btn"
               >
                 <UserRound size={14} />
-                Профиль ученика
+                {t("admin.studentsPage.studentProfile")}
               </button>
             </div>
           ))}
 
           {sortedStudents.length === 0 && (
             <div className="std-empty">
-              Ученики не найдены. Попробуйте изменить поиск.
+              {t("admin.studentsPage.empty")}
             </div>
           )}
         </div>

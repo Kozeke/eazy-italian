@@ -3,6 +3,7 @@
  * Displays student identity and class enrollment management in a card-based layout.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Info, Mail, Phone, Plus, UserRound, X } from "lucide-react";
 import { coursesApi, gradesApi, usersApi } from "../../services/api";
@@ -450,18 +451,30 @@ const STUDENT_VIEW_CSS = `
 `;
 
 // formatDateLabel converts ISO timestamps to compact localized labels.
-function formatDateLabel(isoDate: string | null): string {
+function formatDateLabel(isoDate: string | null, locale: string): string {
   if (!isoDate) return "—";
-  return new Date(isoDate).toLocaleDateString("ru-RU", {
+  return new Date(isoDate).toLocaleDateString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
+/**
+ * resolveDateLocale maps i18n language codes to BCP 47 locales for date formatting.
+ */
+function resolveDateLocale(language: string): string {
+  if (language.startsWith("ru")) return "ru-RU";
+  if (language.startsWith("it")) return "it-IT";
+  return "en-US";
+}
+
 export default function AdminStudentViewPage() {
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // Stores BCP 47 locale used for date labels on this page.
+  const dateLocale = resolveDateLocale(i18n.language);
 
   // Stores available teacher courses for enrollment modal.
   const [courses, setCourses] = useState<TeacherCourseOption[]>([]);
@@ -511,22 +524,27 @@ export default function AdminStudentViewPage() {
     return "S";
   }, [studentFullName]);
 
-  // Reads phone from optional profile metadata.
-  const studentPhone = useMemo(() => {
+  // Reads phone from optional profile metadata when provided.
+  const studentPhoneRaw = useMemo(() => {
     const phoneValue = student?.notification_prefs?.phone;
     return typeof phoneValue === "string" && phoneValue.trim().length > 0
       ? phoneValue
-      : "Телефон не указан";
+      : null;
   }, [student]);
+
+  // Formats phone for display, including a localized placeholder when missing.
+  const studentPhoneDisplay = studentPhoneRaw ?? t("admin.studentsPage.view.phoneNotProvided");
 
   // Derives informational login-status text shown in the blue alert row.
   const loginStatusMessage = useMemo(() => {
     if (!student) return "";
     if (!student.last_login) {
-      return "Этот ученик еще не входил в свой аккаунт";
+      return t("admin.studentsPage.view.neverLoggedIn");
     }
-    return `Последний вход: ${formatDateLabel(student.last_login)}`;
-  }, [student]);
+    return t("admin.studentsPage.view.lastLogin", {
+      date: formatDateLabel(student.last_login, dateLocale),
+    });
+  }, [student, t, dateLocale]);
   // Stores credential details rendered by the shared student-login modal.
   const loginCredentials = useMemo<StudentLoginCredentials | null>(() => {
     if (!student) return null;
@@ -537,13 +555,13 @@ export default function AdminStudentViewPage() {
     const passwordDisplay =
       student.temporary_password != null && student.temporary_password.trim().length > 0
         ? student.temporary_password
-        : "Устанавливается учеником";
+        : t("admin.studentsPage.view.passwordSetByStudent");
     return {
       loginUrl: loginPageUrl,
       email: student.email,
       password: passwordDisplay,
     };
-  }, [student]);
+  }, [student, t]);
 
   // Builds initial values so edit modal opens prefilled with current student profile.
   const editModalInitialData = useMemo<AddStudentFormData | undefined>(() => {
@@ -553,24 +571,24 @@ export default function AdminStudentViewPage() {
     const normalizedNativeLanguage =
       typeof nativeLanguageValue === "string" && nativeLanguageValue.trim().length > 0
         ? nativeLanguageValue
-        : "Русский";
+        : "Russian";
     const normalizedTimezone =
       typeof timezoneValue === "string" && timezoneValue.trim().length > 0
         ? timezoneValue
         : "UTC";
     return {
       email: student.email,
-      phone: typeof studentPhone === "string" && studentPhone !== "Телефон не указан" ? studentPhone : "",
+      phone: studentPhoneRaw ?? "",
       firstName: studentFullName,
       nativeLanguage: normalizedNativeLanguage,
       timezone: normalizedTimezone,
     };
-  }, [student, studentFullName, studentPhone]);
+  }, [student, studentFullName, studentPhoneRaw]);
 
   // Loads profile and enrollment data for the selected student id.
   useEffect(() => {
     if (!Number.isFinite(studentId) || studentId <= 0) {
-      setPageError("Неверный идентификатор ученика");
+      setPageError(t("admin.studentsPage.view.invalidId"));
       setIsLoadingPage(false);
       return;
     }
@@ -587,7 +605,7 @@ export default function AdminStudentViewPage() {
         if (!isMounted) return;
         const selectedStudent = studentsResponse.find((entry: any) => entry.id === studentId);
         if (!selectedStudent) {
-          setPageError("Ученик не найден");
+          setPageError(t("admin.studentsPage.view.notFound"));
           return;
         }
         setStudent({
@@ -605,7 +623,9 @@ export default function AdminStudentViewPage() {
       })
       .catch((error: any) => {
         if (!isMounted) return;
-        setPageError(error?.response?.data?.detail ?? "Не удалось загрузить страницу ученика");
+        setPageError(
+          error?.response?.data?.detail ?? t("admin.studentsPage.view.loadError"),
+        );
       })
       .finally(() => {
         if (!isMounted) return;
@@ -615,7 +635,7 @@ export default function AdminStudentViewPage() {
     return () => {
       isMounted = false;
     };
-  }, [studentId]);
+  }, [studentId, t]);
 
   // Loads teacher course options each time enrollment modal opens.
   useEffect(() => {
@@ -633,10 +653,12 @@ export default function AdminStudentViewPage() {
         setSelectedCourseId(mappedCourses[0]?.id ?? null);
       })
       .catch((error: any) => {
-        setEnrollError(error?.response?.data?.detail ?? "Не удалось загрузить курсы");
+        setEnrollError(
+          error?.response?.data?.detail ?? t("admin.studentsPage.view.loadCoursesError"),
+        );
       })
       .finally(() => setIsLoadingCourses(false));
-  }, [isEnrollModalOpen]);
+  }, [isEnrollModalOpen, t]);
 
   // Refreshes only enrollments after a successful class assignment.
   const refreshEnrollments = async () => {
@@ -656,12 +678,14 @@ export default function AdminStudentViewPage() {
       setIsEnrollModalOpen(false);
       setEnrollSuccess(
         result.already_enrolled
-          ? "Ученик уже записан в этот класс"
-          : "Ученик успешно записан в класс",
+          ? t("admin.studentsPage.view.enrollAlready")
+          : t("admin.studentsPage.view.enrollSuccess"),
       );
       await refreshEnrollments();
     } catch (error: any) {
-      setEnrollError(error?.response?.data?.detail ?? "Не удалось записать ученика в класс");
+      setEnrollError(
+        error?.response?.data?.detail ?? t("admin.studentsPage.view.enrollError"),
+      );
     } finally {
       setIsEnrolling(false);
     }
@@ -692,7 +716,9 @@ export default function AdminStudentViewPage() {
       });
       setIsEditModalOpen(false);
     } catch (error: any) {
-      setUpdateError(error?.response?.data?.detail ?? "Не удалось сохранить данные ученика");
+      setUpdateError(
+        error?.response?.data?.detail ?? t("admin.studentsPage.view.updateError"),
+      );
     } finally {
       setIsUpdatingStudent(false);
     }
@@ -702,7 +728,9 @@ export default function AdminStudentViewPage() {
   const handleDeleteStudent = async () => {
     if (!Number.isFinite(studentId) || studentId <= 0) return;
     // Prevents accidental irreversible deletion without explicit user confirmation.
-    const shouldDeleteStudent = window.confirm("Вы уверены, что хотите удалить ученика?");
+    const shouldDeleteStudent = window.confirm(
+      t("admin.studentsPage.view.deleteConfirm"),
+    );
     if (!shouldDeleteStudent) return;
     setUpdateError(null);
     setIsDeletingStudent(true);
@@ -711,7 +739,9 @@ export default function AdminStudentViewPage() {
       setIsEditModalOpen(false);
       navigate("/admin/students");
     } catch (error: any) {
-      setUpdateError(error?.response?.data?.detail ?? "Не удалось удалить ученика");
+      setUpdateError(
+        error?.response?.data?.detail ?? t("admin.studentsPage.view.deleteError"),
+      );
     } finally {
       setIsDeletingStudent(false);
     }
@@ -721,10 +751,10 @@ export default function AdminStudentViewPage() {
     if (!loginCredentials) return;
     // Stores formatted credentials text used in clipboard copy action.
     const shareMessage = [
-      "Данные для входа ученика в личный кабинет:",
-      `Страница входа: ${loginCredentials.loginUrl}`,
-      `Почта аккаунта: ${loginCredentials.email}`,
-      `Пароль: ${loginCredentials.password}`,
+      t("admin.studentsPage.credentials.shareHeader"),
+      `${t("admin.studentsPage.credentials.loginPage")}: ${loginCredentials.loginUrl}`,
+      `${t("admin.studentsPage.credentials.accountEmail")}: ${loginCredentials.email}`,
+      `${t("admin.studentsPage.credentials.password")}: ${loginCredentials.password}`,
     ].join("\n");
     await navigator.clipboard.writeText(shareMessage);
   };
@@ -732,15 +762,15 @@ export default function AdminStudentViewPage() {
   const handleSendLoginCredentials = () => {
     if (!loginCredentials) return;
     // Stores email subject for the generated credentials message.
-    const emailSubject = "Данные для входа в личный кабинет";
+    const emailSubject = t("admin.studentsPage.credentials.emailSubject");
     // Stores message body that includes student login URL, email and password text.
     const emailBody = [
-      "Здравствуйте!",
+      t("admin.studentsPage.credentials.emailGreeting"),
       "",
-      "Отправляю данные для входа ученика в личный кабинет:",
-      `Страница входа: ${loginCredentials.loginUrl}`,
-      `Почта аккаунта: ${loginCredentials.email}`,
-      `Пароль: ${loginCredentials.password}`,
+      t("admin.studentsPage.credentials.emailIntro"),
+      `${t("admin.studentsPage.credentials.loginPage")}: ${loginCredentials.loginUrl}`,
+      `${t("admin.studentsPage.credentials.accountEmail")}: ${loginCredentials.email}`,
+      `${t("admin.studentsPage.credentials.password")}: ${loginCredentials.password}`,
     ].join("\n");
     const mailtoUrl = `mailto:${encodeURIComponent(loginCredentials.email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
     window.location.href = mailtoUrl;
@@ -752,7 +782,7 @@ export default function AdminStudentViewPage() {
         <style>{STUDENT_VIEW_CSS}</style>
         <div className="svp-state-page">
           <div className="svp-spinner" />
-          <p>Загрузка профиля ученика...</p>
+          <p>{t("admin.studentsPage.view.loading")}</p>
         </div>
       </div>
     );
@@ -764,10 +794,10 @@ export default function AdminStudentViewPage() {
         <style>{STUDENT_VIEW_CSS}</style>
         <div className="svp-state-page">
           <p style={{ color: STUDENT_VIEW_THEME.red, fontWeight: 700 }}>
-            {pageError ?? "Не удалось отобразить ученика"}
+            {pageError ?? t("admin.studentsPage.view.displayError")}
           </p>
           <button onClick={() => navigate(-1)} className="svp-primary-btn" style={{ marginTop: 14 }}>
-            Вернуться назад
+            {t("admin.studentsPage.view.goBack")}
           </button>
         </div>
       </div>
@@ -783,7 +813,7 @@ export default function AdminStudentViewPage() {
             <button
               onClick={() => navigate(-1)}
               className="svp-back-btn"
-              aria-label="Назад"
+              aria-label={t("admin.studentsPage.view.back")}
             >
               <ArrowLeft size={16} />
             </button>
@@ -794,7 +824,7 @@ export default function AdminStudentViewPage() {
                 <div className="svp-meta">
                   <span className="svp-meta-item">
                     <Phone size={13} />
-                    {studentPhone}
+                    {studentPhoneDisplay}
                   </span>
                   <span className="svp-meta-item">
                     <Mail size={13} />
@@ -812,7 +842,7 @@ export default function AdminStudentViewPage() {
             }}
             className="svp-ghost-btn"
           >
-            Редактировать
+            {t("admin.studentsPage.view.edit")}
           </button>
         </div>
 
@@ -824,7 +854,7 @@ export default function AdminStudentViewPage() {
             {loginStatusMessage}
           </span>
           <button onClick={() => setIsLoginModalOpen(true)} className="svp-primary-btn">
-            Данные для входа
+            {t("admin.studentsPage.view.loginDetails")}
           </button>
         </div>
 
@@ -832,7 +862,9 @@ export default function AdminStudentViewPage() {
           {enrollments.length > 0 ? (
             <div>
               <div className="svp-section-head">
-                <h2 className="svp-section-title">Классы ученика</h2>
+                <h2 className="svp-section-title">
+                  {t("admin.studentsPage.view.classesTitle")}
+                </h2>
                 <button
                   onClick={() => {
                     setEnrollError(null);
@@ -842,7 +874,7 @@ export default function AdminStudentViewPage() {
                   className="svp-primary-btn"
                 >
                   <Plus size={14} />
-                  Добавить класс
+                  {t("admin.studentsPage.view.addClass")}
                 </button>
               </div>
               <div className="svp-grid">
@@ -850,10 +882,15 @@ export default function AdminStudentViewPage() {
                   <div key={enrollment.course_id} className="svp-card">
                     <p className="svp-card-title">{enrollment.title}</p>
                     <p className="svp-card-sub">
-                      Уровень: {enrollment.level ?? "—"} · Уроков: {enrollment.total_units}
+                      {t("admin.studentsPage.view.levelUnits", {
+                        level: enrollment.level ?? "—",
+                        units: enrollment.total_units,
+                      })}
                     </p>
                     <p className="svp-card-meta">
-                      Записан: {formatDateLabel(enrollment.enrolled_at)}
+                      {t("admin.studentsPage.view.enrolledOn", {
+                        date: formatDateLabel(enrollment.enrolled_at, dateLocale),
+                      })}
                     </p>
                   </div>
                 ))}
@@ -865,7 +902,7 @@ export default function AdminStudentViewPage() {
                 <UserRound size={28} />
               </div>
               <p className="svp-empty-text">
-                У ученика нет классов, добавьте ему класс чтобы начать обучение
+                {t("admin.studentsPage.view.noClasses")}
               </p>
               <button
                 onClick={() => {
@@ -876,7 +913,7 @@ export default function AdminStudentViewPage() {
                 className="svp-primary-btn"
               >
                 <Plus size={14} />
-                Добавить класс
+                {t("admin.studentsPage.view.addClass")}
               </button>
             </div>
           )}
@@ -895,23 +932,25 @@ export default function AdminStudentViewPage() {
         <div className="svp-overlay">
           <div className="svp-modal">
             <div className="svp-modal-head">
-              <h3 className="svp-modal-title">Добавить класс</h3>
+              <h3 className="svp-modal-title">
+                {t("admin.studentsPage.view.enrollModalTitle")}
+              </h3>
               <button
                 onClick={() => !isEnrolling && setIsEnrollModalOpen(false)}
                 className="svp-close-btn"
-                aria-label="Закрыть"
+                aria-label={t("admin.studentsPage.modal.close")}
               >
                 <X size={18} />
               </button>
             </div>
 
             <p className="svp-modal-note">
-              Выберите курс преподавателя для записи ученика.
+              {t("admin.studentsPage.view.enrollModalNote")}
             </p>
 
             {isLoadingCourses ? (
               <div style={{ padding: "8px 0", fontSize: 12.5, color: STUDENT_VIEW_THEME.subText }}>
-                Загрузка курсов...
+                {t("admin.studentsPage.view.loadingCourses")}
               </div>
             ) : (
               <select
@@ -935,14 +974,16 @@ export default function AdminStudentViewPage() {
                 disabled={isEnrolling}
                 className="svp-secondary-btn"
               >
-                Отмена
+                {t("admin.studentsPage.modal.cancel")}
               </button>
               <button
                 onClick={handleEnrollStudent}
                 disabled={isEnrolling || isLoadingCourses || !selectedCourseId}
                 className="svp-primary-btn"
               >
-                {isEnrolling ? "Сохранение..." : "Добавить"}
+                {isEnrolling
+                  ? t("admin.studentsPage.modal.saving")
+                  : t("admin.studentsPage.view.add")}
               </button>
             </div>
           </div>
