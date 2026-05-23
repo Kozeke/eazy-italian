@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm, HTTPBearer, HTTPAuthoriz
 from sqlalchemy.orm import Session
 from datetime import timedelta, datetime, timezone
 from typing import Optional
+import logging
 import random
 import string
 from app.core.database import get_db
@@ -22,6 +23,7 @@ from app.models.subscription import Subscription, SubscriptionName, UserSubscrip
 from app.services.email_service import EmailService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Returns an active FREE subscription row, creating it for new databases when needed.
 def get_or_create_free_subscription(db: Session) -> Subscription:
@@ -238,6 +240,43 @@ def generate_verification_code() -> str:
     """Generate a 6-digit verification code"""
     return ''.join(random.choices(string.digits, k=6))
 
+
+def finalize_verification_code_delivery(
+    db: Session,
+    *,
+    email: str,
+    code: str,
+    email_service: EmailService,
+    subject: str,
+    body: str,
+    html_body: str,
+    failure_detail: str,
+) -> None:
+    """
+    Commit the pending verification row after SMTP succeeds.
+    Rolls back (no row persisted) when SMTP fails in production.
+    In development, keeps the code valid and logs it so local signup works without SMTP.
+    """
+    is_email_sent = email_service.send_email(email, subject, body, html_body)
+    if is_email_sent:
+        db.commit()
+        return
+
+    if settings.ENVIRONMENT == "development":
+        logger.warning(
+            "SMTP failed for %s; verification code kept for local dev: %s",
+            email,
+            code,
+        )
+        db.commit()
+        return
+
+    db.rollback()
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=failure_detail,
+    )
+
 @router.post("/magic-code")
 def send_magic_code(request: MagicCodeRequest, db: Session = Depends(get_db)):
     """
@@ -280,9 +319,7 @@ def send_magic_code(request: MagicCodeRequest, db: Session = Depends(get_db)):
         expires_at=expires_at
     )
     db.add(verification_code)
-    db.commit()
-    
-    # Send email with magic code
+
     email_service = EmailService(db)
     subject = "Your Magic Login Code"
     body = f"""
@@ -310,17 +347,17 @@ def send_magic_code(request: MagicCodeRequest, db: Session = Depends(get_db)):
     </html>
     """
     
-    # Tracks whether the SMTP provider accepted and sent the email.
-    is_email_sent = email_service.send_email(request.email, subject, body, html_body)
-    if not is_email_sent:
-        # Prevents stale verification rows when email delivery fails.
-        verification_code.is_used = True
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Failed to send magic code email. Please try again later."
-        )
-    
+    finalize_verification_code_delivery(
+        db,
+        email=request.email,
+        code=code,
+        email_service=email_service,
+        subject=subject,
+        body=body,
+        html_body=html_body,
+        failure_detail="Failed to send magic code email. Please try again later.",
+    )
+
     return {"message": "Magic code sent to your email"}
 
 @router.post("/check-email")
@@ -359,7 +396,6 @@ def send_registration_code(request: MagicCodeRequest, db: Session = Depends(get_
         expires_at=expires_at
     )
     db.add(verification_code)
-    db.commit()
 
     email_service = EmailService(db)
     subject = "Verify Your Email – Eazy Italian"
@@ -376,16 +412,19 @@ def send_registration_code(request: MagicCodeRequest, db: Session = Depends(get_
         <p>Best regards,<br>Eazy Italian Team</p>
     </body></html>
     """
-    # Tracks whether the SMTP provider accepted and sent the email.
-    is_email_sent = email_service.send_email(request.email, subject, body, html_body)
-    if not is_email_sent:
-        # Prevents stale registration rows when email delivery fails.
-        verification_code.is_used = True
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Failed to send registration code email. Please verify SMTP settings and try again."
-        )
+    finalize_verification_code_delivery(
+        db,
+        email=request.email,
+        code=code,
+        email_service=email_service,
+        subject=subject,
+        body=body,
+        html_body=html_body,
+        failure_detail=(
+            "Failed to send registration code email. "
+            "Please verify SMTP settings and try again."
+        ),
+    )
 
     return {"message": "Registration code sent to your email"}
 

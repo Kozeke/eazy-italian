@@ -7,7 +7,7 @@
  *   3. activation   — OTP: mail icon + "Check your inbox" + single input + inline arrow btn
  *   4. greeting     — welcome splash
  *   5. details      — first name / last name / password (side-label layout)
- *   6. trial        — green check + trial message → /admin/dashboard
+ *   6. trial        — green check + trial message → login new user → role-based home
  *
  * Both Teacher and Student go through the same activation flow
  * Student registration POST → /api/v1/auth/register [unchanged payload]
@@ -25,6 +25,8 @@ import {
 import { LinguAiLogo } from '../global/LinguAiLogo';
 import { API_V1_BASE } from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../hooks/useAuth';
+import type { User as AuthUser } from '../../types';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -64,6 +66,7 @@ type Step = 'email' | 'account-type' | 'student-info' | 'activation' | 'greeting
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { login } = useAuth();
 
   const [step,      setStep]      = useState<Step>('email');
   const [email,     setEmail]     = useState('');
@@ -77,6 +80,10 @@ export default function RegisterPage() {
   const [error,     setError]     = useState('');
   const [resendSecs,setResendSecs]= useState(60);
   const [timerOn,   setTimerOn]   = useState(false);
+  // Holds the user returned after post-registration login so trial CTA routes to the correct home.
+  const [newUser,   setNewUser]   = useState<AuthUser | null>(null);
+  // Prevents duplicate send-registration-code calls (e.g. React Strict Mode double-invoke).
+  const sendCodeInFlightRef = useRef(false);
 
   // Defines which registration step should open when the top-left back icon is clicked.
   const previousStepByStep: Partial<Record<Step, Step>> = {
@@ -116,16 +123,36 @@ export default function RegisterPage() {
 
   const startTimer = () => { setResendSecs(60); setTimerOn(true); };
 
-  const sendRegistrationCode = async () => {
+  const sendRegistrationCode = async (
+    reportError: (msg: string) => void = setError,
+  ): Promise<boolean> => {
+    if (sendCodeInFlightRef.current) return false;
+    sendCodeInFlightRef.current = true;
     try {
-      await fetch(`${API_V1_BASE}/auth/send-registration-code`, {
+      const res = await fetch(`${API_V1_BASE}/auth/send-registration-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-    } catch { /* best-effort */ }
-    startTimer();
-    setStep('activation');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof data.detail === 'string'
+            ? data.detail
+            : t('auth.couldNotSendRegistrationCode'),
+        );
+      }
+      reportError('');
+      startTimer();
+      return true;
+    } catch (err) {
+      reportError(
+        err instanceof Error ? err.message : t('auth.couldNotSendRegistrationCode'),
+      );
+      return false;
+    } finally {
+      sendCodeInFlightRef.current = false;
+    }
   };
 
   // ── step handlers ──────────────────────────────────────────────────────────
@@ -159,13 +186,17 @@ export default function RegisterPage() {
   };
 
   // Step 2 — for teacher: send OTP and proceed to activation; for student: show teacher-required info screen
-  const handleRoleSelect = (selected: 'teacher' | 'student') => {
+  const handleRoleSelect = async (selected: 'teacher' | 'student') => {
     setRole(selected);
+    setError('');
     if (selected === 'student') {
       setStep('student-info');
-    } else {
-      sendRegistrationCode();
+      return;
     }
+    setLoading(true);
+    const sent = await sendRegistrationCode();
+    setLoading(false);
+    if (sent) setStep('activation');
   };
 
   // Step 3 — verify the pre-registration OTP (user doesn't exist yet)
@@ -220,12 +251,27 @@ export default function RegisterPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || data.message || `HTTP ${res.status}`);
       }
+      // Replace any existing session so the dashboard shows this account, not a prior login.
+      const user = await login(email, password);
+      setNewUser(user);
       setStep('trial');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.registrationFailedError'));
     } finally {
       setLoading(false);
     }
+  };
+
+  // Sends the newly registered user to the same home route used after password login.
+  const handleTrialContinue = () => {
+    if (newUser?.role === 'teacher') {
+      navigate(
+        !newUser.onboarding_completed ? '/admin/courses' : '/admin/dashboard',
+        { replace: true },
+      );
+      return;
+    }
+    navigate('/student/classes', { replace: true });
   };
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -331,7 +377,7 @@ export default function RegisterPage() {
             error={otpError}
             timerOn={timerOn}
             resendSecs={resendSecs}
-            onResend={sendRegistrationCode}
+            onResend={() => void sendRegistrationCode(setOtpError)}
             onEditEmail={() => setStep('email')}
           />
         )}
@@ -412,7 +458,7 @@ export default function RegisterPage() {
               {t('auth.trialPeriodBody')}
             </p>
             <BigBtn
-              onClick={() => navigate('/admin/dashboard')}
+              onClick={handleTrialContinue}
               icon={<ArrowRight style={{ width:15, height:15 }} />}
             >
               {t('auth.letsGoBtn')}
@@ -449,7 +495,7 @@ function ActivationStep({
   error: string;
   timerOn: boolean;
   resendSecs: number;
-  onResend: () => void;
+  onResend: () => void | Promise<void>;
   onEditEmail: () => void;
 }) {
   const { t } = useTranslation();
