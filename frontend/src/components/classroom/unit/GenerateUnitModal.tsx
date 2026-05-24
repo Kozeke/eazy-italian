@@ -14,6 +14,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   X, Sparkles, Layers, CheckCircle, AlertCircle,
@@ -461,10 +462,11 @@ export default function GenerateUnitModal({
   unitId, unitTitle, apiBase = DEFAULT_API_BASE, onClose, onSuccess,
 }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   // Navigates teachers to the pricing page when generation quota is exhausted.
   const redirectToTariffs = useCallback(() => {
-    window.location.assign("http://localhost:3000/admin/tariffs");
-  }, []);
+    navigate("/admin/tariffs");
+  }, [navigate]);
   // Strips trailing slashes so fetch URLs never contain "//" after the host.
   const apiBaseNormalized = useMemo(() => apiBase.replace(/\/+$/, ""), [apiBase]);
   // Tab

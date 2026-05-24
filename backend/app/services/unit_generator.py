@@ -968,6 +968,14 @@ Single block (120–180 words in {_il}):
   ### <heading in {_il} meaning "Getting Started">
   1-2 motivating sentences in {_il}."""
 
+            _teacher_directive_overview = ""
+            if request.description and request.description.strip():
+                _teacher_directive_overview = (
+                    f"\nTEACHER DIRECTIVE — MANDATORY (highest priority, overrides all defaults):\n"
+                    f"  {request.description.strip()}\n"
+                    f"Apply every instruction above to ALL content in this section.\n"
+                )
+
             prompt = f"""You are an expert {request.language} language teacher writing engaging lesson content.
 
 Write the INTRODUCTION section for a lesson unit. This section has NO exercises.
@@ -976,7 +984,7 @@ This is Section 1 of {total_sections}.
   Unit topic : {request.topic}
   Level      : {request.level} (CEFR)
   Language   : {request.language}
-
+{_teacher_directive_overview}
 Upcoming sections (in order):
 {upcoming}
 {source_block}
@@ -1034,6 +1042,15 @@ General rules:
 
         teaching_topic = title if (source_excerpt or section_focus) else request.topic
 
+        _teacher_directive_content = ""
+        if request.description and request.description.strip():
+            _teacher_directive_content = (
+                f"\nTEACHER DIRECTIVE — MANDATORY (highest priority, overrides all defaults):\n"
+                f"  {request.description.strip()}\n"
+                f"Every example sentence, vocabulary item, and illustration MUST follow the directive above.\n"
+                f"If the directive names specific TV shows, films, or books, ALL examples must be drawn from them.\n"
+            )
+
         prompt = f"""You are an expert {request.language} language teacher writing engaging lesson content.
 
 Write the educational text block for this lesson segment:
@@ -1044,7 +1061,7 @@ Write the educational text block for this lesson segment:
   Teaches       : {request.language} (target language — vocabulary/examples in this language)
   Explain in    : {request.instruction_language} (grammar rules and instructions in this language)
   Segment index : {segment_index + 1}
-{scope_instruction}
+{_teacher_directive_content}{scope_instruction}
 Return ONLY a single valid JSON object — no markdown fences, no preamble:
 
 {{
@@ -1064,7 +1081,7 @@ Requirements for "text_content":
     3. ### Examples  — 4-6 {request.language} example sentences.
        Format each as:  ✓ *{request.language} sentence* — brief note in {request.instruction_language} why it's correct.
 - Use Markdown: ##, ###, **bold**, *italic*, bullet lists ( - ).
-- Make it engaging: use relatable scenarios (daily life, travel, work).
+- If the teacher directive names specific source material (shows, films, books), ALL examples MUST come from that material.
 - Do NOT include exercises or tasks — text only.
 - Stay strictly within the scope of "{title}". Do not mention topics from other sections.
 - Keep JSON strictly valid: escape inner quotes with \\", no trailing commas."""
@@ -1773,9 +1790,17 @@ Requirements for "text_content":
             text_content_for_hint = " ".join(
                 txt_bp.content for txt_bp in seg_bp.texts
             )
+            _directive_suffix = ""
+            if request.description and request.description.strip():
+                _directive_suffix = (
+                    f"\n\nTEACHER DIRECTIVE — MANDATORY: {request.description.strip()}\n"
+                    f"ALL exercise sentences and vocabulary MUST follow the directive above. "
+                    f"If the directive names specific TV shows, films, or books, draw ALL examples from them."
+                )
             rich_hint = (
                 f"Segment: {seg_bp.title}\n\n"
                 f"{text_content_for_hint[:800]}"
+                f"{_directive_suffix}"
             )
 
             for ex_bp in seg_bp.exercises:

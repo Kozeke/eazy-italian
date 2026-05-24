@@ -737,8 +737,8 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   const showQuota  = quotaStatus === 'ok' && tariffData !== null;
 
   const redirectToTariffs = useCallback(() => {
-    window.location.assign('http://localhost:3000/admin/tariffs');
-  }, []);
+    navigate('/admin/tariffs');
+  }, [navigate]);
 
   // ── QUICK CREATE ─────────────────────────────────────────────────────────────
 
