@@ -93,14 +93,6 @@ function toEditState(outline: any): OutlineEdit {
   };
 }
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token') ?? '';
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 // ─── Subcomponents ────────────────────────────────────────────────────────────
 
 interface FieldProps {
