@@ -1784,6 +1784,36 @@ Requirements for "text_content":
                 # ex_bp.topic_hint is intentionally ignored here — it is a short
                 # label used only for logging, not a content source.
                 hint = rich_hint if rich_hint.strip() else (ex_bp.topic_hint or "")
+
+                # For bilingual courses the text blocks are written in the
+                # INSTRUCTION language (e.g. Russian) with TARGET language examples
+                # embedded.  Prepend an explicit directive so exercise generators
+                # know to produce exercise content in the target language even when
+                # the surrounding explanation text is in the native language.
+                _target_lang = request.language.strip()
+                _native_lang  = request.instruction_language.strip()
+                _cl = (request.content_language or "").strip().lower()
+                if _target_lang and _native_lang and _cl not in ("", "auto") and _target_lang.lower() != _native_lang.lower():
+                    lang_directive = (
+                        f"[LANGUAGE DIRECTIVE] This exercise MUST be entirely in "
+                        f"{_target_lang.upper()} (the target/taught language). "
+                        f"The source text below contains {_native_lang} explanations — "
+                        f"IGNORE the {_native_lang} text; use only the {_target_lang} "
+                        f"examples and vocabulary for exercise content.\n\n"
+                    )
+                    hint = lang_directive + hint
+
+                # match_pairs uses bilingual mode: left = target language word,
+                # right = native language translation.  Pass both language keys
+                # explicitly so the generator activates the bilingual column logic.
+                if ex_bp.type == "match_pairs" and _target_lang and _native_lang and _target_lang.lower() != _native_lang.lower():
+                    ex_generator_params: dict = {
+                        "native_language": _native_lang,
+                        "target_language": _target_lang,
+                    }
+                else:
+                    ex_generator_params = {}
+
                 try:
                     await generate_exercise_for_segment(
                         exercise_type=ex_bp.type,
@@ -1801,7 +1831,7 @@ Requirements for "text_content":
                         topic_hint=hint,
                         content_language=request.content_language,
                         instruction_language=request.instruction_language,
-                        generator_params={},
+                        generator_params=ex_generator_params,
                         # Use the same AI provider that generated the unit text so
                         # exercises don't fall back to _default_provider (Groq) and
                         # fail when GROQ_API_KEY is absent or rate-limited.

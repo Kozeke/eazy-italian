@@ -487,8 +487,9 @@ def _build_passage_prompt(
         lang_lines.append(
             f"The exercise passage (all plain text and every [bracketed] answer) MUST be "
             f"entirely in {content_language.upper()}. "
-            f"The SOURCE CONTENT is in {content_language.upper()} — use it as reference; "
-            "do not write the passage in any other language."
+            f"CRITICAL: The source material may contain grammar explanations in another language "
+            f"(e.g. Russian or another native language) — IGNORE those; write the entire passage "
+            f"and all gap answers in {content_language.upper()} only."
         )
     else:
         lang_lines.append(
@@ -762,9 +763,12 @@ def _build_drag_to_gap_prompt(
     lang_block = ""
     if content_language and content_language != "auto":
         lang_block += (
-            f"\n- The SOURCE CONTENT is written in {content_language.upper()}. "
-            f"Every TextSeg \"value\" and every string in \"gaps\" MUST be in "
-            f"{content_language.upper()} — not in any other language."
+            f"\n- ALL sentence text and ALL gap answers MUST be written in "
+            f"{content_language.upper()} — not in any other language. "
+            f"CRITICAL: The source material may include native-language grammar "
+            f"explanations (e.g. in Russian or another language) — IGNORE that text; "
+            f"every TextSeg 'value' and every entry in 'gaps' must be in "
+            f"{content_language.upper()} only."
         )
     else:
         lang_block += (
@@ -1829,7 +1833,11 @@ async def generate_select_word_form_from_unit_content(
 
     # ── build prompt hints ────────────────────────────────────────────────────
     if content_language and content_language.strip().lower() not in ("", "auto"):
-        lang_hint = f" The passage must be written in {content_language.upper()}."
+        lang_hint = (
+            f" The passage and ALL word choices MUST be written entirely in {content_language.upper()}. "
+            f"CRITICAL: The source material may contain native-language explanations — "
+            f"IGNORE those; write the entire passage and every gap option in {content_language.upper()} only."
+        )
     else:
         lang_hint = " Use the same language as the source material for the passage and all gap words — do NOT use the title/UI language for the body."
     gap_type_hint = f" Focus all gaps on: {gap_type}." if gap_type else ""
@@ -2209,7 +2217,12 @@ async def generate_build_sentence_from_unit_content(
     min_words, max_words = _extract_word_count_from_hint(topic_hint)
 
     if content_language and content_language.strip().lower() not in ("", "auto"):
-        lang_hint = f" Sentences must be in {content_language}."
+        lang_hint = (
+            f" ALL sentences MUST be written entirely in {content_language.upper()}. "
+            f"CRITICAL: The source material may contain grammar explanations in another "
+            f"language — IGNORE those; every sentence the student rearranges must be in "
+            f"{content_language.upper()} only."
+        )
     else:
         lang_hint = " Use the same language as the source material for all sentences."
     title_lang_hint = (
@@ -2349,7 +2362,11 @@ async def generate_order_paragraphs_from_unit_content(
     _provider = provider or _default_provider
     para_count = pair_count or _extract_count_from_hint(topic_hint, default=4)
     if content_language and content_language.strip().lower() not in ("", "auto"):
-        lang_hint = f" Paragraphs must be in {content_language}."
+        lang_hint = (
+            f" ALL paragraphs MUST be written entirely in {content_language.upper()}. "
+            f"CRITICAL: The source material may contain native-language explanations — "
+            f"IGNORE those; every paragraph must be in {content_language.upper()} only."
+        )
     else:
         lang_hint = " Use the same language as the source material for all paragraph text."
     title_lang_hint = (
@@ -2488,7 +2505,11 @@ async def generate_sort_into_columns_from_unit_content(
         )
 
     if content_language and content_language.strip().lower() not in ("", "auto"):
-        lang_hint = f" All column titles and words must be in {content_language}."
+        lang_hint = (
+            f" ALL column titles and words MUST be in {content_language.upper()}. "
+            f"CRITICAL: The source material may contain native-language grammar notes — "
+            f"IGNORE those; every word and column title must be in {content_language.upper()} only."
+        )
     else:
         lang_hint = " Use the same language as the source material for all column titles and words."
     title_lang_hint = (
@@ -3009,8 +3030,10 @@ async def generate_test_without_timer_from_unit_content(
 
     if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = (
-            f" All 'prompt' fields and all option 'text' fields MUST be written "
-            f"in {content_language}."
+            f" Question 'prompt' fields and all answer option 'text' fields MUST be "
+            f"written in {content_language.upper()}. "
+            f"CRITICAL: The source material may include native-language grammar explanations — "
+            f"IGNORE those; write every question and every answer option in {content_language.upper()} only."
         )
     else:
         lang_hint = (
@@ -3274,7 +3297,12 @@ async def generate_true_false_from_unit_content(
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
  
     if content_language and content_language.strip().lower() not in ("", "auto"):
-        lang_hint = f" Statements must be in {content_language}."
+        lang_hint = (
+            f" ALL statements MUST be written entirely in {content_language.upper()}. "
+            f"CRITICAL: The source material may contain explanations in another language "
+            f"(e.g. native-language grammar notes) — IGNORE those; write every statement "
+            f"in {content_language.upper()} only."
+        )
     else:
         lang_hint = " Use the same language as the source material for all statements — do NOT use the UI/title language for statement content."
     title_lang_hint = (

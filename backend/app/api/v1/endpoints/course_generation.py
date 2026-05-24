@@ -760,6 +760,12 @@ async def _stream_generation(
                     level=level,
                     language=language,
                     instruction_language=native_language,
+                    # content_language = the TARGET language (the language the course
+                    # teaches, e.g. "english").  Without this the exercise generators
+                    # default to "auto" and pick up the NATIVE language from the
+                    # Russian/bilingual explanation text blocks — causing all exercises
+                    # to be generated in Russian instead of English.
+                    content_language=language.lower(),
                     num_segments=_DEFAULT_NUM_SEGMENTS,
                     exercise_types=_DEFAULT_EXERCISE_TYPES,
                     teacher_id=user.id if user else (getattr(unit, "created_by", 0) or 0),
