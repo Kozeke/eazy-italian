@@ -193,8 +193,12 @@ async function apiCreateCourse(title, languages = {}) {
   const body = { title, status: 'published', is_visible_to_students: true };
   const targetLanguage = (languages.targetLanguage || '').trim();
   const nativeLanguage = (languages.nativeLanguage || '').trim();
+  // The teacher's generation directive (e.g. "use Harry Potter examples") is
+  // saved here so the backend can inject it into unit text generation later.
+  const description = (languages.description || '').trim();
   if (targetLanguage) body.target_language = targetLanguage;
   if (nativeLanguage) body.native_language = nativeLanguage;
+  if (description) body.description = description;
 
   const res = await fetch(buildAdminApiUrl('/admin/courses'), {
     method: 'POST',
@@ -839,11 +843,13 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       setGenStep(1);
 
       // ── Step 1: create course row ────────────────────────────────────────────
-      // Persist target/native language on the course so future unit & exercise
-      // generation and admin filters can read them without prompting again.
+      // Persist target/native language and the teacher's directive on the course
+      // so unit generation can inject the directive (e.g. "use Harry Potter
+      // examples") into every text-block and exercise prompt later.
       const course = await apiCreateCourse(outline.title, {
         targetLanguage,
         nativeLanguage,
+        description: desc,
       });
       if (thumbFile) {
         try { await apiUploadThumbnail(course.id, thumbFile); }
@@ -878,6 +884,11 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
         }
         if (nativeLanguage) {
           sessionStorage.setItem(`ai_native_language_${course.id}`, nativeLanguage);
+        }
+        // Cache the teacher's directive so the stream endpoint can re-read it
+        // from sessionStorage if course.description was somehow not saved.
+        if (desc) {
+          sessionStorage.setItem(`ai_description_${course.id}`, desc);
         }
       } catch {
         // sessionStorage full — not critical

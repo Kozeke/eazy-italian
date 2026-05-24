@@ -269,12 +269,17 @@ class UnitGeneratorService:
         """
         logger.info(
             "UnitGenerator: start unit_id=%d teacher_id=%d topic=%r level=%s "
-            "language=%s segments=%d include_images=%s source=%s",
+            "language=%s instruction_language=%s segments=%d include_images=%s source=%s",
             request.unit_id, request.teacher_id, request.topic,
-            request.level, request.language,
+            request.level, request.language, request.instruction_language,
             request.num_segments, request.include_images,
             "file" if request.source_content else "topic",
         )
+        if request.description:
+            logger.info(
+                "UnitGenerator: teacher directive unit_id=%d — %r",
+                request.unit_id, request.description[:200],
+            )
 
         # ── Phase 0: unit plan ────────────────────────────────────────────────
         segment_plans: list[SegmentPlan] = []
@@ -318,6 +323,15 @@ class UnitGeneratorService:
         segments: list[SegmentBlueprint] = []
         for idx, title in enumerate(titles):
             plan_entry = segment_plans[idx] if idx < len(segment_plans) else None
+            # Log what drives this segment so problems are immediately visible in logs
+            logger.info(
+                "UnitGenerator: phase2 segment %d/%d generating — title=%r "
+                "teaches=%r explain_in=%r directive=%r focus=%r",
+                idx + 1, len(titles), title,
+                request.language, request.instruction_language,
+                (request.description or "")[:120],
+                (plan_entry.focus[:120] if plan_entry and plan_entry.focus else "—"),
+            )
             try:
                 seg_bp = await self._generate_segment_text(
                     title, idx, request,
@@ -491,10 +505,31 @@ class UnitGeneratorService:
                 f"each sub-topic becomes its own section):\n  {request.description.strip()}\n"
             )
 
+        # Detect whether the teacher's description references named source materials
+        # (films, books, shows) so the planner can instruct each section focus to
+        # reference them.  Same heuristic used in the outline prompt builder.
+        import re as _re2
+        _SOURCE_HINTS_PLAN = (
+            r"\b(film|movie|show|series|book|novel|song|album|podcast|episode|"
+            r"season|scene|quote|character|chapter|lyrics)\b"
+        )
+        _plan_has_sources = bool(
+            _re2.search(_SOURCE_HINTS_PLAN, request.description or "", _re2.IGNORECASE)
+            or request.source_content
+        )
+        source_reminder = (
+            "\n- Each section's focus and scope MUST reference specific examples or "
+            "quotes from the source materials / shows / books named in the directive.\n"
+            if _plan_has_sources else ""
+        )
+
         prompt = f"""You are an expert language-curriculum designer.
 
-A teacher wants to build a {request.language} lesson unit (level {request.level}) on:
-  Topic: {request.topic}
+A teacher wants to build a bilingual lesson unit:
+  Target language (TAUGHT): {request.language}
+  Explanation language    : {request.instruction_language}
+  Topic                   : {request.topic}
+  Level                   : {request.level}
 {description_block}
 ════════════════════════════════════════
 TASK
@@ -525,6 +560,9 @@ STRICT RULES
 - Follow the teacher's directive exactly — do not add sub-topics not listed there.
 - No two sections may cover the same grammar point or concept.
 - Titles must be concise (2–6 words) and written in {request.instruction_language}.
+- The "focus" field must be written in {request.instruction_language}.
+  Grammar rules and explanations go in {request.instruction_language}.
+  {request.language} words and example phrases appear ONLY as quoted/italic examples inside focus text.{source_reminder}
 
 ════════════════════════════════════════
 OUTPUT FORMAT
@@ -991,8 +1029,10 @@ Upcoming sections (in order):
 {block_spec}
 
 General rules:
-- Grammar explanations, learning outcomes, and all prose MUST be written in {request.instruction_language}.
-- {request.language} words, phrases, and example sentences appear as TARGET LANGUAGE examples (shown in italics or quotes), NOT as the explanation language.
+BILINGUAL RULE (most important):
+- ALL prose, headings (## / ###), learning outcomes, and explanations MUST be written in {request.instruction_language}.
+- {request.language} words and phrases appear ONLY as TARGET LANGUAGE examples shown in *italics* or quotes.
+  NEVER use {request.language} as the explanation language.
 - Use Markdown: ##, ###, **bold**, bullet/numbered lists.
 - Do NOT teach any individual sub-topic in depth — this is an orientation section only.
 - Do NOT include exercises, tasks, or fill-in-the-blank activities.
@@ -1050,6 +1090,15 @@ General rules:
                 f"Every example sentence, vocabulary item, and illustration MUST follow the directive above.\n"
                 f"If the directive names specific TV shows, films, or books, ALL examples must be drawn from them.\n"
             )
+            logger.info(
+                "UnitGenerator: injecting teacher directive into segment %r — %r",
+                title, request.description[:160],
+            )
+        else:
+            logger.info(
+                "UnitGenerator: no teacher directive for segment %r — using topic-only generation",
+                title,
+            )
 
         prompt = f"""You are an expert {request.language} language teacher writing engaging lesson content.
 
@@ -1072,16 +1121,22 @@ Return ONLY a single valid JSON object — no markdown fences, no preamble:
 }}
 
 Requirements for "text_content":
-- ALL prose explanations (grammar rules, key points, notes) MUST be written in {request.instruction_language}.
-- {request.language} vocabulary, example sentences, and phrases appear as TARGET LANGUAGE content — shown in *italics* or quotes, never as the explanation language.
+BILINGUAL RULE (most important):
+- ALL prose explanations, grammar rules, key points, and notes MUST be written in {request.instruction_language}.
+- {request.language} words, phrases, and example sentences appear ONLY as TARGET LANGUAGE content
+  — shown in *italics* or double-quotes. NEVER write explanations in {request.language}.
+- Every ## / ### heading must also be in {request.instruction_language}.
 - 120–250 words — substantive but focused.
-- Structure (use all three):
-    1. ## Rule / Explanation  — the key rule or concept in {request.instruction_language}, 2-4 sentences.
-    2. ### Key Points  — 3-5 bullet points in {request.instruction_language} with bold {request.language} key terms.
-    3. ### Examples  — 4-6 {request.language} example sentences.
+- Structure (use all three sections):
+    1. ## Rule / Explanation  — the key rule or concept written in {request.instruction_language}, 2-4 sentences.
+    2. ### Key Points  — 3-5 bullet points in {request.instruction_language}.
+       Each point highlights a {request.language} key term in **bold**, then explains it in {request.instruction_language}.
+    3. ### Examples  — 4-6 {request.language} example sentences (the TARGET language).
        Format each as:  ✓ *{request.language} sentence* — brief note in {request.instruction_language} why it's correct.
 - Use Markdown: ##, ###, **bold**, *italic*, bullet lists ( - ).
-- If the teacher directive names specific source material (shows, films, books), ALL examples MUST come from that material.
+- SOURCE MATERIAL: if the teacher directive names specific shows, films, books, or characters,
+  ALL example sentences in the Examples section MUST be drawn from those named sources.
+  Do NOT use generic made-up sentences when real source material is specified.
 - Do NOT include exercises or tasks — text only.
 - Stay strictly within the scope of "{title}". Do not mention topics from other sections.
 - Keep JSON strictly valid: escape inner quotes with \\", no trailing commas."""
@@ -1810,22 +1865,70 @@ Requirements for "text_content":
                 # label used only for logging, not a content source.
                 hint = rich_hint if rich_hint.strip() else (ex_bp.topic_hint or "")
 
-                # For bilingual courses the text blocks are written in the
-                # INSTRUCTION language (e.g. Russian) with TARGET language examples
-                # embedded.  Prepend an explicit directive so exercise generators
-                # know to produce exercise content in the target language even when
-                # the surrounding explanation text is in the native language.
                 _target_lang = request.language.strip()
                 _native_lang  = request.instruction_language.strip()
-                _cl = (request.content_language or "").strip().lower()
-                if _target_lang and _native_lang and _cl not in ("", "auto") and _target_lang.lower() != _native_lang.lower():
-                    lang_directive = (
-                        f"[LANGUAGE DIRECTIVE] This exercise MUST be entirely in "
-                        f"{_target_lang.upper()} (the target/taught language). "
-                        f"The source text below contains {_native_lang} explanations — "
-                        f"IGNORE the {_native_lang} text; use only the {_target_lang} "
-                        f"examples and vocabulary for exercise content.\n\n"
-                    )
+                _is_bilingual = (
+                    _target_lang
+                    and _native_lang
+                    and _target_lang.lower() != _native_lang.lower()
+                )
+
+                # ── Per-exercise-type language directive ──────────────────────
+                # Each exercise type has its own language contract:
+                #
+                #  • drag_to_gap / type_word_in_gap / build_sentence /
+                #    order_paragraphs / sort_into_columns / select_word_form /
+                #    drag_word_to_image / type_word_to_image /
+                #    select_form_to_image
+                #      → ALL content in TARGET language only.
+                #        Title in NATIVE (instruction) language.
+                #
+                #  • match_pairs
+                #      → Left column: TARGET language word/phrase.
+                #        Right column: NATIVE language translation.
+                #        Both columns present, each in its own language.
+                #
+                #  • test_without_timer / test_with_timer / true_false
+                #      → Questions (prompts) may mix languages to test
+                #        comprehension (e.g. "What does X mean?").
+                #        Answer options in TARGET language.
+                #        Title in NATIVE language.
+                #
+                # The hint prepended here is read by every generator's prompt
+                # builder.  Generator-level lang_hint (content_language param)
+                # handles the actual enforcement; this directive is belt-and-
+                # suspenders for the LLM.
+                if _is_bilingual:
+                    if ex_bp.type == "match_pairs":
+                        lang_directive = (
+                            f"[LANGUAGE DIRECTIVE — MATCH PAIRS BILINGUAL MODE]\n"
+                            f"Left column  → word or phrase in {_target_lang.upper()} (the language being taught).\n"
+                            f"Right column → its translation in {_native_lang.upper()} (the student's native language).\n"
+                            f"Do NOT put both sides in the same language.\n"
+                            f"Title: write in {_native_lang.upper()}.\n\n"
+                        )
+                    elif ex_bp.type in ("test_without_timer", "test_with_timer", "true_false"):
+                        lang_directive = (
+                            f"[LANGUAGE DIRECTIVE — TEST/TRUE-FALSE]\n"
+                            f"Question prompts: may be in {_native_lang.upper()} or {_target_lang.upper()} "
+                            f"depending on what is being tested (e.g. comprehension questions in "
+                            f"{_native_lang.upper()}, grammar identification in {_target_lang.upper()}).\n"
+                            f"Answer options: MUST be in {_target_lang.upper()}.\n"
+                            f"Title: write in {_native_lang.upper()}.\n"
+                            f"Source text below contains {_native_lang.upper()} grammar explanations — "
+                            f"use the {_target_lang.upper()} examples embedded in them for answer options.\n\n"
+                        )
+                    else:
+                        # All other exercise types: target language only
+                        lang_directive = (
+                            f"[LANGUAGE DIRECTIVE — EXERCISES]\n"
+                            f"ALL exercise content (sentences, words, gaps, answer options) MUST be "
+                            f"entirely in {_target_lang.upper()} (the language being taught).\n"
+                            f"The source text below contains {_native_lang.upper()} grammar explanations — "
+                            f"IGNORE those; extract only the {_target_lang.upper()} example sentences "
+                            f"and vocabulary for exercise content.\n"
+                            f"Title: write in {_native_lang.upper()}.\n\n"
+                        )
                     hint = lang_directive + hint
 
                 # NOTE: native_language / target_language for match_pairs bilingual

@@ -43,8 +43,11 @@ import {
   Trash2,
 } from 'lucide-react';
 import { API_V1_BASE } from '../../../services/api';
+import { fetchWithAuth } from '../../../services/apiClient';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
+// NOTE: authHeaders() is kept only for segment-plan POST (non-critical read).
+// The PATCH outline call now uses fetchWithAuth so token refresh is handled.
 
 const DS = {
   primary:     '#6C6FEF',
@@ -110,12 +113,15 @@ async function patchOutline(
   courseId: number,
   units: Array<{ title: string; description: string; sections: any[] }>,
 ): Promise<void> {
-  const res = await fetch(`${API_V1_BASE}/course-builder/${courseId}/outline`, {
+  // Uses fetchWithAuth so a 401 (expired token) triggers a silent refresh + retry.
+  const res = await fetchWithAuth(`${API_V1_BASE}/course-builder/${courseId}/outline`, {
     method: 'PATCH',
-    headers: authHeaders(),
     body: JSON.stringify({ units }),
   });
-  if (!res.ok) throw new Error(`Patch outline failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail ?? `Patch outline failed: ${res.status}`);
+  }
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -752,6 +758,8 @@ export default function CourseOutlineReviewPanel({
   const allDone    = !isGenerating && doneCount > 0 && doneCount >= totalUnits;
 
   const [addingUnit, setAddingUnit] = React.useState(false);
+  // Stores the last outline-mutation error so the teacher sees feedback instead of silence.
+  const [outlineError, setOutlineError] = React.useState<string | null>(null);
 
   const dbUnitByIndex = React.useMemo(() => {
     const map: Record<number, any> = {};
@@ -766,6 +774,7 @@ export default function CourseOutlineReviewPanel({
   // ── Remove a unit from the outline ────────────────────────────────────────
   const handleRemoveUnit = React.useCallback(async (index: number) => {
     if (!courseId || isGenerating) return;
+    setOutlineError(null);
     const next = outlineUnits.filter((_: any, i: number) => i !== index);
     try {
       await patchOutline(
@@ -777,12 +786,16 @@ export default function CourseOutlineReviewPanel({
         })),
       );
       onOutlineChanged?.({ ...(outline ?? {}), units: next });
-    } catch { /* silently ignore */ }
+    } catch (err) {
+      // Surface the error so the teacher knows the unit was NOT removed.
+      setOutlineError(err instanceof Error ? err.message : 'Failed to remove unit');
+    }
   }, [courseId, isGenerating, outlineUnits, outline, onOutlineChanged]);
 
   // ── Add a blank unit to the outline ───────────────────────────────────────
   const handleAddUnit = React.useCallback(async () => {
     if (!courseId || isGenerating || addingUnit) return;
+    setOutlineError(null);
     setAddingUnit(true);
     const newUnit = {
       title: t('classroom.unitSelector.unnamedUnit', { index: outlineUnits.length + 1 }),
@@ -800,8 +813,10 @@ export default function CourseOutlineReviewPanel({
         })),
       );
       onOutlineChanged?.({ ...(outline ?? {}), units: next });
-    } catch { /* silently ignore */ }
-    finally { setAddingUnit(false); }
+    } catch (err) {
+      // Surface the error so the teacher knows the unit was NOT added.
+      setOutlineError(err instanceof Error ? err.message : 'Failed to add unit');
+    } finally { setAddingUnit(false); }
   }, [courseId, isGenerating, addingUnit, outlineUnits, outline, onOutlineChanged, t]);
 
   return (
@@ -888,6 +903,27 @@ export default function CourseOutlineReviewPanel({
           </div>
         )}
       </div>
+
+      {/* ── Outline mutation error banner ────────────────────────────────── */}
+      {outlineError && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          margin: '8px 18px 0',
+          padding: '8px 12px',
+          background: DS.dangerBg,
+          border: `1px solid ${DS.danger}`,
+          borderRadius: 8,
+          fontSize: 12, color: DS.danger, fontWeight: 500,
+        }}>
+          <AlertCircle size={14} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{outlineError}</span>
+          <button
+            onClick={() => setOutlineError(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: DS.danger, lineHeight: 1 }}
+            aria-label="Dismiss error"
+          >×</button>
+        </div>
+      )}
 
       {/* ── Unit list ────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px 4px', overscrollBehavior: 'contain' }}>

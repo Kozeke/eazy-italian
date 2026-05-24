@@ -18,6 +18,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { API_V1_BASE } from '../../../services/api';
+import { fetchWithAuth } from '../../../services/apiClient';
 import {
   X,
   Plus,
@@ -291,9 +292,9 @@ export default function EditOutlineModal({
     };
 
     try {
-      const res = await fetch(`${API_V1_BASE}/course-builder/${courseId}/outline`, {
+      // Uses fetchWithAuth so a 401 (expired token) triggers a silent refresh + retry.
+      const res = await fetchWithAuth(`${API_V1_BASE}/course-builder/${courseId}/outline`, {
         method:  'PATCH',
-        headers: authHeaders(),
         body:    JSON.stringify(payload),
       });
 

@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from typing import Any, AsyncIterator, Optional
@@ -155,6 +156,19 @@ def _build_outline_prompt(
     tl = (target_language or "").strip()
     nl = (native_language or "").strip()
 
+    # ── Detect whether the teacher referenced any source materials ────────────
+    # Keywords that suggest films, books, shows, or other named sources were
+    # mentioned in the description (e.g. "Harry Potter", "Friends", "The Office").
+    _SOURCE_HINTS = (
+        r"\b(film|movie|show|series|book|novel|song|album|podcast|episode|"
+        r"season|scene|quote|character|chapter|lyrics)\b"
+    )
+    # True when the description names sources OR files were uploaded
+    _has_sources = bool(
+        re.search(_SOURCE_HINTS, description, re.IGNORECASE)
+        or source_content
+    )
+
     # Build the language mandate block — placed at the TOP of the prompt so
     # the model sees it before anything else (LLMs weight early instructions
     # much more heavily than trailing rules, especially smaller/faster models).
@@ -177,6 +191,14 @@ def _build_outline_prompt(
             f"  Write outline in    : {nl} (ALL titles and descriptions must be in {nl})\n"
             f"  CEFR Level          : {level}\n"
         )
+        # Hint for section descriptions — reference named sources when present,
+        # otherwise fall back to asking for a concrete illustrative example.
+        _section_desc_hint = (
+            f"include a specific {tl} example or quote from the sources mentioned "
+            f"in the course description (films, books, shows, etc.)"
+            if _has_sources
+            else f"include a concrete {tl} example sentence relevant to the section topic"
+        )
         # Show a concrete example in the JSON template in the target language
         unit_example = (
             f"    {{\n"
@@ -185,15 +207,24 @@ def _build_outline_prompt(
             f"      \"sections\": [\n"
             f"        {{\n"
             f"          \"title\": \"<section title in {nl} — max 50 chars>\",\n"
-            f"          \"description\": \"<one sentence in {nl} on this section's focus>\"\n"
+            f"          \"description\": \"<one sentence in {nl} on this section's focus; {_section_desc_hint}>\"\n"
             f"        }}\n"
             f"      ]\n"
             f"    }}"
+        )
+        _section_rule = (
+            f"- Every section description MUST include at least one concrete {tl} example "
+            f"or quote drawn from the sources/materials referenced in the course description.\n"
+            if _has_sources
+            else
+            f"- Every section description MUST include at least one concrete {tl} example "
+            f"sentence to illustrate the section topic.\n"
         )
         structural_rules = (
             f"- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.\n"
             f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections (distinct teachable sub-topics).\n"
             f"- ALL text in the JSON (titles, descriptions) must be in {nl}. {tl} appears only as inline examples.\n"
+            f"{_section_rule}"
             f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
             f"- Strictly valid JSON: no trailing commas, no comments."
         )
@@ -207,6 +238,12 @@ def _build_outline_prompt(
             f"  Target Language : {tl}\n"
             f"  CEFR Level      : {level}\n"
         )
+        _section_desc_hint = (
+            f"include a specific {tl} example or quote from the sources mentioned "
+            f"in the course description (films, books, shows, etc.)"
+            if _has_sources
+            else f"include a concrete {tl} example sentence relevant to the section topic"
+        )
         unit_example = (
             f"    {{\n"
             f"      \"title\": \"<unit title in English — max 60 chars>\",\n"
@@ -214,14 +251,23 @@ def _build_outline_prompt(
             f"      \"sections\": [\n"
             f"        {{\n"
             f"          \"title\": \"<section title in English — max 50 chars>\",\n"
-            f"          \"description\": \"<one sentence on this section's focus>\"\n"
+            f"          \"description\": \"<one sentence on this section's focus; {_section_desc_hint}>\"\n"
             f"        }}\n"
             f"      ]\n"
             f"    }}"
         )
+        _section_rule = (
+            f"- Every section description MUST include at least one concrete {tl} example "
+            f"or quote drawn from the sources/materials referenced in the course description.\n"
+            if _has_sources
+            else
+            f"- Every section description MUST include at least one concrete {tl} example "
+            f"sentence to illustrate the section topic.\n"
+        )
         structural_rules = (
             f"- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.\n"
             f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections.\n"
+            f"{_section_rule}"
             f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
             f"- Strictly valid JSON: no trailing commas, no comments."
         )
@@ -233,43 +279,81 @@ def _build_outline_prompt(
             f"  Write outline in: {nl}\n"
             f"  CEFR Level      : {level}\n"
         )
+        _section_desc_hint = (
+            "include a specific example or quote from the sources mentioned in the course description"
+            if _has_sources
+            else "include a concrete example relevant to the section topic"
+        )
+        _unit_desc_hint = (
+            f"include relevant examples from the sources mentioned in the course description"
+            if _has_sources
+            else "include a concrete illustrative example"
+        )
         unit_example = (
             f"    {{\n"
             f"      \"title\": \"<unit title in {nl} — max 60 chars>\",\n"
-            f"      \"description\": \"<1–2 sentences in {nl}>\",\n"
+            f"      \"description\": \"<1–2 sentences in {nl}; {_unit_desc_hint}>\",\n"
             f"      \"sections\": [\n"
             f"        {{\n"
             f"          \"title\": \"<section title in {nl} — max 50 chars>\",\n"
-            f"          \"description\": \"<one sentence in {nl}>\"\n"
+            f"          \"description\": \"<one sentence in {nl} on this section's focus; {_section_desc_hint}>\"\n"
             f"        }}\n"
             f"      ]\n"
             f"    }}"
         )
+        _section_rule = (
+            "- Every section description MUST include at least one concrete example or quote "
+            "drawn from the sources/materials referenced in the course description.\n"
+            if _has_sources
+            else
+            "- Every section description MUST include at least one concrete example "
+            "sentence to illustrate the section topic.\n"
+        )
         structural_rules = (
             f"- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.\n"
             f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections.\n"
+            f"{_section_rule}"
             f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
             f"- Strictly valid JSON: no trailing commas, no comments."
         )
     else:
         lang_mandate = ""
         course_context = f"  CEFR Level: {level}\n"
+        _section_desc_hint = (
+            "include a specific example or quote from the sources mentioned in the course description"
+            if _has_sources
+            else "include a concrete example relevant to the section topic"
+        )
+        _unit_desc_hint = (
+            "include relevant examples from the sources mentioned in the course description"
+            if _has_sources
+            else "include a concrete illustrative example"
+        )
         unit_example = (
             f"    {{\n"
             f"      \"title\": \"<unit title — specific topic, max 60 chars>\",\n"
-            f"      \"description\": \"<1–2 sentences on what students will learn in this unit>\",\n"
+            f"      \"description\": \"<1–2 sentences on what students will learn; {_unit_desc_hint}>\",\n"
             f"      \"sections\": [\n"
             f"        {{\n"
             f"          \"title\": \"<section title — max 50 chars>\",\n"
-            f"          \"description\": \"<one sentence on this section's focus>\"\n"
+            f"          \"description\": \"<one sentence on this section's focus; {_section_desc_hint}>\"\n"
             f"        }}\n"
             f"      ]\n"
             f"    }}"
+        )
+        _section_rule = (
+            "- Every section description MUST include at least one concrete example or quote "
+            "drawn from the sources/materials referenced in the course description.\n"
+            if _has_sources
+            else
+            "- Every section description MUST include at least one concrete example "
+            "sentence to illustrate the section topic.\n"
         )
         structural_rules = (
             f"- Generate {_MIN_UNITS}–{_MAX_UNITS} units, ordered foundational → advanced.\n"
             f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections.\n"
             f"- Titles and descriptions must match the language of the description (default: English).\n"
+            f"{_section_rule}"
             f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
             f"- Strictly valid JSON: no trailing commas, no comments."
         )
@@ -703,6 +787,18 @@ async def _stream_generation(
         db.close()
         return
 
+    # Load the course description so the teacher's directive (e.g. "use examples
+    # from Harry Potter") is forwarded into every UnitGenerateRequest and
+    # propagates into text-block and exercise prompts.
+    course_description: str = ""
+    try:
+        from app.models.course import Course as CourseModel
+        _course = db.query(CourseModel).filter(CourseModel.id == course_id).first()
+        if _course and _course.description:
+            course_description = _course.description.strip()
+    except Exception as exc:
+        logger.warning("stream_course_generation: could not load course description: %s", exc)
+
     # Tracks units that should be skipped when the client reconnects mid-stream.
     done_unit_ids = done_unit_ids or set()
     # Keeps only units that still need generation for this connection.
@@ -773,6 +869,10 @@ async def _stream_generation(
                     # the teacher's uploaded materials.  Empty string when no
                     # files were provided — UnitGeneratorService ignores it.
                     source_content=source_content,
+                    # Forward the teacher's course description so the unit generator
+                    # can inject it as a MANDATORY directive into every text-block
+                    # and exercise prompt (e.g. "use Harry Potter examples").
+                    description=course_description or None,
                 ),
                 db,
             ))
