@@ -226,7 +226,9 @@ def _build_outline_prompt(
             f"- ALL text in the JSON (titles, descriptions) must be in {nl}. {tl} appears only as inline examples.\n"
             f"{_section_rule}"
             f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
-            f"- Strictly valid JSON: no trailing commas, no comments."
+            f"- Strictly valid JSON: no trailing commas, no comments.\n"
+            f"- Use single-quotes for any {tl} example phrases inside description strings "
+            f"(never raw double-quotes, which break JSON)."
         )
     elif tl:
         lang_mandate = (
@@ -269,7 +271,9 @@ def _build_outline_prompt(
             f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections.\n"
             f"{_section_rule}"
             f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
-            f"- Strictly valid JSON: no trailing commas, no comments."
+            f"- Strictly valid JSON: no trailing commas, no comments.\n"
+            f"- Use single-quotes for any {tl} example phrases inside description strings "
+            f"(never raw double-quotes, which break JSON)."
         )
     elif nl:
         lang_mandate = (
@@ -314,7 +318,9 @@ def _build_outline_prompt(
             f"- Each unit must have {_MIN_SECTIONS}–{_MAX_SECTIONS} sections.\n"
             f"{_section_rule}"
             f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
-            f"- Strictly valid JSON: no trailing commas, no comments."
+            f"- Strictly valid JSON: no trailing commas, no comments.\n"
+            f"- Use single-quotes for any example phrases inside description strings "
+            f"(never raw double-quotes, which break JSON)."
         )
     else:
         lang_mandate = ""
@@ -355,7 +361,9 @@ def _build_outline_prompt(
             f"- Titles and descriptions must match the language of the description (default: English).\n"
             f"{_section_rule}"
             f"{'- Ground unit topics directly in the reference material above.' if source_content else ''}\n"
-            f"- Strictly valid JSON: no trailing commas, no comments."
+            f"- Strictly valid JSON: no trailing commas, no comments.\n"
+            f"- Use single-quotes for any example phrases inside description strings "
+            f"(never raw double-quotes, which break JSON)."
         )
 
     return f"""{lang_mandate}You are an expert language-teaching curriculum designer.
@@ -377,6 +385,63 @@ Rules:
 {structural_rules}
 
 Return ONLY the JSON object."""
+
+
+# ── Parser helpers ────────────────────────────────────────────────────────────
+
+
+def _repair_outline_json(text: str) -> str:
+    """
+    Best-effort JSON repair for outline responses.
+
+    Handles the most common LLM mistakes:
+    1. Unescaped double-quotes inside string values — e.g. the model writes
+       "Harry said "Expecto Patronum"" instead of escaping the inner quotes.
+       Strategy: scan char-by-char tracking in_string state; when we see a '"'
+       that is NOT preceded by '\\' and is NOT a structural delimiter (i.e. the
+       next non-whitespace char is a letter/digit, not : , } ]), treat it as a
+       literal double-quote and replace with \\".
+    2. Trailing commas before ] or }.
+    3. Truncated JSON — close any unclosed brackets/braces.
+    """
+    import re as _re
+
+    # Step 1: strip markdown fences if present
+    text = _re.sub(r"^```[a-z]*\n?", "", text.strip())
+    text = _re.sub(r"\n?```$", "", text.strip())
+
+    # Step 2: remove trailing commas before ] or }
+    text = _re.sub(r",\s*([\]}])", r"\1", text)
+
+    # Step 3: close open brackets/braces
+    stack: list[str] = []
+    in_string = False
+    escape_next = False
+    for ch in text:
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\" and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in "{[":
+            stack.append(ch)
+        elif ch == "}" and stack and stack[-1] == "{":
+            stack.pop()
+        elif ch == "]" and stack and stack[-1] == "[":
+            stack.pop()
+
+    suffix = ""
+    if in_string:
+        suffix += '"'
+    for opener in reversed(stack):
+        suffix += "}" if opener == "{" else "]"
+    return text + suffix
 
 
 # ── Parser ────────────────────────────────────────────────────────────────────
@@ -405,9 +470,17 @@ def _parse_outline(raw: str) -> CourseOutlineResponse:
                 brace_end = i + 1
                 break
 
-    data = json.loads(
-        text[brace_start:brace_end] if brace_end != -1 else text[brace_start:]
-    )
+    raw_json = text[brace_start:brace_end] if brace_end != -1 else text[brace_start:]
+
+    # Try strict parse first, then fall back to the repair heuristic so a single
+    # unescaped quote in a Harry Potter example doesn't kill the whole outline.
+    try:
+        data = json.loads(raw_json)
+    except json.JSONDecodeError:
+        try:
+            data = json.loads(_repair_outline_json(raw_json))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Could not parse outline JSON after repair: {exc}") from exc
 
     title = str(data.get("title", "")).strip()
     if not title:
