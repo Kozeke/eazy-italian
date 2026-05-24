@@ -1828,16 +1828,12 @@ Requirements for "text_content":
                     )
                     hint = lang_directive + hint
 
-                # match_pairs uses bilingual mode: left = target language word,
-                # right = native language translation.  Pass both language keys
-                # explicitly so the generator activates the bilingual column logic.
-                if ex_bp.type == "match_pairs" and _target_lang and _native_lang and _target_lang.lower() != _native_lang.lower():
-                    ex_generator_params: dict = {
-                        "native_language": _native_lang,
-                        "target_language": _target_lang,
-                    }
-                else:
-                    ex_generator_params = {}
+                # NOTE: native_language / target_language for match_pairs bilingual
+                # mode are intentionally NOT passed here via generator_params.
+                # exercise_generation_flow.py (production) already injects them
+                # from the course row.  Passing them again via generator_params
+                # causes a "got multiple values for keyword argument 'native_language'"
+                # TypeError because generate_exercise() receives the key twice.
 
                 try:
                     await generate_exercise_for_segment(
@@ -1856,7 +1852,7 @@ Requirements for "text_content":
                         topic_hint=hint,
                         content_language=request.content_language,
                         instruction_language=request.instruction_language,
-                        generator_params=ex_generator_params,
+                        generator_params={},
                         # Use the same AI provider that generated the unit text so
                         # exercises don't fall back to _default_provider (Groq) and
                         # fail when GROQ_API_KEY is absent or rate-limited.
