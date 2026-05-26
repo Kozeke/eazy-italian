@@ -22,6 +22,7 @@ import React, {
   KeyboardEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { SUPPORT_CHAT_OPEN_EVENT } from "./supportChatEvents";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -241,6 +242,16 @@ export default function SupportChatWidget() {
     setOpen(v => !v);
     if (!open) setUnread(0);
   };
+
+  // Opens the panel when other admin UI (e.g. help menu) requests support chat
+  useEffect(() => {
+    const handleOpenRequest = () => {
+      setOpen(true);
+      setUnread(0);
+    };
+    window.addEventListener(SUPPORT_CHAT_OPEN_EVENT, handleOpenRequest);
+    return () => window.removeEventListener(SUPPORT_CHAT_OPEN_EVENT, handleOpenRequest);
+  }, []);
 
   const canSend = input.trim().length > 0 && !sending;
 

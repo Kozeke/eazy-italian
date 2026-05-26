@@ -22,9 +22,13 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { SHELL_HEADER_HEIGHT } from "../../../components/layout/shellDimensions";
 import { aiLimitFromMe } from "../../../utils/teacherTariffMe";
+import { openSupportChatWidget } from "./supportChatEvents";
 
 // Resolves tariff fetches to the FastAPI host (port 8000) instead of the Vite dev origin (:3000)
 const API_V1_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+
+// Public YouTube channel opened from the help menu "YouTube channel" item
+const HELP_YOUTUBE_CHANNEL_URL = "https://www.youtube.com/@rd_team5861";
 
 const T = {
   violet:  "#6C6FEF",
@@ -270,6 +274,7 @@ const CSS = `
     font-family: 'Inter', system-ui, sans-serif;
   }
   .ah-help-item:hover { background: ${T.bg}; color: ${T.text}; }
+  .ah-help-item--with-icon { justify-content: flex-start; gap: 8px; }
   .ah-help-dot { width: 7px; height: 7px; border-radius: 50%; background: ${T.pink}; flex-shrink: 0; }
   .ah-help-sep { height: 1px; background: ${T.borderL}; margin: 4px 2px; }
   .ah-help-support-ico { width: 28px; height: 28px; border-radius: 7px; background: ${T.limeL}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: ${T.lime}; }
@@ -493,16 +498,28 @@ function HelpDropdown({ onClose }) {
   const { t } = useTranslation();
   const ref = useRef(null);
   usePopover(ref, onClose);
+  const runThenClose = (fn) => (e) => { e.stopPropagation(); onClose(); fn?.(); };
+  const openYouTubeChannel = () => {
+    window.open(HELP_YOUTUBE_CHANNEL_URL, "_blank", "noopener,noreferrer");
+  };
+  const openSupportChat = () => {
+    openSupportChatWidget();
+  };
   return (
     <div className="ah-dropdown ah-help-drop" ref={ref} role="menu" aria-label={t("admin.help.menuLabel")}>
+      {/* Hidden until external help links are ready
       <div className="ah-help-section"><div className="ah-help-section-ico" aria-hidden="true"><IcoSchool /></div><span className="ah-help-section-title">{t("admin.help.gettingStarted")}</span></div>
       <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.tutorialArticles")}</button>
       <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.updates")} <span className="ah-help-dot" aria-label={t("admin.header.updatesNewAria")} /></button>
       <div className="ah-help-sep" role="separator" />
       <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.blog")}</button>
-      <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.youtube")}</button>
+      */}
+      <button type="button" className="ah-help-item" role="menuitem" onClick={runThenClose(openYouTubeChannel)}>{t("admin.help.youtube")}</button>
       <div className="ah-help-sep" role="separator" />
-      <div className="ah-help-section"><div className="ah-help-support-ico" aria-hidden="true"><IcoChatBubble /></div><span className="ah-help-section-title">{t("admin.help.support")}</span></div>
+      <button type="button" className="ah-help-item ah-help-item--with-icon" role="menuitem" onClick={runThenClose(openSupportChat)}>
+        <span className="ah-help-support-ico" aria-hidden="true"><IcoChatBubble /></span>
+        <span className="ah-help-section-title">{t("admin.help.support")}</span>
+      </button>
     </div>
   );
 }
