@@ -33,6 +33,10 @@ export interface ClassroomCourse {
   is_visible_to_students?: boolean;
   /** Course lifecycle from API (e.g. PUBLISHED) — draft banner compares this too. */
   status?: string;
+  /** Language the course teaches (e.g. "Italian", "English") — from courses.target_language DB column. */
+  target_language?: string | null;
+  /** Student's native / explanation language (e.g. "Russian") — from courses.native_language DB column. */
+  native_language?: string | null;
 }
 
 export interface ClassroomUnit {
@@ -123,6 +127,10 @@ export function useClassroom(
               : null,
           is_visible_to_students: courseResponse.is_visible_to_students,
           status: courseResponse.status,
+          // Language columns added to the courses table — used by GenerateUnitModal to
+          // pre-fill language/instruction_language without exposing dropdowns to teachers.
+          target_language: courseResponse.target_language ?? null,
+          native_language: courseResponse.native_language ?? null,
         };
 
         // Step 2: Extract and sort units from the response

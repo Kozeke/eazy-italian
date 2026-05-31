@@ -156,6 +156,16 @@ export type UnitSelectorModalProps = {
    * Teacher-only: persist a new canonical unit order after drag-and-drop in the list.
    */
   onReorderUnits?: (orderedUnitIds: number[]) => void | Promise<void>;
+  /**
+   * Target language of the course (e.g. "Italian") — from courses.target_language.
+   * Forwarded to GenerateUnitModal so the language dropdown is hidden and pre-filled.
+   */
+  courseTargetLanguage?: string;
+  /**
+   * Native / explanation language (e.g. "Russian") — from courses.native_language.
+   * Forwarded to GenerateUnitModal so the instruction language dropdown is hidden.
+   */
+  courseNativeLanguage?: string;
 };
 
 type ActiveTab = 'contents' | 'description';
@@ -423,6 +433,8 @@ export default function UnitSelectorModal({
   generationLanguage = 'English',
   onEditOutline,
   onReorderUnits,
+  courseTargetLanguage,
+  courseNativeLanguage,
 }: UnitSelectorModalProps) {
   // Provides localized labels for unit selector modal controls and states.
   const { t } = useTranslation();
@@ -1070,6 +1082,8 @@ export default function UnitSelectorModal({
         <GenerateUnitModal
           unitId={generateTarget.id}
           unitTitle={generateTarget.title}
+          courseTargetLanguage={courseTargetLanguage}
+          courseNativeLanguage={courseNativeLanguage}
           onClose={() => setGenerateTarget(null)}
           onSuccess={(result) => {
             onGenerateSuccess?.(result);

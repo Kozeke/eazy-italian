@@ -1760,6 +1760,8 @@ function ClassroomPageInner({
         courseId={courseId ? Number(courseId) : null}
         generationLevel={generationLevel}
         generationLanguage={generationLanguage}
+        courseTargetLanguage={course?.target_language ?? undefined}
+        courseNativeLanguage={course?.native_language ?? undefined}
         onEditOutline={(updatedOutline) => {
           // Update in-memory state so CourseGenerationPanel re-renders immediately
           setCourseOutline(updatedOutline);

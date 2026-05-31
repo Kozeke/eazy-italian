@@ -61,7 +61,6 @@ const EXERCISE_TYPE_DEFS: ExerciseTypeDef[] = [
 ];
 
 const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
-const COURSE_LANGUAGE_VALUES = ["English", "Russian", "German", "French", "Spanish"] as const;
 const INSTRUCTION_LANG_VALUES = ["english", "russian"] as const;
 const SEGMENT_OPTIONS = [1, 2, 3, 4, 5, 6];
 
@@ -98,6 +97,12 @@ interface Props {
   apiBase?:   string;
   onClose:    () => void;
   onSuccess?: (result: GenerateResult) => void;
+  /** Target language from courses.target_language (e.g. "Italian"). When provided the
+   *  language dropdown is hidden and this value is sent to the generation API directly. */
+  courseTargetLanguage?: string;
+  /** Native/explanation language from courses.native_language (e.g. "Russian"). When
+   *  provided the instruction language dropdown is hidden and the value is used directly. */
+  courseNativeLanguage?: string;
 }
 
 type Tab = "ai" | "file";
@@ -237,38 +242,19 @@ function UnitQuotaBadge({
   );
 }
 
-// ── AdvancedPanel (extracted sub-component, unchanged logic) ──────────────────
+// ── AdvancedPanel (extracted sub-component) ───────────────────────────────────
+// Language and instruction language are no longer shown here — they are pulled
+// automatically from the course's native_language / target_language DB columns.
 function AdvancedPanel({
-  level, setLevel, language, setLanguage,
+  level, setLevel,
   numSegments, setNumSegments,
   selectedTypes, toggleType,
-  instructionLang, setInstructionLang,
-  includeImages, setIncludeImages,
 }: {
   level: string; setLevel: (v: string) => void;
-  language: string; setLanguage: (v: string) => void;
   numSegments: number; setNumSegments: (v: number) => void;
   selectedTypes: Set<string>; toggleType: (v: string) => void;
-  instructionLang: string; setInstructionLang: (v: string) => void;
-  includeImages: boolean; setIncludeImages: (v: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const courseLanguageOptions = useMemo(
-    () =>
-      COURSE_LANGUAGE_VALUES.map((lang) => ({
-        value: lang,
-        label: t(`classroom.generateUnitModal.courseLanguages.${lang}`),
-      })),
-    [t],
-  );
-  const instructionLangOptions = useMemo(
-    () =>
-      INSTRUCTION_LANG_VALUES.map((lang) => ({
-        value: lang,
-        label: t(`classroom.generateUnitModal.instructionLang.${lang}`),
-      })),
-    [t],
-  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column" as const, gap: 16, marginTop: 4 }}>
@@ -276,10 +262,6 @@ function AdvancedPanel({
         <div style={{ flex: 1 }}>
           <Label>{t("classroom.generateUnitModal.labelLevel")}</Label>
           <Select value={level} onChange={setLevel} options={LEVEL_OPTIONS} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <Label>{t("classroom.generateUnitModal.labelLanguage")}</Label>
-          <Select value={language} onChange={setLanguage} options={courseLanguageOptions} />
         </div>
         <div style={{ flex: 1 }}>
           <Label>{t("classroom.generateUnitModal.labelSegments")}</Label>
@@ -323,42 +305,6 @@ function AdvancedPanel({
             </span>
           )}
         </div>
-      </div>
-
-      <div>
-        <Label>{t("classroom.generateUnitModal.labelInstructionLanguage")}</Label>
-        <Select value={instructionLang} onChange={setInstructionLang} options={instructionLangOptions} />
-        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>
-          {t("classroom.generateUnitModal.instructionLangHint")}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
-            {t("classroom.generateUnitModal.includeImagesTitle")}
-          </div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-            {t("classroom.generateUnitModal.includeImagesHintPlaceholder",
-              "Adds an image placeholder after each section's text. Generate each image individually from the lesson editor."
-            )}
-          </div>
-        </div>
-        <button type="button" role="switch" aria-checked={includeImages}
-          onClick={() => setIncludeImages(!includeImages)}
-          style={{
-            width: 40, height: 22, borderRadius: 11, border: "none",
-            background: includeImages ? C.primary : C.border,
-            cursor: "pointer", position: "relative", flexShrink: 0,
-            transition: "background 0.16s",
-          }}
-        >
-          <span style={{
-            position: "absolute", top: 3, left: includeImages ? 20 : 3,
-            width: 16, height: 16, borderRadius: "50%", background: C.white,
-            transition: "left 0.16s", boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
-          }} />
-        </button>
       </div>
     </div>
   );
@@ -465,6 +411,7 @@ const DEFAULT_API_BASE =
 
 export default function GenerateUnitModal({
   unitId, unitTitle, apiBase = DEFAULT_API_BASE, onClose, onSuccess,
+  courseTargetLanguage, courseNativeLanguage,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -487,15 +434,22 @@ export default function GenerateUnitModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Shared advanced state
-  const [level,           setLevel]           = useState("A2");
-  const [language,        setLanguage]        = useState("English");
-  const [numSegments,     setNumSegments]     = useState(3);
-  const [selectedTypes,   setSelectedTypes]   = useState<Set<string>>(
+  const [level,         setLevel]         = useState("A2");
+  // Language the course teaches — sourced from courses.target_language; not editable via UI.
+  const language = courseTargetLanguage ?? "English";
+  const [numSegments,   setNumSegments]   = useState(3);
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(
     new Set(["drag_to_gap", "match_pairs"])
   );
-  const [instructionLang, setInstructionLang] = useState("english");
-  const [showAdvanced,    setShowAdvanced]    = useState(false);
-  const [includeImages,   setIncludeImages]   = useState(false);
+  // Instruction/explanation language — derived from courses.native_language (lowercased).
+  // Falls back to "english" when the native language isn't in the supported list.
+  const instructionLang = (() => {
+    if (!courseNativeLanguage) return "english";
+    const lower = courseNativeLanguage.toLowerCase();
+    return (INSTRUCTION_LANG_VALUES as readonly string[]).includes(lower) ? lower : "english";
+  })();
+  const [showAdvanced,  setShowAdvanced]  = useState(false);
+  const [includeImages, setIncludeImages] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -892,6 +846,41 @@ export default function GenerateUnitModal({
                   </div>
                 )}
 
+                {/* ── Include images toggle (main settings) ──────────────── */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  gap: 12, marginTop: 16,
+                  background: C.bg, borderRadius: 10, padding: "12px 13px",
+                  border: `1px solid ${C.borderSoft}`,
+                }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                      {t("classroom.generateUnitModal.includeImagesTitle")}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                      {t("classroom.generateUnitModal.includeImagesHintPlaceholder",
+                        "Adds an image placeholder after each section's text. Generate each image individually from the lesson editor."
+                      )}
+                    </div>
+                  </div>
+                  {/* Toggle switch for enabling/disabling image placeholder generation */}
+                  <button type="button" role="switch" aria-checked={includeImages}
+                    onClick={() => setIncludeImages(!includeImages)}
+                    style={{
+                      width: 40, height: 22, borderRadius: 11, border: "none",
+                      background: includeImages ? C.primary : C.border,
+                      cursor: "pointer", position: "relative", flexShrink: 0,
+                      transition: "background 0.16s",
+                    }}
+                  >
+                    <span style={{
+                      position: "absolute", top: 3, left: includeImages ? 20 : 3,
+                      width: 16, height: 16, borderRadius: "50%", background: C.white,
+                      transition: "left 0.16s", boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
+                    }} />
+                  </button>
+                </div>
+
                 {/* ── Advanced settings ──────────────────────────────────── */}
                 <div style={{ marginTop: 16 }}>
                   <button type="button"
@@ -914,11 +903,8 @@ export default function GenerateUnitModal({
                     }}>
                       <AdvancedPanel
                         level={level} setLevel={setLevel}
-                        language={language} setLanguage={setLanguage}
                         numSegments={numSegments} setNumSegments={setNumSegments}
                         selectedTypes={selectedTypes} toggleType={toggleType}
-                        instructionLang={instructionLang} setInstructionLang={setInstructionLang}
-                        includeImages={includeImages} setIncludeImages={setIncludeImages}
                       />
                     </div>
                   )}
