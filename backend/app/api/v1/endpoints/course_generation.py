@@ -922,6 +922,27 @@ async def _stream_generation(
 
         try:
             # Wraps unit generation so we can keep the SSE connection alive with heartbeats.
+
+            # Build the combined teacher directive for this unit.
+            # unit.description is the per-unit content guide written in the outline
+            # review (e.g. "Students learn present simple and adverbs of frequency.
+            # Example phrases: 'I usually wake up at 7 a.m.'").
+            # course_description is the overarching course-level directive
+            # (e.g. "use examples from Friends").
+            # Both are injected as MANDATORY context into every text-block and exercise
+            # prompt; unit-level description goes first as it is more specific.
+            _unit_desc = (getattr(unit, "description", None) or "").strip()
+            if _unit_desc and course_description:
+                _combined_description: str | None = (
+                    f"{_unit_desc}\n\nCourse directive: {course_description}"
+                )
+            elif _unit_desc:
+                _combined_description = _unit_desc
+            elif course_description:
+                _combined_description = course_description
+            else:
+                _combined_description = None
+
             generation_task = asyncio.create_task(service.generate(
                 UnitGenerateRequest(
                     unit_id=unit.id,
@@ -935,17 +956,28 @@ async def _stream_generation(
                     # Russian/bilingual explanation text blocks — causing all exercises
                     # to be generated in Russian instead of English.
                     content_language=language.lower(),
-                    num_segments=_DEFAULT_NUM_SEGMENTS,
+                    # Use the teacher-defined section count when available;
+                    # fall back to the hardcoded default only for units that
+                    # were never put through the outline review step.
+                    num_segments=(
+                        len(unit.outline_sections)
+                        if unit.outline_sections
+                        else _DEFAULT_NUM_SEGMENTS
+                    ),
                     exercise_types=_DEFAULT_EXERCISE_TYPES,
                     teacher_id=user.id if user else (getattr(unit, "created_by", 0) or 0),
                     # Forward extracted file text so each unit is grounded in
                     # the teacher's uploaded materials.  Empty string when no
                     # files were provided — UnitGeneratorService ignores it.
                     source_content=source_content,
-                    # Forward the teacher's course description so the unit generator
-                    # can inject it as a MANDATORY directive into every text-block
-                    # and exercise prompt (e.g. "use Harry Potter examples").
-                    description=course_description or None,
+                    # Inject the unit description (content guide) and/or the
+                    # course-level directive as a MANDATORY teacher directive so
+                    # every text-block and exercise prompt is grounded in them.
+                    description=_combined_description,
+                    # Pass the teacher-reviewed sections so the generator
+                    # creates exactly those segments without re-running the
+                    # AI topic planner.  None when no outline was saved.
+                    outline_sections=unit.outline_sections or None,
                 ),
                 db,
             ))
@@ -1102,8 +1134,8 @@ async def patch_course_outline(
     Updates DB unit titles and descriptions from the teacher-edited outline.
     Units are matched by order_index (position in the sorted unit list).
 
-    - If the edited list has *more* units than currently exist, the extras
-      are ignored (no new units are created here).
+    - If the edited list has *more* units than currently exist, new DB unit
+      stubs are created for the extras so the SSE stream generates them too.
     - If fewer, the excess DB unit stubs are DELETED so the SSE stream only
       generates the units the teacher kept.
     - Section changes are stored in the outline only (returned in the
@@ -1112,9 +1144,26 @@ async def patch_course_outline(
     """
     from app.core.database import SessionLocal
     from app.models.unit import Unit as UnitModel
+    from app.models.course import Course as CourseModel
+    import datetime as _dt
 
     db = SessionLocal()
     try:
+        # Load the course first — needed for level and title
+        course = db.query(CourseModel).filter(CourseModel.id == course_id).first()
+        if not course:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Course not found.")
+
+        # Derive the CEFR level string to use when creating new unit stubs.
+        # course.level may be a UnitLevel / CourseLevel enum or a plain string.
+        raw_course_level = getattr(course, "level", None)
+        course_level_str: str = (
+            raw_course_level.value
+            if hasattr(raw_course_level, "value")
+            else str(raw_course_level or "B1")
+        )
+
         db_units = (
             db.query(UnitModel)
             .filter(UnitModel.course_id == course_id)
@@ -1126,39 +1175,76 @@ async def patch_course_outline(
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="No units found for this course.")
 
-        # Update kept units (title / description / timestamp)
-        import datetime as _dt
+        # Keeps a mutable list so we can append newly created stubs below.
+        db_units_list: list[UnitModel] = list(db_units)
+
+        # Update existing units (title / description / timestamp)
         for idx, edited in enumerate(body.units):
-            if idx >= len(db_units):
-                break                          # more edits than DB units → skip extras
-            db_unit = db_units[idx]
-            db_unit.title       = edited.title.strip() or db_unit.title
-            db_unit.description = edited.description.strip()
-            db_unit.updated_at  = _dt.datetime.utcnow()
+            if idx < len(db_units_list):
+                db_unit = db_units_list[idx]
+                db_unit.title       = edited.title.strip() or db_unit.title
+                db_unit.description = edited.description.strip()
+                db_unit.updated_at  = _dt.datetime.utcnow()
+                # Persist teacher-edited sections so the SSE stream can
+                # generate exactly those segments without re-running the AI
+                # topic planner.  Stored as [{title, description}, ...].
+                db_unit.outline_sections = [
+                    {"title": s.title, "description": s.description}
+                    for s in edited.sections
+                ]
+            else:
+                # Teacher added a new unit in the outline review panel.
+                # Create a DB stub so the SSE stream picks it up for generation.
+                new_title = edited.title.strip() or f"Unit {idx + 1}"
+                new_unit = UnitModel(
+                    title=new_title,
+                    description=edited.description.strip(),
+                    level=course_level_str,
+                    status="draft",
+                    order_index=idx,
+                    course_id=course_id,
+                    created_by=current_user.id,
+                    is_visible_to_students=False,
+                    # Persist teacher-edited sections on new stubs too.
+                    outline_sections=[
+                        {"title": s.title, "description": s.description}
+                        for s in edited.sections
+                    ],
+                )
+                db.add(new_unit)
+                db_units_list.append(new_unit)
+
+        # Flush so newly created units get their IDs assigned before commit.
+        db.flush()
+
+        new_unit_count = len(db_units_list) - len(db_units)
+        if new_unit_count > 0:
+            logger.info(
+                "patch_course_outline: course_id=%d created %d new unit stub(s) "
+                "(outline grew from %d → %d)",
+                course_id, new_unit_count, len(db_units), len(db_units_list),
+            )
 
         # If the teacher removed units from the outline (payload shorter than DB),
         # delete the excess DB unit stubs so the SSE stream doesn't generate them.
-        if len(body.units) < len(db_units):
-            units_to_delete = db_units[len(body.units):]
+        if len(body.units) < len(db_units_list):
+            units_to_delete = db_units_list[len(body.units):]
             for excess_unit in units_to_delete:
                 db.delete(excess_unit)
             logger.info(
                 "patch_course_outline: course_id=%d deleted %d excess unit(s) "
                 "(outline shrank from %d → %d)",
-                course_id, len(units_to_delete), len(db_units), len(body.units),
+                course_id, len(units_to_delete), len(db_units_list), len(body.units),
             )
             # Trim so the response loop below only covers kept units
-            db_units = db_units[: len(body.units)]
+            db_units_list = db_units_list[: len(body.units)]
 
         db.commit()
 
         # Rebuild response from current DB state merged with edited sections
         result_units: list[UnitOutline] = []
-        for idx, db_unit in enumerate(db_units):
-            if idx < len(body.units):
-                sections = body.units[idx].sections
-            else:
-                sections = []
+        for idx, db_unit in enumerate(db_units_list):
+            sections = body.units[idx].sections if idx < len(body.units) else []
             result_units.append(
                 UnitOutline(
                     title=db_unit.title,
@@ -1167,14 +1253,11 @@ async def patch_course_outline(
                 )
             )
 
-        # Derive course title from the DB course record
-        from app.models.course import Course as CourseModel
-        course = db.query(CourseModel).filter(CourseModel.id == course_id).first()
-        course_title = course.title if course else "Course"
+        course_title = course.title or "Course"
 
         logger.info(
-            "patch_course_outline: course_id=%d updated %d unit(s)",
-            course_id, min(len(body.units), len(db_units)),
+            "patch_course_outline: course_id=%d updated %d unit(s) total",
+            course_id, len(result_units),
         )
         return CourseOutlineResponse(title=course_title, units=result_units)
 

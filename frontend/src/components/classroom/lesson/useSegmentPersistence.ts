@@ -39,6 +39,7 @@ export interface InlineMediaBlock {
     | "test_with_timer"
     | "true_false"
     | "text"      // AI-generated text/explanation blocks (markdown content)
+    | "image_placeholder" // AI unit gen: unresolved image slot (teacher generates later)
     | "image_stacked"
     | "gif_animation"
     | "video_embed"
@@ -93,6 +94,7 @@ export function normaliseInlineMediaBlocks(blocks: unknown): InlineMediaBlock[] 
           "order_paragraphs", "sort_into_columns", "test_without_timer", "test_with_timer",
           "true_false",
           "text",  // AI-generated text/explanation blocks
+          "image_placeholder", // AI unit gen image slots (ImagePlaceholderBlock)
           "image_stacked", // Stacked image exercise blocks
           "gif_animation", // GIF animation exercise blocks
           "video_embed", // Custom video exercise blocks

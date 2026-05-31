@@ -26,7 +26,7 @@
   width: 100%;
   max-width: 780px;
   margin-left: auto;
-  margin-right: 0;   /* flush-right: vlp-section sits exactly gap(2px) from SectionSidePanel */
+  margin-right: auto;  /* flush-right: vlp-section sits exactly gap(2px) from SectionSidePanel */
   /* padding: 2rem 1.25rem 0; */
 }
 
@@ -1144,3 +1144,190 @@
   min-width: 56px;
   text-align: center;
 }
+
+/* ── Tablet (641–1023px) ──────────────────────────────────────────────────── */
+ 
+@media (min-width: 641px) and (max-width: 1023px) {
+ 
+  /* Canvas: full available width (no side panel on tablet), sensible max     */
+  .vlp-canvas {
+    max-width: 720px;
+    padding: 1.5rem 1rem 0;
+  }
+ 
+  /* Section card sizing                                                       */
+  .vlp-section {
+    min-height: calc(100svh - 56px); /* 56px ≈ header height                 */
+    margin-bottom: 2.5rem;
+  }
+ 
+  /* Section header & body padding                                            */
+  .vlp-section-header {
+    padding: 1.5rem 1.5rem 0;
+  }
+ 
+  .vlp-section-body {
+    padding: 0 1.5rem 1.5rem;
+  }
+ 
+  /* Title                                                                     */
+  .vlp-section-title {
+    font-size: 20px;
+  }
+ 
+  .vlp-section-title-input {
+    font-size: 20px;
+  }
+ 
+  /* Bottom-nav buttons: taller touch targets                                  */
+  .vlp-nav-btn {
+    min-height: 44px;
+    padding: 10px 22px;
+    font-size: 13px;
+  }
+ 
+  .vlp-bottom-nav-inner {
+    padding: 10px 1.5rem;
+  }
+ 
+  /* Hide the floating section navigator on tablets (clutters small screens)  */
+  .vlp-section-nav {
+    display: none;
+  }
+ 
+  /* Block toolbar: always visible on tablet (no reliable hover state)        */
+  .vlp-block-toolbar {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+}
+ 
+/* ── Mobile improvements (extends/overrides existing ≤640px block) ─────────── */
+ 
+@media (max-width: 640px) {
+ 
+  /* Section height: use svh so address bar doesn't clip the bottom           */
+  .vlp-section {
+    min-height: calc(100svh - 52px); /* 52px = mobile header min-height      */
+    margin-bottom: 1.5rem;
+    border-radius: 12px;
+  }
+ 
+  /* Canvas: tighter horizontal padding on small phones                       */
+  .vlp-canvas {
+    padding: 1rem 0.625rem 0; /* ~10px sides */
+  }
+ 
+  /* Section content padding                                                   */
+  .vlp-section-header {
+    padding: 1.25rem 1rem 0;
+  }
+ 
+  .vlp-section-body {
+    padding: 0 1rem 1.25rem;
+  }
+ 
+  /* Section title size                                                        */
+  .vlp-section-title {
+    font-size: 17px;
+  }
+ 
+  .vlp-section-title-input {
+    font-size: 17px;
+  }
+ 
+  /* ── Bottom navigation ────────────────────────────────────────────────── */
+ 
+  /* Full-width stacked buttons on small phones for thumb-friendly tapping    */
+  .vlp-bottom-nav-inner {
+    flex-direction: column-reverse; /* Primary (Next) on top for easy reach   */
+    gap: 8px;
+    padding: 10px 1rem 12px;
+    align-items: stretch;
+  }
+ 
+  .vlp-nav-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 46px;
+    border-radius: 12px;
+    font-size: 13.5px;
+  }
+ 
+  /* Counter sits between the two stacked buttons                              */
+  .vlp-nav-counter {
+    text-align: center;
+    order: 0; /* between --primary (top) and --ghost (bottom)                 */
+  }
+ 
+  .vlp-nav-btn--primary {
+    order: -1; /* Next button on top                                           */
+  }
+ 
+  .vlp-nav-btn--ghost {
+    order: 1;  /* Prev button on bottom                                        */
+  }
+ 
+  /* ── Inline media ─────────────────────────────────────────────────────── */
+ 
+  .vlp-inline-media-header {
+    padding: 8px 12px;
+  }
+ 
+  .vlp-inline-media-list > * + *::before {
+    margin: 0 12px 10px;
+  }
+ 
+  /* ── Block add button ─────────────────────────────────────────────────── */
+ 
+  .vlp-section-add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+ 
+  /* ── Rename input ─────────────────────────────────────────────────────── */
+ 
+  .vlp-rename-input {
+    font-size: 16px; /* prevents iOS auto-zoom on focus                       */
+  }
+ 
+  /* ── Section eyebrow ─────────────────────────────────────────────────── */
+ 
+  .vlp-section-eyebrow {
+    font-size: 10px;
+  }
+ 
+  /* ── Carousel viewer ─────────────────────────────────────────────────── */
+ 
+  .vlp-carousel-viewer-frame {
+    min-height: 160px;
+  }
+ 
+  .vlp-carousel-viewer-frame img {
+    max-height: 260px;
+  }
+}
+ 
+/* ── Extra-small phones (≤ 375px) ──────────────────────────────────────────── */
+ 
+@media (max-width: 375px) {
+ 
+  .vlp-section-header {
+    padding: 1rem 0.875rem 0;
+  }
+ 
+  .vlp-section-body {
+    padding: 0 0.875rem 1rem;
+  }
+ 
+  .vlp-section-title {
+    font-size: 16px;
+  }
+ 
+  .vlp-nav-btn {
+    font-size: 13px;
+    padding: 10px 14px;
+  }
+}
+ 

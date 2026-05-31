@@ -34,7 +34,11 @@ CUSTOM_EXERCISE_KINDS: set = {
     "test_with_timer",
     "true_false",
 }
-ALLOWED_KINDS: set = SIMPLE_MEDIA_KINDS | RICH_MEDIA_KINDS | TEXT_KINDS | CUSTOM_EXERCISE_KINDS
+# Placeholder blocks written by the unit generator when include_images=True.
+# Contain image_description + _unit_id + _segment_id; resolved to "image" blocks
+# individually via POST /units/{unit_id}/segments/{segment_id}/generate-image.
+IMAGE_PLACEHOLDER_KINDS: set = {"image_placeholder"}
+ALLOWED_KINDS: set = SIMPLE_MEDIA_KINDS | RICH_MEDIA_KINDS | TEXT_KINDS | CUSTOM_EXERCISE_KINDS | IMAGE_PLACEHOLDER_KINDS
 
 
 # ─── Carousel slides ──────────────────────────────────────────────────────────
@@ -122,6 +126,16 @@ def normalise_media_blocks(raw_media_blocks: Any) -> List[Dict[str, Any]]:
                 "data": data if isinstance(data, dict) else {},
             })
         elif kind in CUSTOM_EXERCISE_KINDS:
+            data = item.get("data")
+            normalised.append({
+                "id": block_id,
+                "kind": kind,
+                "title": str(item.get("title") or ""),
+                "data": data if isinstance(data, dict) else {},
+            })
+        elif kind in IMAGE_PLACEHOLDER_KINDS:
+            # Preserve the full data payload — contains image_description,
+            # alt_text, _unit_id, _segment_id used by the generate-image endpoint.
             data = item.get("data")
             normalised.append({
                 "id": block_id,

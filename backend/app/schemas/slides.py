@@ -206,12 +206,12 @@ class SlideGenerationRequest(BaseModel):
         max_length=200,
         description='Extra style keywords, e.g. "minimal, blue palette, geometric".',
     )
-    image_provider:       Literal["svg","huggingface","none"] = Field(
+    image_provider:       Literal["svg","huggingface","fal","none"] = Field(
         default="svg",
         description=(
             "Which image backend to use. "
             "'svg' = free, offline, AI-generated SVG diagrams. "
-            "'huggingface' = free-tier diffusion model (requires HF_API_KEY). "
+            "'fal' or 'huggingface' (legacy) = fal.ai FLUX diffusion (requires FAL_KEY). "
             "'none' = skip image generation."
         ),
     )
@@ -247,9 +247,9 @@ class SlideImageStreamRequest(BaseModel):
     )
 
     # ── Image-generation options ──────────────────────────────────────────────
-    image_provider: Literal["svg", "huggingface", "none"] = Field(
+    image_provider: Literal["svg", "huggingface", "fal", "none"] = Field(
         default="svg",
-        description="Which image backend to use.",
+        description="Which image backend to use ('huggingface' is a legacy alias for fal.ai).",
     )
     image_style: ImageStyleEnum = Field(
         default="illustration",

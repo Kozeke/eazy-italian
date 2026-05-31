@@ -49,6 +49,9 @@ registerExercise("text",  () => import("./TextBlock"));
 // Simple teacher URL-images (kind:"image", url:string, no data.src) never
 // reach FlowItemRenderer — they stay in InlineMediaCard inside SectionBlock.
 registerExercise("image", () => import("./ImageBlock"));
+// "image_placeholder" blocks are created by the unit generator when include_images=true.
+// In teacher mode they show a "Generate Image" button; in student mode they are hidden.
+registerExercise("image_placeholder", () => import("./ImagePlaceholderBlock"));
 // registerExercise("sort_sentence",  () => import("./SortSentenceBlock"));
 // registerExercise("match_pairs",    () => import("./MatchPairsBlock"));
 registerExercise("inline_media",   () => import("./homework/HomeworkInlineMediaBlock"));

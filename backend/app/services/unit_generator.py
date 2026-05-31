@@ -202,6 +202,11 @@ class UnitGenerateRequest:
     include_images: bool = False   # generate SVG images only when requested
     description: str | None = None  # optional teacher directive injected into the prompt
     plan: str = "free"             # teacher's subscription plan (all plans route to DeepSeek)
+    # Teacher-edited outline sections [{title, description}, ...] from the
+    # PATCH /outline endpoint.  When present they are used directly as the
+    # segment plan, bypassing the AI topic planner (Phase 0) entirely so the
+    # generator creates exactly the segments the teacher reviewed and approved.
+    outline_sections: list[dict] | None = None
 
 
 # ── Result type ───────────────────────────────────────────────────────────────
@@ -283,7 +288,18 @@ class UnitGeneratorService:
 
         # ── Phase 0: unit plan ────────────────────────────────────────────────
         segment_plans: list[SegmentPlan] = []
-        if request.source_content:
+
+        # Fast path: teacher already reviewed and approved an explicit outline.
+        # Convert those sections directly to SegmentPlans and bypass the AI
+        # topic planner entirely so we generate *exactly* what the teacher set.
+        if request.outline_sections:
+            segment_plans = self._plans_from_outline_sections(request)
+            logger.info(
+                "UnitGenerator: phase0 (outline) — using %d teacher-defined sections: %s",
+                len(segment_plans), [p.title for p in segment_plans],
+            )
+
+        if not segment_plans and request.source_content:
             try:
                 segment_plans = await self._analyze_and_plan(request)
                 logger.info(
@@ -426,6 +442,16 @@ class UnitGeneratorService:
         """
         plans: list[SegmentPlan] = []
 
+        # Outline fast-path: teacher already defined sections in the outline review.
+        # Return them directly so the preview matches exactly what will be generated.
+        if request.outline_sections:
+            plans = self._plans_from_outline_sections(request)
+            logger.info(
+                "UnitGenerator.plan_only (outline): %d teacher-defined sections",
+                len(plans),
+            )
+            return plans
+
         # File-based: analyse document structure first
         if request.source_content:
             try:
@@ -471,6 +497,62 @@ class UnitGeneratorService:
         return plans
 
     # ── Phase 0a: topic-based unit planning ──────────────────────────────────
+
+    def _plans_from_outline_sections(
+        self, request: "UnitGenerateRequest"
+    ) -> list["SegmentPlan"]:
+        """
+        Convert teacher-edited outline sections into SegmentPlan objects.
+
+        This is the *outline fast-path* that bypasses the AI topic planner
+        (Phase 0) entirely.  It is used when the teacher has already reviewed
+        and approved the section structure via the PATCH /outline endpoint.
+
+        Each section dict is expected to have:
+          - "title"       : str  — section heading (required)
+          - "description" : str  — one-sentence focus statement (optional)
+
+        The first section from the outline is used verbatim — we do NOT
+        force-inject an "Introduction & Learning Outcomes" header here because
+        the teacher explicitly chose these sections and may already have an
+        intro or prefer to start with content directly.
+        """
+        # Raw list of section dicts saved by the PATCH endpoint
+        raw_sections: list[dict] = request.outline_sections or []
+
+        plans: list[SegmentPlan] = []
+        for i, sec in enumerate(raw_sections):
+            # Extract the section title — skip entries with no title
+            title = str(sec.get("title", "")).strip()
+            if not title:
+                continue
+
+            # Use the teacher-provided description as the section focus.
+            # Fall back to a generic statement so Phase 2 still has context.
+            description = str(sec.get("description", "")).strip()
+            focus = description if description else f"Cover the topic: {title}"
+
+            plans.append(SegmentPlan(
+                title=title,
+                focus=focus,
+                excerpt="",  # no source document; topic-based generation
+            ))
+
+        # Guard: must have at least 2 plans or the unit looks degenerate
+        while len(plans) < 2:
+            plans.append(SegmentPlan(
+                title=f"{request.topic} — Part {len(plans) + 1}",
+                focus=f"Additional content about {request.topic}.",
+                excerpt="",
+            ))
+
+        # Populate forbidden_topics: each section is told not to discuss the
+        # other sections, preventing cross-contamination between segments.
+        all_titles = [p.title for p in plans]
+        for i, plan in enumerate(plans):
+            plan.forbidden_topics = [t for j, t in enumerate(all_titles) if j != i]
+
+        return plans
 
     async def _plan_topic_segments(
         self, request: "UnitGenerateRequest"
@@ -1707,45 +1789,6 @@ BILINGUAL RULE (most important):
 
         result = UnitGenerateResult(segments_created=0, exercises_created=0)
 
-        # Initialise image provider once and reuse across segments.
-        # Priority: HuggingFaceImageProvider (real AI images) → SVGImageProvider (fallback)
-        img_provider = None
-        if request.include_images:
-            import os
-            hf_api_key = os.environ.get("HF_API_KEY", "")
-            if hf_api_key:
-                try:
-                    from app.services.ai.image_providers.huggingface_provider import (
-                        HuggingFaceImageProvider,
-                    )
-                    img_provider = HuggingFaceImageProvider(
-                        api_key=hf_api_key,
-                        width=512,
-                        height=384,
-                    )
-                    logger.info(
-                        "UnitGenerator: image generation enabled (HuggingFaceImageProvider)"
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "UnitGenerator: could not init HuggingFaceImageProvider — "
-                        "falling back to SVGImageProvider: %s",
-                        exc,
-                    )
-            if img_provider is None:
-                # Fallback: SVG diagrams generated by the LLM (no external API needed)
-                try:
-                    from app.services.ai.image_providers.svg_provider import SVGImageProvider
-                    img_provider = SVGImageProvider(ai_provider=self.provider)
-                    logger.info(
-                        "UnitGenerator: image generation enabled (SVGImageProvider fallback)"
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "UnitGenerator: could not init SVGImageProvider — images disabled: %s",
-                        exc,
-                    )
-
         for order_idx, seg_bp in enumerate(blueprint.segments):
             logger.info(
                 "UnitGenerator: segment start unit_id=%d segment_index=%d segment_title=%r",
@@ -1798,43 +1841,47 @@ BILINGUAL RULE (most important):
                     txt_bp.title, segment.id,
                 )
 
-            # ── 2. Image block (optional, placed after text, before exercises) ─
-            if img_provider is not None:
+            # ── 2. Image placeholder block (optional, placed after text, before exercises) ─
+            # When include_images=True we write a placeholder block with a rich
+            # image_description derived from the segment content.  The actual image
+            # is NOT generated here; instead the teacher clicks "Generate Image" per
+            # placeholder in the lesson workspace, which calls the dedicated
+            # POST /units/{unit_id}/segments/{segment_id}/generate-image endpoint.
+            if request.include_images:
                 try:
                     from app.services.image_prompt_builder import ImagePromptBuilder
-                    # Build bullet points from the actual generated text content so
-                    # the image reflects what the segment teaches, not just the title.
                     content_bullets = self._extract_content_bullets(seg_bp)
-                    img_prompt = ImagePromptBuilder.build(
+                    image_description = ImagePromptBuilder.build(
                         slide_title=seg_bp.title,
                         bullet_points=content_bullets,
                         topic=request.topic,
                         audience=f"{request.level} level {request.language} learner",
                         style="educational, flat illustration, clean background",
                     )
-                    img_result = await img_provider.agenerate_image(
-                        prompt=img_prompt,
-                        alt_text=f"Educational illustration for: {seg_bp.title}",
-                        style="educational, flat illustration, clean background",
-                    )
-                    image_block: dict[str, Any] = {
+                    placeholder_block: dict[str, Any] = {
                         "id": str(uuid.uuid4()),
-                        "kind": "image",
+                        "kind": "image_placeholder",
                         "title": seg_bp.title,
                         "data": {
-                            "src": img_result.as_data_uri(),
+                            "image_description": image_description,
                             "alt_text": f"Educational illustration for: {seg_bp.title}",
+                            # Stored so the frontend can call the generate-image endpoint
+                            # without needing extra context passed via props.
+                            "_unit_id": request.unit_id,
+                            # _segment_id is patched in after the DB flush below (see ★)
                         },
                     }
-                    prepend_blocks.append(image_block)
+                    prepend_blocks.append(placeholder_block)
                     result.images_created += 1
+                    # ★ Patch _segment_id now that segment.id is available
+                    placeholder_block["data"]["_segment_id"] = segment.id
                     logger.debug(
-                        "UnitGenerator: image generated for segment id=%d", segment.id
+                        "UnitGenerator: image placeholder added for segment id=%d", segment.id
                     )
                 except Exception as exc:
                     error_msg = (
                         f"Segment[{order_idx}] '{seg_bp.title}': "
-                        f"image generation failed — {exc}"
+                        f"image placeholder creation failed — {exc}"
                     )
                     logger.warning("UnitGenerator: %s", error_msg, exc_info=True)
                     result.errors.append(error_msg)

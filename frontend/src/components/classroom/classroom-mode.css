@@ -775,3 +775,181 @@
   color: #ffffff !important;
   box-shadow: 0 4px 12px rgba(79, 82, 194, 0.30);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   classroom-mode.css — RESPONSIVE / MOBILE / TABLET  (v9 append)
+   ───────────────────────────────────────────────────────────────────────────
+   Breakpoints used throughout:
+     mobile-xs  : ≤ 479px   (small phones, portrait)
+     mobile     : ≤ 639px   (all phones — already handled by v7/v8 above)
+     tablet     : 640–1023px
+     desktop    : ≥ 1024px  (existing behaviour — no changes needed)
+
+   Append this block verbatim to the END of classroom-mode.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Dynamic-viewport-height fix (mobile Safari address-bar safe-area) ──
+        `h-screen` = `height: 100vh` which doesn't account for the slide-in
+        address bar on iOS Safari / mobile Chrome.  100dvh (dynamic viewport
+        height) shrinks/grows with the bar so nothing is ever clipped.
+        We layer `100svh` as the widest-support fallback.                      */
+
+.classroom-layout {
+  height: 100svh; /* smallest viewport height — good cross-browser baseline  */
+  overscroll-behavior: none;          /* prevent elastic pull-to-refresh     */
+  -webkit-overflow-scrolling: touch;  /* smooth momentum scroll on iOS       */
+}
+
+@supports (height: 100dvh) {
+  .classroom-layout {
+    height: 100dvh; /* dynamic viewport height — shrinks with address bar     */
+  }
+}
+
+/* ── 2. Tablet (640 – 1023px) ────────────────────────────────────────────── */
+
+@media (min-width: 640px) and (max-width: 1023px) {
+
+  /* Override the blanket "hide presence at ≤767px" rule so tablets show it  */
+  .ch-presence-cluster {
+    display: inline-flex !important;
+  }
+
+  /* Limit to 3 visible avatars on narrow tablets to save space               */
+  @media (max-width: 900px) {
+    .ch-presence-stack > *:nth-child(n+4) {
+      display: none;
+    }
+  }
+
+  /* Compact avatar ring on tablet (thinner white gap)                        */
+  .ch-presence-avatar {
+    box-shadow:
+      0 0 0 2px #ffffff,
+      0 0 0 3px #22c55e,
+      0 0 0 5px #ffffff;
+  }
+
+  /* Course title: a touch narrower on tablets                                */
+  .ch-main-bar-inner button .truncate {
+    max-width: 120px !important;
+  }
+
+  /* Consistent gutter for the tablet range                                   */
+  .classroom-layout {
+    --classroom-align-gutter: 0.75rem;
+  }
+}
+
+/* ── 3. Touch-device ergonomics (applies to any hover:none coarse device) ── */
+/*       Apple HIG & Material 3 both recommend ≥44pt / ≥48dp tap targets.    */
+
+@media (hover: none) and (pointer: coarse) {
+
+  /* Icon buttons → 40×40 minimum                                             */
+  .ch-icon-btn {
+    min-width: 40px !important;
+    min-height: 40px !important;
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Change-unit pill → taller for thumb comfort                              */
+  .ch-change-unit-btn {
+    min-height: 38px;
+    padding: 8px 14px !important;
+  }
+
+  /* Tab pills → taller                                                       */
+  .ch-inline-tab {
+    min-height: 34px;
+    padding: 7px 11px;
+  }
+
+  .ch-inline-tabs {
+    padding: 4px;
+    border-radius: 14px;
+  }
+}
+
+/* ── 4. Mobile-portrait edge cases (≤ 479px, very small phones) ─────────── */
+
+@media (max-width: 479px) {
+
+  /* Ensure the header row never squeezes below 52px so the tab wrap on
+      row-3 still sits fully within the header background                      */
+  .ch-main-row {
+    min-height: 52px !important;
+  }
+
+  /* Aggressive truncation on the course title for very tight viewports       */
+  .ch-main-bar-inner button .truncate {
+    max-width: 80px !important;
+  }
+
+  /* Slightly smaller tab font on tiny screens                                */
+  .ch-inline-tab {
+    font-size: 11.5px;
+    padding: 5px 8px;
+  }
+
+  /* Teacher main-bar right padding — narrow enough at 479px that we can
+      reduce the reservation slightly vs the ≤639px value                      */
+  .classroom-header--teacher .ch-main-bar-inner {
+    padding-right: calc(var(--classroom-align-gutter) + 200px);
+  }
+}
+
+/* ── 5. Far-right panel: pin icon cluster to the first logical row ────────
+        When the header wraps to 2 rows on mobile (tabs go to row 2), the
+        absolute `.ch-far-right-panel` still spans only the first ~48px row
+        so the exit / change-unit icons stay vertically centred with the
+        course title, not with the tab row below it.                           */
+
+@media (max-width: 639px) {
+  .ch-far-right-panel {
+    height: 48px; /* first row only — tabs row is below */
+    bottom: auto;
+  }
+}
+
+/* ── 6. Header answers-panel button: tablet / mobile visibility ──────────── */
+/*       The LayoutGrid "answers" button is hidden via opacity in the rail    */
+/*       on mobile.  Make sure the touch target is adequate wherever shown.   */
+
+@media (hover: none) and (pointer: coarse) {
+  .ch-icon-btn--answers {
+    opacity: 1 !important; /* always visible on touch — no hover to reveal   */
+  }
+}
+
+/* ── 7. Presence dropdown: safe positioning on mobile ─────────────────────  */
+
+@media (max-width: 767px) {
+  .ch-presence-dropdown {
+    /* Avoid running off the right edge of the viewport on small screens      */
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 160px;
+  }
+}
+
+/* ── 8. Mobile unit strip: slightly more breathing room ───────────────────── */
+
+@media (max-width: 639px) {
+  /* The strip rendered below the header when there's no tab system           */
+  .classroom-header .border-t.border-slate-100 {
+    padding: 6px 16px;
+  }
+}
+
+/* ── 9. Smooth scroll behaviour inside the classroom shell on mobile ───────── */
+
+@media (max-width: 1023px) {
+  .vlp-root {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: none; /* disable any snap so free scroll feels natural */
+  }
+}

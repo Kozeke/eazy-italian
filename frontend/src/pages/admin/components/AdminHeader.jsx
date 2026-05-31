@@ -57,7 +57,8 @@ const HEADER_H = SHELL_HEADER_HEIGHT;
 const BANNER_H = 40;   // px — height of the expired banner strip
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+  /* Syne is loaded for the logo wordmark only — header UI stays on Inter/Nunito */
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
   /* ── Part C: Expired plan banner ──────────────────────────────────────────── */
   .ah-expired-banner {

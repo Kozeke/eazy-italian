@@ -200,9 +200,9 @@ def _get_unit_or_404(db: Session, unit_id: int, teacher_id: int) -> Unit:
 def _build_segment_summary(seg: Segment) -> SegmentSummary:
     """Build a SegmentSummary from a persisted Segment record."""
     blocks = seg.media_blocks or []
-    ex_types = [b.get("kind", "") for b in blocks if b.get("kind") not in ("text", "image")]
+    ex_types = [b.get("kind", "") for b in blocks if b.get("kind") not in ("text", "image", "image_placeholder")]
     texts_count = sum(1 for b in blocks if b.get("kind") == "text")
-    has_img = any(b.get("kind") == "image" for b in blocks)
+    has_img = any(b.get("kind") in ("image", "image_placeholder") for b in blocks)
     return SegmentSummary(
         id=seg.id,
         title=seg.title,
@@ -297,7 +297,12 @@ async def generate_unit_content(
         body.num_segments,
         body.include_images,
     )
-    _get_unit_or_404(db, unit_id, current_user.id)
+    # Load the unit so we can read any saved outline_sections
+    unit = _get_unit_or_404(db, unit_id, current_user.id)
+
+    # When the unit has saved outline sections, they override the body's num_segments
+    # so the generator creates exactly the segments the teacher approved in the outline.
+    _saved_sections: list[dict] | None = getattr(unit, "outline_sections", None) or None
 
     # Resolve the plan BEFORE quota check (no side-effects yet — safe to do first).
     try:
@@ -330,13 +335,17 @@ async def generate_unit_content(
         description=body.description,
         level=body.level,
         language=body.language,
-        num_segments=body.num_segments,
+        # Use saved outline section count when available; body value otherwise.
+        num_segments=len(_saved_sections) if _saved_sections else body.num_segments,
         exercise_types=list(body.exercise_types),
         teacher_id=current_user.id,
         content_language=body.language.lower(),
         instruction_language=body.instruction_language,
         include_images=body.include_images,
         plan=plan,
+        # Forward saved sections so generate() uses them directly instead of
+        # re-running the AI topic planner.
+        outline_sections=_saved_sections,
     )
 
     service = UnitGeneratorService(ai_provider=provider)
@@ -626,6 +635,162 @@ def _plans_to_response(
     )
 
 
+# ── Per-placeholder image-generation endpoint ─────────────────────────────────
+#
+# When the teacher enabled "include_images" during unit generation, each segment
+# received an image_placeholder block (kind="image_placeholder") with a pre-built
+# image_description but no actual image data.
+#
+# This endpoint:
+#   1. Finds the placeholder block by block_id inside segment.media_blocks.
+#   2. Generates the real image (fal.ai or SVG fallback) using the stored description.
+#   3. Patches the block in-place: kind → "image", data.src added, description removed.
+#   4. Persists and returns the updated block.
+
+class GenerateImageRequest(BaseModel):
+    block_id: str = Field(..., description="UUID of the image_placeholder block to resolve.")
+
+
+class GenerateImageResponse(BaseModel):
+    block_id: str
+    segment_id: int
+    src: str          # data-URI of the generated image
+    alt_text: str
+
+
+@router.post(
+    "/{unit_id}/segments/{segment_id}/generate-image",
+    response_model=GenerateImageResponse,
+    summary="Generate the image for a single image_placeholder block",
+    description=(
+        "Resolves one `image_placeholder` block in a segment into a real image. "
+        "Pass the block's `id` field. The placeholder's `image_description` is used "
+        "as the generation prompt. The block is updated in-place to `kind='image'`."
+    ),
+    tags=["AI Unit Generation"],
+)
+async def generate_segment_image(
+    unit_id: int,
+    segment_id: int,
+    body: GenerateImageRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+) -> GenerateImageResponse:
+    import os, uuid as _uuid
+    from sqlalchemy.orm.attributes import flag_modified
+
+    _get_unit_or_404(db, unit_id, current_user.id)
+
+    seg = db.query(Segment).filter(
+        Segment.id == segment_id,
+        Segment.unit_id == unit_id,
+    ).first()
+    if not seg:
+        raise HTTPException(status_code=404, detail="Segment not found.")
+
+    blocks: list[dict] = list(seg.media_blocks or [])
+    placeholder = next(
+        (b for b in blocks if b.get("id") == body.block_id and b.get("kind") == "image_placeholder"),
+        None,
+    )
+    if placeholder is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No image_placeholder block with id={body.block_id!r} found in segment {segment_id}.",
+        )
+
+    image_description: str = (placeholder.get("data") or {}).get("image_description", "")
+    alt_text: str = (placeholder.get("data") or {}).get("alt_text", f"Image for: {seg.title}")
+
+    if not image_description:
+        raise HTTPException(status_code=422, detail="Placeholder has no image_description.")
+
+    # ── Resolve fal.ai settings (settings → env) ────────────────────────────────
+    fal_key: str = ""
+    fal_model: str = "fal-ai/flux/dev"
+    fal_image_size: str = "landscape_4_3"
+    fal_lora_url: str = ""
+    fal_lora_scale: float = 0.8
+    try:
+        from app.core.config import settings as _settings
+        fal_key = getattr(_settings, "FAL_KEY", "") or ""
+        fal_model = getattr(_settings, "FAL_MODEL", "") or "fal-ai/flux/dev"
+        fal_image_size = getattr(_settings, "FAL_IMAGE_SIZE", "") or "landscape_4_3"
+        fal_lora_url = getattr(_settings, "FAL_LORA_URL", "") or ""
+        fal_lora_scale = float(getattr(_settings, "FAL_LORA_SCALE", 0.8) or 0.8)
+    except Exception:
+        fal_key = os.environ.get("FAL_KEY", "")
+
+    style = "educational, flat illustration, clean background"
+    img_result = None
+
+    # ── Try fal.ai first (same strategy as generate-thumbnail-preview) ────────
+    if fal_key:
+        try:
+            from app.services.ai.image_providers import FalImageProvider
+            fal_provider = FalImageProvider(
+                api_key=fal_key,
+                model=fal_model,
+                image_size=fal_image_size,
+                lora_url=fal_lora_url,
+                lora_scale=fal_lora_scale,
+            )
+            img_result = await fal_provider.agenerate_image(
+                prompt=image_description,
+                alt_text=alt_text,
+                style=style,
+            )
+        except Exception as exc:
+            logger.warning(
+                "generate_segment_image: fal.ai failed, falling back to SVG: %s", exc
+            )
+
+    # ── SVG fallback when fal.ai is unavailable or errors ─────────────────────
+    if img_result is None:
+        try:
+            plan, _ = get_teacher_tariff_display_state(db, current_user)
+            provider = get_provider_for_plan(plan)
+            from app.services.ai.image_providers.svg_provider import SVGImageProvider
+            svg_provider = SVGImageProvider(ai_provider=provider)
+            img_result = await svg_provider.agenerate_image(
+                prompt=image_description,
+                alt_text=alt_text,
+                style=style,
+            )
+        except Exception as exc:
+            logger.error("generate_segment_image: generation failed segment_id=%d: %s", segment_id, exc)
+            raise HTTPException(status_code=500, detail=f"Image generation failed: {exc}") from exc
+
+    src = img_result.as_data_uri()
+
+    # ── Patch block in-place ──────────────────────────────────────────────────
+    for blk in blocks:
+        if blk.get("id") == body.block_id:
+            blk["kind"] = "image"
+            blk["data"] = {"src": src, "alt_text": alt_text}
+            break
+
+    seg.media_blocks = blocks
+    flag_modified(seg, "media_blocks")
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("generate_segment_image: DB commit failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to save generated image.") from exc
+
+    logger.info(
+        "generate_segment_image: success unit_id=%d segment_id=%d block_id=%s",
+        unit_id, segment_id, body.block_id,
+    )
+    return GenerateImageResponse(
+        block_id=body.block_id,
+        segment_id=segment_id,
+        src=src,
+        alt_text=alt_text,
+    )
+
+
 @router.post(
     "/{unit_id}/plan",
     response_model=UnitPlanResponse,
@@ -645,7 +810,8 @@ async def plan_unit_from_topic(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher),
 ) -> UnitPlanResponse:
-    _get_unit_or_404(db, unit_id, current_user.id)
+    # Load the unit so we can read any saved outline_sections
+    unit = _get_unit_or_404(db, unit_id, current_user.id)
 
     try:
         plan, _ = get_teacher_tariff_display_state(db, current_user)
@@ -657,18 +823,25 @@ async def plan_unit_from_topic(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI provider unavailable: {exc}") from exc
 
+    # When the unit has saved outline sections, use them to drive the plan so
+    # the preview exactly matches what generation will produce.
+    _saved_sections: list[dict] | None = getattr(unit, "outline_sections", None) or None
+
     svc_request = _SvcUnitGenerateRequest(
         unit_id=unit_id,
         topic=body.topic,
         description=body.description,
         level=body.level,
         language=body.language,
-        num_segments=body.num_segments,
+        # Respect saved outline section count; fall back to the body value.
+        num_segments=len(_saved_sections) if _saved_sections else body.num_segments,
         exercise_types=list(body.exercise_types),
         teacher_id=current_user.id,
         content_language=body.language.lower(),
         instruction_language=body.instruction_language,
         plan=plan,
+        # Forward saved sections so plan_only returns them instead of re-running AI.
+        outline_sections=_saved_sections,
     )
 
     service = UnitGeneratorService(ai_provider=provider)
@@ -681,7 +854,7 @@ async def plan_unit_from_topic(
         )
         raise HTTPException(status_code=500, detail=f"Planning failed: {exc}") from exc
 
-    source = "description" if body.description else "topic"
+    source = "outline" if _saved_sections else ("description" if body.description else "topic")
     return _plans_to_response(unit_id, body.topic, source, plans)
 
 

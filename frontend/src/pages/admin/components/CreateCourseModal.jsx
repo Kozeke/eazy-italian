@@ -26,7 +26,6 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useTeacherClassroomTransition } from '../../../contexts/TeacherClassroomTransitionContext';
-import { useAuth } from '../../../hooks/useAuth';
 // Optional second step: teacher attaches PDFs/docs before outline generation.
 import CourseFileUploadModal from './CourseFileUploadModal';
 
@@ -57,39 +56,14 @@ const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 // ─── Language detection helpers ───────────────────────────────────────────────
 
 /**
- * Maps language names to keyword variants for detection from free-text input.
- * Ordered by specificity — more specific keywords first.
+ * Five main European languages — keyword variants for detection from free-text input.
  */
 const LANGUAGE_DETECT_MAP = {
-  Italian:    ['italian', 'italiano'],
-  Spanish:    ['spanish', 'español', 'espanol', 'castellano'],
-  French:     ['french', 'français', 'francais'],
-  German:     ['german', 'deutsch'],
-  Russian:    ['russian', 'русский'],
-  Portuguese: ['portuguese', 'português', 'portugues', 'brazilian'],
-  Chinese:    ['chinese', 'mandarin', '中文', 'cantonese'],
-  Japanese:   ['japanese', '日本語'],
-  Korean:     ['korean', '한국어'],
-  Arabic:     ['arabic', 'العربية'],
-  Dutch:      ['dutch', 'nederlands'],
-  Polish:     ['polish', 'polski'],
-  Ukrainian:  ['ukrainian', 'українська'],
-  Turkish:    ['turkish', 'türkçe', 'turkce'],
-  Swedish:    ['swedish', 'svenska'],
-  Norwegian:  ['norwegian', 'norsk'],
-  Greek:      ['greek', 'ελληνικά'],
-  Hebrew:     ['hebrew', 'עברית'],
-  Hindi:      ['hindi', 'हिंदी'],
-  English:    ['english'],
-};
-
-/** Maps locale codes (from user.locale) to full language names. */
-const LOCALE_TO_LANGUAGE = {
-  en: 'English',  ru: 'Russian',  it: 'Italian',  de: 'German',
-  fr: 'French',   es: 'Spanish',  pt: 'Portuguese', zh: 'Chinese',
-  ja: 'Japanese', ko: 'Korean',   ar: 'Arabic',   nl: 'Dutch',
-  pl: 'Polish',   uk: 'Ukrainian', tr: 'Turkish',  sv: 'Swedish',
-  no: 'Norwegian', el: 'Greek',   he: 'Hebrew',   hi: 'Hindi',
+  English: ['english'],
+  French:  ['french', 'français', 'francais'],
+  German:  ['german', 'deutsch'],
+  Italian: ['italian', 'italiano'],
+  Spanish: ['spanish', 'español', 'espanol', 'castellano'],
 };
 
 /** Language options for the override dropdowns. */
@@ -97,11 +71,7 @@ const ALL_LANGUAGES = Object.keys(LANGUAGE_DETECT_MAP).sort();
 
 /** Country-flag emoji for each language (best-effort). */
 const FLAG_MAP = {
-  Italian: '🇮🇹', Spanish: '🇪🇸', French: '🇫🇷', German: '🇩🇪',
-  English: '🇬🇧', Russian: '🇷🇺', Portuguese: '🇵🇹', Chinese: '🇨🇳',
-  Japanese: '🇯🇵', Korean: '🇰🇷', Arabic: '🇸🇦', Dutch: '🇳🇱',
-  Polish: '🇵🇱', Ukrainian: '🇺🇦', Turkish: '🇹🇷', Swedish: '🇸🇪',
-  Norwegian: '🇳🇴', Greek: '🇬🇷', Hebrew: '🇮🇱', Hindi: '🇮🇳',
+  English: '🇬🇧', French: '🇫🇷', German: '🇩🇪', Italian: '🇮🇹', Spanish: '🇪🇸',
 };
 
 /**
@@ -114,26 +84,6 @@ function detectTargetLanguage(text) {
     if (keywords.some(kw => lower.includes(kw))) return lang;
   }
   return null;
-}
-
-/**
- * Derive a display-name language from a user object.
- * Priority: notification_prefs.native_language → locale → "English"
- */
-function nativeLanguageFromUser(user) {
-  if (!user) return 'English';
-  // 1. Explicit native_language field (stored in notification_prefs for students;
-  //    some teacher accounts also set this via profile settings).
-  const explicit = user?.notification_prefs?.native_language;
-  if (explicit && typeof explicit === 'string' && explicit.trim()) {
-    const trimmed = explicit.trim();
-    // Normalise to title-case if it matches a known language
-    const normalised = ALL_LANGUAGES.find(l => l.toLowerCase() === trimmed.toLowerCase());
-    return normalised ?? trimmed;
-  }
-  // 2. locale code → full language name
-  const locale = (user?.locale ?? 'en').split('-')[0].toLowerCase();
-  return LOCALE_TO_LANGUAGE[locale] ?? 'English';
 }
 
 // ─── Shared tariff cache ──────────────────────────────────────────────────────
@@ -230,6 +180,20 @@ async function apiCreateUnit(courseId, title, orderIndex = 0, description = '') 
   return parseJsonResponse(res, 'Unit was created but API returned an empty or invalid JSON response.');
 }
 
+/**
+ * Generate an AI thumbnail before the course is created.
+ * Returns { data_uri, source } — data_uri is a base64 SVG/PNG data URI.
+ */
+async function apiGenerateThumbnailPreview(title, level = 'B1', language = 'English') {
+  const res = await fetch(buildAdminApiUrl('/admin/courses/generate-thumbnail-preview'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ title, level, language }),
+  });
+  if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
+  return res.json();
+}
+
 async function apiUploadThumbnail(courseId, file) {
   const form = new FormData();
   form.append('file', file);
@@ -240,6 +204,7 @@ async function apiUploadThumbnail(courseId, file) {
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
 }
+
 
 // ─── Tiny sub-components ──────────────────────────────────────────────────────
 
@@ -256,8 +221,7 @@ const ThumbnailPlaceholder = () => (
   </svg>
 );
 
-const ThumbnailZone = ({ preview, onPick, onClear, disabled }) => {
-  // Resolves admin create-course strings for the shared thumbnail drop zone.
+const ThumbnailZone = ({ preview, onPick, onClear, onGenerate, isGenerating, disabled, canGenerate }) => {
   const { t } = useTranslation();
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -269,13 +233,12 @@ const ThumbnailZone = ({ preview, onPick, onClear, disabled }) => {
     if (file && file.type.startsWith('image/')) onPick(file);
   };
 
+  const isDisabled = disabled || isGenerating;
+
   return (
     <div style={{ position: 'relative' }}>
       <div
-        role="button" tabIndex={0} aria-label={t('admin.createCourseModal.thumbnailZoneAria')}
-        onClick={() => !disabled && inputRef.current?.click()}
-        onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !disabled) inputRef.current?.click(); }}
-        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={e => { e.preventDefault(); if (!isDisabled) setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         style={{
@@ -283,40 +246,118 @@ const ThumbnailZone = ({ preview, onPick, onClear, disabled }) => {
           borderRadius: 12, overflow: 'hidden',
           border: `2px dashed ${dragOver ? C.primary : preview ? 'transparent' : C.border}`,
           background: preview ? 'transparent' : C.bg,
-          cursor: disabled ? 'default' : 'pointer',
           position: 'relative',
           transition: 'border-color .15s, box-shadow .15s',
           boxShadow: dragOver ? `0 0 0 3px ${C.tint}` : 'none',
         }}
       >
+        {/* Image or placeholder */}
         {preview ? (
-          <img src={preview} alt={t('admin.createCourseModal.thumbnailAlt')}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img
+            src={preview}
+            alt={t('admin.createCourseModal.thumbnailAlt')}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
         ) : (
           <ThumbnailPlaceholder />
         )}
-        {!disabled && (
+
+        {/* Generating overlay */}
+        {isGenerating && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'rgba(28,31,58,.55)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 10,
+            borderRadius: 10,
+          }}>
+            <span style={{
+              width: 26, height: 26,
+              border: '3px solid rgba(255,255,255,.25)',
+              borderTopColor: '#fff',
+              borderRadius: '50%',
+              animation: 'ccm2-spin .7s linear infinite',
+              display: 'block',
+            }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', fontFamily: FONT_BODY }}>
+              Generating…
+            </span>
+          </div>
+        )}
+
+        {/* Hover action overlay — two buttons */}
+        {!isDisabled && !isGenerating && (
           <div className="ccm2-thumb-overlay" style={{
             position: 'absolute', inset: 0,
-            background: preview ? 'rgba(28,31,58,.45)' : 'rgba(108,111,239,.06)',
+            background: preview ? 'rgba(28,31,58,.42)' : 'rgba(108,111,239,.07)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 6, opacity: 0, transition: 'opacity .18s', borderRadius: 10,
+            gap: 10, opacity: 0, transition: 'opacity .18s', borderRadius: 10,
           }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 11V4M5 7l3-3 3 3M2 14h12"
-                stroke={preview ? '#fff' : C.primary} strokeWidth="1.6"
-                strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ fontSize: 12, fontWeight: 700, color: preview ? '#fff' : C.primary, fontFamily: FONT_BODY }}>
-              {preview ? t('admin.createCourseModal.changePhoto') : t('admin.createCourseModal.uploadPhoto')}
-            </span>
+            {/* Upload button — pointerEvents:auto overrides inherited none from overlay */}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); inputRef.current?.click(); }}
+              style={{
+                pointerEvents: 'auto',
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 9,
+                border: `1.5px solid ${preview ? 'rgba(255,255,255,.55)' : C.border}`,
+                background: preview ? 'rgba(255,255,255,.15)' : C.white,
+                color: preview ? '#fff' : C.primary,
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                fontFamily: FONT_BODY, backdropFilter: 'blur(4px)',
+                transition: 'background .15s, transform .1s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = preview ? 'rgba(255,255,255,.25)' : C.tint; }}
+              onMouseLeave={e => { e.currentTarget.style.background = preview ? 'rgba(255,255,255,.15)' : C.white; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <path d="M8 11V4M5 7l3-3 3 3M2 14h12"
+                  stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Upload
+            </button>
+
+            {/* Generate with AI button — pointerEvents:auto overrides inherited none from overlay */}
+            {onGenerate && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); if (canGenerate !== false) onGenerate(); }}
+                title={canGenerate === false ? 'Enter a course title first' : 'Generate thumbnail with AI'}
+                style={{
+                  pointerEvents: 'auto',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 9,
+                  border: '1.5px solid transparent',
+                  background: canGenerate === false ? 'rgba(108,111,239,0.35)' : C.primary,
+                  color: '#fff',
+                  fontSize: 12, fontWeight: 700,
+                  cursor: canGenerate === false ? 'not-allowed' : 'pointer',
+                  fontFamily: FONT_BODY,
+                  boxShadow: canGenerate === false ? 'none' : '0 2px 8px rgba(108,111,239,.35)',
+                  transition: 'background .15s',
+                  opacity: canGenerate === false ? 0.6 : 1,
+                }}
+                onMouseEnter={e => { if (canGenerate !== false) e.currentTarget.style.background = C.primaryDk; }}
+                onMouseLeave={e => { e.currentTarget.style.background = canGenerate === false ? 'rgba(108,111,239,0.35)' : C.primary; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                  <path d="M7 1l1.2 3.8L12 6l-3.8 1.2L7 11 5.8 7.2 2 6l3.8-1.2L7 1z"
+                    fill="currentColor" opacity=".9"/>
+                  <path d="M11.5 1l.5 1.5L13.5 3l-1.5.5L11.5 5l-.5-1.5L9.5 3l1.5-.5L11.5 1z"
+                    fill="currentColor" opacity=".6"/>
+                </svg>
+                Generate
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {preview && !disabled && (
+      {/* Remove button */}
+      {preview && !isDisabled && (
         <button
-          onClick={(e) => { e.stopPropagation(); onClear(); }}
+          onClick={e => { e.stopPropagation(); onClear(); }}
           aria-label={t('admin.createCourseModal.removeThumbnailAria')}
           style={{
             position: 'absolute', top: 7, right: 7,
@@ -558,12 +599,12 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   // i18n for all user-visible copy (en / ru via profile or app language).
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { startTeacherClassroomOpen } = useTeacherClassroomTransition();
 
   const [mode, setMode]               = useState('quick');
-  const [thumbFile, setThumbFile]     = useState(null);
-  const [thumbPreview, setThumbPreview] = useState(null);
+  const [thumbFile, setThumbFile]         = useState(null);
+  const [thumbPreview, setThumbPreview]   = useState(null);
+  const [thumbGenerating, setThumbGenerating] = useState(false);
   const [quickTitle, setQuickTitle]   = useState('');
   const [description, setDescription] = useState('');
   const [level, setLevel]             = useState('B1');
@@ -572,9 +613,9 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   const [error, setError]             = useState(null);
 
   // ── Language context ──────────────────────────────────────────────────────
-  // targetLanguage: language the course *teaches* (detected from description)
-  // nativeLanguage: language for teacher-facing explanations (from user profile)
-  const [targetLanguage, setTargetLanguage] = useState('');
+  // targetLanguage: language the course *teaches* (defaults to English)
+  // nativeLanguage: language for explanations (defaults to English)
+  const [targetLanguage, setTargetLanguage] = useState('English');
   const [nativeLanguage, setNativeLanguage] = useState('English');
 
   // ── File enrichment step (Generate mode only)
@@ -587,21 +628,13 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
   const quickInputRef = useRef(null);
   const descRef       = useRef(null);
 
-  // ── Seed native language from user profile when modal opens ──────────────
-  useEffect(() => {
-    if (open) {
-      setNativeLanguage(nativeLanguageFromUser(user));
-    }
-  }, [open, user]);
-
   // ── Auto-detect target language from description as teacher types ─────────
   // Only applies in Generate mode — in Quick mode there is no description and
-  // we want the teacher's chosen target_language to persist (defaulted to
-  // "Italian" on open so the LanguagePill is always rendered for Quick mode).
+  // the default teaching language (English) persists from the reset-on-open effect.
   useEffect(() => {
     if (mode !== 'generate') return;
     if (!description.trim()) {
-      setTargetLanguage('');
+      setTargetLanguage('English');
       return;
     }
     const detected = detectTargetLanguage(description);
@@ -615,10 +648,9 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       setQuickTitle('');
       setDescription('');
       setLevel('B1');
-      // Default the teaching language to "Italian" — sensible app-wide default
-      // that also ensures the LanguagePill is always visible in Quick mode.
-      // The teacher can still override it in either mode.
-      setTargetLanguage('Italian');
+      // Default both languages to English; teacher can override in the pill.
+      setTargetLanguage('English');
+      setNativeLanguage('English');
       setThumbFile(null);
       setThumbPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
       setLoading(false);
@@ -697,6 +729,37 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
     setThumbFile(null);
     setThumbPreview(null);
   }, [thumbPreview]);
+
+  /**
+   * Generate a thumbnail with AI before the course is saved.
+   * Requires a title (quickTitle in Quick mode, description in Generate mode).
+   * Passes the selected targetLanguage so the thumbnail gets language-specific
+   * visuals (e.g. Union Jack for English, tricolore for Italian).
+   */
+  const handleThumbGenerate = useCallback(async () => {
+    // Guard: no title → do nothing (button is visually disabled anyway)
+    const titleSource = mode === 'generate' ? description.trim() : quickTitle.trim();
+    if (!titleSource) return;
+
+    const lang = targetLanguage || 'English';
+    setThumbGenerating(true);
+    try {
+      const { data_uri } = await apiGenerateThumbnailPreview(titleSource, level || 'B1', lang);
+      // Store the data URI directly as the preview
+      if (thumbPreview && !thumbPreview.startsWith('data:')) URL.revokeObjectURL(thumbPreview);
+      setThumbPreview(data_uri);
+      // Convert data URI → File so the existing upload logic works unchanged
+      const [header, b64] = data_uri.split(',');
+      const mime = (header.match(/:(.*?);/) || [])[1] || 'image/svg+xml';
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const blob  = new Blob([bytes], { type: mime });
+      setThumbFile(new File([blob], 'ai-thumbnail.svg', { type: mime }));
+    } catch (err) {
+      console.warn('[CreateCourseModal] AI thumbnail generation failed:', err);
+    } finally {
+      setThumbGenerating(false);
+    }
+  }, [mode, quickTitle, description, level, targetLanguage, thumbPreview]);
 
   // ── Navigate helper — forwards source_token in URL when present
   const goToClassroom = useCallback((courseId, unitId, generationParams = null) => {
@@ -1096,7 +1159,10 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
               preview={thumbPreview}
               onPick={handleThumbPick}
               onClear={handleThumbClear}
+              onGenerate={handleThumbGenerate}
+              isGenerating={thumbGenerating}
               disabled={loading}
+              canGenerate={isGenerate ? description.trim().length > 0 : quickTitle.trim().length > 0}
             />
           </div>
 
@@ -1117,8 +1183,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
               />
 
               {/* ── Language context pill — persisted on the course row ─────────
-                  Pre-populated with "Italian" (target) and the teacher's profile
-                  language (native) so the pill is always visible and editable. */}
+                  Pre-populated with English for both teaching and explanation. */}
               <LanguagePill
                 targetLanguage={targetLanguage}
                 nativeLanguage={nativeLanguage}

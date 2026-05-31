@@ -301,56 +301,94 @@ function UnitCard({
   const [editingDesc,  setEditingDesc]  = useState(false);
   const [title,        setTitle]        = useState<string>(outlineUnit?.title ?? '');
   const [description,  setDescription] = useState<string>(outlineUnit?.description ?? '');
+  // Local copy of sections so inline edits can be saved independently of title/desc blurs
+  const [sections,     setSections]     = useState<Array<{ title: string; description: string }>>(
+    () => (outlineUnit?.sections ?? []).map((s: any) => ({
+      title: s.title ?? '',
+      description: s.description ?? '',
+    })),
+  );
+  // Tracks which section chip is in edit mode (index or null)
+  const [editingSectionIdx, setEditingSectionIdx] = useState<number | null>(null);
   const [segmentPlans, setSegmentPlans] = useState<SegmentPlanItem[] | null>(null);
   const [planLoading,  setPlanLoading]  = useState(false);
   const [planError,    setPlanError]    = useState<string | null>(null);
   const [saving,       setSaving]       = useState(false);
 
   /**
-   * Records the {title, description} inputs that produced the cached plan.
+   * Records the {title, description, sectionsKey} inputs that produced the cached plan.
    * New fetch triggered ONLY when saved values differ — plain expand/collapse
    * never causes a re-fetch.
    */
-  const planGeneratedFor = useRef<{ title: string; description: string } | null>(null);
+  const planGeneratedFor = useRef<{ title: string; description: string; sectionsKey: string } | null>(null);
 
   const titleRef = useRef<HTMLInputElement>(null);
   const descRef  = useRef<HTMLTextAreaElement>(null);
+  // Refs for inline section title inputs (one per section)
+  const sectionInputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   // Sync when outline changes externally (EditOutlineModal save, etc.)
   useEffect(() => {
-    const nextTitle = outlineUnit?.title ?? '';
-    const nextDesc  = outlineUnit?.description ?? '';
+    const nextTitle    = outlineUnit?.title ?? '';
+    const nextDesc     = outlineUnit?.description ?? '';
+    const nextSections = (outlineUnit?.sections ?? []).map((s: any) => ({
+      title: s.title ?? '',
+      description: s.description ?? '',
+    }));
     setTitle(nextTitle);
     setDescription(nextDesc);
+    setSections(nextSections);
+    const nextKey = nextSections.map((s: any) => s.title).join('|');
     if (
       planGeneratedFor.current !== null &&
-      (planGeneratedFor.current.title !== nextTitle ||
-        planGeneratedFor.current.description !== nextDesc)
+      (planGeneratedFor.current.title       !== nextTitle ||
+       planGeneratedFor.current.description !== nextDesc  ||
+       planGeneratedFor.current.sectionsKey !== nextKey)
     ) {
       setSegmentPlans(null);
       planGeneratedFor.current = null;
     }
-  }, [outlineUnit?.title, outlineUnit?.description]);
+  }, [outlineUnit?.title, outlineUnit?.description, outlineUnit?.sections]);
 
   useEffect(() => { if (editingTitle) titleRef.current?.focus(); }, [editingTitle]);
   useEffect(() => { if (editingDesc)  descRef.current?.focus();  }, [editingDesc]);
+  useEffect(() => {
+    if (editingSectionIdx !== null) {
+      sectionInputRefs.current[editingSectionIdx]?.focus();
+    }
+  }, [editingSectionIdx]);
 
-  const sections: any[] = outlineUnit?.sections ?? [];
+  // Exit any open edit mode the instant generation starts — prevents stale
+  // input fields from showing while the unit is being generated.
+  useEffect(() => {
+    if (isGenerating) {
+      setEditingTitle(false);
+      setEditingDesc(false);
+      setEditingSectionIdx(null);
+    }
+  }, [isGenerating]);
+
   const isDone   = status === 'done';
   const isActive = status === 'generating';
 
   // ── Lazy plan load — cache-hit check ─────────────────────────────────────
   const loadPlan = useCallback(async () => {
-    if (!dbUnit?.id || planLoading) return;
+    // Block plan fetches while generation is running — the unit content is
+    // actively being written; calling the plan endpoint is unnecessary and
+    // could confuse the user with a stale AI-preview over live progress.
+    if (!dbUnit?.id || planLoading || isGenerating) return;
 
     const fallbackTitle = t('classroom.unitSelector.unnamedUnit', { index: index + 1 });
-    const curTitle = title.trim() || outlineUnit?.title || fallbackTitle;
-    const curDesc  = description.trim() || outlineUnit?.description || '';
+    const curTitle      = title.trim() || outlineUnit?.title || fallbackTitle;
+    const curDesc       = description.trim() || outlineUnit?.description || '';
+    // Include section titles in the cache key so any section change triggers a re-fetch
+    const curSectionsKey = sections.map((s) => s.title).join('|');
 
     if (
       segmentPlans !== null &&
       planGeneratedFor.current?.title       === curTitle &&
-      planGeneratedFor.current?.description === curDesc
+      planGeneratedFor.current?.description === curDesc  &&
+      planGeneratedFor.current?.sectionsKey === curSectionsKey
     ) {
       return; // cache hit — same inputs, skip the request
     }
@@ -360,7 +398,7 @@ function UnitCard({
     try {
       const plans = await fetchSegmentPlan(dbUnit.id, curTitle, curDesc, level, language);
       setSegmentPlans(plans);
-      planGeneratedFor.current = { title: curTitle, description: curDesc };
+      planGeneratedFor.current = { title: curTitle, description: curDesc, sectionsKey: curSectionsKey };
     } catch {
       // Show a single localized message — avoids leaking raw HTTP text into the UI
       setSegmentPlans(null);
@@ -368,7 +406,7 @@ function UnitCard({
     } finally {
       setPlanLoading(false);
     }
-  }, [dbUnit?.id, planLoading, segmentPlans, title, description, outlineUnit, index, level, language, t]);
+  }, [dbUnit?.id, planLoading, isGenerating, segmentPlans, title, description, sections, outlineUnit, index, level, language, t]);
 
   const handleToggle = () => {
     setExpanded((prev) => {
@@ -379,7 +417,12 @@ function UnitCard({
   };
 
   // ── Auto-save ─────────────────────────────────────────────────────────────
-  const saveChanges = useCallback(async (newTitle: string, newDesc: string) => {
+  // Accepts explicit values so callers don't have to wait for setState to flush.
+  const saveChanges = useCallback(async (
+    newTitle: string,
+    newDesc: string,
+    newSections: Array<{ title: string; description: string }>,
+  ) => {
     if (!courseId || isGenerating) return;
     setSaving(true);
     try {
@@ -387,38 +430,80 @@ function UnitCard({
         courseId,
         allOutlineUnits.map((u: any, i: number) =>
           i === index
-            ? { title: newTitle, description: newDesc, sections: u.sections ?? [] }
+            ? { title: newTitle, description: newDesc, sections: newSections }
             : { title: u.title ?? '', description: u.description ?? '', sections: u.sections ?? [] },
         ),
       );
       onOutlineChanged?.({
         units: allOutlineUnits.map((u: any, i: number) =>
-          i === index ? { ...u, title: newTitle, description: newDesc } : u,
+          i === index
+            ? { ...u, title: newTitle, description: newDesc, sections: newSections }
+            : u,
         ),
       });
-      // Invalidate plan cache ONLY when inputs changed
+      // Invalidate plan cache when any inputs changed
+      const newSectionsKey = newSections.map((s) => s.title).join('|');
       if (
         planGeneratedFor.current !== null &&
-        (planGeneratedFor.current.title !== newTitle ||
-          planGeneratedFor.current.description !== newDesc)
+        (planGeneratedFor.current.title       !== newTitle       ||
+         planGeneratedFor.current.description !== newDesc        ||
+         planGeneratedFor.current.sectionsKey !== newSectionsKey)
       ) {
         setSegmentPlans(null);
         planGeneratedFor.current = null;
+        // Auto-reload plan if the panel is already open so the teacher sees fresh results
+        if (expanded) {
+          // slight delay so state flushes first
+          setTimeout(() => { void loadPlan(); }, 50);
+        }
       }
     } catch { /* silently ignore — local state is still correct */ }
     finally { setSaving(false); }
-  }, [courseId, isGenerating, index, allOutlineUnits, onOutlineChanged]);
+  }, [courseId, isGenerating, index, allOutlineUnits, onOutlineChanged, expanded, loadPlan]);
 
   const handleTitleBlur = () => {
     setEditingTitle(false);
     const trimmed = title.trim() || outlineUnit?.title || t('classroom.unitSelector.unnamedUnit', { index: index + 1 });
     setTitle(trimmed);
-    void saveChanges(trimmed, description);
+    void saveChanges(trimmed, description, sections);
   };
 
   const handleDescBlur = () => {
     setEditingDesc(false);
-    void saveChanges(title, description);
+    void saveChanges(title, description, sections);
+  };
+
+  // ── Section edit helpers ──────────────────────────────────────────────────
+
+  /** Commit an in-place section title edit and save. */
+  const commitSectionEdit = (idx: number, newSectionTitle: string) => {
+    setEditingSectionIdx(null);
+    const trimmed = newSectionTitle.trim();
+    if (!trimmed) {
+      // Empty title → treat as a removal request
+      const next = sections.filter((_, i) => i !== idx);
+      setSections(next);
+      void saveChanges(title, description, next);
+      return;
+    }
+    const next = sections.map((s, i) => i === idx ? { ...s, title: trimmed } : s);
+    setSections(next);
+    void saveChanges(title, description, next);
+  };
+
+  /** Remove a section by index and save. */
+  const removeSection = (idx: number) => {
+    const next = sections.filter((_, i) => i !== idx);
+    setSections(next);
+    void saveChanges(title, description, next);
+  };
+
+  /** Append a blank section, immediately put it into edit mode, and save. */
+  const addSection = () => {
+    const next = [...sections, { title: '', description: '' }];
+    setSections(next);
+    setEditingSectionIdx(next.length - 1);
+    // Save happens on blur of the new input (commitSectionEdit)
   };
 
   // ── Card style ────────────────────────────────────────────────────────────
@@ -605,18 +690,104 @@ function UnitCard({
             </p>
           )}
 
-          {/* Section chips */}
-          {sections.length > 0 && (
+          {/* Section chips — editable when not generating/done */}
+          {(sections.length > 0 || (!isGenerating && !isDone)) && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 7 }}>
-              {sections.map((sec: any, sIdx: number) => (
-                <span key={sIdx} style={{
-                  background: DS.bg, border: `1px solid ${DS.border}`,
-                  borderRadius: 6, padding: '2px 8px',
-                  fontSize: 10, color: DS.textMuted, fontWeight: 500,
-                }}>
-                  {sec.title}
-                </span>
-              ))}
+              {sections.map((sec, sIdx) => {
+                const isEditingThis = editingSectionIdx === sIdx;
+                return (
+                  <span
+                    key={sIdx}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                      background: isEditingThis ? DS.white : DS.bg,
+                      border: `1px solid ${isEditingThis ? DS.borderFocus : DS.border}`,
+                      borderRadius: 6, padding: isEditingThis ? '1px 4px' : '2px 6px 2px 8px',
+                      fontSize: 10, color: DS.textMuted, fontWeight: 500,
+                    }}
+                  >
+                    {isEditingThis && !isGenerating && !isDone ? (
+                      <input
+                        ref={(el) => { sectionInputRefs.current[sIdx] = el; }}
+                        type="text"
+                        defaultValue={sec.title}
+                        maxLength={80}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={(e) => commitSectionEdit(sIdx, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter')  (e.target as HTMLInputElement).blur();
+                          if (e.key === 'Escape') {
+                            // Revert: if it was a newly added empty section, remove it
+                            if (!sec.title) {
+                              const next = sections.filter((_, i) => i !== sIdx);
+                              setSections(next);
+                              void saveChanges(title, description, next);
+                            }
+                            setEditingSectionIdx(null);
+                          }
+                        }}
+                        style={{
+                          width: 110, fontSize: 10, fontWeight: 500,
+                          border: 'none', outline: 'none',
+                          background: 'transparent', fontFamily: 'inherit',
+                          color: DS.textMain, padding: '1px 0',
+                        }}
+                      />
+                    ) : (
+                      <span
+                        title={!isGenerating && !isDone ? 'Click to edit section' : undefined}
+                        onClick={(e) => {
+                          if (!isGenerating && !isDone) {
+                            e.stopPropagation();
+                            setEditingSectionIdx(sIdx);
+                          }
+                        }}
+                        style={{ cursor: !isGenerating && !isDone ? 'text' : 'default' }}
+                      >
+                        {sec.title}
+                      </span>
+                    )}
+                    {/* Remove button — only in non-generating, non-done mode */}
+                    {!isGenerating && !isDone && !isEditingThis && (
+                      <button
+                        title="Remove section"
+                        onClick={(e) => { e.stopPropagation(); removeSection(sIdx); }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center',
+                          padding: '0 1px', marginLeft: 1,
+                          background: 'none', border: 'none',
+                          cursor: 'pointer', color: DS.textSubtle,
+                          fontSize: 9, lineHeight: 1,
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = DS.danger; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = DS.textSubtle; }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+
+              {/* Add section button */}
+              {!isGenerating && !isDone && (
+                <button
+                  title="Add section"
+                  onClick={(e) => { e.stopPropagation(); addSection(); }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 2,
+                    background: 'transparent',
+                    border: `1px dashed ${DS.borderFocus}`,
+                    borderRadius: 6, padding: '2px 7px',
+                    fontSize: 10, color: DS.primary, fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = DS.tint; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                >
+                  <Plus size={8} /> section
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -684,14 +855,22 @@ function UnitCard({
             </p>
           )}
 
-          {dbUnit?.id && planLoading && (
+          {/* Plan preview is disabled while the unit is being generated */}
+          {dbUnit?.id && isGenerating && !isDone && (
+            <p style={{ margin: 0, fontSize: 12, color: DS.textMuted, fontStyle: 'italic' }}>
+              {t('classroom.unitSelector.outlineReview.planLockedDuringGeneration',
+                 'Plan preview is disabled while generation is running.')}
+            </p>
+          )}
+
+          {dbUnit?.id && !isGenerating && planLoading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', color: DS.textMuted }}>
               <Loader2 size={14} style={{ animation: 'corp-spin 0.7s linear infinite' }} />
               <span style={{ fontSize: 12 }}>{t('classroom.unitSelector.outlineReview.planningSegments')}</span>
             </div>
           )}
 
-          {dbUnit?.id && planError && !planLoading && (
+          {dbUnit?.id && planError && !planLoading && !isGenerating && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '6px 10px', borderRadius: 8,
@@ -719,7 +898,7 @@ function UnitCard({
             </div>
           )}
 
-          {dbUnit?.id && segmentPlans && !planLoading && (
+          {dbUnit?.id && segmentPlans && !planLoading && !isGenerating && (
             <div>
               {segmentPlans.map((seg) => (
                 <SegmentPlanRow key={seg.index} item={seg} t={t} />

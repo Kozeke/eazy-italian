@@ -3510,7 +3510,7 @@ async def generate_reading_text_from_unit_content(
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# image — HuggingFace Inference API when HF_API_KEY is set, else SVG (LLM) fallback
+# image — fal.ai FLUX when FAL_KEY is set, else SVG (LLM) fallback
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
@@ -3558,6 +3558,27 @@ def _markdown_bullets_for_image_prompt(content: str, max_bullets: int = 3) -> li
     return (result[:max_bullets] if result else ["language learning concept"])
 
 
+def _fal_image_provider_or_none():
+    """Return FalImageProvider when FAL_KEY is configured, else None (SVG fallback)."""
+    try:
+        from app.core.config import settings
+        # API key required for fal.ai image generation
+        fal_key = getattr(settings, "FAL_KEY", "") or ""
+        if not fal_key:
+            return None
+        from app.services.ai.image_providers import FalImageProvider
+        return FalImageProvider(
+            api_key=fal_key,
+            model=getattr(settings, "FAL_MODEL", "") or "fal-ai/flux/dev",
+            image_size=getattr(settings, "FAL_IMAGE_SIZE", "") or "landscape_4_3",
+            lora_url=getattr(settings, "FAL_LORA_URL", "") or "",
+            lora_scale=float(getattr(settings, "FAL_LORA_SCALE", 0.8) or 0.8),
+        )
+    except Exception as exc:
+        logger.warning("fal.ai provider init failed, falling back to SVG: %s", exc)
+        return None
+
+
 async def generate_image_block_from_unit_content(
     unit_content: str,
     content_language: str = "auto",
@@ -3570,7 +3591,7 @@ async def generate_image_block_from_unit_content(
     """
     Build an image block using the same provider chain as unit generation:
 
-    HuggingFaceImageProvider when ``HF_API_KEY`` is set, otherwise SVGImageProvider
+    FalImageProvider when ``FAL_KEY`` is set, otherwise SVGImageProvider
     (LLM SVG) via the default text provider.
     """
     del max_retries, provider  # Signature parity with other generators; unused here.
@@ -3594,25 +3615,7 @@ async def generate_image_block_from_unit_content(
         style="educational, flat illustration, clean background",
     )
 
-    hf_key = os.environ.get("HF_API_KEY", "")
-    img_provider = None
-    if hf_key:
-        try:
-            from app.services.ai.image_providers.huggingface_provider import (
-                HuggingFaceImageProvider,
-            )
-
-            img_provider = HuggingFaceImageProvider(
-                api_key=hf_key,
-                width=512,
-                height=384,
-            )
-        except Exception as exc:
-            logger.warning(
-                "image block: HuggingFace init failed, falling back to SVG: %s",
-                exc,
-            )
-            img_provider = None
+    img_provider = _fal_image_provider_or_none()
     if img_provider is None:
         from app.services.ai.image_providers.svg_provider import SVGImageProvider
 
@@ -3656,7 +3659,7 @@ async def generate_image_stacked_from_unit_content(
     """
     Generate several lesson illustrations (vertical stack in the player).
 
-    Uses the same HuggingFace → SVG fallback chain as :func:`generate_image_block_from_unit_content`.
+    Uses the same fal.ai → SVG fallback chain as :func:`generate_image_block_from_unit_content`.
     ``pair_count`` selects how many images to create (clamped 2–6); default 3.
     """
     del max_retries, provider
@@ -3680,22 +3683,7 @@ async def generate_image_stacked_from_unit_content(
     audience_lang = content_language if content_language != "auto" else "the lesson language"
     style = "educational, flat illustration, clean background"
 
-    hf_key = os.environ.get("HF_API_KEY", "")
-    img_provider = None
-    if hf_key:
-        try:
-            from app.services.ai.image_providers.huggingface_provider import (
-                HuggingFaceImageProvider,
-            )
-
-            img_provider = HuggingFaceImageProvider(
-                api_key=hf_key,
-                width=512,
-                height=384,
-            )
-        except Exception as exc:
-            logger.warning("image_stacked: HuggingFace init failed: %s", exc)
-            img_provider = None
+    img_provider = _fal_image_provider_or_none()
     if img_provider is None:
         from app.services.ai.image_providers.svg_provider import SVGImageProvider
 

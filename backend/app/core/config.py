@@ -105,11 +105,12 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = 5
     RAG_MIN_SIMILARITY: float = 0.3
     
-    # Hugging Face Configuration
-    HF_API_KEY: str = ""
-    HF_MODEL: str = "black-forest-labs/FLUX.1-schnell"
-    HF_WIDTH: int = 512
-    HF_HEIGHT: int = 384
+    # fal.ai image generation (FLUX.1 [dev])
+    FAL_KEY: str = ""
+    FAL_MODEL: str = "fal-ai/flux/dev"
+    FAL_IMAGE_SIZE: str = "landscape_4_3"   # landscape_4_3 | square_hd | portrait_4_3
+    FAL_LORA_URL: str = ""                    # optional — URL to an educational-style LoRA
+    FAL_LORA_SCALE: float = 0.8
 
     # DeepSeek Configuration
     DEEPSEEK_API_KEY: str = ""

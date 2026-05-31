@@ -551,6 +551,7 @@ export interface InlineMediaBlock {
     | "test_with_timer"
     | "true_false"
     | "text"
+    | "image_placeholder"
     | "gif_animation"
     | "image_stacked"
     | "video_embed"

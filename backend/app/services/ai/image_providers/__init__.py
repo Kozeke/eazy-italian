@@ -15,7 +15,7 @@ Usage
         ImageProviderError,
         NullImageProvider,
         SVGImageProvider,
-        HuggingFaceImageProvider,
+        FalImageProvider,
     )
 """
 
@@ -27,9 +27,7 @@ from app.services.ai.image_providers.image_base import (
     NullImageProvider,
 )
 from app.services.ai.image_providers.svg_provider import SVGImageProvider
-from app.services.ai.image_providers.huggingface_provider import (
-    HuggingFaceImageProvider,
-)
+from app.services.ai.image_providers.fal_provider import FalImageProvider
 
 __all__ = [
     "ImageFormat",
@@ -38,5 +36,5 @@ __all__ = [
     "ImageResult",
     "NullImageProvider",
     "SVGImageProvider",
-    "HuggingFaceImageProvider",
+    "FalImageProvider",
 ]

@@ -81,6 +81,12 @@ class Unit(Base):
 
     homework_blocks = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
 
+    # Teacher-edited outline sections [{title, description}, ...] persisted by
+    # the PATCH /course-builder/{id}/outline endpoint.  Used by the SSE stream
+    # to generate exactly the segments the teacher defined rather than falling
+    # back to the hardcoded _DEFAULT_NUM_SEGMENTS value.
+    outline_sections = Column(JSONB, nullable=True, server_default=text("'[]'::jsonb"))
+
 
     # ── Helpers ───────────────────────────────────────────────────────────────
     @property

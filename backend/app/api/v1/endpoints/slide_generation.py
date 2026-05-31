@@ -41,7 +41,7 @@ from app.schemas.slides import Slide, SlideGenerationRequest, SlideDeck, SlideIm
 from app.services.ai.cache.backends import PostgresCacheBackend, CacheBackend
 from app.services.ai.cache.cache_service import CacheService
 from app.services.ai.image_providers.image_base import NullImageProvider
-from app.services.ai.image_providers.huggingface_provider import HuggingFaceImageProvider
+from app.services.ai.image_providers.fal_provider import FalImageProvider
 from app.services.ai.image_providers.svg_provider import SVGImageProvider
 from app.services.ai.providers.base import AIProvider, AIProviderError
 from app.services.ai.providers.groq_provider import GroqProvider
@@ -158,16 +158,19 @@ async def generate_slides_with_images(
     theme    = getattr(body, "theme", "editorial")
     provider_type = getattr(body, "image_provider", "svg")
     
-    # Select image provider based on request
-    if provider_type == "huggingface":
-        provider = HuggingFaceImageProvider(
-            model = os.environ.get("HF_MODEL", "black-forest-labs/FLUX.1-schnell"),
-            width = int(os.environ.get("HF_WIDTH", "512")),
-            height = int(os.environ.get("HF_HEIGHT", "384")),
+    # Select image provider based on request ("huggingface" kept as legacy alias for fal.ai)
+    if provider_type in ("huggingface", "fal"):
+        from app.core.config import settings as _settings
+        provider = FalImageProvider(
+            api_key    = getattr(_settings, "FAL_KEY", "") or os.environ.get("FAL_KEY", ""),
+            model      = getattr(_settings, "FAL_MODEL", "") or "fal-ai/flux/dev",
+            image_size = getattr(_settings, "FAL_IMAGE_SIZE", "") or "landscape_4_3",
+            lora_url   = getattr(_settings, "FAL_LORA_URL", "") or "",
+            lora_scale = float(getattr(_settings, "FAL_LORA_SCALE", 0.8) or 0.8),
         )
         logger.info(
-            "Using HuggingFace image provider — model=%r endpoint=%r",
-            provider.model, provider._endpoint
+            "Using fal.ai image provider — model=%r size=%r",
+            provider.model, provider.image_size,
         )
     else:  # default to SVG
         provider = SVGImageProvider(
@@ -339,14 +342,17 @@ async def _image_stream(
     # ── Build the image provider ──────────────────────────────────────────────
 
     try:
-        if provider_type == "huggingface":
-            img_provider = HuggingFaceImageProvider(
-                model  = os.environ.get("HF_MODEL", "black-forest-labs/FLUX.1-schnell"),
-                width  = int(os.environ.get("HF_WIDTH", "512")),
-                height = int(os.environ.get("HF_HEIGHT", "384")),
+        if provider_type in ("huggingface", "fal"):
+            from app.core.config import settings as _settings
+            img_provider = FalImageProvider(
+                api_key    = getattr(_settings, "FAL_KEY", "") or os.environ.get("FAL_KEY", ""),
+                model      = getattr(_settings, "FAL_MODEL", "") or "fal-ai/flux/dev",
+                image_size = getattr(_settings, "FAL_IMAGE_SIZE", "") or "landscape_4_3",
+                lora_url   = getattr(_settings, "FAL_LORA_URL", "") or "",
+                lora_scale = float(getattr(_settings, "FAL_LORA_SCALE", 0.8) or 0.8),
             )
             logger.info(
-                "Stream: HuggingFace provider — model=%r", img_provider.model
+                "Stream: fal.ai provider — model=%r", img_provider.model
             )
         else:
             img_provider = SVGImageProvider(

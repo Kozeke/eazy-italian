@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, asc, func
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
+import logging
 import os
+
+# Module-level logger for thumbnail generation and other course endpoint events
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_teacher
@@ -501,6 +505,93 @@ async def upload_course_thumbnail(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload thumbnail: {str(e)}")
+
+from pydantic import BaseModel as _PydanticBase
+
+class ThumbnailPreviewRequest(_PydanticBase):
+    title: str
+    level: Optional[str] = "B1"
+    description: Optional[str] = None
+    language: Optional[str] = "English"
+
+@router.post("/admin/courses/generate-thumbnail-preview")
+async def generate_thumbnail_preview(
+    body: ThumbnailPreviewRequest,
+    current_user: User = Depends(get_current_teacher),
+):
+    """
+    Generate a language-themed thumbnail for a course *before* it is saved.
+
+    Strategy
+    --------
+    • fal.ai (FLUX.1 [dev]) — if FAL_KEY env-var is set, generates a
+      real AI image (640×360 PNG) tailored to the course language and title.
+    • SVG fallback — hand-crafted branded SVG when fal.ai is unavailable / errors:
+        - English → Union Jack, Big Ben, tea, books
+        - Italian → Tricolore, Colosseum, pizza, pasta
+        - Others  → language-colour palette + greeting text
+
+    Returns { data_uri, source } where data_uri is a ``data:image/…;base64,…``
+    URI ready to drop into <img src> and later convert to a file for upload.
+    """
+    title    = (body.title or "").strip()[:200]
+    level    = (body.level or "B1").strip()
+    language = (body.language or "English").strip()
+
+    if not title:
+        raise HTTPException(status_code=422, detail="title is required")
+
+    # Build a descriptive prompt that generates a visually rich course thumbnail
+    fal_prompt = (
+        f"{language} language learning course, '{title}', "
+        f"culture and landmarks of {language}-speaking countries, "
+        "educational course banner, colorful geometric shapes, open books, "
+        "speech bubbles, modern flat design, vibrant bold colors, wide banner"
+    )
+
+    # ── Attempt fal.ai image generation ───────────────────────────────────────
+    # Prevent crash if settings import or fal call fails unexpectedly
+    fal_key: str = ""
+    fal_lora_url: str = ""
+    fal_lora_scale: float = 0.8
+    try:
+        from app.core.config import settings as _settings
+        fal_key = getattr(_settings, "FAL_KEY", "") or ""
+        fal_lora_url = getattr(_settings, "FAL_LORA_URL", "") or ""
+        fal_lora_scale = float(getattr(_settings, "FAL_LORA_SCALE", 0.8) or 0.8)
+    except Exception:
+        fal_key = os.environ.get("FAL_KEY", "")
+
+    if fal_key:
+        try:
+            from app.services.ai.image_providers import FalImageProvider
+            provider = FalImageProvider(
+                api_key=fal_key,
+                image_size="landscape_16_9",   # 640×360 equivalent for course banners
+                lora_url=fal_lora_url,
+                lora_scale=fal_lora_scale,
+            )
+            result = provider.generate_image(
+                prompt=fal_prompt,
+                alt_text=f"{language} course thumbnail",
+            )
+            data_uri = f"data:image/png;base64,{result.data}"
+            return {"data_uri": data_uri, "source": "fal"}
+        except Exception as exc:
+            # Fall through to SVG — do not surface fal.ai errors to the teacher
+            logger.warning(
+                "fal.ai thumbnail generation failed, falling back to SVG: %s", exc
+            )
+
+    # ── SVG fallback ──────────────────────────────────────────────────────────
+    # Prevent crash if SVG builder import fails (e.g. during test isolation)
+    try:
+        from app.services.course_thumbnail_svg import build_course_thumbnail_data_uri
+        data_uri = build_course_thumbnail_data_uri(title=title, level=level, language=language)
+        return {"data_uri": data_uri, "source": "svg"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Thumbnail generation failed: {exc}")
+
 
 @router.post("/admin/courses/{course_id}/generate-thumbnail")
 async def generate_course_thumbnail(

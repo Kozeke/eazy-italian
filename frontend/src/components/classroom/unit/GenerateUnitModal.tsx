@@ -339,7 +339,9 @@ function AdvancedPanel({
             {t("classroom.generateUnitModal.includeImagesTitle")}
           </div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-            {t("classroom.generateUnitModal.includeImagesHint")}
+            {t("classroom.generateUnitModal.includeImagesHintPlaceholder",
+              "Adds an image placeholder after each section's text. Generate each image individually from the lesson editor."
+            )}
           </div>
         </div>
         <button type="button" role="switch" aria-checked={includeImages}
@@ -374,7 +376,10 @@ function SuccessView({
   const successSubtitle =
     t("classroom.generateUnitModal.successSegmentsCreated", { count: result.segments_created }) +
     (result.images_generated
-      ? t("classroom.generateUnitModal.successImagesCreated", { count: result.images_generated })
+      ? t(
+          "classroom.generateUnitModal.successImagePlaceholdersCreated",
+          { count: result.images_generated, defaultValue: ` · ${result.images_generated} image placeholder${result.images_generated === 1 ? "" : "s"} added — click Generate in the editor to create each image.` }
+        )
       : "");
 
   return (
@@ -558,10 +563,10 @@ export default function GenerateUnitModal({
       numSegments === 1
         ? t("classroom.generateUnitModal.oneSegmentPhrase")
         : t("classroom.generateUnitModal.nSegmentsPhrase", { n: numSegments });
-    const imagesNote = includeImages ? t("classroom.generateUnitModal.generatingImagesNote") : "";
-    const duration = includeImages
-      ? t("classroom.generateUnitModal.durationLong")
-      : t("classroom.generateUnitModal.durationShort");
+    const imagesNote = includeImages
+      ? t("classroom.generateUnitModal.generatingImagePlaceholdersNote", { defaultValue: " + image placeholders" })
+      : "";
+    const duration = t("classroom.generateUnitModal.durationShort");
     return t("classroom.generateUnitModal.generatingFull", {
       segments: segmentPhrase,
       imagesNote,
