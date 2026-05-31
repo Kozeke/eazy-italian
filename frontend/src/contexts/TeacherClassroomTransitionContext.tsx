@@ -6,7 +6,9 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { MIN_LOADING_SCREEN_MS } from "../components/global/LoadingScreen";
+
+/** Minimum time the LinguAI loading screen stays up after opening a teacher classroom (ms). */
+const MIN_TEACHER_CLASSROOM_LOADING_MS = 2800;
 
 type TeacherClassroomTransitionContextValue = {
   /** True while navigating into a teacher classroom until the page finishes loading course data */
@@ -15,7 +17,7 @@ type TeacherClassroomTransitionContextValue = {
   startTeacherClassroomOpen: () => void;
   /**
    * Call when teacher `ClassroomPage` has finished its initial course fetch.
-   * By default waits until at least {@link MIN_LOADING_SCREEN_MS} have passed since `start`.
+   * By default waits until at least {@link MIN_TEACHER_CLASSROOM_LOADING_MS} have passed since `start`.
    * Pass `true` to hide immediately (e.g. on unmount / leave classroom).
    */
   completeTeacherClassroomOpen: (immediate?: boolean) => void;
@@ -63,7 +65,7 @@ export function TeacherClassroomTransitionProvider({
 
       clearCompleteTimer();
       const elapsed = Date.now() - started;
-      const remaining = MIN_LOADING_SCREEN_MS - elapsed;
+      const remaining = MIN_TEACHER_CLASSROOM_LOADING_MS - elapsed;
 
       if (remaining <= 0) {
         openedAtRef.current = null;

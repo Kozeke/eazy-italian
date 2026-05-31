@@ -388,9 +388,6 @@ function pickQuote(lang: string): Quote {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-/** Minimum time the full-screen loader stays visible after open starts (ms). */
-export const MIN_LOADING_SCREEN_MS = 10_000;
-
 interface LoadingScreenProps {
   /** When true, the screen fades out and unmounts after the transition */
   isLoading: boolean;
