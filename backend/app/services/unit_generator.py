@@ -241,8 +241,23 @@ class UnitGeneratorService:
     Orchestrates AI-powered segment + text + exercise + image generation.
     """
 
+    # Exercise types that illustrate vocabulary cards and therefore compete for
+    # the same salient words from the source text. Their answer words must stay
+    # unique across the whole generation run (every unit + every segment).
+    _IMAGE_CARD_TYPES: frozenset[str] = frozenset(
+        {"select_form_to_image", "type_word_to_image", "drag_word_to_image"}
+    )
+
     def __init__(self, ai_provider: AIProvider) -> None:
         self.provider = ai_provider
+        # Accumulates every answer word already consumed by an image-card
+        # exercise during this service instance's lifetime. In course generation
+        # the same service is reused for all units, so this enforces course-wide
+        # uniqueness; in standalone unit generation a fresh service is created
+        # per request, so it enforces unit-wide uniqueness. Manual single-exercise
+        # generation goes through exercise_generation_flow directly and never
+        # touches this set, so teachers can still create duplicates afterwards.
+        self._used_image_vocab: set[str] = set()
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -1973,15 +1988,15 @@ BILINGUAL RULE (most important):
                 f"{_directive_suffix}"
             )
 
-            # Track vocabulary words already used by image-card exercises on this
-            # segment so each generator picks a DIFFERENT set of words.
+            # Track vocabulary words already used by image-card exercises across
+            # the ENTIRE generation run (every unit + every segment) so each
+            # generator picks a DIFFERENT set of words.
             # select_form_to_image / type_word_to_image / drag_word_to_image all
             # share the same card format and will otherwise gravitate to the same
             # top-N salient words from the source text (e.g. libro, casa, gatto).
-            _IMAGE_CARD_TYPES: frozenset[str] = frozenset(
-                {"select_form_to_image", "type_word_to_image", "drag_word_to_image"}
-            )
-            _used_vocab_this_segment: set[str] = set()
+            # The accumulator lives on the service instance (self._used_image_vocab)
+            # so it persists across segments and units within one generation run.
+            _IMAGE_CARD_TYPES = self._IMAGE_CARD_TYPES
 
             for ex_bp in seg_bp.exercises:
                 # Always use rich_hint (segment title + full text content) so the
@@ -1991,17 +2006,18 @@ BILINGUAL RULE (most important):
                 hint = rich_hint if rich_hint.strip() else (ex_bp.topic_hint or "")
 
                 # ── Vocab exclusion for image-card exercise types ──────────────
-                # When a previous image exercise on the same segment already used
-                # certain vocabulary words, tell the next generator to avoid them
-                # so all three cards exercises cover different words.
-                if ex_bp.type in _IMAGE_CARD_TYPES and _used_vocab_this_segment:
-                    exclusion_list = ", ".join(sorted(_used_vocab_this_segment))
+                # When a previous image exercise anywhere in this generation run
+                # (any unit, any segment) already used certain vocabulary words,
+                # tell the next generator to avoid them so every image-card
+                # exercise across the whole course covers different words.
+                if ex_bp.type in _IMAGE_CARD_TYPES and self._used_image_vocab:
+                    exclusion_list = ", ".join(sorted(self._used_image_vocab))
                     hint = (
                         hint
                         + f"\n\n[VOCAB EXCLUSION — MANDATORY]\n"
-                        f"The following words are ALREADY used in other exercises on "
-                        f"this segment and MUST NOT appear as answers in this exercise: "
-                        f"{exclusion_list}.\n"
+                        f"The following words are ALREADY used in other image-card "
+                        f"exercises in this course and MUST NOT appear as answers in "
+                        f"this exercise: {exclusion_list}.\n"
                         f"Choose COMPLETELY DIFFERENT vocabulary words for every card."
                     )
 
@@ -2108,19 +2124,21 @@ BILINGUAL RULE (most important):
                     )
 
                     # ── Track vocab used by this image-card exercise ───────────
-                    # Extract answer words from the returned block so the next
-                    # image exercise on the same segment gets an exclusion list.
+                    # Extract answer words from the returned block and add them to
+                    # the run-wide pool so every later image exercise (in this and
+                    # all following units/segments) receives them in its exclusion
+                    # list and avoids repeating them.
                     if ex_bp.type in _IMAGE_CARD_TYPES:
                         try:
                             cards = (block_result.get("data") or {}).get("cards", [])
                             for card in cards:
                                 word = (card.get("answer") or "").strip().lower()
                                 if word:
-                                    _used_vocab_this_segment.add(word)
-                            if _used_vocab_this_segment:
+                                    self._used_image_vocab.add(word)
+                            if self._used_image_vocab:
                                 logger.debug(
-                                    "UnitGenerator: vocab pool after '%s': %s",
-                                    ex_bp.type, sorted(_used_vocab_this_segment),
+                                    "UnitGenerator: image-card vocab pool after '%s': %s",
+                                    ex_bp.type, sorted(self._used_image_vocab),
                                 )
                         except Exception:
                             pass  # tracking is best-effort; never block generation
