@@ -79,6 +79,8 @@ class FalImageProvider(ImageProvider):
     lora_scale   : LoRA blend strength 0.0–1.0
     style_prefix : prepended to every prompt
     timeout      : HTTP timeout in seconds
+    apply_concept_visuals : when True, swap single lesson keywords for a generic
+                   visual (good for lesson images, bad for rich banner prompts)
     """
 
     def __init__(
@@ -92,6 +94,7 @@ class FalImageProvider(ImageProvider):
         lora_scale:     float = 0.8,
         style_prefix:   str   = _STYLE_PREFIX,
         timeout:        float = _DEFAULT_TIMEOUT,
+        apply_concept_visuals: bool = True,
     ) -> None:
         self.api_key        = api_key or os.environ.get("FAL_KEY", "")
         self.model          = model   or os.environ.get("FAL_MODEL", _DEFAULT_MODEL)
@@ -102,6 +105,12 @@ class FalImageProvider(ImageProvider):
         self.lora_scale     = lora_scale
         self.style_prefix   = style_prefix
         self.timeout        = timeout
+        # When True, single-concept lesson keywords (e.g. "grammar", "verb")
+        # in the prompt are swapped for a generic visual. This is desirable for
+        # lesson/section illustrations but destroys rich descriptive prompts
+        # (e.g. course banners), so callers like the course-thumbnail endpoint
+        # disable it to preserve the full title/language/landmark description.
+        self.apply_concept_visuals = apply_concept_visuals
 
         if not self.api_key:
             raise ImageProviderError(
@@ -200,11 +209,15 @@ class FalImageProvider(ImageProvider):
         )
 
     def _build_prompt(self, user_prompt: str, style: str) -> str:
-        visual = user_prompt.lower()
-        for keyword, replacement in _CONCEPT_VISUALS.items():
-            if keyword in visual:
-                user_prompt = replacement
-                break
+        # Only collapse the prompt to a generic concept visual for lesson/section
+        # illustrations. Disabled for course banners so the full descriptive
+        # prompt (title, language, landmarks) reaches the model intact.
+        if self.apply_concept_visuals:
+            visual = user_prompt.lower()
+            for keyword, replacement in _CONCEPT_VISUALS.items():
+                if keyword in visual:
+                    user_prompt = replacement
+                    break
         parts = [
             self.style_prefix,
             style or "colorful educational style,",

@@ -552,12 +552,15 @@ async def generate_thumbnail_preview(
     if not title:
         raise HTTPException(status_code=422, detail="title is required")
 
-    # Build a descriptive prompt that generates a visually rich course thumbnail
+    # Build a descriptive prompt that generates a visually rich course thumbnail.
+    # The CEFR level is included so beginner vs advanced courses can read slightly
+    # differently, and the title/language drive the cultural imagery.
     fal_prompt = (
-        f"{language} language learning course, '{title}', "
-        f"culture and landmarks of {language}-speaking countries, "
-        "educational course banner, colorful geometric shapes, open books, "
-        "speech bubbles, modern flat design, vibrant bold colors, wide banner"
+        f"{language} language learning course thumbnail, titled '{title}', "
+        f"CEFR level {level}, "
+        f"iconic culture and landmarks of {language}-speaking countries, "
+        "educational course banner, modern flat design, vibrant bold colors, "
+        "wide banner composition"
     )
 
     # ── Attempt fal.ai image generation ───────────────────────────────────────
@@ -576,11 +579,20 @@ async def generate_thumbnail_preview(
     if fal_key:
         try:
             from app.services.ai.image_providers import FalImageProvider
+            # Banner-friendly style prefix: unlike lesson illustrations we WANT
+            # rich scenery (landmarks, culture) rather than icon-only/no-text art.
+            thumbnail_style_prefix = (
+                "vibrant illustrated course banner, rich detailed scene, "
+            )
             provider = FalImageProvider(
                 api_key=fal_key,
                 image_size="landscape_16_9",   # 640×360 equivalent for course banners
                 lora_url=fal_lora_url,
                 lora_scale=fal_lora_scale,
+                style_prefix=thumbnail_style_prefix,
+                # Keep the full descriptive prompt; do not collapse the title's
+                # words (e.g. "grammar") into a generic lesson concept visual.
+                apply_concept_visuals=False,
             )
             result = provider.generate_image(
                 prompt=fal_prompt,
