@@ -539,6 +539,7 @@ export interface InlineMediaBlock {
     | "carousel_slides"
     | "drag_to_gap"
     | "drag_to_image"
+    | "drag_word_to_image"
     | "type_word_to_image"
     | "select_form_to_image"
     | "type_word_in_gap"

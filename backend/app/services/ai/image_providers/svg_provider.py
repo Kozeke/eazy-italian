@@ -73,6 +73,48 @@ Alt text   : {alt_text}
 Return ONLY the SVG — nothing else.
 """
 
+# ── Vocabulary card illustration prompt (used by image-based exercises) ───────
+# Generates a simple, square, text-free illustration for a single vocabulary
+# concept. The student must be able to infer the word from the visual alone.
+
+_VOCAB_CARD_SYSTEM_PROMPT = """\
+You are an expert SVG illustrator creating simple vocabulary flashcard images for a language-learning app.
+
+ABSOLUTE RULES:
+1. Return ONLY valid SVG code — nothing else.
+2. Start with <svg and end with </svg>.
+3. Use viewBox="0 0 400 400" — square format, no fixed width/height attributes.
+4. After </svg> output nothing else.
+5. NEVER include any text, words, labels, letters, or numbers visible in the image.
+6. NEVER draw a text box, caption, or word bubble.
+
+ILLUSTRATION STYLE:
+- Clean, flat design with bold outlines and solid fills.
+- Bright, friendly colors. Background: a soft solid color (#EEF2FF, #FFF7ED, #F0FDF4, or similar).
+- Draw ONE clear subject that fills most of the canvas.
+- Simple shapes: circles, rounded rectangles, clean curves. No photo-realism.
+- The scene must be immediately recognisable to a language learner.
+- NO abstract patterns, NO text, NO decorative borders, NO complex backgrounds.
+
+ACCESSIBILITY:
+- First child: <title>…</title>
+- Second child: <desc>…</desc>
+"""
+
+_VOCAB_CARD_USER_PROMPT = """\
+Draw a simple vocabulary flashcard illustration.
+
+Scene to illustrate: {prompt}
+
+Requirements:
+- Show exactly what the scene describes — make it instantly recognisable.
+- NO text, labels, or words anywhere in the image.
+- Square composition (400×400), single clear subject centred in the frame.
+- Flat, bold, friendly illustration style.
+
+Return ONLY the SVG — nothing else.
+"""
+
 _FALLBACK_SVG = """\
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
   <title>{title}</title><desc>{alt_text}</desc>
@@ -247,6 +289,46 @@ class SVGImageProvider(ImageProvider):
                 alt_text = alt_text or title,
             )
         )
+
+    def _build_vocab_card_prompt(self, scene_description: str) -> str:
+        """Build the prompt for a text-free, square vocabulary card illustration."""
+        return (
+            _VOCAB_CARD_SYSTEM_PROMPT + "\n\n"
+            + _VOCAB_CARD_USER_PROMPT.format(prompt=scene_description)
+        )
+
+    async def agenerate_vocab_card(
+        self,
+        scene_description: str,
+        alt_text: str = "",
+    ) -> ImageResult:
+        """
+        Generate a simple square vocabulary card illustration (async).
+
+        Uses the vocabulary-card prompt suite — produces a text-free, flat-style
+        illustration of a single concept suitable for drag/type/select-word-to-image
+        exercises. The image must be interpretable without any text labels so the
+        student can guess the word purely from the visual.
+        """
+        full_prompt = self._build_vocab_card_prompt(scene_description)
+        fallback_alt = alt_text or scene_description[:60]
+
+        for attempt in range(self._max_retries + 1):
+            if attempt > 0:
+                logger.warning("SVG vocab card retry %d/%d", attempt, self._max_retries)
+            try:
+                raw = await self._provider.agenerate(full_prompt)
+                svg = self._extract_and_validate(raw)
+                logger.info(
+                    "SVG vocab card generated — chars=%d provider=%r",
+                    len(svg), self._provider,
+                )
+                return self._make_result(svg, scene_description, fallback_alt)
+            except (AIProviderError, ImageProviderError) as exc:
+                logger.error("SVG vocab card attempt %d failed: %s", attempt + 1, exc)
+
+        logger.warning("SVG vocab card exhausted retries — returning fallback.")
+        return self._fallback(scene_description[:60], fallback_alt, scene_description)
 
     def _extract_and_validate(self, raw: str) -> str:
         raw = raw.strip()

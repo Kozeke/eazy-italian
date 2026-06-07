@@ -951,7 +951,10 @@
         "sort_into_columns": "Sort Columns",
         "true_false": "True/False",
         "test_without_timer": "Test without timer",
-        "test_with_timer": "Test with timer"
+        "test_with_timer": "Test with timer",
+        "drag_word_to_image": "Drag Word to Image",
+        "type_word_to_image": "Type Word to Image",
+        "select_form_to_image": "Select Form to Image"
       }
     },
     "additionalMaterialsModal": {

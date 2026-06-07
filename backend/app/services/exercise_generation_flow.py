@@ -32,7 +32,10 @@ Unexpected error          → 500
 
 from __future__ import annotations
 
+import asyncio
+import base64 as _base64
 import logging
+import os
 import uuid
 from typing import Any
 
@@ -95,6 +98,15 @@ def _append_block(
 
     Returns the newly appended block dict (with its generated id).
     """
+    from sqlalchemy.orm.attributes import flag_modified  # noqa: PLC0415
+
+    # Always reload from DB before appending so we never overwrite a block that
+    # was committed by the previous exercise in the same generation loop.
+    # SQLAlchemy's identity-map caching means a non-expired object's attributes
+    # are preserved as-is by session.query() — a fresh db.refresh() is the only
+    # reliable way to guarantee we read the latest committed media_blocks.
+    db.refresh(segment)
+
     # Build a stable id prefix from the kind so it's easy to recognise in logs.
     prefix = "".join(w[0] for w in kind.split("_"))  # e.g. "dtg", "twig", "swf"
     new_block: dict = {
@@ -104,10 +116,12 @@ def _append_block(
         "data":  data,
     }
 
-    # JSON column — mutate a copy so SQLAlchemy detects the change.
+    # Build a fresh list so SQLAlchemy detects the assignment as a change;
+    # flag_modified is added as belt-and-suspenders for JSONB columns.
     existing: list = list(segment.media_blocks or [])
     existing.append(new_block)
     segment.media_blocks = existing
+    flag_modified(segment, "media_blocks")
 
     if hasattr(segment, "updated_by"):
         segment.updated_by = created_by
@@ -139,6 +153,193 @@ def _append_drag_to_gap_block(
         data=drag_to_gap_data,
         created_by=created_by,
     )
+
+
+# ── Card image generation ─────────────────────────────────────────────────────
+
+# Exercise types whose "cards" list must be auto-illustrated on generation.
+_IMAGE_CARD_EXERCISE_TYPES: frozenset[str] = frozenset(
+    {"type_word_to_image", "drag_word_to_image", "select_form_to_image"}
+)
+
+
+def _resolve_uploads_path() -> str:
+    """
+    Return the absolute path to the shared uploads directory.
+
+    Mirrors the logic used in the teacher-upload endpoint (tests.py) so
+    AI-generated card images land in the same folder tree as manual uploads.
+    """
+    # This file: backend/app/services/exercise_generation_flow.py
+    # Three dirname() calls walk up to: backend/
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    _is_docker = (
+        os.name != "nt"
+        and os.path.exists("/app")
+        and os.getcwd() == "/app"
+        and backend_dir == "/app"
+    )
+    return "/app/uploads" if _is_docker else os.path.join(backend_dir, "uploads")
+
+
+async def _generate_single_card_image(
+    card: dict,
+    fal_key: str,
+    fal_model: str,
+    fal_image_size: str,
+    fal_lora_url: str,
+    fal_lora_scale: float,
+    cards_dir: str,
+    created_by: int,
+    style: str,
+) -> None:
+    """
+    Generate and save an image for a single vocabulary card using fal.ai only.
+
+    fal.ai is the sole image backend — no LLM/SVG fallback is used.
+    The card dict is mutated in-place: ``imageUrl`` is set to the static
+    serving URL on success, left empty when FAL_KEY is absent or the request
+    fails (teacher can upload manually in that case).
+    """
+    description = (card.get("description") or "").strip()
+    # Skip cards that already have an image or lack a description to guide generation.
+    if not description or card.get("imageUrl"):
+        return
+
+    # Use the scene description as alt text so the answer word never leaks
+    # into the image-generation prompt (prevents text answers from appearing
+    # as labels on the card image).
+    alt_text = description
+
+    # fal.ai is the sole image provider — no LLM-based SVG fallback.
+    # If FAL_KEY is not configured, skip generation and leave imageUrl empty
+    # so the teacher can upload the card image manually.
+    if not fal_key:
+        logger.warning(
+            "_generate_single_card_image: FAL_KEY not configured — skipping card %r (teacher can upload manually).",
+            card.get("id"),
+        )
+        return
+
+    # Attempt fal.ai generation.
+    try:
+        from app.services.ai.image_providers import FalImageProvider  # noqa: PLC0415
+        fal_provider = FalImageProvider(
+            api_key=fal_key,
+            model=fal_model,
+            image_size=fal_image_size,
+            lora_url=fal_lora_url,
+            lora_scale=fal_lora_scale,
+        )
+        img_result = await fal_provider.agenerate_image(
+            prompt=description,
+            alt_text=alt_text,
+            style=style,
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Prevent a single card failure from blocking the whole batch.
+        logger.warning(
+            "_generate_single_card_image: fal.ai failed for card %r — leaving imageUrl empty: %s",
+            card.get("id"), exc,
+        )
+        return  # Leave imageUrl empty so the teacher can upload manually.
+
+    # Persist the result to disk and set the card's imageUrl.
+    try:
+        from app.services.ai.image_providers.image_base import ImageFormat  # noqa: PLC0415
+
+        if img_result.format == ImageFormat.SVG:
+            # SVG is plain text; write as UTF-8.
+            filename = f"{uuid.uuid4().hex[:16]}.svg"
+            file_path = os.path.join(cards_dir, filename)
+            with open(file_path, "w", encoding="utf-8") as fh:
+                fh.write(img_result.data)
+        else:
+            # All raster formats are base64-encoded bytes.
+            filename = f"{uuid.uuid4().hex[:16]}.png"
+            file_path = os.path.join(cards_dir, filename)
+            raw_bytes = _base64.b64decode(img_result.data)
+            with open(file_path, "wb") as fh:
+                fh.write(raw_bytes)
+
+        card["imageUrl"] = f"/api/v1/static/questions/{created_by}/{filename}"
+        logger.info(
+            "_generate_single_card_image: saved image for card %r → %s",
+            card.get("id"), card["imageUrl"],
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "_generate_single_card_image: failed to save image for card %r: %s",
+            card.get("id"), exc,
+        )
+
+
+async def _generate_and_save_card_images(
+    cards: list[dict],
+    created_by: int,
+) -> None:
+    """
+    Generate and save images for all cards in a word-to-image exercise.
+
+    Each card with a non-empty ``description`` and an empty ``imageUrl`` is
+    illustrated in parallel using fal.ai only.  Images are written
+    to the shared uploads directory under ``questions/{created_by}/`` — the
+    same path tree as teacher-manual uploads — so the existing static-file
+    serving route (``/api/v1/static/``) serves them without extra config.
+
+    Dicts in ``cards`` are mutated in-place; ``imageUrl`` is populated on
+    success and left empty on failure so the teacher can upload manually.
+    """
+    # Resolve fal.ai settings from app config, fall back to environment vars.
+    fal_key = ""
+    fal_model = "fal-ai/flux/dev"
+    # square_hd produces the best aspect ratio for vocabulary flashcard thumbnails.
+    fal_image_size = "square_hd"
+    fal_lora_url = ""
+    fal_lora_scale = 0.8
+    try:
+        from app.core.config import settings as _settings  # noqa: PLC0415
+        fal_key = getattr(_settings, "FAL_KEY", "") or ""
+        fal_model = getattr(_settings, "FAL_MODEL", "") or "fal-ai/flux/dev"
+        # FAL_IMAGE_SIZE from config overrides the default only when explicitly set;
+        # square_hd is kept as the fallback because it suits vocabulary cards best.
+        fal_image_size = getattr(_settings, "FAL_IMAGE_SIZE", "") or "square_hd"
+        fal_lora_url = getattr(_settings, "FAL_LORA_URL", "") or ""
+        fal_lora_scale = float(getattr(_settings, "FAL_LORA_SCALE", 0.8) or 0.8)
+    except Exception:  # noqa: BLE001
+        fal_key = os.environ.get("FAL_KEY", "")
+
+    # Prepare the destination directory for generated card images.
+    uploads_path = _resolve_uploads_path()
+    cards_dir = os.path.join(uploads_path, "questions", str(created_by))
+    os.makedirs(cards_dir, exist_ok=True)
+
+    # Illustration-only style: the student must identify the concept from the
+    # picture, so the answer word must NEVER appear as text inside the image.
+    style = (
+        "educational vocabulary illustration, flat design, vibrant colors, "
+        "clean white background, expressive and clear scene, "
+        "ABSOLUTELY NO text, NO words, NO letters, NO labels, NO captions, "
+        "NO answer word on image — visual hint only, illustration without any writing"
+    )
+
+    # Generate all card images concurrently; individual failures are swallowed
+    # inside _generate_single_card_image so one bad card cannot cancel others.
+    tasks = [
+        _generate_single_card_image(
+            card=card,
+            fal_key=fal_key,
+            fal_model=fal_model,
+            fal_image_size=fal_image_size,
+            fal_lora_url=fal_lora_url,
+            fal_lora_scale=fal_lora_scale,
+            cards_dir=cards_dir,
+            created_by=created_by,
+            style=style,
+        )
+        for card in cards
+    ]
+    await asyncio.gather(*tasks)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -342,6 +543,36 @@ async def generate_exercise_for_segment(
             exercise_data["instruction"] = generated_instruction
             metadata["instruction"] = generated_instruction
             metadata["instruction_language"] = effective_instruction_language
+
+    # ── 3c. Auto-generate card images for visual-match exercise types ────────
+    # For drag/type-word-to-image exercises the LLM returns cards with empty
+    # imageUrl fields.  We fill them now by calling fal.ai (→ SVG fallback)
+    # and saving the results to disk so they are immediately usable in the
+    # lesson editor without the teacher having to upload each image manually.
+    if exercise_type in _IMAGE_CARD_EXERCISE_TYPES:
+        cards = exercise_data.get("cards") or []
+        if cards:
+            try:
+                await _generate_and_save_card_images(
+                    cards=cards,
+                    created_by=created_by,
+                )
+                # Count how many cards received an image for the metadata log.
+                filled = sum(1 for c in cards if c.get("imageUrl"))
+                logger.info(
+                    "Auto-generated images for %d/%d cards — exercise_type=%s segment_id=%d",
+                    filled, len(cards), exercise_type, segment_id,
+                )
+                metadata["images_generated"] = filled
+                metadata["images_total"] = len(cards)
+                if filled == len(cards):
+                    metadata.pop("note", None)
+            except Exception as _img_exc:  # noqa: BLE001
+                # Image generation is best-effort; never block exercise save.
+                logger.warning(
+                    "Card image generation failed for exercise_type=%s segment_id=%d: %s",
+                    exercise_type, segment_id, _img_exc,
+                )
 
     # ── 4. Persist block ──────────────────────────────────────────────────────
     default_title = exercise_data.get("title") or exercise_type.replace("_", " ").title()

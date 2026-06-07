@@ -51,6 +51,8 @@ SUPPORTED_TYPES: set[str] = {
     "image_stacked",
     "drag_to_gap",
     "drag_word_to_image",
+    # Same card payload as drag_word_to_image; student types instead of dragging.
+    "type_word_to_image",
     "select_form_to_image",
     "type_word_in_gap",
     "select_word_form",
@@ -335,8 +337,14 @@ async def generate_unit_content(
         description=body.description,
         level=body.level,
         language=body.language,
-        # Use saved outline section count when available; body value otherwise.
-        num_segments=len(_saved_sections) if _saved_sections else body.num_segments,
+        # Use the larger of: the saved outline section count OR what the teacher
+        # requested in the UI.  A stale outline with fewer sections must never
+        # silently override a fresh "3 sections" request from the modal.
+        num_segments=(
+            max(len(_saved_sections), body.num_segments)
+            if _saved_sections
+            else body.num_segments
+        ),
         exercise_types=list(body.exercise_types),
         teacher_id=current_user.id,
         content_language=body.language.lower(),
@@ -833,8 +841,14 @@ async def plan_unit_from_topic(
         description=body.description,
         level=body.level,
         language=body.language,
-        # Respect saved outline section count; fall back to the body value.
-        num_segments=len(_saved_sections) if _saved_sections else body.num_segments,
+        # Use the larger of: the saved outline section count OR what the teacher
+        # requested in the UI.  A stale outline with fewer sections must never
+        # silently override a fresh "3 sections" request from the modal.
+        num_segments=(
+            max(len(_saved_sections), body.num_segments)
+            if _saved_sections
+            else body.num_segments
+        ),
         exercise_types=list(body.exercise_types),
         teacher_id=current_user.id,
         content_language=body.language.lower(),

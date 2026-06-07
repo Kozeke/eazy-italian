@@ -64,7 +64,8 @@ Blueprint schema the LLM must return  (no "exercises" key)
 
 Supported exercise type values
 ---------------------------------
-image_stacked, drag_to_gap, type_word_in_gap, select_word_form, match_pairs,
+image_stacked, drag_to_gap, drag_word_to_image, type_word_to_image,
+select_form_to_image, type_word_in_gap, select_word_form, match_pairs,
 build_sentence, order_paragraphs, sort_into_columns,
 test_without_timer, test_with_timer, true_false
 """
@@ -95,6 +96,8 @@ SUPPORTED_EXERCISE_TYPES: frozenset[str] = frozenset(
         "image_stacked",
         "drag_to_gap",
         "drag_word_to_image",
+        # Same card payload as drag_word_to_image; student types instead of dragging.
+        "type_word_to_image",
         "select_form_to_image",
         "type_word_in_gap",
         "select_word_form",
@@ -616,7 +619,7 @@ A teacher wants to build a bilingual lesson unit:
 ════════════════════════════════════════
 TASK
 ════════════════════════════════════════
-Plan a lesson unit with up to {n} sections following this EXACT structure:
+Plan a lesson unit with EXACTLY {n} sections following this EXACT structure:
 
   Section 1 — INTRODUCTION & LEARNING OUTCOMES  (ALWAYS first, ALWAYS present)
     • Title must be: "Introduction & Learning Outcomes"
@@ -662,7 +665,7 @@ Return ONLY valid JSON — no markdown fences, no preamble:
   ]
 }}
 
-The "sections" array must contain between 2 and {n} objects."""
+The "sections" array must contain EXACTLY {n} objects. Do not return fewer than {n}."""
 
         try:
             raw = await self.provider.agenerate(prompt)
@@ -1603,6 +1606,9 @@ BILINGUAL RULE (most important):
         "sort_into_columns":    7,
         "order_paragraphs":     8,
         "drag_word_to_image":   9,
+        # type_word_to_image shares the same card format as drag_word_to_image;
+        # placed adjacent so they don't both land on the same segment.
+        "type_word_to_image":   9,
         "select_form_to_image": 10,
         "image_stacked":        11,
         "test_without_timer":   12,
@@ -1638,13 +1644,18 @@ BILINGUAL RULE (most important):
         Design goals
         ────────────
         • Segment 0 (overview/intro) always gets NO exercises — returns None.
-        • Every teacher-chosen type appears at least once across the unit.
+        • Every teacher-chosen type is GUARANTEED to appear at least once
+          across the unit (not just a best-effort goal).
         • Each segment receives ``_EXERCISES_PER_SEGMENT`` exercises whose
           types are ALL different from each other.
         • No two consecutive segments share the same first exercise type.
         • When fewer than ``_EXERCISES_PER_SEGMENT`` distinct teacher-chosen
           types are available, the fallback pool fills in the gaps so every
           segment always has a full variety set.
+        • Teacher-chosen types that end up past the rotation window (e.g.
+          high-affinity image types) are injected in a second pass by
+          replacing the lowest-priority fallback slot in each segment,
+          rotating through segments to spread one image exercise per section.
 
         Returns list of [(exercise_type, topic_hint), ...] | None — one per segment.
         """
@@ -1656,6 +1667,9 @@ BILINGUAL RULE (most important):
         ]
         if not normalised:
             normalised = list(self._FALLBACK_EXERCISE_POOL[:self._EXERCISES_PER_SEGMENT])
+
+        # Preserve the original teacher-chosen set for the coverage-guarantee pass.
+        teacher_chosen_set: set[str] = set(normalised)
 
         # 2. Build an extended pool: teacher types first, then fallbacks to reach
         #    at least _EXERCISES_PER_SEGMENT unique types.
@@ -1673,8 +1687,11 @@ BILINGUAL RULE (most important):
         n_pool = len(extended_pool)
 
         result: list[list[tuple[str, str]] | None] = []
+        # Keep a reference to plan titles for hint building in the second pass.
+        plan_titles: list[str] = []
 
         for i, plan in enumerate(segment_plans):
+            plan_titles.append(plan.title)
             if i == 0:
                 # Intro / overview segment — no exercises by design
                 result.append(None)
@@ -1702,6 +1719,57 @@ BILINGUAL RULE (most important):
                 assignments.append((chosen, hint))
 
             result.append(assignments if assignments else None)
+
+        # ── Coverage-guarantee pass ────────────────────────────────────────────
+        # Find teacher-chosen types that the rotation missed (typically high-
+        # affinity types like drag_word_to_image / type_word_to_image that land
+        # near the end of the sorted pool and fall past the rotation window when
+        # the total slot count is smaller than the pool size).
+        # Strategy: replace fallback slots one-at-a-time, rotating through
+        # content segments so each gets at most one replacement per pass —
+        # this spreads image exercises evenly (one per section).
+        all_assigned: set[str] = {
+            ex for segs in result if segs for ex, _ in segs
+        }
+        missing_chosen: list[str] = [t for t in normalised if t not in all_assigned]
+
+        # Build list of (result_idx, assignments) for content segments only.
+        content_seg_refs: list[tuple[int, list[tuple[str, str]]]] = [
+            (idx, segs)
+            for idx, segs in enumerate(result)
+            if segs is not None
+        ]
+
+        for pass_idx, missing in enumerate(missing_chosen):
+            # Rotate through content segments so the first missing type goes into
+            # the first content segment, the second into the second, etc.
+            if not content_seg_refs:
+                break
+            result_idx, assignments = content_seg_refs[pass_idx % len(content_seg_refs)]
+            plan_title = plan_titles[result_idx]
+
+            # Find the rightmost slot in this segment that holds a fallback (non-
+            # teacher-chosen) type — prefer replacing the least important one.
+            replace_at: int = -1
+            for slot_idx, (ex_type, _) in enumerate(assignments):
+                if ex_type not in teacher_chosen_set:
+                    replace_at = slot_idx  # keep scanning to pick the latest slot
+            if replace_at == -1:
+                # All slots already hold teacher-chosen types — there is no
+                # fallback slot to overwrite. The "every teacher-chosen type
+                # appears at least once" guarantee is a HARD requirement and
+                # overrides the soft _EXERCISES_PER_SEGMENT cap, so we append
+                # the missing type even if it pushes the segment past the cap.
+                # This is what makes a single content segment hold all chosen
+                # types when the unit has only one non-intro section.
+                assignments.append(
+                    (missing, f"{plan_title} — {missing.replace('_', ' ')} practice")
+                )
+            else:
+                assignments[replace_at] = (
+                    missing,
+                    f"{plan_title} — {missing.replace('_', ' ')} practice",
+                )
 
         return result
 
@@ -1905,12 +1973,37 @@ BILINGUAL RULE (most important):
                 f"{_directive_suffix}"
             )
 
+            # Track vocabulary words already used by image-card exercises on this
+            # segment so each generator picks a DIFFERENT set of words.
+            # select_form_to_image / type_word_to_image / drag_word_to_image all
+            # share the same card format and will otherwise gravitate to the same
+            # top-N salient words from the source text (e.g. libro, casa, gatto).
+            _IMAGE_CARD_TYPES: frozenset[str] = frozenset(
+                {"select_form_to_image", "type_word_to_image", "drag_word_to_image"}
+            )
+            _used_vocab_this_segment: set[str] = set()
+
             for ex_bp in seg_bp.exercises:
                 # Always use rich_hint (segment title + full text content) so the
                 # AI generator has the actual lesson material to draw from.
                 # ex_bp.topic_hint is intentionally ignored here — it is a short
                 # label used only for logging, not a content source.
                 hint = rich_hint if rich_hint.strip() else (ex_bp.topic_hint or "")
+
+                # ── Vocab exclusion for image-card exercise types ──────────────
+                # When a previous image exercise on the same segment already used
+                # certain vocabulary words, tell the next generator to avoid them
+                # so all three cards exercises cover different words.
+                if ex_bp.type in _IMAGE_CARD_TYPES and _used_vocab_this_segment:
+                    exclusion_list = ", ".join(sorted(_used_vocab_this_segment))
+                    hint = (
+                        hint
+                        + f"\n\n[VOCAB EXCLUSION — MANDATORY]\n"
+                        f"The following words are ALREADY used in other exercises on "
+                        f"this segment and MUST NOT appear as answers in this exercise: "
+                        f"{exclusion_list}.\n"
+                        f"Choose COMPLETELY DIFFERENT vocabulary words for every card."
+                    )
 
                 _target_lang = request.language.strip()
                 _native_lang  = request.instruction_language.strip()
@@ -1986,7 +2079,7 @@ BILINGUAL RULE (most important):
                 # TypeError because generate_exercise() receives the key twice.
 
                 try:
-                    await generate_exercise_for_segment(
+                    block_result, _meta = await generate_exercise_for_segment(
                         exercise_type=ex_bp.type,
                         db=db,
                         segment_id=segment.id,
@@ -2013,6 +2106,24 @@ BILINGUAL RULE (most important):
                         "UnitGenerator: exercise '%s' generated for segment id=%d",
                         ex_bp.type, segment.id,
                     )
+
+                    # ── Track vocab used by this image-card exercise ───────────
+                    # Extract answer words from the returned block so the next
+                    # image exercise on the same segment gets an exclusion list.
+                    if ex_bp.type in _IMAGE_CARD_TYPES:
+                        try:
+                            cards = (block_result.get("data") or {}).get("cards", [])
+                            for card in cards:
+                                word = (card.get("answer") or "").strip().lower()
+                                if word:
+                                    _used_vocab_this_segment.add(word)
+                            if _used_vocab_this_segment:
+                                logger.debug(
+                                    "UnitGenerator: vocab pool after '%s': %s",
+                                    ex_bp.type, sorted(_used_vocab_this_segment),
+                                )
+                        except Exception:
+                            pass  # tracking is best-effort; never block generation
                 except Exception as exc:
                     error_msg = (
                         f"Segment[{order_idx}] '{seg_bp.title}' / "

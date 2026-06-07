@@ -56,7 +56,18 @@ _MIN_SECTIONS = 2
 _MAX_SECTIONS = 4
 
 _DEFAULT_NUM_SEGMENTS   = 3
-_DEFAULT_EXERCISE_TYPES = ["drag_to_gap", "match_pairs", "build_sentence"]
+# Base interactive exercises + two visual-vocabulary types.
+# drag_word_to_image goes into the 2nd content segment and
+# type_word_to_image into the 3rd — guaranteed by the coverage pass in
+# UnitGeneratorService._smart_assign_exercises (high-affinity types that
+# would otherwise fall past the rotation window are injected there).
+_DEFAULT_EXERCISE_TYPES = [
+    "drag_to_gap",
+    "match_pairs",
+    "build_sentence",
+    "drag_word_to_image",
+    "type_word_to_image",
+]
 
 # Content extracted from uploaded files is capped before being sent to the LLM
 # (avoids blowing the context window of smaller models).

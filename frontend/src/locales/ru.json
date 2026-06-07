@@ -955,7 +955,10 @@
         "sort_into_columns": "Сортировка по колонкам",
         "true_false": "Верно / неверно",
         "test_without_timer": "Тест без таймера",
-        "test_with_timer": "Тест с таймером"
+        "test_with_timer": "Тест с таймером",
+        "drag_word_to_image": "Слово к картинке",
+        "type_word_to_image": "Написать слово к картинке",
+        "select_form_to_image": "Выбрать форму к картинке"
       }
     },
     "additionalMaterialsModal": {

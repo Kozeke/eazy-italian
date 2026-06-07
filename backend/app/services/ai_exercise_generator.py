@@ -1820,7 +1820,7 @@ async def generate_select_word_form_from_unit_content(
     _provider = provider or _default_provider
 
     # ── resolve gap count ─────────────────────────────────────────────────────
-    effective_gaps = gap_count or _extract_count_from_hint(topic_hint, default=6)
+    effective_gaps = max(4, gap_count or _extract_count_from_hint(topic_hint, default=6))
 
     # ── derive sentence count = gap count (1 gap per sentence) ───────────────
     # Without an explicit sentence constraint, the AI is free to write many
@@ -2033,7 +2033,7 @@ async def generate_match_pairs_from_unit_content(
     _provider = provider or _default_provider
     # Honour an explicit number in the teacher's topic hint (e.g. "Match 5 italian
     # words") before falling back to pair_count and then the hard-coded default.
-    effective_pairs = pair_count or _extract_count_from_hint(topic_hint, default=6)
+    effective_pairs = max(4, pair_count or _extract_count_from_hint(topic_hint, default=6))
 
     # ── Language-column logic ─────────────────────────────────────────────────
     # Normalise language strings so empty / "auto" values are treated as absent.
@@ -2213,7 +2213,7 @@ async def generate_build_sentence_from_unit_content(
     _provider = provider or _default_provider
 
     # ── Parse sentence count and optional word count from the teacher hint ──
-    sentence_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
+    sentence_count = max(3, pair_count or _extract_count_from_hint(topic_hint, default=5))
     min_words, max_words = _extract_word_count_from_hint(topic_hint)
 
     if content_language and content_language.strip().lower() not in ("", "auto"):
@@ -2360,7 +2360,7 @@ async def generate_order_paragraphs_from_unit_content(
     **_ignored,
 ) -> tuple[dict, dict]:
     _provider = provider or _default_provider
-    para_count = pair_count or _extract_count_from_hint(topic_hint, default=4)
+    para_count = max(3, pair_count or _extract_count_from_hint(topic_hint, default=4))
     if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = (
             f" ALL paragraphs MUST be written entirely in {content_language.upper()}. "
@@ -2485,7 +2485,7 @@ async def generate_sort_into_columns_from_unit_content(
     so callers can tune density with the same parameter.
     """
     _provider = provider or _default_provider
-    words_per_col = pair_count or _extract_count_from_hint(topic_hint, default=4)
+    words_per_col = max(3, pair_count or _extract_count_from_hint(topic_hint, default=4))
 
     # ── Parse column count from topic_hint ────────────────────────────────────
     # Teacher can write "Generate 10 columns", "make 5 columns", "6 columns", etc.
@@ -2637,23 +2637,28 @@ async def generate_drag_word_to_image_from_unit_content(
     **_ignored,
 ) -> tuple[dict, dict]:
     """
-    Generate a drag-word-to-image exercise.
+    Generate a drag-word-to-image / type-word-to-image exercise.
 
-    AI produces vocabulary word + short image description pairs.
-    imageUrl is left empty ("") — the teacher uploads images afterwards
-    in the editor, the same way they do when creating the exercise manually.
+    AI produces vocabulary word + short English image description pairs.
+    imageUrl is left empty ("") here; the orchestration layer
+    (exercise_generation_flow._generate_and_save_card_images) fills it in
+    automatically using fal.ai (→ SVG fallback) before the block is saved.
+    If image generation fails for a card the teacher can still upload manually.
 
     Output shape (matches DragToImageData in DragWordToImageEditorPage.tsx):
         {
           "title": "...",
           "cards": [
-            { "id": "dti_1", "imageUrl": "", "answer": "word" },
+            { "id": "dti_1", "imageUrl": "", "answer": "word", "description": "..." },
             ...
           ]
         }
     """
     _provider = provider or _default_provider
-    card_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
+    # Use explicit pair_count if provided; otherwise default to 3 cards.
+    # Do NOT call _extract_count_from_hint here — topic_hint carries full lesson
+    # text, not a count directive, so the parser would pick up random numbers.
+    card_count = pair_count or 3
     if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = f" Words must be in {content_language}."
     else:
@@ -2685,14 +2690,34 @@ async def generate_drag_word_to_image_from_unit_content(
         "Rules:\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name reflecting the vocabulary theme.\n"
         f"- Do NOT use generic titles like 'Drag the word to the correct image'.{title_lang_hint}\n\n"
+        "CRITICAL — answer word selection:\n"
+        "- Each 'answer' MUST be a CONCRETE NOUN — a person, animal, object, or place that can be drawn.\n"
+        "- Do NOT use verbs, adjectives, greetings, phrases, or abstract words.\n"
+        "- Pick nouns that actually appear in the source material.\n"
+        "- Good: 'chat' (cat), 'livre' (book), 'maison' (house), 'professeur' (teacher)\n"
+        "- Bad: 'bonjour' (greeting), 'manger' (verb), 'grand' (adjective), 'merci' (expression)\n\n"
         "For each item provide:\n"
-        '  - "answer": the vocabulary word or short phrase the student drags (target language)\n'
-        '  - "description": a brief English image description so the teacher knows what photo to upload\n\n'
+        '  - "answer": a concrete noun from the source material (target language)\n'
+        '  - "description": a vivid English scene description used to AUTO-GENERATE an SVG illustration.\n'
+        "    The description MUST follow these strict rules:\n"
+        "    • Describe the noun as a SINGLE CLEAR OBJECT or scene — something a simple illustration can show.\n"
+        "    • Do NOT include the answer word or any text in the description.\n"
+        "    • Be specific enough that a student can identify the object from the image alone.\n"
+        "    • Use plain English. 10–20 words max.\n"
+        "    Good examples:\n"
+        '      answer "chat"      → description "a fluffy orange cat sitting upright"\n'
+        '      answer "livre"     → description "an open book with pages visible"\n'
+        '      answer "maison"    → description "a small house with a red roof and front door"\n'
+        '      answer "professeur"→ description "a person standing at a blackboard pointing at writing"\n'
+        "    Bad examples (do NOT do this):\n"
+        '      "a word meaning thank you"  ← not a noun, describes meaning\n'
+        '      "text showing merci"        ← contains answer word, not a noun\n'
+        '      "generic greeting image"    ← too vague, not a concrete noun\n\n'
         "Respond with this JSON structure:\n"
         "{\n"
         '  "title": "<descriptive exercise title>",\n'
         '  "items": [\n'
-        '    {"answer": "apple", "description": "a red apple on a white background"},\n'
+        '    {"answer": "chat", "description": "a fluffy orange cat sitting upright on a windowsill"},\n'
         "    ...\n"
         "  ]\n"
         "}"
@@ -2715,7 +2740,9 @@ async def generate_drag_word_to_image_from_unit_content(
             cards = [
                 {
                     "id":          f"dti_{i}",
-                    "imageUrl":    "",          # teacher uploads images in editor
+                    # imageUrl is populated automatically by the flow layer
+                    # (fal.ai → SVG fallback); left empty here as a sentinel.
+                    "imageUrl":    "",
                     "answer":      str(item.get("answer", "")).strip(),
                     "description": str(item.get("description", "")).strip(),
                 }
@@ -2734,9 +2761,10 @@ async def generate_drag_word_to_image_from_unit_content(
                 "generation_model":    getattr(_provider, "model", "unknown"),
                 "generation_attempts": attempt + 1,
                 "exercise_type":       "drag_word_to_image",
+                # note may be removed by the flow layer once images are filled in.
                 "note": (
-                    "imageUrl fields are empty — teacher uploads images in the editor. "
-                    "description fields are hints for which photo to use."
+                    "imageUrl fields are populated automatically by fal.ai / SVG fallback. "
+                    "description fields describe the image used for generation."
                 ),
             }
             return data, metadata
@@ -2777,8 +2805,10 @@ async def generate_select_form_to_image_from_unit_content(
     """
     # Stores the active AI provider instance for generation calls.
     _provider = provider or _default_provider
-    # Stores the desired number of cards, inferred from pair_count or hint text.
-    card_count = pair_count or _extract_count_from_hint(topic_hint, default=5)
+    # Use explicit pair_count if provided; otherwise default to 3 cards.
+    # Do NOT call _extract_count_from_hint here — topic_hint carries full lesson
+    # text, not a count directive, so the parser would pick up random numbers.
+    card_count = pair_count or 3
     # Stores optional language instruction when caller requests explicit language.
     if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = f" All words must be in {content_language}."
@@ -2819,17 +2849,33 @@ async def generate_select_form_to_image_from_unit_content(
         "Rules:\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name.\n"
         f"- Do NOT use generic titles like 'Select the correct form for each image'.{title_lang_hint}\n"
-        "- Each item must include a concise image description in English.\n"
-        "- Each item must include one correct word form and at least 2 distractors.\n"
-        "- Distractors must be plausible but incorrect for that image.\n\n"
+        "- Each item must include one correct word form and at least 2 plausible but incorrect distractors.\n\n"
+        "CRITICAL — answer word selection:\n"
+        "- Each 'answer' MUST be a CONCRETE NOUN — a person, animal, object, or place that can be drawn.\n"
+        "- Do NOT use verbs, adjectives, greetings, phrases, or abstract words.\n"
+        "- Pick nouns that actually appear in the source material.\n"
+        "- Good: 'chat' (cat), 'livre' (book), 'maison' (house), 'professeur' (teacher)\n"
+        "- Bad: 'bonjour' (greeting), 'manger' (verb), 'grand' (adjective), 'merci' (expression)\n\n"
+        "For each item provide a vivid English scene description for AUTO-GENERATING an SVG illustration.\n"
+        "The description MUST follow these strict rules:\n"
+        "  • Describe the noun as a SINGLE CLEAR OBJECT or scene — something a simple illustration can show.\n"
+        "  • Do NOT include any of the answer/distractor words or text labels in the description.\n"
+        "  • Be specific enough that a student can identify the correct noun from the image alone.\n"
+        "  • Use plain English. 10–20 words max.\n"
+        "  Good examples:\n"
+        '    answer "livre"     → description "an open book with pages visible"\n'
+        '    answer "professeur"→ description "a person standing at a blackboard pointing at writing"\n'
+        "  Bad examples (do NOT do this):\n"
+        '    "an image showing the word buono"  ← contains answer word\n'
+        '    "a generic adjective context"      ← too vague, not a concrete noun\n\n'
         "Respond with this JSON structure:\n"
         "{\n"
         '  "title": "<descriptive exercise title>",\n'
         '  "items": [\n'
         '    {\n'
-        '      "answer": "buono",\n'
-        '      "distractors": ["buona", "buoni"],\n'
-        '      "description": "a single masculine noun context image"\n'
+        '      "answer": "livre",\n'
+        '      "distractors": ["stylo", "cahier"],\n'
+        '      "description": "an open book lying flat with its pages spread"\n'
         "    }\n"
         "  ]\n"
         "}"
@@ -3293,7 +3339,7 @@ async def generate_true_false_from_unit_content(
     Frontend converts these into TrueFalseDraft objects via aiQuestionToTrueFalseQuestion.
     """
     _provider = provider or _default_provider
-    statement_count = pair_count or _extract_count_from_hint(topic_hint, default=6)
+    statement_count = max(4, pair_count or _extract_count_from_hint(topic_hint, default=6))
     topic_str = f"\n\nTeacher directive: {topic_hint}" if topic_hint else ""
  
     if content_language and content_language.strip().lower() not in ("", "auto"):

@@ -753,7 +753,15 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       const mime = (header.match(/:(.*?);/) || [])[1] || 'image/svg+xml';
       const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
       const blob  = new Blob([bytes], { type: mime });
-      setThumbFile(new File([blob], 'ai-thumbnail.svg', { type: mime }));
+      // Derive the file extension from the actual mime type so the backend
+      // persists it with the correct extension. Otherwise a fal.ai PNG saved
+      // as ".svg" is served as image/svg+xml and fails to render (image
+      // disappears once loaded from disk instead of the in-memory data URI).
+      const ext = mime === 'image/png' ? 'png'
+        : mime === 'image/jpeg' ? 'jpg'
+        : mime === 'image/webp' ? 'webp'
+        : 'svg';
+      setThumbFile(new File([blob], `ai-thumbnail.${ext}`, { type: mime }));
     } catch (err) {
       console.warn('[CreateCourseModal] AI thumbnail generation failed:', err);
     } finally {

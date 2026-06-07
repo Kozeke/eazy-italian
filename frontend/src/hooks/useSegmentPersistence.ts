@@ -27,6 +27,7 @@ export interface InlineMediaBlock {
     | "carousel_slides"
     | "drag_to_gap"
     | "drag_to_image"
+    | "drag_word_to_image"
     | "type_word_to_image"
     | "select_form_to_image"
     | "type_word_in_gap"
@@ -80,7 +81,7 @@ export function normaliseInlineMediaBlocks(blocks: unknown): InlineMediaBlock[] 
     .filter(
       (b) =>
         Boolean(b.id) &&
-        ["text", "image", "video", "audio", "carousel_slides", "drag_to_gap", "drag_to_image", "type_word_to_image", "select_form_to_image", "type_word_in_gap", "select_word_form", "build_sentence", "match_pairs", "order_paragraphs", "sort_into_columns", "test_without_timer", "test_with_timer"].includes(
+        ["text", "image", "video", "audio", "carousel_slides", "drag_to_gap", "drag_to_image", "drag_word_to_image", "type_word_to_image", "select_form_to_image", "type_word_in_gap", "select_word_form", "build_sentence", "match_pairs", "order_paragraphs", "sort_into_columns", "test_without_timer", "test_with_timer"].includes(
           b.kind,
         ),
     );

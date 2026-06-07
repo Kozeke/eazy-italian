@@ -479,9 +479,24 @@ async def upload_course_thumbnail(
     upload_dir = os.path.join(uploads_path, "thumbnails")
     os.makedirs(upload_dir, exist_ok=True)
     
-    # Generate filename
+    # Generate filename.
+    # Derive the extension from the actual content-type rather than the client
+    # filename, so a PNG/JPEG isn't accidentally persisted as ".svg" (which would
+    # be served as image/svg+xml and fail to render in the browser).
     import uuid
-    file_ext = os.path.splitext(file.filename or '')[1] or '.jpg'
+    # Maps reliable image content-types to their canonical file extension.
+    content_type_ext = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+        "image/svg+xml": ".svg",
+    }
+    file_ext = content_type_ext.get(
+        (file.content_type or "").lower().strip(),
+        os.path.splitext(file.filename or '')[1] or '.jpg',
+    )
     filename = f"course_{course_id}_{uuid.uuid4().hex[:8]}{file_ext}"
     file_path = os.path.join(upload_dir, filename)
     
