@@ -164,6 +164,21 @@ h1 em { font-style: normal; color: var(--primary); }
 .dot-y { background: #FEBC2E; }
 .dot-g { background: #28C840; }
 
+/* ── HERO DEMO VIDEO ── */
+.hero-video-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0f0f12;
+}
+.hero-video-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
 /* ── DASHBOARD MOCK ── */
 .db-wrap { display: flex; height: 520px; overflow: hidden; }
 .db-topbar {
@@ -470,18 +485,8 @@ footer { max-width: 1100px; margin: 0 auto; padding: 48px 24px; display: flex; f
   .hero-cta { flex-direction: column; align-items: center; }
   .hero-cta a { width: 100%; max-width: 320px; text-align: center; }
 
-  /* Hero visual — shrink the dashboard mock */
+  /* Hero visual — demo video */
   .hero-visual { margin-top: 40px; border-radius: 12px; }
-  .db-wrap { height: 340px; }
-  .db-topbar { height: 44px; }
-  .db-main { padding-top: 44px; }
-  .db-content { padding: 14px 12px; }
-  .db-content-inner { padding: 16px; }
-  .db-page-title { font-size: 16px; margin-bottom: 12px; }
-  .db-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .db-course-thumb { height: 72px; font-size: 28px; }
-  .db-course-name { font-size: 11px; }
-  .db-create-card { min-height: 110px; }
 
   /* Sections */
   section { padding: 64px 20px; }
@@ -536,14 +541,6 @@ footer { max-width: 1100px; margin: 0 auto; padding: 48px 24px; display: flex; f
   .hero { padding: 56px 16px 44px; }
   section { padding: 52px 16px; }
 
-  /* Simplify dashboard mock */
-  .db-wrap { height: 280px; }
-  .db-sidebar { display: none; }
-  .db-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-  .db-course-thumb { height: 58px; font-size: 22px; }
-  .db-search { display: none; }
-  .db-toolbar { display: none; }
-
   /* Features: single column */
   .features-grid { grid-template-columns: 1fr; }
 
@@ -572,8 +569,6 @@ footer { max-width: 1100px; margin: 0 auto; padding: 48px 24px; display: flex; f
 
 /* Very small (≤ 360px) */
 @media (max-width: 360px) {
-  .db-grid { grid-template-columns: 1fr; }
-  .db-create-card { display: none; }
   h1 { font-size: 26px; }
   nav { height: 56px; }
   .mobile-menu { top: 56px; }
@@ -608,6 +603,9 @@ const LANGS = [
   { code: 'ru', label: 'Русский', flag: '🇷🇺' },
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
 ] as const;
+
+// YouTube video ID embedded in the hero section product demo
+const DEMO_VIDEO_ID = "xI9vXxaiBHw";
 
 function LangSwitcher() {
   const { i18n } = useTranslation();
@@ -774,102 +772,20 @@ export default function LandingPage() {
           <Link to="/register" className="btn-primary">{t('landing.hero.startFree', 'Start for free →')}</Link>
         </div>
 
-        {/* Dashboard preview */}
+        {/* Product demo video */}
         <div className="hero-visual">
           <div className="hero-visual-bar">
             <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
-            <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-muted)" }}>linguai.app / dashboard</span>
+            <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-muted)" }}>linguai.net / demo</span>
           </div>
 
-          <div className="db-wrap" style={{ position: "relative" }}>
-            {/* Top bar */}
-            <div className="db-topbar">
-              <div className="db-topbar-logo">
-                <svg width="22" height="22" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="20" cy="20" r="17" stroke="#6C6FEF" strokeWidth="1.8" />
-                  <circle cx="20" cy="20" r="9" stroke="#6C6FEF" strokeWidth="1.2" opacity="0.4" />
-                  <circle cx="20" cy="20" r="3.5" fill="#6C6FEF" />
-                  <circle cx="20" cy="3" r="2.2" fill="#6C6FEF" opacity="0.7" />
-                  <circle cx="35" cy="11.5" r="2.2" fill="#6C6FEF" opacity="0.7" />
-                  <circle cx="35" cy="28.5" r="2.2" fill="#6C6FEF" opacity="0.7" />
-                </svg>
-                Lingu <em>AI</em>
-              </div>
-              <div className="db-topbar-right">
-                <div className="db-icon-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                </div>
-                <div className="db-icon-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                </div>
-                <div className="db-avatar">K</div>
-              </div>
-            </div>
-
-            {/* Sidebar */}
-            <div className="db-sidebar">
-              <div className="db-sidebar-icon active">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-              </div>
-              <div className="db-sidebar-divider" />
-              <div className="db-sidebar-add">+</div>
-              <div className="db-sidebar-divider" />
-              <div className="db-sidebar-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
-              </div>
-            </div>
-
-            {/* Main content */}
-            <div className="db-main">
-              <div className="db-content">
-                <div className="db-content-inner">
-                  <div className="db-page-title">Courses</div>
-                  <div className="db-search">
-                    <span className="db-search-icon">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                    </span>
-                    <span className="db-search-placeholder">Search courses...</span>
-                  </div>
-                  <div className="db-toolbar">
-                    <span className="db-count">89 courses</span>
-                    <div className="db-view-btns">
-                      <div className="db-view-btn active">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-                      </div>
-                      <div className="db-view-btn">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="db-grid">
-                    <div className="db-create-card">
-                      <div className="db-create-icon">+</div>
-                      <div className="db-create-label">Create course</div>
-                    </div>
-                    {[
-                      { bg: "#FADADD", color: "#C4757A", letter: "E", name: "English for business", students: 1 },
-                      { bg: "#C9DFF5", color: "#6A8DAD", letter: "E", name: "English B1 Course", students: 1 },
-                      { bg: "#C6E9CE", color: "#5E9E6E", letter: "I", name: "Italian A1 Grammar", students: 1 },
-                      { bg: "#FDEEC8", color: "#B8922A", letter: "E", name: "English Beginners", students: 3 },
-                      { bg: "#E2D4F0", color: "#8B68B5", letter: "I", name: "Italian Intermediate", students: 2 },
-                      { bg: "#BDE8E4", color: "#4A9990", letter: "I", name: "Italian Conversation", students: 5 },
-                      { bg: "#F9DEC8", color: "#C07640", letter: "I", name: "Italian B2", students: 4 },
-                    ].map((c) => (
-                      <div className="db-course-card" key={c.name}>
-                        <div className="db-course-thumb" style={{ background: c.bg, color: c.color }}>{c.letter}</div>
-                        <div className="db-course-info">
-                          <div className="db-course-name">{c.name}</div>
-                          <div className="db-course-meta">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
-                            {c.students}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="hero-video-wrap">
+            <iframe
+              src={`https://www.youtube.com/embed/${DEMO_VIDEO_ID}?rel=0&modestbranding=1`}
+              title={t("landing.hero.demoVideoTitle", "LinguAI product demo")}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
           </div>
         </div>
       </div>
