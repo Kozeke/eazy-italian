@@ -18,19 +18,9 @@ router = APIRouter()
 
 
 def get_uploads_path() -> str:
-    """Get the uploads directory path - same logic as videos.py."""
-    current_file = os.path.abspath(__file__)
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
-
-    is_docker = (
-        os.name != "nt"
-        and os.path.exists("/app")
-        and os.getcwd() == "/app"
-        and backend_dir == "/app"
-    )
-    if is_docker:
-        return "/app/uploads"
-    return os.path.join(backend_dir, "uploads")
+    """Get the uploads directory path — delegates to the canonical resolver."""
+    from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+    return resolve_uploads_path()
 
 
 def validate_youtube_url(url: str) -> bool:

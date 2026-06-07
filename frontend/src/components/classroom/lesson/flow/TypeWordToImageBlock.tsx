@@ -21,6 +21,9 @@ import type {
 import { useLiveSyncField } from "../../../../hooks/useLiveSession";
 import { LiveSessionContext } from "../../live/LiveSessionProvider";
 import { showTeacherExerciseHints } from "./showTeacherExerciseHints";
+// Resolves relative /api/v1/static/... paths against the backend API origin
+// so card images load from the backend service, not the frontend static host.
+import { resolveStaticAssetUrl } from "../../../../services/api";
 import "./DragToGap.css";
 
 interface TypeWordToImageItemData {
@@ -217,7 +220,7 @@ export default function TypeWordToImageBlock({
               <div className="dti-player-image-shell">
                 {card.imageUrl.trim() ? (
                   <img
-                    src={card.imageUrl}
+                    src={resolveStaticAssetUrl(card.imageUrl)}
                     alt=""
                     className="dti-player-image"
                   />

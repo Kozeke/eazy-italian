@@ -31,22 +31,8 @@ ALLOWED_AVATAR_CONTENT_TYPES = {
 
 # Resolves shared uploads root path used by static /api/v1/static mount.
 def _get_uploads_path() -> str:
-    # Stores absolute backend directory path derived from this module file.
-    backend_dir = os.path.dirname(
-        os.path.dirname(
-            os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            )
-        )
-    )
-    # Detects docker runtime path so uploads align with mounted static directory.
-    is_docker = (
-        os.name != "nt"
-        and os.path.exists("/app")
-        and os.getcwd() == "/app"
-        and backend_dir == "/app"
-    )
-    return "/app/uploads" if is_docker else os.path.join(backend_dir, "uploads")
+    from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+    return resolve_uploads_path()
 
 
 @router.get("/me", response_model=UserResponse)

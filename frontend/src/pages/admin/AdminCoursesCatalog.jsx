@@ -551,7 +551,9 @@ const Card = ({course, idx, onOpen}) => {
   let thumb = null;
   if (course.thumbnail_url) thumb = course.thumbnail_url;
   else if (course.thumbnail_path)
-    thumb = `${apiBase}/static/thumbnails/${course.thumbnail_path.split("/").pop()}`;
+    thumb = course.thumbnail_path.startsWith('http')
+      ? course.thumbnail_path
+      : `${apiBase}/static/thumbnails/${course.thumbnail_path.split("/").pop()}`;
 
   const initial    = (course.title || "?")[0].toUpperCase();
   const unitsTotal = course.units_count ?? 0;

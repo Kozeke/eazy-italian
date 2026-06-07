@@ -167,19 +167,12 @@ def _resolve_uploads_path() -> str:
     """
     Return the absolute path to the shared uploads directory.
 
-    Mirrors the logic used in the teacher-upload endpoint (tests.py) so
-    AI-generated card images land in the same folder tree as manual uploads.
+    Delegates to the canonical resolver in app.utils.paths so that setting
+    the UPLOADS_DIR env var (e.g. for a Render persistent disk) is sufficient
+    to redirect all file writes without touching this code.
     """
-    # This file: backend/app/services/exercise_generation_flow.py
-    # Three dirname() calls walk up to: backend/
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    _is_docker = (
-        os.name != "nt"
-        and os.path.exists("/app")
-        and os.getcwd() == "/app"
-        and backend_dir == "/app"
-    )
-    return "/app/uploads" if _is_docker else os.path.join(backend_dir, "uploads")
+    from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+    return resolve_uploads_path()
 
 
 async def _generate_single_card_image(
@@ -189,7 +182,6 @@ async def _generate_single_card_image(
     fal_image_size: str,
     fal_lora_url: str,
     fal_lora_scale: float,
-    cards_dir: str,
     created_by: int,
     style: str,
 ) -> None:
@@ -244,25 +236,27 @@ async def _generate_single_card_image(
         )
         return  # Leave imageUrl empty so the teacher can upload manually.
 
-    # Persist the result to disk and set the card's imageUrl.
+    # Persist the result via the file_storage abstraction.
+    # In cloud mode (MINIO_PUBLIC_URL set) files go to the S3-compatible bucket
+    # so they survive Render redeploys.  In local dev they land on disk as before.
     try:
         from app.services.ai.image_providers.image_base import ImageFormat  # noqa: PLC0415
+        from app.services.file_storage import save_image  # noqa: PLC0415
 
         if img_result.format == ImageFormat.SVG:
-            # SVG is plain text; write as UTF-8.
+            # SVG is plain text; encode to bytes for unified storage call.
             filename = f"{uuid.uuid4().hex[:16]}.svg"
-            file_path = os.path.join(cards_dir, filename)
-            with open(file_path, "w", encoding="utf-8") as fh:
-                fh.write(img_result.data)
+            raw_bytes = img_result.data.encode("utf-8")
+            mime = "image/svg+xml"
         else:
-            # All raster formats are base64-encoded bytes.
+            # All raster formats (PNG, JPEG, WEBP) are base64-encoded bytes.
             filename = f"{uuid.uuid4().hex[:16]}.png"
-            file_path = os.path.join(cards_dir, filename)
             raw_bytes = _base64.b64decode(img_result.data)
-            with open(file_path, "wb") as fh:
-                fh.write(raw_bytes)
+            mime = "image/png"
 
-        card["imageUrl"] = f"/api/v1/static/questions/{created_by}/{filename}"
+        # Logical path inside the bucket / uploads directory.
+        object_name = f"questions/{created_by}/{filename}"
+        card["imageUrl"] = save_image(data=raw_bytes, object_name=object_name, content_type=mime)
         logger.info(
             "_generate_single_card_image: saved image for card %r → %s",
             card.get("id"), card["imageUrl"],
@@ -309,11 +303,6 @@ async def _generate_and_save_card_images(
     except Exception:  # noqa: BLE001
         fal_key = os.environ.get("FAL_KEY", "")
 
-    # Prepare the destination directory for generated card images.
-    uploads_path = _resolve_uploads_path()
-    cards_dir = os.path.join(uploads_path, "questions", str(created_by))
-    os.makedirs(cards_dir, exist_ok=True)
-
     # Illustration-only style: the student must identify the concept from the
     # picture, so the answer word must NEVER appear as text inside the image.
     style = (
@@ -333,7 +322,6 @@ async def _generate_and_save_card_images(
             fal_image_size=fal_image_size,
             fal_lora_url=fal_lora_url,
             fal_lora_scale=fal_lora_scale,
-            cards_dir=cards_dir,
             created_by=created_by,
             style=style,
         )

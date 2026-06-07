@@ -69,6 +69,13 @@ else:
     # Local development - uploads should be inside backend directory
     uploads_path = os.path.join(backend_dir, "uploads")
 
+# Allow an explicit override via UPLOADS_DIR env var.
+# On Render: mount a persistent disk at /var/data and set UPLOADS_DIR=/var/data.
+# This must be checked AFTER the docker detection so the env var always wins.
+_env_uploads = os.environ.get("UPLOADS_DIR", "").strip()
+if _env_uploads:
+    uploads_path = _env_uploads
+
 print(f"[DEBUG] Backend dir: {backend_dir}")
 print(f"[DEBUG] Uploads path: {uploads_path}")
 print(f"[DEBUG] Uploads path exists: {os.path.exists(uploads_path)}")

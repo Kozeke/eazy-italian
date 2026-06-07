@@ -982,7 +982,10 @@ export default function TeacherCourseEditPage() {
         if (course.thumbnail_url) {
           setThumbnail(course.thumbnail_url);
         } else if ((course as any).thumbnail_path) {
-          setThumbnail(`${apiBase}/static/thumbnails/${(course as any).thumbnail_path.split("/").pop()}`);
+          const tp: string = (course as any).thumbnail_path;
+          setThumbnail(
+            tp.startsWith('http') ? tp : `${apiBase}/static/thumbnails/${tp.split("/").pop()}`
+          );
         }
 
         // Filter units for this course

@@ -351,9 +351,15 @@ export default function AdminCoursesPage() {
                 // Use thumbnail_url if it exists
                 thumbnailUrl = course.thumbnail_url;
               } else if (course.thumbnail_path) {
-                // Fall back to thumbnail_path if thumbnail_url doesn't exist
-                const thumbnailFilename = course.thumbnail_path.split('/').pop();
-                thumbnailUrl = `${apiBase}/static/thumbnails/${thumbnailFilename}`;
+                // Fall back to thumbnail_path. If it is already an absolute CDN
+                // URL (cloud storage mode) use it directly; otherwise build the
+                // local static URL from the filename segment.
+                if (course.thumbnail_path.startsWith('http')) {
+                  thumbnailUrl = course.thumbnail_path;
+                } else {
+                  const thumbnailFilename = course.thumbnail_path.split('/').pop();
+                  thumbnailUrl = `${apiBase}/static/thumbnails/${thumbnailFilename}`;
+                }
               }
               
               // Debug logging

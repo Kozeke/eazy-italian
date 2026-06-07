@@ -458,31 +458,8 @@ async def upload_course_thumbnail(
     if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
     
-    # Get uploads path - same logic as videos
-    # __file__ is backend/app/api/v1/endpoints/courses.py
-    # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
-    current_file = os.path.abspath(__file__)
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
-    
-    # Check if we're in Docker
-    is_docker = (os.name != 'nt' and
-                 os.path.exists("/app") and 
-                 os.getcwd() == "/app" and 
-                 backend_dir == "/app")
-    
-    if is_docker:
-        uploads_path = "/app/uploads"
-    else:
-        # Local development - uploads is inside backend directory
-        uploads_path = os.path.join(backend_dir, "uploads")
-    
-    upload_dir = os.path.join(uploads_path, "thumbnails")
-    os.makedirs(upload_dir, exist_ok=True)
-    
-    # Generate filename.
-    # Derive the extension from the actual content-type rather than the client
-    # filename, so a PNG/JPEG isn't accidentally persisted as ".svg" (which would
-    # be served as image/svg+xml and fail to render in the browser).
+    # Derive the file extension from the actual content-type (not client filename)
+    # so a fal.ai PNG is never accidentally saved as ".svg" and rendered broken.
     import uuid
     # Maps reliable image content-types to their canonical file extension.
     content_type_ext = {
@@ -498,16 +475,35 @@ async def upload_course_thumbnail(
         os.path.splitext(file.filename or '')[1] or '.jpg',
     )
     filename = f"course_{course_id}_{uuid.uuid4().hex[:8]}{file_ext}"
-    file_path = os.path.join(upload_dir, filename)
-    
-    # Save file
+
+    # Persist via the unified storage abstraction.
+    # In cloud mode (MINIO_PUBLIC_URL set) the file goes to the S3-compatible
+    # bucket and a CDN URL is returned — safe across Render redeploys.
+    # In local dev it falls back to writing to the uploads/ directory.
     try:
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-        
-        # Update course with thumbnail path
-        thumbnail_path = f"thumbnails/{filename}"
+        from app.services.file_storage import save_upload  # noqa: PLC0415
+
+        content = await file.read()
+        # object_name follows the same "thumbnails/<filename>" scheme used
+        # historically so existing URLs and serving routes stay compatible.
+        object_name = f"thumbnails/{filename}"
+        stored_url = save_upload(
+            file_data=content,
+            object_name=object_name,
+            content_type=file.content_type or "image/jpeg",
+        )
+
+        # Cloud mode returns a full https:// URL; local mode returns a relative
+        # /api/v1/static/... path.  Detect by checking for a URL scheme.
+        if stored_url.startswith("http"):
+            # Persist the CDN URL in BOTH columns so every frontend code path
+            # that checks thumbnail_url first will use it directly (no mangling).
+            thumbnail_path = stored_url
+            course.thumbnail_url = stored_url
+        else:
+            # Local dev: stored_url = /api/v1/static/thumbnails/<filename>
+            thumbnail_path = object_name
+
         course.thumbnail_path = thumbnail_path
         course.updated_by = current_user.id
         course.updated_at = datetime.utcnow()
@@ -632,13 +628,10 @@ async def generate_course_thumbnail(
             level = 'A1'  # Default for mixed
         
         thumbnail_path = get_course_thumbnail_path(course.id, level)
-        
-        # Get backend directory and use backend/uploads
-        # __file__ is backend/app/api/v1/endpoints/courses.py
-        # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
-        current_file = os.path.abspath(__file__)
-        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
-        full_path = os.path.join(backend_dir, "uploads", thumbnail_path)
+
+        # Use the canonical uploads resolver so UPLOADS_DIR env var is honoured.
+        from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+        full_path = os.path.join(resolve_uploads_path(), thumbnail_path)
         
         # Generate subtitle from description if available
         subtitle = course.description[:50] if course.description else ""

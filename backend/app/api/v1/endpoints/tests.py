@@ -22,20 +22,9 @@ from app.services.grading_service import grade_question, aggregate_results, Grad
 router = APIRouter()
 
 def get_uploads_path():
-    """Get the uploads directory path - same logic as main.py"""
-    current_file = os.path.abspath(__file__)
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
-    
-    # Check if we're in Docker
-    is_docker = (os.name != 'nt' and
-                 os.path.exists("/app") and 
-                 os.getcwd() == "/app" and 
-                 backend_dir == "/app")
-    
-    if is_docker:
-        return "/app/uploads"
-    else:
-        return os.path.join(backend_dir, "uploads")
+    """Get the uploads directory path — delegates to the canonical resolver."""
+    from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+    return resolve_uploads_path()
 
 @router.get("", response_model=List[TestResponse])
 @router.get("/", response_model=List[TestResponse])

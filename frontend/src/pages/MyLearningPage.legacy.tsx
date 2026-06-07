@@ -104,8 +104,12 @@ export default function MyLearningPage() {
             if (course.thumbnail_url) {
               thumbnailUrl = course.thumbnail_url;
             } else if (course.thumbnail_path) {
-              const thumbnailFilename = course.thumbnail_path.split('/').pop();
-              thumbnailUrl = `${apiBase}/static/thumbnails/${thumbnailFilename}`;
+              if (course.thumbnail_path.startsWith('http')) {
+                thumbnailUrl = course.thumbnail_path;
+              } else {
+                const thumbnailFilename = course.thumbnail_path.split('/').pop();
+                thumbnailUrl = `${apiBase}/static/thumbnails/${thumbnailFilename}`;
+              }
             }
 
             return (

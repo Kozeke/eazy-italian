@@ -30,23 +30,9 @@ router = APIRouter()
 upload_sessions = {}
 
 def get_uploads_path():
-    """Get the uploads directory path - same logic as main.py"""
-    # __file__ is backend/app/api/v1/endpoints/videos.py
-    # Go up 5 levels: endpoints -> v1 -> api -> app -> backend
-    current_file = os.path.abspath(__file__)
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
-    
-    # Check if we're in Docker
-    is_docker = (os.name != 'nt' and
-                 os.path.exists("/app") and 
-                 os.getcwd() == "/app" and 
-                 backend_dir == "/app")
-    
-    if is_docker:
-        return "/app/uploads"
-    else:
-        # Local development - uploads is inside backend directory
-        return os.path.join(backend_dir, "uploads")
+    """Get the uploads directory path — delegates to the canonical resolver."""
+    from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+    return resolve_uploads_path()
 
 def validate_youtube_url(url: str) -> bool:
     """Validate YouTube URL format"""

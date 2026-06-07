@@ -41,12 +41,20 @@ class Settings(BaseSettings):
     # Shared secret used to authorize Telegram-to-backend support replies.
     SUPPORT_REPLY_SECRET: str = ""
     
-    # File Storage
+    # File Storage (MinIO for local dev; any S3-compatible service for production)
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin123"
     MINIO_BUCKET_NAME: str = "eazy-italian"
     MINIO_SECURE: bool = False
+    # Public base URL for files stored in the bucket.
+    # For Cloudflare R2: set to the R2.dev subdomain or custom domain,
+    # e.g. "https://pub-xxxx.r2.dev".
+    # For Backblaze B2: "https://f004.backblazeb2.com/file/<bucket>".
+    # For local MinIO: leave empty — files are served via /api/v1/static/.
+    # When non-empty, the backend uploads every generated image to the bucket
+    # and stores the resulting CDN URL in the DB so files survive redeploys.
+    MINIO_PUBLIC_URL: str = ""
     
     # CORS - Frontend URLs that are allowed to access the API
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://linguai.net,https://www.linguai.net,https://eazy-italian-frontend.onrender.com"

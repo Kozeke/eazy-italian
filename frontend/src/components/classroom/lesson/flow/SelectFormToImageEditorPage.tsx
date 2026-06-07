@@ -4,7 +4,7 @@ import { Check, Plus, Upload, X } from 'lucide-react';
 import ExerciseHeader, {
   EXERCISE_HEADER_HEIGHT_PX,
 } from '../exercise/ExerciseHeader';
-import api from '../../../../services/api';
+import api, { resolveStaticAssetUrl } from '../../../../services/api';
 import AIExerciseGenerateButton from './AI_generation/AIExerciseGenerateButton';
 import AIExerciseGeneratorModal, {
   type GeneratedBlock,
@@ -418,7 +418,7 @@ export default function SelectFormToImageEditorPage({
                 >
                   {hasImage ? (
                     <img
-                      src={card.imageUrl}
+                      src={resolveStaticAssetUrl(card.imageUrl)}
                       alt=""
                       className="dti-image-slot-preview"
                     />

@@ -564,20 +564,9 @@ def create_task(
     return task
 
 def get_uploads_path():
-    """Get the uploads directory path"""
-    current_file = os.path.abspath(__file__)
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))))
-    
-    # Check if we're in Docker
-    is_docker = (os.name != 'nt' and
-                 os.path.exists("/app") and 
-                 os.getcwd() == "/app" and 
-                 backend_dir == "/app")
-    
-    if is_docker:
-        return "/app/uploads"
-    else:
-        return os.path.join(backend_dir, "uploads")
+    """Get the uploads directory path — delegates to the canonical resolver."""
+    from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+    return resolve_uploads_path()
 
 @router.post("/admin/tasks/upload-file")
 async def upload_task_file(

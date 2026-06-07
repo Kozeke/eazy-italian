@@ -134,6 +134,7 @@ export default function CoursesPage() {
     if (course.thumbnail_url) {
       return course.thumbnail_url;
     } else if (course.thumbnail_path) {
+      if (course.thumbnail_path.startsWith('http')) return course.thumbnail_path;
       const thumbnailFilename = course.thumbnail_path.split('/').pop();
       return `${apiBase}/static/thumbnails/${thumbnailFilename}`;
     }
