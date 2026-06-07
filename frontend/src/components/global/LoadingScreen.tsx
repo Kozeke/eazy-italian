@@ -455,6 +455,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
           gap: 0;
           background: #F7F7FA;
           opacity: 1;
+          overflow: hidden;
           transition: opacity 380ms cubic-bezier(0.4, 0, 0.2, 1);
           will-change: opacity;
         }
@@ -463,7 +464,69 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
           pointer-events: none;
         }
 
+        /* ── ambient aurora: soft drifting blobs give the screen organic life ── */
+        .lngai-aurora {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .lngai-blob {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(64px);
+          will-change: transform;
+        }
+        .lngai-blob-1 {
+          width: 380px; height: 380px;
+          background: radial-gradient(circle at 50% 50%, rgba(108,111,239,0.26) 0%, rgba(108,111,239,0) 70%);
+          top: 10%; left: 50%;
+          margin-left: -300px;
+          animation: lngai-drift-1 16s ease-in-out infinite;
+        }
+        .lngai-blob-2 {
+          width: 320px; height: 320px;
+          background: radial-gradient(circle at 50% 50%, rgba(155,158,245,0.24) 0%, rgba(155,158,245,0) 70%);
+          bottom: 12%; left: 50%;
+          margin-left: 40px;
+          animation: lngai-drift-2 19s ease-in-out infinite;
+        }
+        @keyframes lngai-drift-1 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50%      { transform: translate(34px, 26px) scale(1.08); }
+        }
+        @keyframes lngai-drift-2 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50%      { transform: translate(-28px, -22px) scale(1.1); }
+        }
+
+        /* ── stage: keeps logo + quote breathing together as one unit ── */
+        .lngai-stage {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          animation: lngai-breathe 6s ease-in-out infinite;
+        }
+        @keyframes lngai-breathe {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-5px); }
+        }
+
+        /* soft halo that grounds the logo into the background rather than floating */
+        .lngai-logo-halo {
+          position: absolute;
+          top: 50%; left: 50%;
+          width: 280px; height: 170px;
+          transform: translate(-50%, -62%);
+          background: radial-gradient(ellipse at center, rgba(108,111,239,0.15) 0%, rgba(108,111,239,0) 68%);
+          pointer-events: none;
+          z-index: 0;
+        }
+
         /* ── orbit ── */
+        .lngai-logo-svg { position: relative; z-index: 1; }
         .lngai-orbit-ring {
           transform-origin: 20px 20px;
           animation: lngai-orbit 3.6s linear infinite;
@@ -494,67 +557,76 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
           to   { opacity: 1; transform: translateY(0);   }
         }
 
-        /* ── quote card ── */
-        .lngai-quote-wrap {
-          margin-top: 32px;
-          max-width: 340px;
-          width: calc(100vw - 48px);
-          background: #FFFFFF;
-          border: 1px solid #E8EAFD;
-          border-radius: 16px;
-          padding: 18px 22px 16px;
-          box-shadow:
-            0 2px 8px rgba(108, 111, 239, 0.07),
-            0 1px 2px rgba(108, 111, 239, 0.04);
-          animation: lngai-quote-enter 0.8s 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
-          position: relative;
-          overflow: hidden;
+        /* ── connective stem: a hairline that visually ties the logo to the quote ── */
+        .lngai-stem {
+          width: 1px;
+          height: 32px;
+          background: linear-gradient(180deg, rgba(108,111,239,0) 0%, rgba(108,111,239,0.4) 100%);
+          margin-top: 8px;
+          transform-origin: top;
+          animation: lngai-stem-grow 0.9s 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
-        .lngai-quote-wrap::before {
-          content: '';
-          position: absolute;
-          top: 0; left: 0;
-          width: 3px;
-          height: 100%;
-          background: linear-gradient(180deg, #6C6FEF 0%, #9B9EF5 100%);
-          border-radius: 16px 0 0 16px;
-        }
-        @keyframes lngai-quote-enter {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0);    }
+        @keyframes lngai-stem-grow {
+          from { opacity: 0; transform: scaleY(0); }
+          to   { opacity: 1; transform: scaleY(1); }
         }
 
+        /* ── quote: borderless & centered so it reads as part of the whole ── */
+        .lngai-quote {
+          margin-top: 14px;
+          max-width: 360px;
+          width: calc(100vw - 56px);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          animation: lngai-quote-enter 0.9s 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes lngai-quote-enter {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
         .lngai-quote-mark {
           font-family: 'Georgia', 'Times New Roman', serif;
-          font-size: 28px;
-          line-height: 1;
+          font-size: 34px;
+          line-height: 0.5;
           color: #6C6FEF;
-          opacity: 0.35;
-          display: block;
-          margin-bottom: 4px;
-          margin-left: -2px;
+          opacity: 0.26;
+          margin-bottom: 8px;
           user-select: none;
         }
         .lngai-quote-text {
           font-family: 'Inter', -apple-system, system-ui, sans-serif;
-          font-size: 13.5px;
-          line-height: 1.6;
+          font-size: 14.5px;
+          line-height: 1.62;
           color: #3A3D6A;
           font-style: italic;
           margin: 0;
+          text-wrap: balance;
         }
         .lngai-quote-attr {
-          display: block;
-          margin-top: 10px;
+          margin-top: 13px;
           font-family: 'Inter', -apple-system, system-ui, sans-serif;
-          font-size: 11.5px;
+          font-size: 11px;
           color: #9093B8;
           font-style: normal;
-          font-weight: 500;
-          letter-spacing: 0.01em;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
         }
         .lngai-quote-attr::before {
-          content: '— ';
+          content: '';
+          width: 18px;
+          height: 1px;
+          background: #C9CBEA;
+        }
+
+        /* respect users who prefer less motion */
+        @media (prefers-reduced-motion: reduce) {
+          .lngai-stage, .lngai-blob-1, .lngai-blob-2 { animation: none; }
         }
       `}</style>
 
@@ -564,59 +636,75 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
         aria-label="Loading LinguAI"
         aria-live="polite"
       >
-        {/* ── Logo SVG ────────────────────────────────────────────────── */}
-        <svg
-          width="240"
-          height="64"
-          viewBox="0 0 180 48"
-          fill="none"
-          overflow="visible"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-          style={{ display: "block", overflow: "visible" }}
-        >
-          <circle
-            className="lngai-outer-ring"
-            cx="20" cy="20" r="17"
-            stroke="#6C6FEF" strokeWidth="1.6"
-          />
-          <circle
-            cx="20" cy="20" r="9"
-            stroke="#6C6FEF" strokeWidth="1.1" opacity="0.4"
-          />
-          <circle cx="20" cy="20" r="3" fill="#6C6FEF" />
+        {/* ── ambient aurora backdrop ──────────────────────────────────── */}
+        <div className="lngai-aurora" aria-hidden="true">
+          <span className="lngai-blob lngai-blob-1" />
+          <span className="lngai-blob lngai-blob-2" />
+        </div>
 
-          <g className="lngai-orbit-ring">
-            <circle className="lngai-dot-counter" cx="20"   cy="3"    r="2" fill="#6C6FEF" opacity="0.75" />
-            <circle className="lngai-dot-counter" cx="34.7" cy="11.5" r="2" fill="#6C6FEF" opacity="0.75" />
-            <circle className="lngai-dot-counter" cx="34.7" cy="28.5" r="2" fill="#6C6FEF" opacity="0.75" />
-          </g>
+        {/* ── stage: logo, stem and quote breathe together as one piece ── */}
+        <div className="lngai-stage">
+          {/* halo grounds the logo into the page background */}
+          <span className="lngai-logo-halo" aria-hidden="true" />
 
-          <g className="lngai-wordmark">
-            <text
-              x="48" y="27"
-              dominantBaseline="alphabetic"
-              fontFamily="'Syne', system-ui, sans-serif"
-              fontWeight="700" fontSize="19"
-              fill="#1A1A2E" letterSpacing="-0.5"
-            >Lingu</text>
-            <text
-              x="106" y="27"
-              dominantBaseline="alphabetic"
-              fontFamily="'Syne', system-ui, sans-serif"
-              fontWeight="700" fontSize="19"
-              fill="#6C6FEF" letterSpacing="-0.5"
-            >AI</text>
-          </g>
-        </svg>
+          {/* ── Logo SVG ────────────────────────────────────────────────── */}
+          <svg
+            className="lngai-logo-svg"
+            width="240"
+            height="64"
+            viewBox="0 0 180 48"
+            fill="none"
+            overflow="visible"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            style={{ display: "block", overflow: "visible" }}
+          >
+            <circle
+              className="lngai-outer-ring"
+              cx="20" cy="20" r="17"
+              stroke="#6C6FEF" strokeWidth="1.6"
+            />
+            <circle
+              cx="20" cy="20" r="9"
+              stroke="#6C6FEF" strokeWidth="1.1" opacity="0.4"
+            />
+            <circle cx="20" cy="20" r="3" fill="#6C6FEF" />
 
-        {/* ── Motivational quote card ──────────────────────────────────── */}
-        <div className="lngai-quote-wrap" aria-hidden="true">
-          <span className="lngai-quote-mark">"</span>
-          <p className="lngai-quote-text">{quote.text}</p>
-          {quote.attribution && (
-            <span className="lngai-quote-attr">{quote.attribution}</span>
-          )}
+            <g className="lngai-orbit-ring">
+              <circle className="lngai-dot-counter" cx="20"   cy="3"    r="2" fill="#6C6FEF" opacity="0.75" />
+              <circle className="lngai-dot-counter" cx="34.7" cy="11.5" r="2" fill="#6C6FEF" opacity="0.75" />
+              <circle className="lngai-dot-counter" cx="34.7" cy="28.5" r="2" fill="#6C6FEF" opacity="0.75" />
+            </g>
+
+            <g className="lngai-wordmark">
+              <text
+                x="48" y="27"
+                dominantBaseline="alphabetic"
+                fontFamily="'Syne', system-ui, sans-serif"
+                fontWeight="700" fontSize="19"
+                fill="#1A1A2E" letterSpacing="-0.5"
+              >Lingu</text>
+              <text
+                x="106" y="27"
+                dominantBaseline="alphabetic"
+                fontFamily="'Syne', system-ui, sans-serif"
+                fontWeight="700" fontSize="19"
+                fill="#6C6FEF" letterSpacing="-0.5"
+              >AI</text>
+            </g>
+          </svg>
+
+          {/* hairline that ties the logo down to the quote */}
+          <span className="lngai-stem" aria-hidden="true" />
+
+          {/* ── Motivational quote ───────────────────────────────────────── */}
+          <figure className="lngai-quote" aria-hidden="true">
+            <span className="lngai-quote-mark">"</span>
+            <p className="lngai-quote-text">{quote.text}</p>
+            {quote.attribution && (
+              <figcaption className="lngai-quote-attr">{quote.attribution}</figcaption>
+            )}
+          </figure>
         </div>
 
         {/* Screen-reader live text */}

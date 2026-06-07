@@ -47,7 +47,7 @@ function AiBuilderLegacyRedirect() {
 }
 
 function App() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { loading } = useAuth();
   const { isTeacherClassroomOpening } = useTeacherClassroomTransition();
 
@@ -64,7 +64,7 @@ function App() {
 
   return (
     <>
-      <LoadingScreen isLoading={isTeacherClassroomOpening} />
+      <LoadingScreen isLoading={isTeacherClassroomOpening} lang={i18n.language} />
     <Routes>
       {/* Public routes */}
       <Route path="/" element={<LandingPage />} />
