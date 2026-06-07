@@ -2634,6 +2634,11 @@ async def generate_drag_word_to_image_from_unit_content(
     topic_hint: str | None = None,
     provider=None,
     max_retries: int = 2,
+    # Words already used by other image-card exercises in the same generation
+    # run. Any card whose answer matches one of these (case-insensitive) is
+    # hard-dropped before returning so image-card vocabulary stays unique across
+    # the whole course, not just within a single segment.
+    exclude_words: "set[str] | list[str] | None" = None,
     **_ignored,
 ) -> tuple[dict, dict]:
     """
@@ -2659,6 +2664,24 @@ async def generate_drag_word_to_image_from_unit_content(
     # Do NOT call _extract_count_from_hint here — topic_hint carries full lesson
     # text, not a count directive, so the parser would pick up random numbers.
     card_count = pair_count or 3
+    # Normalize the cross-run exclusion list to a lowercase set for fast lookup.
+    exclude_set: set[str] = {
+        str(w).strip().lower() for w in (exclude_words or []) if str(w).strip()
+    }
+    # When excluding words, over-request items so enough survive the hard filter,
+    # then trim back to card_count below.
+    request_count = card_count + 5 if exclude_set else card_count
+    # Explicit prompt-level exclusion so the model tries to avoid the words up
+    # front; the hard filter after parsing is the actual guarantee.
+    exclusion_block = ""
+    if exclude_set:
+        _excl = ", ".join(sorted(exclude_set))
+        exclusion_block = (
+            "\n\n[VOCAB EXCLUSION — MANDATORY]\n"
+            f"These words are ALREADY used as answers in other image exercises in "
+            f"this course and MUST NOT be reused here: {_excl}.\n"
+            "Every 'answer' MUST be a different concrete noun that is NOT in that list.\n"
+        )
     if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = f" Words must be in {content_language}."
     else:
@@ -2685,7 +2708,7 @@ async def generate_drag_word_to_image_from_unit_content(
         "Respond ONLY with valid JSON — no markdown, no explanation."
     )
     user_prompt = (
-        f"Create a drag-word-to-image vocabulary exercise with exactly {card_count} items.{lang_hint}\n"
+        f"Create a drag-word-to-image vocabulary exercise with exactly {request_count} items.{lang_hint}{exclusion_block}\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
         "Rules:\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name reflecting the vocabulary theme.\n"
@@ -2753,6 +2776,34 @@ async def generate_drag_word_to_image_from_unit_content(
             if not cards:
                 raise ValueError("All generated items had empty answers.")
 
+            # ── Hard uniqueness filter ────────────────────────────────────────
+            # Drop any answer already used by another image-card exercise in this
+            # run (exclude_set) plus any duplicate within this exercise, then trim
+            # back to card_count and re-id so ids stay contiguous. This is the
+            # actual guarantee that the same word never appears in two image
+            # exercises across the whole course.
+            unique_cards: list[dict] = []
+            seen_local: set[str] = set()
+            for card in cards:
+                word = str(card.get("answer", "")).strip().lower()
+                if not word or word in exclude_set or word in seen_local:
+                    continue
+                seen_local.add(word)
+                unique_cards.append(card)
+                if len(unique_cards) >= card_count:
+                    break
+
+            if not unique_cards:
+                # Every word collided with the exclusion list — retry so the model
+                # produces a fresh, non-overlapping vocabulary selection.
+                raise ValueError(
+                    "All generated answer words duplicated already-used vocabulary."
+                )
+
+            for new_i, card in enumerate(unique_cards, 1):
+                card["id"] = f"dti_{new_i}"
+            cards = unique_cards
+
             data = {
                 "title": str(parsed.get("title", "")).strip() or fallback_title,
                 "cards": cards,
@@ -2792,6 +2843,11 @@ async def generate_select_form_to_image_from_unit_content(
     topic_hint: str | None = None,
     provider=None,
     max_retries: int = 2,
+    # Words already used by other image-card exercises in the same generation
+    # run. Any card whose answer matches one of these (case-insensitive) is
+    # hard-dropped before returning so image-card vocabulary stays unique across
+    # the whole course, not just within a single segment.
+    exclude_words: "set[str] | list[str] | None" = None,
     **_ignored,
 ) -> tuple[dict, dict]:
     """
@@ -2809,6 +2865,24 @@ async def generate_select_form_to_image_from_unit_content(
     # Do NOT call _extract_count_from_hint here — topic_hint carries full lesson
     # text, not a count directive, so the parser would pick up random numbers.
     card_count = pair_count or 3
+    # Normalize the cross-run exclusion list to a lowercase set for fast lookup.
+    exclude_set: set[str] = {
+        str(w).strip().lower() for w in (exclude_words or []) if str(w).strip()
+    }
+    # When excluding words, over-request items so enough survive the hard filter,
+    # then trim back to card_count below.
+    request_count = card_count + 5 if exclude_set else card_count
+    # Explicit prompt-level exclusion so the model tries to avoid the words up
+    # front; the hard filter after parsing is the actual guarantee.
+    exclusion_block = ""
+    if exclude_set:
+        _excl = ", ".join(sorted(exclude_set))
+        exclusion_block = (
+            "\n\n[VOCAB EXCLUSION — MANDATORY]\n"
+            f"These words are ALREADY used as answers in other image exercises in "
+            f"this course and MUST NOT be reused here: {_excl}.\n"
+            "Every 'answer' MUST be a different concrete noun that is NOT in that list.\n"
+        )
     # Stores optional language instruction when caller requests explicit language.
     if content_language and content_language.strip().lower() not in ("", "auto"):
         lang_hint = f" All words must be in {content_language}."
@@ -2844,7 +2918,7 @@ async def generate_select_form_to_image_from_unit_content(
     )
     # Stores the full user prompt describing schema and quality constraints.
     user_prompt = (
-        f"Create a select-form-to-image vocabulary exercise with exactly {card_count} items.{lang_hint}\n"
+        f"Create a select-form-to-image vocabulary exercise with exactly {request_count} items.{lang_hint}{exclusion_block}\n"
         f"Source material:\n{unit_content[:3000]}{topic_str}\n\n"
         "Rules:\n"
         "- The top-level \"title\" must be a SHORT, DESCRIPTIVE exercise name.\n"
@@ -2927,6 +3001,36 @@ async def generate_select_form_to_image_from_unit_content(
 
             if not cards:
                 raise ValueError("All generated items had empty answers.")
+
+            # ── Hard uniqueness filter ────────────────────────────────────────
+            # Drop any answer already used by another image-card exercise in this
+            # run (exclude_set) plus any duplicate within this exercise, then trim
+            # back to card_count and re-id so ids stay contiguous. This is the
+            # actual guarantee that the same word never appears in two image
+            # exercises across the whole course. Runs BEFORE distractor backfill
+            # so the answer pool only draws from the cards we are keeping.
+            unique_cards: list[dict] = []
+            seen_local: set[str] = set()
+            for card in cards:
+                answers = card.get("answers") or []
+                word = str(answers[0]).strip().lower() if answers else ""
+                if not word or word in exclude_set or word in seen_local:
+                    continue
+                seen_local.add(word)
+                unique_cards.append(card)
+                if len(unique_cards) >= card_count:
+                    break
+
+            if not unique_cards:
+                # Every word collided with the exclusion list — retry so the model
+                # produces a fresh, non-overlapping vocabulary selection.
+                raise ValueError(
+                    "All generated answer words duplicated already-used vocabulary."
+                )
+
+            for new_i, card in enumerate(unique_cards, 1):
+                card["id"] = f"sfi_{new_i}"
+            cards = unique_cards
 
             # Stores answer pool used to backfill missing distractors.
             answer_pool = [str(card["answers"][0]) for card in cards if card.get("answers")]

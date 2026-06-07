@@ -2094,6 +2094,14 @@ BILINGUAL RULE (most important):
                 # causes a "got multiple values for keyword argument 'native_language'"
                 # TypeError because generate_exercise() receives the key twice.
 
+                # Forward the run-wide used-word pool to image-card generators as a
+                # real parameter so they HARD-DROP any duplicate answer before the
+                # block (and its images) are produced. The prompt hint above is a
+                # soft nudge; this is the actual cross-unit uniqueness guarantee.
+                _gen_params: dict[str, Any] = {}
+                if ex_bp.type in _IMAGE_CARD_TYPES and self._used_image_vocab:
+                    _gen_params["exclude_words"] = sorted(self._used_image_vocab)
+
                 try:
                     block_result, _meta = await generate_exercise_for_segment(
                         exercise_type=ex_bp.type,
@@ -2111,7 +2119,7 @@ BILINGUAL RULE (most important):
                         topic_hint=hint,
                         content_language=request.content_language,
                         instruction_language=request.instruction_language,
-                        generator_params={},
+                        generator_params=_gen_params,
                         # Use the same AI provider that generated the unit text so
                         # exercises don't fall back to _default_provider (Groq) and
                         # fail when GROQ_API_KEY is absent or rate-limited.

@@ -169,6 +169,8 @@ export default function VerticalLessonPlayer({
   // VerticalLessonPlayer.tsx, inside the component before return
   // console.log('[VLP] flow.items =', flow.items?.length, flow.items?.map(i => i.type));
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
+  // Scroll container (.vlp-root) — reset to the top whenever the active section changes
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
 
   const programmaticScrollAtRef = useRef(0);
@@ -219,8 +221,15 @@ export default function VerticalLessonPlayer({
     (index: number) => {
       if (index < 0 || index >= sections.length) return;
       setActiveSectionIndex(index);
+      // Only the active section is mounted, so switching sections leaves the
+      // .vlp-root container scrolled at the previous offset. Reset it to the top
+      // (after the new section paints) so each section opens from the beginning.
+      handleProgrammaticScroll();
+      requestAnimationFrame(() => {
+        rootRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+      });
     },
-    [sections.length],
+    [sections.length, handleProgrammaticScroll],
   );
 
   // Teacher "Внимание на упражнение": jump to the right segment if needed, then scroll the block into view
@@ -340,7 +349,7 @@ export default function VerticalLessonPlayer({
   );
 
   return (
-    <div className="vlp-root">
+    <div className="vlp-root" ref={rootRef}>
       <div className="vlp-canvas">
         {sections.length > 0 && (() => {
           const i = activeSectionIndex;
