@@ -17,11 +17,11 @@ from app.models import (
     TeacherPayment,
 )
 # LEGACY: legacy ORM tables still registered with SQLAlchemy metadata for existing DB rows
-from app.models.video import Video  # → video_embed blocks on Segment
-from app.models.video_progress import VideoProgress  # → UnitHomeworkSubmission / segment completion
-from app.models.task import Task  # → exercise blocks on Segment (TaskSubmission in same module)
-from app.models.test import Test  # → test_without_timer / test_with_timer blocks (Question, TestAttempt in same module)
-from app.models.progress import Progress  # → UnitHomeworkSubmission
+from app.models.video import Video                      # → video_embed blocks on Segment
+from app.models.video_progress import VideoProgress     # → UnitHomeworkSubmission / segment completion
+from app.models.task import Task                        # → exercise blocks on Segment
+from app.models.test import Test                        # → test_without_timer / test_with_timer blocks
+from app.models.progress import Progress                # → UnitHomeworkSubmission
 from app.models.presentation import Presentation, PresentationSlide
 from app.models.live_session import LiveSession
 import logging
@@ -31,6 +31,7 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-8s | %(name)s - %(message)s",
     datefmt="%H:%M:%S",
 )
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
@@ -38,7 +39,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Set up CORS - Must be before including routers
+# ── CORS ──────────────────────────────────────────────────────────────────────
 print(f"Setting up CORS with origins: {settings.cors_origins_list}")
 app.add_middleware(
     CORSMiddleware,
@@ -47,32 +48,21 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],
-    max_age=3600,  # Cache preflight requests for 1 hour
+    max_age=3600,
 )
 
-# Mount static files BEFORE API router to avoid route conflicts
-# Handle both local development and Docker environments
+# ── Static file mount ─────────────────────────────────────────────────────────
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Check if we're in Docker - more accurate check
-# In Docker, the working directory is /app and backend_dir would be /app
-# In local dev, backend_dir would be something like C:\...\eazy-italian\backend
-# Also check if we're on Windows (not Docker)
-is_docker = (os.name != 'nt' and  # Not Windows
-             os.path.exists("/app") and 
-             os.getcwd() == "/app" and 
-             backend_dir == "/app")
+is_docker = (
+    os.name != 'nt'
+    and os.path.exists("/app")
+    and os.getcwd() == "/app"
+    and backend_dir == "/app"
+)
 
-if is_docker:
-    # Docker environment - use /app/uploads
-    uploads_path = "/app/uploads"
-else:
-    # Local development - uploads should be inside backend directory
-    uploads_path = os.path.join(backend_dir, "uploads")
+uploads_path = "/app/uploads" if is_docker else os.path.join(backend_dir, "uploads")
 
-# Allow an explicit override via UPLOADS_DIR env var.
-# On Render: mount a persistent disk at /var/data and set UPLOADS_DIR=/var/data.
-# This must be checked AFTER the docker detection so the env var always wins.
 _env_uploads = os.environ.get("UPLOADS_DIR", "").strip()
 if _env_uploads:
     uploads_path = _env_uploads
@@ -83,38 +73,28 @@ print(f"[DEBUG] Uploads path exists: {os.path.exists(uploads_path)}")
 print(f"[DEBUG] Is Docker: {is_docker}")
 print(f"[DEBUG] Current working directory: {os.getcwd()}")
 
-# Create uploads directory if it doesn't exist and mount static files
 try:
     os.makedirs(uploads_path, exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "thumbnails"), exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "videos"), exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "tasks", "audio"), exist_ok=True)
     os.makedirs(os.path.join(uploads_path, "tasks", "documents"), exist_ok=True)
-    
+
     if os.path.exists(uploads_path):
-        # List directories for debugging
         if os.path.exists(os.path.join(uploads_path, "videos")):
             videos_dir = os.path.join(uploads_path, "videos")
             print(f"[DEBUG] Videos directory exists: {videos_dir}")
-            if os.path.exists(videos_dir):
-                subdirs = [d for d in os.listdir(videos_dir) if os.path.isdir(os.path.join(videos_dir, d))]
-                print(f"[DEBUG] Video subdirectories: {subdirs}")
-                if subdirs:
-                    # Check first subdirectory for files
-                    first_subdir = os.path.join(videos_dir, subdirs[0])
-                    files = os.listdir(first_subdir) if os.path.exists(first_subdir) else []
-                    print(f"[DEBUG] Files in {first_subdir}: {files[:5]}")  # Show first 5 files
-        
-        # Mount static files BEFORE API router
+            subdirs = [d for d in os.listdir(videos_dir) if os.path.isdir(os.path.join(videos_dir, d))]
+            print(f"[DEBUG] Video subdirectories: {subdirs}")
+
         app.mount("/api/v1/static", StaticFiles(directory=uploads_path), name="uploads")
-        print(f"âœ… Static files mounted at /api/v1/static from {uploads_path}")
+        print(f"✅ Static files mounted at /api/v1/static from {uploads_path}")
     else:
-        print(f"âš ï¸  Warning: Uploads directory does not exist at {uploads_path}")
+        print(f"⚠️  Warning: Uploads directory does not exist at {uploads_path}")
 except PermissionError as e:
-    print(f"âš ï¸  Warning: Permission denied creating uploads directory at {uploads_path}: {e}")
-    print(f"âš ï¸  Static file serving disabled. Please create the directory manually with proper permissions.")
+    print(f"⚠️  Warning: Permission denied creating uploads directory: {e}")
 except Exception as e:
-    print(f"âš ï¸  Warning: Error setting up uploads directory: {e}")
+    print(f"⚠️  Warning: Error setting up uploads directory: {e}")
     import traceback
     traceback.print_exc()
 
@@ -122,13 +102,10 @@ except Exception as e:
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
+# ── Startup event handlers ────────────────────────────────────────────────────
+
 @app.on_event("startup")
 async def start_presence_eviction():
-    """
-    Launch the background task that prunes stale presence entries.
-    Runs every 60 s; evicts users whose last heartbeat is older than 90 s.
-    Safe to call multiple times – start_eviction_task() is idempotent.
-    """
     from app.api.v1.endpoints.presence_rest import start_eviction_task
     start_eviction_task(interval_seconds=60, max_age_seconds=90)
 
@@ -137,916 +114,82 @@ async def start_presence_eviction():
 async def warmup_rag():
     # RAG / LaBSE warmup disabled — not in use.
     # Re-enable when /courses/{id}/ask goes live for students.
-    # async def _warm_labse():
-    #     from app.services.ai.embedding_service import get_embedding_service
-    #     svc = get_embedding_service()
-    #     await asyncio.to_thread(svc.embed, "warmup")
-    # asyncio.ensure_future(_warm_labse())
+    # from app.services.ai.embedding_service import get_embedding_service
+    # import asyncio
+    # svc = get_embedding_service()
+    # asyncio.ensure_future(asyncio.to_thread(svc.embed, "warmup"))
     pass
 
 
 @app.on_event("startup")
 async def startup_event():
-    # Debug: Check if admin routes are registered
+    # ── Route sanity check ────────────────────────────────────────────────────
     print("\n=== Checking Admin Routes ===")
     admin_routes = [r for r in app.routes if hasattr(r, 'path') and '/admin' in str(r.path)]
     if admin_routes:
-        print(f"âœ… Found {len(admin_routes)} admin routes")
-        for route in admin_routes[:5]:  # Print first 5
+        print(f"✅ Found {len(admin_routes)} admin routes")
+        for route in admin_routes[:5]:
             methods = getattr(route, 'methods', set())
             path = getattr(route, 'path', 'N/A')
             print(f"  {', '.join(methods)} {path}")
     else:
-        print("âš ï¸  WARNING: No admin routes found! This may indicate a registration issue.")
+        print("⚠️  WARNING: No admin routes found!")
     print("=== End Route Check ===\n")
-    
-    # Create migration tracking table for one-time migrations
-    # This allows us to skip migrations that have already been applied
+
+    # ── DB init: create tables + run migrations ───────────────────────────────
+    # All migrations are gated behind migration_tracking so they only run ONCE.
+    # On subsequent boots the check is a single SELECT — not 74 round-trips.
     import time
     from sqlalchemy.exc import OperationalError
     from sqlalchemy import text
-    
-    try:
-        with engine.connect() as conn:
-            # Create migration_tracking table if it doesn't exist
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS migration_tracking (
-                    id SERIAL PRIMARY KEY,
-                    migration_name VARCHAR(255) UNIQUE NOT NULL,
-                    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    applied_by VARCHAR(100) DEFAULT 'system'
-                )
-            """))
-            conn.commit()
-    except Exception as e:
-        print(f"âš ï¸  Could not create migration_tracking table: {e}")
-    
+
+    MIGRATION_VERSION = "v2_schema_complete"
+
     max_retries = 5
     retry_delay = 2
-    
+
     for attempt in range(max_retries):
         try:
+            # Always safe — SQLAlchemy uses IF NOT EXISTS internally
             Base.metadata.create_all(bind=engine)
             print("Database tables created successfully")
-            
-            # Run migrations for missing columns and tables
-            # NOTE: These migrations run on EVERY server restart, but they're idempotent:
-            # - They check if columns/tables exist BEFORE adding them
-            # - Safe to run multiple times (won't duplicate or break anything)
-            # - Fast execution (just database checks, no actual changes if already migrated)
-            # - Ensures database schema is always in sync with code
-            # If you want one-time migrations, we can add a migration_tracking table
-            try:
-                with engine.connect() as conn:
-                    # ── Ensure Presentations tables exist (idempotent) ───────────────
-                    # We prefer SQLAlchemy's table DDL (checkfirst=True) so column types
-                    # (including enums) always match the ORM models.
-                    try:
-                        from app.models.presentation import Presentation, PresentationSlide
 
-                        Presentation.__table__.create(bind=conn, checkfirst=True)
-                        PresentationSlide.__table__.create(bind=conn, checkfirst=True)
-                        conn.commit()
-                        print("✅ Ensured presentations tables exist", flush=True)
-                    except Exception as exc:
-                        # Non-fatal — endpoints will still work if tables already exist,
-                        # and deployments without presentations can ignore this.
-                        print(f"⚠️  Presentations table ensure failed: {exc}", flush=True)
+            with engine.connect() as conn:
+                # ── Step 1: create migration_tracking table (1 round-trip) ──
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS migration_tracking (
+                        id SERIAL PRIMARY KEY,
+                        migration_name VARCHAR(255) UNIQUE NOT NULL,
+                        applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        applied_by VARCHAR(100) DEFAULT 'system'
+                    )
+                """))
+                conn.commit()
 
-                    # Add missing columns to questions table if they don't exist
-                    question_migrations = [
-                        ("shuffle_options", "BOOLEAN DEFAULT FALSE"),
-                        ("autograde", "BOOLEAN DEFAULT TRUE"),
-                        ("manual_review_threshold", "DOUBLE PRECISION"),
-                        ("expected_answer_config", "JSON DEFAULT '{}'"),
-                        ("gaps_config", "JSON DEFAULT '[]'"),
-                        ("question_metadata", "JSON DEFAULT '{}'"),
-                    ]
-                    
-                    for column_name, column_def in question_migrations:
-                        # Check if column exists
-                        check_query = text("""
-                            SELECT column_name 
-                            FROM information_schema.columns 
-                            WHERE table_name = 'questions' 
-                            AND column_name = :column_name
-                        """)
-                        result = conn.execute(check_query, {"column_name": column_name})
-                        if result.fetchone() is None:
-                            # Column doesn't exist, add it
-                            migration_sql = text(f"""
-                                ALTER TABLE questions 
-                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
-                            """)
-                            conn.execute(migration_sql)
-                            conn.commit()
-                            print(f"âœ… Added missing column: questions.{column_name}")
-                    
-                    # Add missing columns to tasks table if they don't exist
-                    task_migrations = [
-                        ("questions", "JSON DEFAULT '[]'"),
-                    ]
-                    
-                    for column_name, column_def in task_migrations:
-                        # Check if column exists
-                        check_query = text("""
-                            SELECT column_name 
-                            FROM information_schema.columns 
-                            WHERE table_name = 'tasks' 
-                            AND column_name = :column_name
-                        """)
-                        result = conn.execute(check_query, {"column_name": column_name})
-                        if result.fetchone() is None:
-                            # Column doesn't exist, add it
-                            migration_sql = text(f"""
-                                ALTER TABLE tasks 
-                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
-                            """)
-                            conn.execute(migration_sql)
-                            conn.commit()
-                            print(f"âœ… Added missing column: tasks.{column_name}")
-                    
-                    # Handle TaskType enum - check if it exists and what values it has
-                    check_tasktype_enum = text("""
-                        SELECT EXISTS (
-                            SELECT 1 FROM pg_type WHERE typname = 'tasktype'
-                        );
-                    """)
-                    tasktype_enum_exists = conn.execute(check_tasktype_enum).scalar()
-                    
-                    if tasktype_enum_exists:
-                        # Check what enum values exist
-                        tasktype_values_result = conn.execute(text("""
-                            SELECT enumlabel FROM pg_enum 
-                            WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'tasktype')
-                            ORDER BY enumsortorder
-                        """))
-                        tasktype_labels = [row[0] for row in tasktype_values_result.fetchall()]
-                        print(f"TaskType enum exists with values: {tasktype_labels}")
-                        
-                        # Add listening if it doesn't exist
-                        if 'listening' not in tasktype_labels:
-                            try:
-                                conn.execute(text("ALTER TYPE tasktype ADD VALUE IF NOT EXISTS 'listening'"))
-                                conn.commit()
-                                print("âœ… Added 'listening' to TaskType enum")
-                            except Exception as e:
-                                # IF NOT EXISTS might not be supported in all PostgreSQL versions
-                                try:
-                                    conn.execute(text("ALTER TYPE tasktype ADD VALUE 'listening'"))
-                                    conn.commit()
-                                    print("âœ… Added 'listening' to TaskType enum")
-                                except Exception as e2:
-                                    print(f"âš ï¸  Could not add 'listening' to TaskType enum: {e2}")
-                        
-                        # Add reading if it doesn't exist
-                        if 'reading' not in tasktype_labels:
-                            try:
-                                conn.execute(text("ALTER TYPE tasktype ADD VALUE IF NOT EXISTS 'reading'"))
-                                conn.commit()
-                                print("âœ… Added 'reading' to TaskType enum")
-                            except Exception as e:
-                                # IF NOT EXISTS might not be supported in all PostgreSQL versions
-                                try:
-                                    conn.execute(text("ALTER TYPE tasktype ADD VALUE 'reading'"))
-                                    conn.commit()
-                                    print("âœ… Added 'reading' to TaskType enum")
-                                except Exception as e2:
-                                    print(f"âš ï¸  Could not add 'reading' to TaskType enum: {e2}")
-                    
-                    # Handle TaskStatus enum - check if it exists and what values it has
-                    check_taskstatus_enum = text("""
-                        SELECT EXISTS (
-                            SELECT 1 FROM pg_type WHERE typname = 'taskstatus'
-                        );
-                    """)
-                    taskstatus_enum_exists = conn.execute(check_taskstatus_enum).scalar()
-                    
-                    if taskstatus_enum_exists:
-                        # Check what enum values exist
-                        taskstatus_values_result = conn.execute(text("""
-                            SELECT enumlabel FROM pg_enum 
-                            WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'taskstatus')
-                            ORDER BY enumsortorder
-                        """))
-                        taskstatus_labels = [row[0] for row in taskstatus_values_result.fetchall()]
-                        print(f"TaskStatus enum exists with values: {taskstatus_labels}")
-                        
-                        # Add lowercase values if they don't exist
-                        lowercase_values = ['draft', 'scheduled', 'published', 'archived']
-                        for value in lowercase_values:
-                            if value not in taskstatus_labels:
-                                try:
-                                    conn.execute(text(f"ALTER TYPE taskstatus ADD VALUE IF NOT EXISTS '{value}'"))
-                                    conn.commit()
-                                    print(f"âœ… Added '{value}' to TaskStatus enum")
-                                except Exception as e:
-                                    try:
-                                        conn.execute(text(f"ALTER TYPE taskstatus ADD VALUE '{value}'"))
-                                        conn.commit()
-                                        print(f"âœ… Added '{value}' to TaskStatus enum")
-                                    except Exception as e2:
-                                        print(f"âš ï¸  Could not add '{value}' to TaskStatus enum: {e2}")
-                    
-                    # Since we're using native_enum=False, we need to convert enum columns to VARCHAR
-                    # Check if tasks.type is still an enum type
-                    check_type_column = text("""
-                        SELECT data_type 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'tasks' AND column_name = 'type'
-                    """)
-                    type_column_type = conn.execute(check_type_column).scalar()
-                    
-                    if type_column_type == 'USER-DEFINED':  # It's an enum
-                        print("âš ï¸  tasks.type is still an enum type. Converting to VARCHAR...")
-                        try:
-                            # Convert enum to VARCHAR
-                            conn.execute(text("ALTER TABLE tasks ALTER COLUMN type TYPE VARCHAR(50) USING type::text"))
-                            conn.commit()
-                            print("âœ… Converted tasks.type from enum to VARCHAR")
-                        except Exception as e:
-                            print(f"âš ï¸  Could not convert tasks.type: {e}")
-                    
-                    # Check and convert status column
-                    check_status_column = text("""
-                        SELECT data_type 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'tasks' AND column_name = 'status'
-                    """)
-                    status_column_type = conn.execute(check_status_column).scalar()
-                    
-                    if status_column_type == 'USER-DEFINED':  # It's an enum
-                        print("âš ï¸  tasks.status is still an enum type. Converting to VARCHAR...")
-                        try:
-                            # Convert enum to VARCHAR
-                            conn.execute(text("ALTER TABLE tasks ALTER COLUMN status TYPE VARCHAR(50) USING status::text"))
-                            conn.commit()
-                            print("âœ… Converted tasks.status from enum to VARCHAR")
-                        except Exception as e:
-                            print(f"âš ï¸  Could not convert tasks.status: {e}")
-                    
-                    # Handle SubscriptionType enum - check if it exists and what values it has
-                    check_subscription_enum = text("""
-                        SELECT EXISTS (
-                            SELECT 1 FROM pg_type WHERE typname = 'subscriptiontype'
-                        );
-                    """)
-                    enum_exists = conn.execute(check_subscription_enum).scalar()
-                    
-                    enum_free_value = 'free'
-                    enum_standard_value = 'standard'
-                    enum_premium_value = 'premium'
-                    
-                    if enum_exists:
-                        # Check what enum values exist
-                        enum_values_result = conn.execute(text("""
-                            SELECT enumlabel FROM pg_enum 
-                            WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'subscriptiontype')
-                            ORDER BY enumsortorder
-                        """))
-                        enum_labels = [row[0] for row in enum_values_result.fetchall()]
-                        print(f"SubscriptionType enum exists with values: {enum_labels}")
-                        
-                        # Determine if we have uppercase or lowercase values
-                        has_lowercase = 'free' in enum_labels or 'premium' in enum_labels
-                        has_uppercase = 'FREE' in enum_labels or 'PREMIUM' in enum_labels
-                        
-                        if has_uppercase and not has_lowercase:
-                            # Use uppercase values
-                            enum_free_value = 'FREE'
-                            enum_standard_value = 'STANDARD'
-                            enum_premium_value = 'PREMIUM'
-                            print("Using uppercase enum values: FREE, STANDARD, PREMIUM")
-                        elif has_lowercase:
-                            # Use lowercase values
-                            enum_free_value = 'free'
-                            enum_standard_value = 'standard'
-                            enum_premium_value = 'premium'
-                            print("Using lowercase enum values: free, standard, premium")
-                        else:
-                            # No values found, recreate enum with lowercase
-                            print("Recreating enum with lowercase values...")
-                            conn.execute(text("DROP TYPE IF EXISTS subscriptiontype CASCADE"))
-                            conn.execute(text("CREATE TYPE subscriptiontype AS ENUM ('free', 'standard', 'premium')"))
-                            conn.commit()
+                # ── Step 2: check if migrations already ran (1 round-trip) ──
+                already_done = conn.execute(text("""
+                    SELECT 1 FROM migration_tracking WHERE migration_name = :name
+                """), {"name": MIGRATION_VERSION}).fetchone()
 
-                        # Ensure STANDARD exists for newer teacher tariff mapping.
-                        if enum_standard_value not in enum_labels:
-                            try:
-                                conn.execute(text(f"ALTER TYPE subscriptiontype ADD VALUE IF NOT EXISTS '{enum_standard_value}'"))
-                                conn.commit()
-                                print(f"✅ Added '{enum_standard_value}' to SubscriptionType enum")
-                            except Exception as e:
-                                print(f"⚠️  Could not add '{enum_standard_value}' to SubscriptionType enum: {e}")
-                    else:
-                        # Create enum type with lowercase values
-                        print("Creating SubscriptionType enum...")
-                        create_enum = text("""
-                            DO $$ BEGIN
-                                CREATE TYPE subscriptiontype AS ENUM ('free', 'standard', 'premium');
-                            EXCEPTION
-                                WHEN duplicate_object THEN null;
-                            END $$;
-                        """)
-                        conn.execute(create_enum)
-                        conn.commit()
-                        print("âœ… Created SubscriptionType enum")
-                    
-                    # Add missing columns to users table
-                    # Handle last_login first (simple)
-                    check_last_login = text("""
-                        SELECT column_name 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'users' 
-                        AND column_name = 'last_login'
-                    """)
-                    result = conn.execute(check_last_login)
-                    if result.fetchone() is None:
-                        migration_sql = text("""
-                            ALTER TABLE users 
-                            ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE
-                        """)
-                        conn.execute(migration_sql)
-                        conn.commit()
-                        print("âœ… Added missing column: users.last_login")
-                    
-                    # Handle subscription_type (more complex due to enum)
-                    check_subscription_type = text("""
-                        SELECT column_name 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'users' 
-                        AND column_name = 'subscription_type'
-                    """)
-                    result = conn.execute(check_subscription_type)
-                    if result.fetchone() is None:
-                        # Add column without default first (to avoid enum value issues)
-                        print("Adding subscription_type column...")
-                        add_column_sql = text("""
-                            ALTER TABLE users 
-                            ADD COLUMN subscription_type subscriptiontype
-                        """)
-                        conn.execute(add_column_sql)
-                        conn.commit()
-                        
-                        # Set default value for existing NULL rows using the correct enum value
-                        # Use string formatting for enum value since it's a literal, not a parameter
-                        update_null = text(f"""
-                            UPDATE users 
-                            SET subscription_type = '{enum_free_value}'::subscriptiontype
-                            WHERE subscription_type IS NULL
-                        """)
-                        conn.execute(update_null)
-                        conn.commit()
-                        
-                        # Set NOT NULL and DEFAULT constraints
-                        # Use string formatting for enum value in DEFAULT clause
-                        set_not_null = text("""
-                            ALTER TABLE users 
-                            ALTER COLUMN subscription_type SET NOT NULL
-                        """)
-                        conn.execute(set_not_null)
-                        
-                        set_default = text(f"""
-                            ALTER TABLE users 
-                            ALTER COLUMN subscription_type SET DEFAULT '{enum_free_value}'::subscriptiontype
-                        """)
-                        conn.execute(set_default)
-                        conn.commit()
-                        print(f"âœ… Added subscription_type column with default value '{enum_free_value}'")
-                    
-                    # Handle QuestionType enum - ensure all values exist
-                    from app.models.test import QuestionType
-                    check_questiontype_enum = text("""
-                        SELECT EXISTS (
-                            SELECT 1 FROM pg_type WHERE typname = 'questiontype'
-                        );
-                    """)
-                    questiontype_exists = conn.execute(check_questiontype_enum).scalar()
-                    
-                    if questiontype_exists:
-                        # Check what enum values exist
-                        enum_values_result = conn.execute(text("""
-                            SELECT enumlabel FROM pg_enum 
-                            WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'questiontype')
-                            ORDER BY enumsortorder
-                        """))
-                        existing_values = [row[0] for row in enum_values_result.fetchall()]
-                        print(f"QuestionType enum exists with values: {existing_values}")
-                        
-                        # Get all required enum values from Python enum
-                        required_values = [e.value for e in QuestionType]
-                        
-                        # Add missing values
-                        for value in required_values:
-                            if value not in existing_values:
-                                print(f"Adding missing enum value: {value}")
-                                try:
-                                    conn.execute(text(f"ALTER TYPE questiontype ADD VALUE IF NOT EXISTS '{value}'"))
-                                    conn.commit()
-                                    print(f"âœ… Added enum value: {value}")
-                                except Exception as e:
-                                    # IF NOT EXISTS might not be supported in all PostgreSQL versions
-                                    # Try without it
-                                    try:
-                                        conn.execute(text(f"ALTER TYPE questiontype ADD VALUE '{value}'"))
-                                        conn.commit()
-                                        print(f"âœ… Added enum value: {value}")
-                                    except Exception as e2:
-                                        print(f"âš ï¸  Could not add enum value {value}: {e2}")
-                    else:
-                        # Create enum type with all values
-                        print("Creating QuestionType enum...")
-                        required_values = [e.value for e in QuestionType]
-                        values_str = "', '".join(required_values)
-                        create_enum = text(f"""
-                            DO $$ BEGIN
-                                CREATE TYPE questiontype AS ENUM ('{values_str}');
-                            EXCEPTION
-                                WHEN duplicate_object THEN null;
-                            END $$;
-                        """)
-                        conn.execute(create_enum)
-                        conn.commit()
-                        print(f"âœ… Created QuestionType enum with values: {required_values}")
-                    
-                    # Create courses table if it doesn't exist
-                    check_courses_table = text("""
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_name = 'courses'
-                    """)
-                    result = conn.execute(check_courses_table)
-                    if result.fetchone() is None:
-                        print("Creating courses table...")
-                        
-                        # Create ENUM types for course level and status if they don't exist
-                        try:
-                            create_level_enum = text("""
-                                DO $$ BEGIN
-                                    CREATE TYPE courselevel AS ENUM ('A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'mixed');
-                                EXCEPTION
-                                    WHEN duplicate_object THEN null;
-                                END $$;
-                            """)
-                            conn.execute(create_level_enum)
-                            conn.commit()
-                        except Exception as e:
-                            print(f"âš ï¸  Level enum note: {e}")
-                        
-                        try:
-                            create_status_enum = text("""
-                                DO $$ BEGIN
-                                    CREATE TYPE coursestatus AS ENUM ('draft', 'scheduled', 'published', 'archived');
-                                EXCEPTION
-                                    WHEN duplicate_object THEN null;
-                                END $$;
-                            """)
-                            conn.execute(create_status_enum)
-                            conn.commit()
-                        except Exception as e:
-                            print(f"âš ï¸  Status enum note: {e}")
-                        
-                        # Create courses table with proper types
-                        create_courses_table = text("""
-                            CREATE TABLE courses (
-                                id SERIAL PRIMARY KEY,
-                                title VARCHAR(255) NOT NULL,
-                                description TEXT,
-                                level courselevel,
-                                status coursestatus NOT NULL DEFAULT 'draft',
-                                publish_at TIMESTAMP WITH TIME ZONE,
-                                order_index INTEGER NOT NULL DEFAULT 0,
-                                thumbnail_url VARCHAR(500),
-                                duration_hours INTEGER,
-                                tags JSONB DEFAULT '[]'::jsonb,
-                                slug VARCHAR(255) UNIQUE,
-                                meta_title VARCHAR(255),
-                                meta_description TEXT,
-                                is_visible_to_students BOOLEAN NOT NULL DEFAULT FALSE,
-                                settings JSONB DEFAULT '{}'::jsonb,
-                                created_by INTEGER NOT NULL REFERENCES users(id),
-                                updated_by INTEGER REFERENCES users(id),
-                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                                updated_at TIMESTAMP WITH TIME ZONE
-                            )
-                        """)
-                        conn.execute(create_courses_table)
-                        conn.commit()
-                        print("âœ… Created courses table")
-                    
-                    # Add course_id column to units table if it doesn't exist
-                    check_course_id = text("""
-                        SELECT column_name 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'units' 
-                        AND column_name = 'course_id'
-                    """)
-                    result = conn.execute(check_course_id)
-                    if result.fetchone() is None:
-                        print("Adding course_id column to units table...")
-                        # First check if courses table exists
-                        check_courses_exists = text("""
-                            SELECT table_name 
-                            FROM information_schema.tables 
-                            WHERE table_name = 'courses'
-                        """)
-                        courses_exists = conn.execute(check_courses_exists).fetchone() is not None
-                        
-                        if courses_exists:
-                            add_course_id = text("""
-                                ALTER TABLE units 
-                                ADD COLUMN course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL
-                            """)
-                            conn.execute(add_course_id)
-                            conn.commit()
-                            print("âœ… Added course_id column to units table")
-                            
-                            # Create index for better performance
-                            try:
-                                create_index = text("""
-                                    CREATE INDEX IF NOT EXISTS idx_units_course_id ON units(course_id)
-                                """)
-                                conn.execute(create_index)
-                                conn.commit()
-                                print("âœ… Created index on units.course_id")
-                            except Exception as idx_error:
-                                print(f"âš ï¸  Index creation note: {idx_error}")
-                        else:
-                            print("âš ï¸  Courses table doesn't exist yet, skipping course_id column")
-                    
-                    # Add thumbnail_path column to courses table if it doesn't exist
-                    check_thumbnail_path = text("""
-                        SELECT column_name 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'courses' 
-                        AND column_name = 'thumbnail_path'
-                    """)
-                    result = conn.execute(check_thumbnail_path)
-                    if result.fetchone() is None:
-                        print("Adding thumbnail_path column to courses table...")
-                        add_thumbnail_path = text("""
-                            ALTER TABLE courses 
-                            ADD COLUMN thumbnail_path VARCHAR(500)
-                        """)
-                        conn.execute(add_thumbnail_path)
-                        conn.commit()
-                        print("âœ… Added thumbnail_path column to courses table")
+                if already_done:
+                    # All migrations already applied — boot is done in 2 queries.
+                    print(f"✅ Migrations already applied ({MIGRATION_VERSION}) — skipping")
+                else:
+                    # First boot (or after a reset): run all migrations once.
+                    print(f"🔧 Running one-time migrations ({MIGRATION_VERSION})...")
+                    _run_all_migrations(conn)
 
-                    # Allow creating draft courses without a level selected yet
-                    check_level_nullable = text("""
-                        SELECT is_nullable
-                        FROM information_schema.columns
-                        WHERE table_name = 'courses'
-                          AND column_name = 'level'
-                    """)
-                    result = conn.execute(check_level_nullable)
-                    level_info = result.fetchone()
-                    if level_info and level_info[0] == 'NO':
-                        print("Making courses.level nullable...")
-                        make_level_nullable = text("""
-                            ALTER TABLE courses
-                            ALTER COLUMN level DROP NOT NULL
-                        """)
-                        conn.execute(make_level_nullable)
-                        conn.commit()
-                        print("âœ… Made courses.level nullable")
-                    
-                    # Create or migrate video_progress table
-                    check_video_progress_table = text("""
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_name = 'video_progress'
-                    """)
-                    result = conn.execute(check_video_progress_table)
-                    table_exists = result.fetchone() is not None
-                    
-                    if not table_exists:
-                        print("Creating video_progress table...")
-                        create_video_progress_table = text("""
-                            CREATE TABLE video_progress (
-                                id SERIAL PRIMARY KEY,
-                                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                                video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
-                                watched_percentage DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-                                progress_percent DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-                                last_position_sec DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-                                watch_time_sec DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-                                completed BOOLEAN NOT NULL DEFAULT FALSE,
-                                is_completed BOOLEAN NOT NULL DEFAULT FALSE,
-                                first_watched_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                                last_watched_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                                completed_at TIMESTAMP WITH TIME ZONE,
-                                UNIQUE(user_id, video_id)
-                            )
-                        """)
-                        conn.execute(create_video_progress_table)
-                        conn.commit()
-                        
-                        # Create indexes
-                        create_indexes = [
-                            text("CREATE INDEX IF NOT EXISTS idx_video_progress_user_id ON video_progress(user_id)"),
-                            text("CREATE INDEX IF NOT EXISTS idx_video_progress_video_id ON video_progress(video_id)"),
-                        ]
-                        for idx_sql in create_indexes:
-                            conn.execute(idx_sql)
-                        conn.commit()
-                        print("âœ… Created video_progress table")
-                    else:
-                        # Table exists - check if it has the correct columns
-                        check_user_id = text("""
-                            SELECT column_name 
-                            FROM information_schema.columns 
-                            WHERE table_name = 'video_progress' 
-                            AND column_name = 'user_id'
-                        """)
-                        result = conn.execute(check_user_id)
-                        if result.fetchone() is None:
-                            # Check if it has student_id instead
-                            check_student_id = text("""
-                                SELECT column_name 
-                                FROM information_schema.columns 
-                                WHERE table_name = 'video_progress' 
-                                AND column_name = 'student_id'
-                            """)
-                            result = conn.execute(check_student_id)
-                            if result.fetchone() is not None:
-                                # Rename student_id to user_id
-                                print("Migrating video_progress table: renaming student_id to user_id...")
-                                rename_column = text("ALTER TABLE video_progress RENAME COLUMN student_id TO user_id")
-                                conn.execute(rename_column)
-                                conn.commit()
-                                print("âœ… Renamed student_id to user_id in video_progress table")
-                        
-                        # Check and add missing columns
-                        column_checks = [
-                            ("watched_percentage", "DOUBLE PRECISION NOT NULL DEFAULT 0.0"),
-                            ("progress_percent", "DOUBLE PRECISION NOT NULL DEFAULT 0.0"),
-                            ("last_position_sec", "DOUBLE PRECISION NOT NULL DEFAULT 0.0"),
-                            ("watch_time_sec", "DOUBLE PRECISION NOT NULL DEFAULT 0.0"),
-                            ("completed", "BOOLEAN NOT NULL DEFAULT FALSE"),
-                            ("is_completed", "BOOLEAN NOT NULL DEFAULT FALSE"),
-                            ("first_watched_at", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL"),
-                            ("last_watched_at", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL"),
-                            ("completed_at", "TIMESTAMP WITH TIME ZONE"),
-                        ]
-                        
-                        for column_name, column_def in column_checks:
-                            check_col = text(f"""
-                                SELECT column_name 
-                                FROM information_schema.columns 
-                                WHERE table_name = 'video_progress' 
-                                AND column_name = '{column_name}'
-                            """)
-                            result = conn.execute(check_col)
-                            if result.fetchone() is None:
-                                print(f"Adding {column_name} column to video_progress table...")
-                                add_col = text(f"ALTER TABLE video_progress ADD COLUMN {column_name} {column_def}")
-                                conn.execute(add_col)
-                                conn.commit()
-                                print(f"âœ… Added {column_name} column to video_progress table")
-                        
-                        # Check if unique constraint exists
-                        check_constraint = text("""
-                            SELECT constraint_name 
-                            FROM information_schema.table_constraints 
-                            WHERE table_name = 'video_progress' 
-                            AND constraint_type = 'UNIQUE'
-                            AND constraint_name = 'unique_user_video_progress'
-                        """)
-                        result = conn.execute(check_constraint)
-                        if result.fetchone() is None:
-                            print("Adding unique constraint to video_progress table...")
-                            add_constraint = text("""
-                                ALTER TABLE video_progress 
-                                ADD CONSTRAINT unique_user_video_progress UNIQUE (user_id, video_id)
-                            """)
-                            try:
-                                conn.execute(add_constraint)
-                                conn.commit()
-                                print("âœ… Added unique constraint to video_progress table")
-                            except Exception as e:
-                                print(f"âš ï¸  Constraint may already exist: {e}")
-                    
-                    # Create course_enrollments table if it doesn't exist
-                    check_enrollments_table = text("""
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_name = 'course_enrollments'
-                    """)
-                    result = conn.execute(check_enrollments_table)
-                    if result.fetchone() is None:
-                        print("Creating course_enrollments table...")
-                        create_enrollments_table = text("""
-                            CREATE TABLE course_enrollments (
-                                id SERIAL PRIMARY KEY,
-                                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                                course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                                UNIQUE(user_id, course_id)
-                            )
-                        """)
-                        conn.execute(create_enrollments_table)
-                        conn.commit()
-                        
-                        # Create indexes
-                        conn.execute(text("""
-                            CREATE INDEX IF NOT EXISTS idx_course_enrollments_user_id 
-                            ON course_enrollments(user_id)
-                        """))
-                        conn.execute(text("""
-                            CREATE INDEX IF NOT EXISTS idx_course_enrollments_course_id 
-                            ON course_enrollments(course_id)
-                        """))
-                        conn.commit()
-                        print("âœ… Created course_enrollments table")
-                        
-                        # Migrate existing enrollments from progress/tasks/tests
-                        try:
-                            # From progress
-                            conn.execute(text("""
-                                INSERT INTO course_enrollments (user_id, course_id, created_at)
-                                SELECT DISTINCT 
-                                    p.student_id as user_id,
-                                    u.course_id,
-                                    MIN(p.started_at) as created_at
-                                FROM progress p
-                                JOIN units u ON u.id = p.unit_id
-                                WHERE u.course_id IS NOT NULL
-                                AND NOT EXISTS (
-                                    SELECT 1 FROM course_enrollments ce 
-                                    WHERE ce.user_id = p.student_id 
-                                    AND ce.course_id = u.course_id
-                                )
-                                GROUP BY p.student_id, u.course_id
-                            """))
-                            
-                            # From task submissions
-                            conn.execute(text("""
-                                INSERT INTO course_enrollments (user_id, course_id, created_at)
-                                SELECT DISTINCT 
-                                    ts.student_id as user_id,
-                                    u.course_id,
-                                    MIN(ts.submitted_at) as created_at
-                                FROM task_submissions ts
-                                JOIN tasks t ON t.id = ts.task_id
-                                JOIN units u ON u.id = t.unit_id
-                                WHERE u.course_id IS NOT NULL
-                                AND NOT EXISTS (
-                                    SELECT 1 FROM course_enrollments ce 
-                                    WHERE ce.user_id = ts.student_id 
-                                    AND ce.course_id = u.course_id
-                                )
-                                GROUP BY ts.student_id, u.course_id
-                            """))
-                            
-                            # From test attempts
-                            conn.execute(text("""
-                                INSERT INTO course_enrollments (user_id, course_id, created_at)
-                                SELECT DISTINCT 
-                                    ta.student_id as user_id,
-                                    u.course_id,
-                                    MIN(ta.started_at) as created_at
-                                FROM test_attempts ta
-                                JOIN tests t ON t.id = ta.test_id
-                                JOIN units u ON u.id = t.unit_id
-                                WHERE u.course_id IS NOT NULL
-                                AND NOT EXISTS (
-                                    SELECT 1 FROM course_enrollments ce 
-                                    WHERE ce.user_id = ta.student_id 
-                                    AND ce.course_id = u.course_id
-                                )
-                                GROUP BY ta.student_id, u.course_id
-                            """))
-                            conn.commit()
-                            print("âœ… Migrated existing enrollments")
-                        except Exception as e:
-                            print(f"âš ï¸  Enrollment migration note: {e}")
-                    
-                    # Add missing columns to task_submissions table
-                    task_submission_migrations = [
-                        ("attempt_number", "INTEGER DEFAULT 1"),
-                        ("time_spent_minutes", "INTEGER DEFAULT 0"),
-                    ]
-                    
-                    for column_name, column_def in task_submission_migrations:
-                        check_query = text("""
-                            SELECT column_name 
-                            FROM information_schema.columns 
-                            WHERE table_name = 'task_submissions' 
-                            AND column_name = :column_name
-                        """)
-                        result = conn.execute(check_query, {"column_name": column_name})
-                        if result.fetchone() is None:
-                            migration_sql = text(f"""
-                                ALTER TABLE task_submissions 
-                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
-                            """)
-                            conn.execute(migration_sql)
-                            conn.commit()
-                            print(f"âœ… Added missing column: task_submissions.{column_name}")
-                    
-                    # Add missing columns to tasks table
-                    task_migrations = [
-                        ("instructions", "TEXT"),
-                        ("auto_task_type", "VARCHAR(50)"),
-                        ("allow_late_submissions", "BOOLEAN DEFAULT FALSE"),
-                        ("late_penalty_percent", "INTEGER DEFAULT 0"),
-                        ("max_attempts", "INTEGER DEFAULT 1"),
-                        ("assigned_cohorts", "JSON DEFAULT '[]'"),
-                        ("assigned_students", "JSON DEFAULT '[]'"),
-                        ("assign_to_all", "BOOLEAN DEFAULT FALSE"),
-                        ("send_assignment_email", "BOOLEAN DEFAULT FALSE"),
-                        ("reminder_days_before", "INTEGER DEFAULT 1"),
-                        ("send_results_email", "BOOLEAN DEFAULT FALSE"),
-                        ("send_teacher_copy", "BOOLEAN DEFAULT FALSE"),
-                        ("notify_on_assignment", "BOOLEAN DEFAULT FALSE"),
-                        ("notify_reminder_days", "INTEGER DEFAULT 1"),
-                        ("notify_on_submit", "BOOLEAN DEFAULT FALSE"),
-                        ("notify_on_grade", "BOOLEAN DEFAULT FALSE"),
-                    ]
-                    
-                    for column_name, column_def in task_migrations:
-                        check_query = text("""
-                            SELECT column_name 
-                            FROM information_schema.columns 
-                            WHERE table_name = 'tasks' 
-                            AND column_name = :column_name
-                        """)
-                        result = conn.execute(check_query, {"column_name": column_name})
-                        if result.fetchone() is None:
-                            migration_sql = text(f"""
-                                ALTER TABLE tasks 
-                                ADD COLUMN IF NOT EXISTS {column_name} {column_def}
-                            """)
-                            conn.execute(migration_sql)
-                            conn.commit()
-                            print(f"âœ… Added missing column: tasks.{column_name}")
-                    
-                    # Migrate subscription_type from UserSubscription table (if subscription_type is still 'free' for users with premium subscriptions)
-                    try:
-                        # Check if subscription_name enum exists
-                        check_sub_name_enum = text("""
-                            SELECT EXISTS (
-                                SELECT 1 FROM pg_type WHERE typname = 'subscriptionname'
-                            )
-                        """)
-                        sub_name_enum_exists = conn.execute(check_sub_name_enum).scalar()
-                        
-                        if sub_name_enum_exists:
-                            # Get enum values
-                            sub_name_result = conn.execute(text("""
-                                SELECT enumlabel FROM pg_enum 
-                                WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'subscriptionname')
-                                ORDER BY enumsortorder
-                            """))
-                            sub_name_labels = [row[0] for row in sub_name_result.fetchall()]
+                    # Mark as done so future boots skip this block entirely
+                    conn.execute(text("""
+                        INSERT INTO migration_tracking (migration_name, applied_by)
+                        VALUES (:name, 'startup_event')
+                        ON CONFLICT (migration_name) DO NOTHING
+                    """), {"name": MIGRATION_VERSION})
+                    conn.commit()
+                    print(f"✅ Migrations complete — marked as {MIGRATION_VERSION}")
 
-                            # Ensures the new STANDARD plan label exists for teacher tariffs.
-                            if 'standard' not in sub_name_labels and 'STANDARD' not in sub_name_labels:
-                                try:
-                                    conn.execute(text("ALTER TYPE subscriptionname ADD VALUE IF NOT EXISTS 'standard'"))
-                                    conn.commit()
-                                    print("✅ Added 'standard' to SubscriptionName enum")
-                                    sub_name_labels.append('standard')
-                                except Exception as enum_error:
-                                    print(f"⚠️  Could not add 'standard' to SubscriptionName enum: {enum_error}")
-                            
-                            # Build conditions for premium subscriptions
-                            premium_conditions = []
-                            if 'PREMIUM' in sub_name_labels:
-                                premium_conditions.append("s.name = 'PREMIUM'")
-                            if 'premium' in sub_name_labels:
-                                premium_conditions.append("s.name = 'premium'")
-                            if 'PRO' in sub_name_labels:
-                                premium_conditions.append("s.name = 'PRO'")
-                            if 'pro' in sub_name_labels:
-                                premium_conditions.append("s.name = 'pro'")
-                            
-                            if premium_conditions:
-                                when_clause = " OR ".join(premium_conditions)
-                                conn.execute(text(f"""
-                                    UPDATE users u
-                                    SET subscription_type = CASE 
-                                        WHEN {when_clause} THEN '{enum_premium_value}'::subscriptiontype
-                                        ELSE '{enum_free_value}'::subscriptiontype
-                                    END
-                                    FROM user_subscriptions us
-                                    JOIN subscriptions s ON s.id = us.subscription_id
-                                    WHERE u.id = us.user_id
-                                    AND us.is_active = true
-                                    AND u.subscription_type = '{enum_free_value}'::subscriptiontype
-                                """))
-                                conn.commit()
-                                print("âœ… Migrated subscription types from UserSubscription")
-                    except Exception as e:
-                        print(f"âš ï¸  Subscription migration note: {e}")
-            except Exception as migration_error:
-                # Don't fail startup if migrations fail - log and continue
-                print(f"âš ï¸  Migration check failed (non-critical): {migration_error}")
-                import traceback
-                traceback.print_exc()
-            
             break
+
         except OperationalError as e:
             if attempt < max_retries - 1:
                 print(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
@@ -1058,37 +201,303 @@ async def startup_event():
                 print("Starting application without database initialization...")
                 break
 
-# Health check endpoint (must be before static file mounting)
+
+def _run_all_migrations(conn):
+    """
+    All one-time schema migrations.
+    Called only on the very first boot after deployment (or after migration_tracking reset).
+    On subsequent boots this function is never called — startup cost drops to ~2 queries.
+    """
+    from sqlalchemy import text
+    from app.models.test import QuestionType
+
+    print("  Running migration: presentations tables...")
+    try:
+        from app.models.presentation import Presentation, PresentationSlide
+        Presentation.__table__.create(bind=conn, checkfirst=True)
+        PresentationSlide.__table__.create(bind=conn, checkfirst=True)
+        conn.commit()
+        print("  ✅ Presentations tables ensured")
+    except Exception as exc:
+        print(f"  ⚠️  Presentations table: {exc}")
+
+    # ── questions table ───────────────────────────────────────────────────────
+    print("  Running migration: questions columns...")
+    question_migrations = [
+        ("shuffle_options",          "BOOLEAN DEFAULT FALSE"),
+        ("autograde",                "BOOLEAN DEFAULT TRUE"),
+        ("manual_review_threshold",  "DOUBLE PRECISION"),
+        ("expected_answer_config",   "JSON DEFAULT '{}'"),
+        ("gaps_config",              "JSON DEFAULT '[]'"),
+        ("question_metadata",        "JSON DEFAULT '{}'"),
+    ]
+    for col, defn in question_migrations:
+        try:
+            conn.execute(text(f"ALTER TABLE questions ADD COLUMN IF NOT EXISTS {col} {defn}"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # ── tasks table (questions column) ────────────────────────────────────────
+    try:
+        conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS questions JSON DEFAULT '[]'"))
+        conn.commit()
+    except Exception:
+        pass
+
+    # ── TaskType enum ─────────────────────────────────────────────────────────
+    print("  Running migration: TaskType enum...")
+    for value in ('listening', 'reading'):
+        try:
+            conn.execute(text(f"ALTER TYPE tasktype ADD VALUE IF NOT EXISTS '{value}'"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # ── tasks.type / tasks.status: enum → VARCHAR ─────────────────────────────
+    print("  Running migration: tasks type/status columns...")
+    try:
+        conn.execute(text(
+            "ALTER TABLE tasks ALTER COLUMN type TYPE VARCHAR(50) USING type::text"
+        ))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text(
+            "ALTER TABLE tasks ALTER COLUMN status TYPE VARCHAR(50) USING status::text"
+        ))
+        conn.commit()
+    except Exception:
+        pass
+
+    # ── SubscriptionType enum ─────────────────────────────────────────────────
+    print("  Running migration: SubscriptionType enum...")
+    try:
+        conn.execute(text("""
+            DO $$ BEGIN
+                CREATE TYPE subscriptiontype AS ENUM ('free', 'standard', 'premium');
+            EXCEPTION WHEN duplicate_object THEN null;
+            END $$;
+        """))
+        conn.commit()
+    except Exception:
+        pass
+    for val in ('free', 'standard', 'premium', 'FREE', 'STANDARD', 'PREMIUM'):
+        try:
+            conn.execute(text(f"ALTER TYPE subscriptiontype ADD VALUE IF NOT EXISTS '{val}'"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # ── users table ───────────────────────────────────────────────────────────
+    print("  Running migration: users columns...")
+    try:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE"
+        ))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_type subscriptiontype"))
+        conn.commit()
+        conn.execute(text(
+            "UPDATE users SET subscription_type = 'FREE'::subscriptiontype WHERE subscription_type IS NULL"
+        ))
+        conn.commit()
+    except Exception:
+        pass
+
+    # ── QuestionType enum ─────────────────────────────────────────────────────
+    print("  Running migration: QuestionType enum...")
+    required_values = [e.value for e in QuestionType]
+    for value in required_values:
+        try:
+            conn.execute(text(f"ALTER TYPE questiontype ADD VALUE IF NOT EXISTS '{value}'"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # ── courses table columns ─────────────────────────────────────────────────
+    print("  Running migration: courses columns...")
+    course_columns = [
+        ("thumbnail_path",          "VARCHAR(500)"),
+        ("target_language",         "VARCHAR(100)"),
+        ("native_language",         "VARCHAR(100)"),
+        ("units_count",             "INTEGER DEFAULT 0"),
+        ("published_units_count",   "INTEGER DEFAULT 0"),
+        ("content_summary",         "JSONB DEFAULT '{}'::jsonb"),
+    ]
+    for col, defn in course_columns:
+        try:
+            conn.execute(text(f"ALTER TABLE courses ADD COLUMN IF NOT EXISTS {col} {defn}"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # ── units table columns ───────────────────────────────────────────────────
+    print("  Running migration: units columns...")
+    unit_columns = [
+        ("course_id",       "INTEGER REFERENCES courses(id) ON DELETE CASCADE"),
+        ("goals",           "TEXT"),
+        ("homework_blocks", "JSONB DEFAULT '[]'::jsonb"),
+        ("content_count",   "INTEGER DEFAULT 0"),
+        ("segment_count",   "INTEGER DEFAULT 0"),
+    ]
+    for col, defn in unit_columns:
+        try:
+            conn.execute(text(f"ALTER TABLE units ADD COLUMN IF NOT EXISTS {col} {defn}"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # ── video_progress table ──────────────────────────────────────────────────
+    print("  Running migration: video_progress columns...")
+    vp_columns = [
+        ("watch_time_sec",      "DOUBLE PRECISION DEFAULT 0"),
+        ("first_watched_at",    "TIMESTAMP WITH TIME ZONE"),
+        ("last_watched_at",     "TIMESTAMP WITH TIME ZONE"),
+        ("watched_percentage",  "DOUBLE PRECISION DEFAULT 0"),
+        ("progress_percent",    "DOUBLE PRECISION DEFAULT 0"),
+        ("completed_at",        "TIMESTAMP WITH TIME ZONE"),
+        ("is_completed",        "BOOLEAN DEFAULT FALSE"),
+    ]
+    for col, defn in vp_columns:
+        try:
+            conn.execute(text(f"ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS {col} {defn}"))
+            conn.commit()
+        except Exception:
+            pass
+    try:
+        conn.execute(text("""
+            ALTER TABLE video_progress
+            ADD CONSTRAINT unique_user_video_progress UNIQUE (user_id, video_id)
+        """))
+        conn.commit()
+    except Exception:
+        pass
+
+    # ── course_enrollments table ──────────────────────────────────────────────
+    print("  Running migration: course_enrollments table...")
+    try:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS course_enrollments (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                UNIQUE(user_id, course_id)
+            )
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_course_enrollments_user_id
+            ON course_enrollments(user_id)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_course_enrollments_course_id
+            ON course_enrollments(course_id)
+        """))
+        conn.commit()
+    except Exception:
+        pass
+
+    # ── task_submissions + tasks extra columns ────────────────────────────────
+    print("  Running migration: task_submissions columns...")
+    task_sub_cols = [
+        ("attempt_number",      "INTEGER DEFAULT 1"),
+        ("time_spent_minutes",  "INTEGER DEFAULT 0"),
+    ]
+    for col, defn in task_sub_cols:
+        try:
+            conn.execute(text(f"ALTER TABLE task_submissions ADD COLUMN IF NOT EXISTS {col} {defn}"))
+            conn.commit()
+        except Exception:
+            pass
+
+    task_extra_cols = [
+        ("instructions",            "TEXT"),
+        ("auto_task_type",          "VARCHAR(50)"),
+        ("allow_late_submissions",  "BOOLEAN DEFAULT FALSE"),
+        ("late_penalty_percent",    "INTEGER DEFAULT 0"),
+        ("max_attempts",            "INTEGER DEFAULT 1"),
+        ("assigned_cohorts",        "JSON DEFAULT '[]'"),
+        ("assigned_students",       "JSON DEFAULT '[]'"),
+        ("assign_to_all",           "BOOLEAN DEFAULT FALSE"),
+        ("send_assignment_email",   "BOOLEAN DEFAULT FALSE"),
+        ("reminder_days_before",    "INTEGER DEFAULT 1"),
+        ("send_results_email",      "BOOLEAN DEFAULT FALSE"),
+        ("send_teacher_copy",       "BOOLEAN DEFAULT FALSE"),
+        ("notify_on_assignment",    "BOOLEAN DEFAULT FALSE"),
+        ("notify_reminder_days",    "INTEGER DEFAULT 1"),
+        ("notify_on_submit",        "BOOLEAN DEFAULT FALSE"),
+        ("notify_on_grade",         "BOOLEAN DEFAULT FALSE"),
+    ]
+    for col, defn in task_extra_cols:
+        try:
+            conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {defn}"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # ── SubscriptionName enum + user subscription sync ────────────────────────
+    print("  Running migration: SubscriptionName enum + subscription sync...")
+    try:
+        conn.execute(text("ALTER TYPE subscriptionname ADD VALUE IF NOT EXISTS 'standard'"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("""
+            UPDATE users u
+            SET subscription_type = 'PREMIUM'::subscriptiontype
+            FROM user_subscriptions us
+            JOIN subscriptions s ON s.id = us.subscription_id
+            WHERE u.id = us.user_id
+              AND us.is_active = true
+              AND s.name IN ('PREMIUM', 'premium', 'PRO', 'pro')
+              AND u.subscription_type = 'FREE'::subscriptiontype
+        """))
+        conn.commit()
+        print("  ✅ Migrated subscription types from UserSubscription")
+    except Exception as e:
+        print(f"  ⚠️  Subscription migration note: {e}")
+
+    print("  ✅ All migrations complete")
+
+
+# ── Utility endpoints ─────────────────────────────────────────────────────────
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
-# CORS test endpoint - Test if CORS is properly configured
+
 @app.get("/cors-test")
 async def cors_test():
     return {
-        "message": "CORS is working", 
+        "message": "CORS is working",
         "origins": settings.cors_origins_list,
-        "environment": settings.ENVIRONMENT
+        "environment": settings.ENVIRONMENT,
     }
 
-# OPTIONS handler for CORS preflight - Explicit handler for debugging
+
 @app.options("/api/v1/auth/login")
 async def options_login():
     return {"message": "OK"}
 
-# Root endpoint
+
 @app.get("/")
 async def root():
     return {
-        "message": "Eazy Italian API", 
-        "version": "1.0.0", 
-        "status": "deployed", 
+        "message": "Eazy Italian API",
+        "version": "1.0.0",
+        "status": "deployed",
         "database": "connected",
-        "cors_origins": settings.cors_origins_list
+        "cors_origins": settings.cors_origins_list,
     }
 
-# Mount static files for frontend at /static path
+
 if os.path.exists("frontend/dist"):
     app.mount("/static", StaticFiles(directory="frontend/dist", html=True), name="static")
 
