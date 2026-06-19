@@ -675,301 +675,310 @@ export const presentationsApi = {
   },
 };
 
-// Videos API
+// LEGACY: videosApi — Video / VideoProgress replaced by video_embed blocks on Segment.
+// LEGACY: Replaced by: video_embed exercise block in Segment.media_blocks JSONB.
+// LEGACY:              Video progress tracking → UnitHomeworkSubmission / segment completion state.
+// LEGACY:              videoProgress methods (getVideoProgress, updateVideoProgress, resetVideoProgress)
+// LEGACY:              are also commented out — VideoProgress table is removed in the new architecture.
 export const videosApi = {
-  getVideos: async (unitId: number): Promise<Video[]> => {
-    const response: AxiosResponse<Video[]> = await api.get(
-      `/videos/units/${unitId}/videos`,
-    );
-    return response.data;
-  },
+  // LEGACY:   getVideos: async (unitId: number): Promise<Video[]> => {
+  // LEGACY:     const response: AxiosResponse<Video[]> = await api.get(
+  // LEGACY:       `/videos/units/${unitId}/videos`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getAdminVideos: async (params?: any): Promise<Video[]> => {
-    const response: AxiosResponse<Video[]> = await api.get("/admin/videos", {
-      params,
-    });
-    return response.data;
-  },
+  // LEGACY:   getAdminVideos: async (params?: any): Promise<Video[]> => {
+  // LEGACY:     const response: AxiosResponse<Video[]> = await api.get("/admin/videos", {
+  // LEGACY:       params,
+  // LEGACY:     });
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getAdminVideo: async (id: number): Promise<Video> => {
-    const response: AxiosResponse<Video> = await api.get(`/admin/videos/${id}`);
-    return response.data;
-  },
+  // LEGACY:   getAdminVideo: async (id: number): Promise<Video> => {
+  // LEGACY:     const response: AxiosResponse<Video> = await api.get(`/admin/videos/${id}`);
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  createVideo: async (videoData: Partial<Video>): Promise<Video> => {
-    const response: AxiosResponse<Video> = await api.post(
-      `/admin/videos`,
-      videoData,
-    );
-    return response.data;
-  },
+  // LEGACY:   createVideo: async (videoData: Partial<Video>): Promise<Video> => {
+  // LEGACY:     const response: AxiosResponse<Video> = await api.post(
+  // LEGACY:       `/admin/videos`,
+  // LEGACY:       videoData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  updateVideo: async (
-    id: number,
-    videoData: Partial<Video>,
-  ): Promise<Video> => {
-    const response: AxiosResponse<Video> = await api.put(
-      `/admin/videos/${id}`,
-      videoData,
-    );
-    return response.data;
-  },
+  // LEGACY:   updateVideo: async (
+  // LEGACY:     id: number,
+  // LEGACY:     videoData: Partial<Video>,
+  // LEGACY:   ): Promise<Video> => {
+  // LEGACY:     const response: AxiosResponse<Video> = await api.put(
+  // LEGACY:       `/admin/videos/${id}`,
+  // LEGACY:       videoData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  deleteVideo: async (id: number): Promise<void> => {
-    await api.delete(`/admin/videos/${id}`);
-  },
+  // LEGACY:   deleteVideo: async (id: number): Promise<void> => {
+  // LEGACY:     await api.delete(`/admin/videos/${id}`);
+  // LEGACY:   },
 
-  uploadThumbnail: async (
-    id: number,
-    file: File,
-  ): Promise<{ thumbnail_path: string }> => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
-      `/videos/admin/videos/${id}/thumbnail`,
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      },
-    );
-    return response.data;
-  },
+  // LEGACY:   uploadThumbnail: async (
+  // LEGACY:     id: number,
+  // LEGACY:     file: File,
+  // LEGACY:   ): Promise<{ thumbnail_path: string }> => {
+  // LEGACY:     const formData = new FormData();
+  // LEGACY:     formData.append("file", file);
+  // LEGACY:     const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
+  // LEGACY:       `/videos/admin/videos/${id}/thumbnail`,
+  // LEGACY:       formData,
+  // LEGACY:       {
+  // LEGACY:         headers: {
+  // LEGACY:           "Content-Type": "multipart/form-data",
+  // LEGACY:         },
+  // LEGACY:       },
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  generateThumbnail: async (
-    id: number,
-  ): Promise<{ thumbnail_path: string }> => {
-    const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
-      `/videos/admin/videos/${id}/generate-thumbnail`,
-    );
-    return response.data;
-  },
+  // LEGACY:   generateThumbnail: async (
+  // LEGACY:     id: number,
+  // LEGACY:   ): Promise<{ thumbnail_path: string }> => {
+  // LEGACY:     const response: AxiosResponse<{ thumbnail_path: string }> = await api.post(
+  // LEGACY:       `/videos/admin/videos/${id}/generate-thumbnail`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  uploadVideoFile: async (
-    file: File,
-  ): Promise<{ file_path: string; filename: string; size: number }> => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response: AxiosResponse<{
-      file_path: string;
-      filename: string;
-      size: number;
-    }> = await api.post(`/videos/admin/videos/upload`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-    return response.data;
-  },
-  // Video Progress endpoints
-  getVideoProgress: async (videoId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.get(
-      `/videos/${videoId}/progress`,
-    );
-    return response.data;
-  },
+  // LEGACY:   uploadVideoFile: async (
+  // LEGACY:     file: File,
+  // LEGACY:   ): Promise<{ file_path: string; filename: string; size: number }> => {
+  // LEGACY:     const formData = new FormData();
+  // LEGACY:     formData.append("file", file);
+  // LEGACY:     const response: AxiosResponse<{
+  // LEGACY:       file_path: string;
+  // LEGACY:       filename: string;
+  // LEGACY:       size: number;
+  // LEGACY:     }> = await api.post(`/videos/admin/videos/upload`, formData, {
+  // LEGACY:       headers: {
+  // LEGACY:         "Content-Type": "multipart/form-data",
+  // LEGACY:       },
+  // LEGACY:     });
+  // LEGACY:     return response.data;
+  // LEGACY:   },
+  // LEGACY:   // Video Progress endpoints
+  // LEGACY:   getVideoProgress: async (videoId: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.get(
+  // LEGACY:       `/videos/${videoId}/progress`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  updateVideoProgress: async (
-    videoId: number,
-    progressData: {
-      watched_percentage: number;
-      last_position_sec: number;
-      completed: boolean;
-    },
-  ): Promise<any> => {
-    const formData = new FormData();
-    formData.append(
-      "last_position_sec",
-      progressData.last_position_sec.toString(),
-    );
-    formData.append(
-      "watched_percentage",
-      progressData.watched_percentage.toString(),
-    );
-    formData.append("completed", progressData.completed.toString());
+  // LEGACY:   updateVideoProgress: async (
+  // LEGACY:     videoId: number,
+  // LEGACY:     progressData: {
+  // LEGACY:       watched_percentage: number;
+  // LEGACY:       last_position_sec: number;
+  // LEGACY:       completed: boolean;
+  // LEGACY:     },
+  // LEGACY:   ): Promise<any> => {
+  // LEGACY:     const formData = new FormData();
+  // LEGACY:     formData.append(
+  // LEGACY:       "last_position_sec",
+  // LEGACY:       progressData.last_position_sec.toString(),
+  // LEGACY:     );
+  // LEGACY:     formData.append(
+  // LEGACY:       "watched_percentage",
+  // LEGACY:       progressData.watched_percentage.toString(),
+  // LEGACY:     );
+  // LEGACY:     formData.append("completed", progressData.completed.toString());
 
-    const response: AxiosResponse<any> = await api.post(
-      `/videos/${videoId}/progress`,
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      },
-    );
-    return response.data;
-  },
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(
+  // LEGACY:       `/videos/${videoId}/progress`,
+  // LEGACY:       formData,
+  // LEGACY:       {
+  // LEGACY:         headers: {
+  // LEGACY:           "Content-Type": "multipart/form-data",
+  // LEGACY:         },
+  // LEGACY:       },
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  resetVideoProgress: async (videoId: number): Promise<{ message: string }> => {
-    const response: AxiosResponse<{ message: string }> = await api.delete(
-      `/videos/${videoId}/progress`,
-    );
-    return response.data;
-  },
+  // LEGACY:   resetVideoProgress: async (videoId: number): Promise<{ message: string }> => {
+  // LEGACY:     const response: AxiosResponse<{ message: string }> = await api.delete(
+  // LEGACY:       `/videos/${videoId}/progress`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
+
 };
 
-// Tasks API
+// LEGACY: tasksApi — Task / TaskSubmission replaced by exercise blocks on Segment (media_blocks JSONB).
+// LEGACY: Replaced by: segment block editor (Segment.media_blocks) + UnitHomeworkSubmission.answers JSONB.
+// LEGACY:              Exercise authoring → segment block editor.
+// LEGACY:              Student answers / grading → UnitHomeworkSubmission teacher feedback fields.
 export const tasksApi = {
-  // Admin endpoints
-  getAdminTasks: async (params?: any): Promise<Task[]> => {
-    const response: AxiosResponse<Task[]> = await api.get(
-      "/tasks/admin/tasks",
-      { params },
-    );
-    return response.data;
-  },
+  // LEGACY:   // Admin endpoints
+  // LEGACY:   getAdminTasks: async (params?: any): Promise<Task[]> => {
+  // LEGACY:     const response: AxiosResponse<Task[]> = await api.get(
+  // LEGACY:       "/tasks/admin/tasks",
+  // LEGACY:       { params },
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getAdminTask: async (id: number): Promise<Task> => {
-    const response: AxiosResponse<Task> = await api.get(
-      `/tasks/admin/tasks/${id}`,
-    );
-    return response.data;
-  },
+  // LEGACY:   getAdminTask: async (id: number): Promise<Task> => {
+  // LEGACY:     const response: AxiosResponse<Task> = await api.get(
+  // LEGACY:       `/tasks/admin/tasks/${id}`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  createTask: async (taskData: Partial<Task>): Promise<Task> => {
-    const response: AxiosResponse<Task> = await api.post(
-      "/tasks/admin/tasks",
-      taskData,
-    );
-    return response.data;
-  },
+  // LEGACY:   createTask: async (taskData: Partial<Task>): Promise<Task> => {
+  // LEGACY:     const response: AxiosResponse<Task> = await api.post(
+  // LEGACY:       "/tasks/admin/tasks",
+  // LEGACY:       taskData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  updateTask: async (id: number, taskData: Partial<Task>): Promise<Task> => {
-    const response: AxiosResponse<Task> = await api.put(
-      `/tasks/admin/tasks/${id}`,
-      taskData,
-    );
-    return response.data;
-  },
+  // LEGACY:   updateTask: async (id: number, taskData: Partial<Task>): Promise<Task> => {
+  // LEGACY:     const response: AxiosResponse<Task> = await api.put(
+  // LEGACY:       `/tasks/admin/tasks/${id}`,
+  // LEGACY:       taskData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  deleteTask: async (id: number): Promise<void> => {
-    await api.delete(`/tasks/admin/tasks/${id}`);
-  },
+  // LEGACY:   deleteTask: async (id: number): Promise<void> => {
+  // LEGACY:     await api.delete(`/tasks/admin/tasks/${id}`);
+  // LEGACY:   },
 
-  bulkActionTasks: async (bulkAction: {
-    task_ids: number[];
-    action: string;
-  }): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(
-      "/tasks/admin/tasks/bulk-action",
-      bulkAction,
-    );
-    return response.data;
-  },
+  // LEGACY:   bulkActionTasks: async (bulkAction: {
+  // LEGACY:     task_ids: number[];
+  // LEGACY:     action: string;
+  // LEGACY:   }): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(
+  // LEGACY:       "/tasks/admin/tasks/bulk-action",
+  // LEGACY:       bulkAction,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  bulkAssignTasks: async (bulkAssign: {
-    task_ids: number[];
-    assign_to_all: boolean;
-    cohort_ids: number[];
-    student_ids: number[];
-  }): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(
-      "/tasks/admin/tasks/bulk-assign",
-      bulkAssign,
-    );
-    return response.data;
-  },
+  // LEGACY:   bulkAssignTasks: async (bulkAssign: {
+  // LEGACY:     task_ids: number[];
+  // LEGACY:     assign_to_all: boolean;
+  // LEGACY:     cohort_ids: number[];
+  // LEGACY:     student_ids: number[];
+  // LEGACY:   }): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(
+  // LEGACY:       "/tasks/admin/tasks/bulk-assign",
+  // LEGACY:       bulkAssign,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTaskSubmissions: async (
-    taskId: number,
-    params?: any,
-  ): Promise<TaskSubmission[]> => {
-    const response: AxiosResponse<TaskSubmission[]> = await api.get(
-      `/tasks/admin/tasks/${taskId}/submissions`,
-      { params },
-    );
-    return response.data;
-  },
+  // LEGACY:   getTaskSubmissions: async (
+  // LEGACY:     taskId: number,
+  // LEGACY:     params?: any,
+  // LEGACY:   ): Promise<TaskSubmission[]> => {
+  // LEGACY:     const response: AxiosResponse<TaskSubmission[]> = await api.get(
+  // LEGACY:       `/tasks/admin/tasks/${taskId}/submissions`,
+  // LEGACY:       { params },
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTaskSubmission: async (
-    taskId: number,
-    submissionId: number,
-  ): Promise<TaskSubmission> => {
-    const response: AxiosResponse<TaskSubmission> = await api.get(
-      `/tasks/admin/tasks/${taskId}/submissions/${submissionId}`,
-    );
-    return response.data;
-  },
+  // LEGACY:   getTaskSubmission: async (
+  // LEGACY:     taskId: number,
+  // LEGACY:     submissionId: number,
+  // LEGACY:   ): Promise<TaskSubmission> => {
+  // LEGACY:     const response: AxiosResponse<TaskSubmission> = await api.get(
+  // LEGACY:       `/tasks/admin/tasks/${taskId}/submissions/${submissionId}`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  gradeSubmission: async (
-    taskId: number,
-    submissionId: number,
-    gradeData: { score: number; feedback_rich?: string },
-  ): Promise<TaskSubmission> => {
-    const response: AxiosResponse<TaskSubmission> = await api.post(
-      `/tasks/admin/tasks/${taskId}/submissions/${submissionId}/grade`,
-      gradeData,
-    );
-    return response.data;
-  },
+  // LEGACY:   gradeSubmission: async (
+  // LEGACY:     taskId: number,
+  // LEGACY:     submissionId: number,
+  // LEGACY:     gradeData: { score: number; feedback_rich?: string },
+  // LEGACY:   ): Promise<TaskSubmission> => {
+  // LEGACY:     const response: AxiosResponse<TaskSubmission> = await api.post(
+  // LEGACY:       `/tasks/admin/tasks/${taskId}/submissions/${submissionId}/grade`,
+  // LEGACY:       gradeData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTaskStatistics: async (taskId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.get(
-      `/tasks/admin/tasks/${taskId}/statistics`,
-    );
-    return response.data;
-  },
+  // LEGACY:   getTaskStatistics: async (taskId: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.get(
+  // LEGACY:       `/tasks/admin/tasks/${taskId}/statistics`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTasks: async (params?: any): Promise<Task[]> => {
-    const response: AxiosResponse<Task[]> = await api.get("/tasks", { params });
-    return response.data;
-  },
+  // LEGACY:   getTasks: async (params?: any): Promise<Task[]> => {
+  // LEGACY:     const response: AxiosResponse<Task[]> = await api.get("/tasks", { params });
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTask: async (id: number): Promise<Task> => {
-    const response: AxiosResponse<Task> = await api.get(`/tasks/${id}`);
-    return response.data;
-  },
+  // LEGACY:   getTask: async (id: number): Promise<Task> => {
+  // LEGACY:     const response: AxiosResponse<Task> = await api.get(`/tasks/${id}`);
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  submitTask: async (
-    id: number,
-    submissionData: Partial<TaskSubmission>,
-  ): Promise<TaskSubmission> => {
-    const response: AxiosResponse<TaskSubmission> = await api.post(
-      `/tasks/${id}/submit`,
-      submissionData,
-    );
-    return response.data;
-  },
+  // LEGACY:   submitTask: async (
+  // LEGACY:     id: number,
+  // LEGACY:     submissionData: Partial<TaskSubmission>,
+  // LEGACY:   ): Promise<TaskSubmission> => {
+  // LEGACY:     const response: AxiosResponse<TaskSubmission> = await api.post(
+  // LEGACY:       `/tasks/${id}/submit`,
+  // LEGACY:       submissionData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  uploadTaskFile: async (
-    files: File | File[],
-    fileType: "listening" | "reading",
-  ): Promise<{
-    message: string;
-    files: Array<{
-      file_path: string;
-      filename: string;
-      original_filename: string;
-      size: number;
-      url: string;
-    }>;
-  }> => {
-    const formData = new FormData();
-    const filesArray = Array.isArray(files) ? files : [files];
-    filesArray.forEach((file) => {
-      formData.append("files", file);
-    });
-    const response: AxiosResponse<{
-      message: string;
-      files: Array<{
-        file_path: string;
-        filename: string;
-        original_filename: string;
-        size: number;
-        url: string;
-      }>;
-    }> = await api.post(
-      `/tasks/admin/tasks/upload-file?file_type=${fileType}`,
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      },
-    );
-    return response.data;
-  },
+  // LEGACY:   uploadTaskFile: async (
+  // LEGACY:     files: File | File[],
+  // LEGACY:     fileType: "listening" | "reading",
+  // LEGACY:   ): Promise<{
+  // LEGACY:     message: string;
+  // LEGACY:     files: Array<{
+  // LEGACY:       file_path: string;
+  // LEGACY:       filename: string;
+  // LEGACY:       original_filename: string;
+  // LEGACY:       size: number;
+  // LEGACY:       url: string;
+  // LEGACY:     }>;
+  // LEGACY:   }> => {
+  // LEGACY:     const formData = new FormData();
+  // LEGACY:     const filesArray = Array.isArray(files) ? files : [files];
+  // LEGACY:     filesArray.forEach((file) => {
+  // LEGACY:       formData.append("files", file);
+  // LEGACY:     });
+  // LEGACY:     const response: AxiosResponse<{
+  // LEGACY:       message: string;
+  // LEGACY:       files: Array<{
+  // LEGACY:         file_path: string;
+  // LEGACY:         filename: string;
+  // LEGACY:         original_filename: string;
+  // LEGACY:         size: number;
+  // LEGACY:         url: string;
+  // LEGACY:       }>;
+  // LEGACY:     }> = await api.post(
+  // LEGACY:       `/tasks/admin/tasks/upload-file?file_type=${fileType}`,
+  // LEGACY:       formData,
+  // LEGACY:       {
+  // LEGACY:         headers: {
+  // LEGACY:           "Content-Type": "multipart/form-data",
+  // LEGACY:         },
+  // LEGACY:       },
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
+
 };
 
 // Student endpoints
@@ -1033,115 +1042,119 @@ export const usersApi = {
     });
   },
 };
-// Tests API
+// LEGACY: testsApi — Test / TestAttempt / Question replaced by test_without_timer / test_with_timer blocks.
+// LEGACY: Replaced by: test_without_timer and test_with_timer exercise blocks in Segment.media_blocks JSONB.
+// LEGACY:              Student answers → UnitHomeworkSubmission.answers JSONB.
+// LEGACY:              Test constructor routes (addQuestionToTest, publishTest, etc.) are segment editor operations.
 export const testsApi = {
-  getTests: async (params?: any): Promise<PaginatedResponse<Test>> => {
-    const response: AxiosResponse<PaginatedResponse<Test>> = await api.get(
-      "/tests",
-      { params },
-    );
-    return response.data;
-  },
+  // LEGACY:   getTests: async (params?: any): Promise<PaginatedResponse<Test>> => {
+  // LEGACY:     const response: AxiosResponse<PaginatedResponse<Test>> = await api.get(
+  // LEGACY:       "/tests",
+  // LEGACY:       { params },
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTest: async (id: number): Promise<Test> => {
-    const response: AxiosResponse<Test> = await api.get(`/tests/${id}`);
-    return response.data;
-  },
+  // LEGACY:   getTest: async (id: number): Promise<Test> => {
+  // LEGACY:     const response: AxiosResponse<Test> = await api.get(`/tests/${id}`);
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  createTest: async (testData: Partial<Test>): Promise<Test> => {
-    const response: AxiosResponse<Test> = await api.post(
-      "/admin/tests",
-      testData,
-    );
-    return response.data;
-  },
+  // LEGACY:   createTest: async (testData: Partial<Test>): Promise<Test> => {
+  // LEGACY:     const response: AxiosResponse<Test> = await api.post(
+  // LEGACY:       "/admin/tests",
+  // LEGACY:       testData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  updateTest: async (id: number, testData: Partial<Test>): Promise<Test> => {
-    const response: AxiosResponse<Test> = await api.put(
-      `/admin/tests/${id}`,
-      testData,
-    );
-    return response.data;
-  },
+  // LEGACY:   updateTest: async (id: number, testData: Partial<Test>): Promise<Test> => {
+  // LEGACY:     const response: AxiosResponse<Test> = await api.put(
+  // LEGACY:       `/admin/tests/${id}`,
+  // LEGACY:       testData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  deleteTest: async (id: number): Promise<void> => {
-    await api.delete(`/admin/tests/${id}`);
-  },
+  // LEGACY:   deleteTest: async (id: number): Promise<void> => {
+  // LEGACY:     await api.delete(`/admin/tests/${id}`);
+  // LEGACY:   },
 
-  startTest: async (id: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(`/tests/${id}/start`);
-    return response.data;
-  },
+  // LEGACY:   startTest: async (id: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(`/tests/${id}/start`);
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  submitTest: async (
-    id: number,
-    answers: Record<string, any>,
-  ): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(`/tests/${id}/submit`, {
-      answers,
-    });
-    return response.data;
-  },
+  // LEGACY:   submitTest: async (
+  // LEGACY:     id: number,
+  // LEGACY:     answers: Record<string, any>,
+  // LEGACY:   ): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(`/tests/${id}/submit`, {
+  // LEGACY:       answers,
+  // LEGACY:     });
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTestAttempts: async (id: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.get(`/tests/${id}/attempts`);
-    return response.data;
-  },
+  // LEGACY:   getTestAttempts: async (id: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.get(`/tests/${id}/attempts`);
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  // Test constructor endpoints
-  addQuestionToTest: async (
-    testId: number,
-    questionData: any,
-  ): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(
-      `/tests/${testId}/questions`,
-      questionData,
-    );
-    return response.data;
-  },
+  // LEGACY:   // Test constructor endpoints
+  // LEGACY:   addQuestionToTest: async (
+  // LEGACY:     testId: number,
+  // LEGACY:     questionData: any,
+  // LEGACY:   ): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(
+  // LEGACY:       `/tests/${testId}/questions`,
+  // LEGACY:       questionData,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTestQuestions: async (testId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.get(
-      `/tests/${testId}/questions`,
-    );
-    return response.data;
-  },
+  // LEGACY:   getTestQuestions: async (testId: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.get(
+  // LEGACY:       `/tests/${testId}/questions`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  removeQuestionFromTest: async (
-    testId: number,
-    questionId: number,
-  ): Promise<void> => {
-    await api.delete(`/tests/${testId}/questions/${questionId}`);
-  },
+  // LEGACY:   removeQuestionFromTest: async (
+  // LEGACY:     testId: number,
+  // LEGACY:     questionId: number,
+  // LEGACY:   ): Promise<void> => {
+  // LEGACY:     await api.delete(`/tests/${testId}/questions/${questionId}`);
+  // LEGACY:   },
 
-  regenerateQuestion: async (
-    testId: number,
-    questionId: number,
-  ): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(
-      `/tests/${testId}/questions/${questionId}/regenerate`,
-    );
-    return response.data;
-  },
+  // LEGACY:   regenerateQuestion: async (
+  // LEGACY:     testId: number,
+  // LEGACY:     questionId: number,
+  // LEGACY:   ): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(
+  // LEGACY:       `/tests/${testId}/questions/${questionId}/regenerate`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  publishTest: async (testId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.patch(
-      `/tests/${testId}/publish`,
-    );
-    return response.data;
-  },
+  // LEGACY:   publishTest: async (testId: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.patch(
+  // LEGACY:       `/tests/${testId}/publish`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  unpublishTest: async (testId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.patch(
-      `/tests/${testId}/unpublish`,
-    );
-    return response.data;
-  },
+  // LEGACY:   unpublishTest: async (testId: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.patch(
+  // LEGACY:       `/tests/${testId}/unpublish`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  getTestResources: async (): Promise<any> => {
-    const response: AxiosResponse<any> = await api.get("/tests/resources/all");
-    return response.data;
-  },
+  // LEGACY:   getTestResources: async (): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.get("/tests/resources/all");
+  // LEGACY:     return response.data;
+  // LEGACY:   },
+
 };
 
 // Questions API
@@ -1437,49 +1450,52 @@ export const ingestApi = {
   },
 };
 
-// Student Tests API
+// LEGACY: studentTestsApi — student-facing test attempt endpoints replaced by segment-based exercises.
+// LEGACY: Replaced by: test_without_timer / test_with_timer exercise blocks in Segment.media_blocks JSONB.
+// LEGACY:              Student answers → UnitHomeworkSubmission.answers JSONB (PUT /units/{id}/homework/submission).
 export const studentTestsApi = {
-  // 1️⃣ List available tests for student
-  getTests: async (): Promise<Test[]> => {
-    const response: AxiosResponse<Test[]> = await api.get("/student/tests");
-    return response.data;
-  },
+  // LEGACY:   // 1️⃣ List available tests for student
+  // LEGACY:   getTests: async (): Promise<Test[]> => {
+  // LEGACY:     const response: AxiosResponse<Test[]> = await api.get("/student/tests");
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  // 2️⃣ Get single test details (student view)
-  getTest: async (id: number): Promise<Test> => {
-    const response: AxiosResponse<Test> = await api.get(`/student/tests/${id}`);
-    return response.data;
-  },
+  // LEGACY:   // 2️⃣ Get single test details (student view)
+  // LEGACY:   getTest: async (id: number): Promise<Test> => {
+  // LEGACY:     const response: AxiosResponse<Test> = await api.get(`/student/tests/${id}`);
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  // 6️⃣ Get attempt history
-  getTestAttempts: async (id: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.get(
-      `/student/tests/${id}/attempts`,
-    );
-    return response.data;
-  },
+  // LEGACY:   // 6️⃣ Get attempt history
+  // LEGACY:   getTestAttempts: async (id: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.get(
+  // LEGACY:       `/student/tests/${id}/attempts`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  // 2️⃣ Start test attempt
-  startTest: async (id: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(
-      `/student/tests/${id}/start`,
-    );
-    return response.data;
-  },
+  // LEGACY:   // 2️⃣ Start test attempt
+  // LEGACY:   startTest: async (id: number): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(
+  // LEGACY:       `/student/tests/${id}/start`,
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
 
-  // 4️⃣ Submit test
-  submitTest: async (
-    id: number,
-    answers: Record<string, any>,
-  ): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(
-      `/student/tests/${id}/submit`,
-      {
-        answers,
-      },
-    );
-    return response.data;
-  },
+  // LEGACY:   // 4️⃣ Submit test
+  // LEGACY:   submitTest: async (
+  // LEGACY:     id: number,
+  // LEGACY:     answers: Record<string, any>,
+  // LEGACY:   ): Promise<any> => {
+  // LEGACY:     const response: AxiosResponse<any> = await api.post(
+  // LEGACY:       `/student/tests/${id}/submit`,
+  // LEGACY:       {
+  // LEGACY:         answers,
+  // LEGACY:       },
+  // LEGACY:     );
+  // LEGACY:     return response.data;
+  // LEGACY:   },
+
 };
 
 // ─── Homework Blocks API ──────────────────────────────────────────────────────

@@ -79,36 +79,44 @@ import AdminTariffsConnectPage from "../AdminTariffsConnectPage";
  *   CreateTestMethodPicker.legacy.tsx, CreateTaskMethodPicker.legacy.tsx,
  *   SlideEditorPage.legacy.jsx, SlideEditor.legacy.tsx, SlideImageEditor.legacy.tsx, SlideNavigator.legacy.tsx, SlidePreview.legacy.tsx,
  *   CourseFileUploadModal.jsx, AiBuilderPage.legacy.tsx (App.tsx), useAITaskGeneration.legacy.ts
- *
- * import AdminCourseDetailPage   from "../AdminCourseDetailPage.legacy";
- * import AdminCourseCreatePage   from "../AdminCourseCreatePage.legacy";
- * import AdminCourseEditPage     from "../AdminCourseEditPage.legacy";
- * import AdminGradesPage         from "../AdminGradesPage.legacy";
- * import AdminGradeDetailPage    from "../AdminGradeDetailPage.legacy";
- * import AdminUnitsPage          from "../AdminUnitsPage.legacy";
- * import AdminUnitCreatePage     from "../AdminUnitCreatePage.legacy";
- * import AdminUnitDetailPage     from "../AdminUnitDetailPage.legacy";
- * import AdminUnitEditPage       from "../AdminUnitEditPage.legacy";
- * import AdminVideosPage         from "../AdminVideosPage.legacy";
- * import AdminVideoCreatePage    from "../AdminVideoCreatePage.legacy";
- * import AdminVideoEditPage      from "../AdminVideoEditPage.legacy";
- * import AdminTasksPage          from "../AdminTasksPage.legacy";
- * import AdminTaskDetailPage     from "../AdminTaskDetailPage.legacy";
- * import AdminTaskGradingPage    from "../AdminTaskGradingPage.legacy";
- * import AdminTaskSubmissionsPage from "../AdminTaskSubmissionsPage.legacy";
- * import { TaskBuilderPage }     from "../AdminTaskBuilder.legacy";
- * import AdminTestsPage          from "../AdminTestsPage.legacy";
- * import AdminTestCreatePage     from "../AdminTestCreatePage.legacy";
- * import AdminTestDetailsPage    from "../AdminTestDetailsPage.legacy";
- * import AdminTestEditPage       from "../AdminTestEditPage.legacy";
- * import AdminTestAnalyticsPage  from "../AdminTestAnalyticsPage.legacy";
- * import AdminTestPreviewPage    from "../AdminTestPreviewPage.legacy";
- * import TeacherOnboardingPage   from "../TeacherOnboarding.legacy";
- * import AdminGenerateSlidePage  from "../AdminGenerateSlidePage.legacy";
- * import AdminPresentationEditPage from "../AdminPresentationEditPage.legacy";
- * import { TestBuilderPage }     from "../AdminTestBuilder.legacy";
- * import { ReviewSlidesPage }    from "../ReviewSlidesPage.legacy";
  */
+
+// LEGACY: import AdminCourseDetailPage   from "../AdminCourseDetailPage.legacy";   // → AdminCoursesCatalog + segment editor
+// LEGACY: import AdminCourseCreatePage   from "../AdminCourseCreatePage.legacy";   // → AdminCoursesCatalog inline create
+// LEGACY: import AdminCourseEditPage     from "../AdminCourseEditPage.legacy";     // → AdminCoursesCatalog inline edit
+
+// LEGACY: import AdminGradesPage         from "../AdminGradesPage.legacy";         // → new grades page using UnitHomeworkSubmission (pending)
+// LEGACY: import AdminGradeDetailPage    from "../AdminGradeDetailPage.legacy";    // → new grade detail (pending)
+
+// LEGACY: import AdminUnitsPage          from "../AdminUnitsPage.legacy";          // → course detail unit tree
+// LEGACY: import AdminUnitCreatePage     from "../AdminUnitCreatePage.legacy";     // → course detail unit tree
+// LEGACY: import AdminUnitDetailPage     from "../AdminUnitDetailPage.legacy";     // → course detail unit tree
+// LEGACY: import AdminUnitEditPage       from "../AdminUnitEditPage.legacy";       // → course detail unit tree
+
+// LEGACY: import AdminVideosPage         from "../AdminVideosPage.legacy";         // → video_embed blocks on Segment
+// LEGACY: import AdminVideoCreatePage    from "../AdminVideoCreatePage.legacy";    // → video_embed blocks on Segment
+// LEGACY: import AdminVideoEditPage      from "../AdminVideoEditPage.legacy";      // → video_embed blocks on Segment
+
+// LEGACY: import AdminTasksPage          from "../AdminTasksPage.legacy";          // → exercise blocks on Segment (media_blocks JSONB)
+// LEGACY: import AdminTaskDetailPage     from "../AdminTaskDetailPage.legacy";     // → exercise blocks on Segment
+// LEGACY: import AdminTaskGradingPage    from "../AdminTaskGradingPage.legacy";    // → UnitHomeworkSubmission teacher review
+// LEGACY: import AdminTaskSubmissionsPage from "../AdminTaskSubmissionsPage.legacy"; // → UnitHomeworkSubmission list
+// LEGACY: import { TaskBuilderPage }     from "../AdminTaskBuilder.legacy";        // → segment block editor (ExerciseDraftsPage)
+// LEGACY: import AdminTaskCreatePage     from "../AdminTaskCreatePage.legacy";     // → segment block editor
+// LEGACY: import AdminTaskEditPage       from "../AdminTaskEditPage.legacy";       // → segment block editor
+
+// LEGACY: import AdminTestsPage          from "../AdminTestsPage.legacy";          // → test_without_timer / test_with_timer blocks on Segment
+// LEGACY: import AdminTestCreatePage     from "../AdminTestCreatePage.legacy";     // → test block in segment editor
+// LEGACY: import AdminTestDetailsPage    from "../AdminTestDetailsPage.legacy";    // → test block in segment editor
+// LEGACY: import AdminTestEditPage       from "../AdminTestEditPage.legacy";       // → test block in segment editor
+// LEGACY: import AdminTestAnalyticsPage  from "../AdminTestAnalyticsPage.legacy";  // → new analytics (pending)
+// LEGACY: import AdminTestPreviewPage    from "../AdminTestPreviewPage.legacy";    // → segment preview
+
+// LEGACY: import TeacherOnboardingPage   from "../TeacherOnboarding.legacy";       // → AdminCoursesCatalog AI builder
+// LEGACY: import AdminGenerateSlidePage  from "../AdminGenerateSlidePage.legacy";  // → slide generation (pending)
+// LEGACY: import AdminPresentationEditPage from "../AdminPresentationEditPage.legacy"; // → presentation editor (pending)
+// LEGACY: import { TestBuilderPage }     from "../AdminTestBuilder.legacy";        // → segment block editor
+// LEGACY: import { ReviewSlidesPage }    from "../ReviewSlidesPage.legacy";        // → slides review (pending)
 
 // NOTE: /teacher/classroom/* routes are registered at the top level in App.tsx
 
@@ -540,11 +548,11 @@ export default function AdminRoutes() {
         {/* ── TARIFFS CHECKOUT (dedicated page route) ── */}
         <Route path="tariffs/connect" element={<AdminTariffsConnectPage />} />
 
-        {/* ── GRADES ── */}
-        {/* <Route path="grades">
-          <Route index element={<AdminGradesPage />} />
-          <Route path=":id" element={<AdminGradeDetailPage />} />
-        </Route> */}
+        {/* LEGACY: ── GRADES ── replaced by UnitHomeworkSubmission-based grades endpoint (pending) */}
+        {/* LEGACY: <Route path="grades">
+          LEGACY:   <Route index element={<AdminGradesPage />} />         // → grades from UnitHomeworkSubmission (pending)
+          LEGACY:   <Route path=":id" element={<AdminGradeDetailPage />} /> // → grade detail (pending)
+          LEGACY: </Route> */}
 
         {/* ── UNITS (content library) ── */}
         {/* <Route path="units">
@@ -554,32 +562,32 @@ export default function AdminRoutes() {
           <Route path=":id/edit" element={<AdminUnitEditPage />} />
         </Route> */}
 
-        {/* ── VIDEOS ── */}
-        {/* <Route path="videos">
-          <Route index element={<AdminVideosPage />} />
-          <Route path="new"      element={<AdminVideoCreatePage />} />
-          <Route path=":id/edit" element={<AdminVideoEditPage />} />
-        </Route> */}
+        {/* LEGACY: ── VIDEOS ── replaced by video_embed blocks on Segment (media_blocks JSONB) */}
+        {/* LEGACY: <Route path="videos">
+          LEGACY:   <Route index element={<AdminVideosPage />} />           // → video_embed in segment editor
+          LEGACY:   <Route path="new"      element={<AdminVideoCreatePage />} /> // → video_embed in segment editor
+          LEGACY:   <Route path=":id/edit" element={<AdminVideoEditPage />} />   // → video_embed in segment editor
+          LEGACY: </Route> */}
 
-        {/* ── TASKS ── */}
-        {/* Legacy tasks hub + builder (see *.legacy.tsx); /tasks/new had pointed at disabled builder */}
-        {/* <Route path="tasks">
-          <Route index element={<AdminTasksPage />} />
-          <Route path="new" element={<Navigate to="/admin/tasks/builder/new" replace />} />
-          <Route path=":id" element={<AdminTaskDetailPage />} />
-          <Route path=":id/edit" element={<TaskEditRedirect />} />
-          <Route path=":id/grading" element={<AdminTaskGradingPage />} />
-          <Route path=":id/submissions" element={<AdminTaskSubmissionsPage />} />
-        </Route> */}
+        {/* LEGACY: ── TASKS ── replaced by exercise blocks on Segment (media_blocks JSONB) */}
+        {/* LEGACY: Legacy tasks hub + builder (see *.legacy.tsx); /tasks/new had pointed at disabled builder */}
+        {/* LEGACY: <Route path="tasks">
+          LEGACY:   <Route index element={<AdminTasksPage />} />                                       // → exercise blocks in segment editor
+          LEGACY:   <Route path="new" element={<Navigate to="/admin/tasks/builder/new" replace />} /> // → ExerciseDraftsPage (/admin/exercises/new)
+          LEGACY:   <Route path=":id" element={<AdminTaskDetailPage />} />                            // → segment editor
+          LEGACY:   <Route path=":id/edit" element={<TaskEditRedirect />} />                          // → segment editor
+          LEGACY:   <Route path=":id/grading" element={<AdminTaskGradingPage />} />                   // → UnitHomeworkSubmission teacher review
+          LEGACY:   <Route path=":id/submissions" element={<AdminTaskSubmissionsPage />} />           // → UnitHomeworkSubmission list
+          LEGACY: </Route> */}
 
-        {/* ── TESTS ── */}
-        {/* <Route path="tests">
-          <Route index element={<AdminTestsPage />} />
-          <Route path="new"          element={<AdminTestCreatePage />} />
-          <Route path=":id"          element={<AdminTestDetailsPage />} />
-          <Route path=":id/edit"     element={<AdminTestEditPage />} />
-          <Route path=":id/analytics" element={<AdminTestAnalyticsPage />} />
-        </Route> */}
+        {/* LEGACY: ── TESTS ── replaced by test_without_timer / test_with_timer blocks on Segment */}
+        {/* LEGACY: <Route path="tests">
+          LEGACY:   <Route index element={<AdminTestsPage />} />                            // → test blocks in segment editor
+          LEGACY:   <Route path="new"          element={<AdminTestCreatePage />} />        // → test block in segment editor
+          LEGACY:   <Route path=":id"          element={<AdminTestDetailsPage />} />       // → test block in segment editor
+          LEGACY:   <Route path=":id/edit"     element={<AdminTestEditPage />} />          // → test block in segment editor
+          LEGACY:   <Route path=":id/analytics" element={<AdminTestAnalyticsPage />} />   // → new analytics (pending)
+          LEGACY: </Route> */}
 
         {/* ── SLIDE REVIEW ── */}
         {/* <Route path="slides/review" element={<ReviewSlidesPage />} /> */}

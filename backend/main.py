@@ -13,14 +13,15 @@ from app.models import (
     Course,
     Unit,
     User,
-    Video,
-    Task,
-    Test,
-    Progress,
     EmailCampaign,
-    VideoProgress,
     TeacherPayment,
 )
+# LEGACY: legacy ORM tables still registered with SQLAlchemy metadata for existing DB rows
+from app.models.video import Video  # → video_embed blocks on Segment
+from app.models.video_progress import VideoProgress  # → UnitHomeworkSubmission / segment completion
+from app.models.task import Task  # → exercise blocks on Segment (TaskSubmission in same module)
+from app.models.test import Test  # → test_without_timer / test_with_timer blocks (Question, TestAttempt in same module)
+from app.models.progress import Progress  # → UnitHomeworkSubmission
 from app.models.presentation import Presentation, PresentationSlide
 from app.models.live_session import LiveSession
 import logging

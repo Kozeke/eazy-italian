@@ -1,238 +1,265 @@
-from datetime import datetime
-import os
-import re
-import uuid
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_, desc
-from typing import List, Optional
+"""
+LEGACY FILE — admin_videos.py (admin video CRUD router)
 
-from app.core.database import get_db
-from app.core.auth import get_current_teacher
-from app.models.user import User
-from app.models.video import Video, VideoSourceType, VideoStatus
-from app.models.unit import Unit
-from app.schemas.video import VideoListResponse, VideoCreate, VideoResponse, VideoUpdate
+Architecture change: Video CRUD is replaced by video_embed exercise blocks
+stored as media_blocks JSONB on the Segment model.
+
+Old model:  Course → Unit → Video (separate ORM model with CRUD managed here)
+New model:  Course → Unit → Segment → media_blocks (video_embed blocks)
+
+Note on /static/thumbnails: the thumbnail serve route lives in videos.py,
+not here. Static file serving is being migrated to the file_storage service.
+
+Replaced by:
+  - Video CRUD:        video_embed block editor in the segment UI
+  - Video progress:    UnitHomeworkSubmission / segment completion state (VideoProgress removed)
+
+This file is fully commented out and kept for reference during migration.
+Do NOT re-enable these routes without migrating callers to the new segment API.
+"""
+
+# LEGACY: from datetime import datetime
+# LEGACY: import os
+# LEGACY: import re
+# LEGACY: import uuid
+# LEGACY: from fastapi import APIRouter, Depends, Query, HTTPException
+# LEGACY: from sqlalchemy.orm import Session, joinedload
+# LEGACY: from sqlalchemy import and_, or_, desc
+# LEGACY: from typing import List, Optional
+# LEGACY:
+# LEGACY: from app.core.database import get_db
+# LEGACY: from app.core.auth import get_current_teacher
+# LEGACY: from app.models.user import User
+# LEGACY: from app.models.video import Video, VideoSourceType, VideoStatus    # → video_embed blocks on Segment
+# LEGACY: from app.models.unit import Unit
+# LEGACY: from app.schemas.video import VideoListResponse, VideoCreate, VideoResponse, VideoUpdate
+
+from fastapi import APIRouter
 
 router = APIRouter()
 
-
-def get_uploads_path() -> str:
-    """Get the uploads directory path — delegates to the canonical resolver."""
-    from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
-    return resolve_uploads_path()
-
-
-def validate_youtube_url(url: str) -> bool:
-    youtube_patterns = [
-        r"(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)",
-        r"(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]+)",
-        r"(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]+)",
-    ]
-    return any(re.match(pattern, url) for pattern in youtube_patterns)
+# LEGACY: def get_uploads_path() -> str:
+# LEGACY:     """Get the uploads directory path — delegates to the canonical resolver."""
+# LEGACY:     from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+# LEGACY:     return resolve_uploads_path()
 
 
-def validate_vimeo_url(url: str) -> bool:
-    vimeo_patterns = [
-        r"(?:https?://)?(?:www\.)?vimeo\.com/(\d+)",
-        r"(?:https?://)?(?:www\.)?vimeo\.com/embed/(\d+)",
-    ]
-    return any(re.match(pattern, url) for pattern in vimeo_patterns)
-
-@router.get("/videos", response_model=List[VideoListResponse])
-async def get_admin_videos(
-    query: Optional[str] = Query(None, description="Search by title or description"),
-    unit_id: Optional[int] = Query(None, description="Filter by unit ID"),
-    status: Optional[VideoStatus] = Query(None, description="Filter by status"),
-    source_type: Optional[VideoSourceType] = Query(None, description="Filter by source type"),
-    level: Optional[str] = Query(None, description="Filter by unit level (A1-C2)"),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(25, ge=1, le=100, description="Items per page"),
-    current_user: User = Depends(get_current_teacher),
-    db: Session = Depends(get_db)
-):
-    """Get paginated list of videos for admin panel - only videos created by current teacher"""
-    
-    # Build query - only videos created by current teacher
-    query_builder = db.query(Video).join(Unit).options(
-        joinedload(Video.unit)
-    ).filter(Video.created_by == current_user.id)
-    
-    # Apply filters
-    if query:
-        search_term = f"%{query}%"
-        query_builder = query_builder.filter(
-            or_(
-                Video.title.ilike(search_term),
-                Video.description.ilike(search_term)
-            )
-        )
-    
-    if unit_id:
-        query_builder = query_builder.filter(Video.unit_id == unit_id)
-    
-    if status:
-        query_builder = query_builder.filter(Video.status == status)
-    
-    if source_type:
-        query_builder = query_builder.filter(Video.source_type == source_type)
-    
-    if level:
-        query_builder = query_builder.filter(Unit.level == level)
-    
-    # Apply pagination
-    offset = (page - 1) * limit
-    videos = query_builder.order_by(desc(Video.created_at)).offset(offset).limit(limit).all()
-    
-    # Convert to response format
-    result = []
-    for video in videos:
-        result.append(VideoListResponse(
-            id=video.id,
-            title=video.title,
-            unit_id=video.unit_id,
-            unit_title=video.unit.title,
-            source_type=video.source_type,
-            duration_sec=video.duration_sec,
-            status=video.status,
-            publish_at=video.publish_at,
-            thumbnail_path=video.thumbnail_path,
-            is_visible_to_students=video.is_visible_to_students,
-            order_index=video.order_index or 0,
-            created_at=video.created_at,
-            updated_at=video.updated_at
-        ))
-    
-    return result
+# LEGACY: def validate_youtube_url(url: str) -> bool:
+# LEGACY:     youtube_patterns = [
+# LEGACY:         r"(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)",
+# LEGACY:         r"(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]+)",
+# LEGACY:         r"(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]+)",
+# LEGACY:     ]
+# LEGACY:     return any(re.match(pattern, url) for pattern in youtube_patterns)
 
 
-@router.post("/videos", response_model=VideoResponse)
-async def create_video(
-    video_data: VideoCreate,
-    current_user: User = Depends(get_current_teacher),
-    db: Session = Depends(get_db),
-):
-    """Create a new video in admin scope."""
-    unit = db.query(Unit).filter(Unit.id == video_data.unit_id).first()
-    if not unit:
-        raise HTTPException(status_code=404, detail="Unit not found")
-
-    if video_data.source_type == VideoSourceType.URL:
-        if not video_data.external_url:
-            raise HTTPException(status_code=400, detail="External URL is required for URL source type")
-        if not (validate_youtube_url(video_data.external_url) or validate_vimeo_url(video_data.external_url)):
-            raise HTTPException(status_code=400, detail="Invalid YouTube or Vimeo URL")
-
-    base_slug = video_data.title.lower().replace(" ", "-")
-    base_slug = re.sub(r"[^\w\-а-яё]", "", base_slug, flags=re.IGNORECASE)
-    slug = base_slug
-
-    counter = 1
-    while db.query(Video).filter(Video.slug == slug).first():
-        slug = f"{base_slug}-{counter}"
-        counter += 1
-        if counter > 1000:
-            slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
-            break
-
-    video = Video(
-        **video_data.dict(),
-        created_by=current_user.id,
-        slug=slug,
-    )
-    try:
-        db.add(video)
-        db.commit()
-        db.refresh(video)
-    except Exception as e:
-        db.rollback()
-        if "unique" in str(e).lower() or "duplicate" in str(e).lower() or "slug" in str(e).lower():
-            slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
-            video.slug = slug
-            db.add(video)
-            db.commit()
-            db.refresh(video)
-        else:
-            raise HTTPException(status_code=500, detail=f"Error creating video: {str(e)}")
-
-    if not video.thumbnail_path and unit.level:
-        try:
-            from app.utils.thumbnail_generator import generate_default_thumbnail, get_thumbnail_path
-
-            thumbnail_path = get_thumbnail_path(video.id, unit.level)
-            uploads_path = get_uploads_path()
-            full_path = os.path.join(uploads_path, thumbnail_path)
-            generate_default_thumbnail(unit.level, full_path, title=video.title)
-            video.thumbnail_path = thumbnail_path
-            db.commit()
-            db.refresh(video)
-        except Exception:
-            # Do not fail create flow if thumbnail generation fails.
-            pass
-
-    return video
+# LEGACY: def validate_vimeo_url(url: str) -> bool:
+# LEGACY:     vimeo_patterns = [
+# LEGACY:         r"(?:https?://)?(?:www\.)?vimeo\.com/(\d+)",
+# LEGACY:         r"(?:https?://)?(?:www\.)?vimeo\.com/embed/(\d+)",
+# LEGACY:     ]
+# LEGACY:     return any(re.match(pattern, url) for pattern in vimeo_patterns)
 
 
-@router.get("/videos/{video_id}", response_model=VideoResponse)
-async def get_video(
-    video_id: int,
-    current_user: User = Depends(get_current_teacher),
-    db: Session = Depends(get_db),
-):
-    """Get video details in admin scope."""
-    video = db.query(Video).filter(
-        Video.id == video_id,
-        Video.created_by == current_user.id,
-    ).first()
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-    return video
+# ── LEGACY: GET /admin/videos ─────────────────────────────────────────────────
+# Replaced by: listing segments with video_embed blocks via segment list endpoint
+# LEGACY: @router.get("/videos", response_model=List[VideoListResponse])
+# LEGACY: async def get_admin_videos(
+# LEGACY:     query: Optional[str] = Query(None, description="Search by title or description"),
+# LEGACY:     unit_id: Optional[int] = Query(None, description="Filter by unit ID"),
+# LEGACY:     status: Optional[VideoStatus] = Query(None, description="Filter by status"),
+# LEGACY:     source_type: Optional[VideoSourceType] = Query(None, description="Filter by source type"),
+# LEGACY:     level: Optional[str] = Query(None, description="Filter by unit level (A1-C2)"),
+# LEGACY:     page: int = Query(1, ge=1, description="Page number"),
+# LEGACY:     limit: int = Query(25, ge=1, le=100, description="Items per page"),
+# LEGACY:     current_user: User = Depends(get_current_teacher),
+# LEGACY:     db: Session = Depends(get_db)
+# LEGACY: ):
+# LEGACY:     """Get paginated list of videos for admin panel - only videos created by current teacher"""
+# LEGACY:
+# LEGACY:     query_builder = db.query(Video).join(Unit).options(
+# LEGACY:         joinedload(Video.unit)
+# LEGACY:     ).filter(Video.created_by == current_user.id)
+# LEGACY:
+# LEGACY:     if query:
+# LEGACY:         search_term = f"%{query}%"
+# LEGACY:         query_builder = query_builder.filter(
+# LEGACY:             or_(
+# LEGACY:                 Video.title.ilike(search_term),
+# LEGACY:                 Video.description.ilike(search_term)
+# LEGACY:             )
+# LEGACY:         )
+# LEGACY:
+# LEGACY:     if unit_id:
+# LEGACY:         query_builder = query_builder.filter(Video.unit_id == unit_id)
+# LEGACY:
+# LEGACY:     if status:
+# LEGACY:         query_builder = query_builder.filter(Video.status == status)
+# LEGACY:
+# LEGACY:     if source_type:
+# LEGACY:         query_builder = query_builder.filter(Video.source_type == source_type)
+# LEGACY:
+# LEGACY:     if level:
+# LEGACY:         query_builder = query_builder.filter(Unit.level == level)
+# LEGACY:
+# LEGACY:     offset = (page - 1) * limit
+# LEGACY:     videos = query_builder.order_by(desc(Video.created_at)).offset(offset).limit(limit).all()
+# LEGACY:
+# LEGACY:     result = []
+# LEGACY:     for video in videos:
+# LEGACY:         result.append(VideoListResponse(
+# LEGACY:             id=video.id,
+# LEGACY:             title=video.title,
+# LEGACY:             unit_id=video.unit_id,
+# LEGACY:             unit_title=video.unit.title,
+# LEGACY:             source_type=video.source_type,
+# LEGACY:             duration_sec=video.duration_sec,
+# LEGACY:             status=video.status,
+# LEGACY:             publish_at=video.publish_at,
+# LEGACY:             thumbnail_path=video.thumbnail_path,
+# LEGACY:             is_visible_to_students=video.is_visible_to_students,
+# LEGACY:             order_index=video.order_index or 0,
+# LEGACY:             created_at=video.created_at,
+# LEGACY:             updated_at=video.updated_at
+# LEGACY:         ))
+# LEGACY:
+# LEGACY:     return result
 
 
-@router.put("/videos/{video_id}", response_model=VideoResponse)
-async def update_video(
-    video_id: int,
-    video_data: VideoUpdate,
-    current_user: User = Depends(get_current_teacher),
-    db: Session = Depends(get_db),
-):
-    """Update video in admin scope."""
-    video = db.query(Video).filter(
-        Video.id == video_id,
-        Video.created_by == current_user.id,
-    ).first()
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
+# ── LEGACY: POST /admin/videos ────────────────────────────────────────────────
+# Replaced by: creating a video_embed block in the segment editor
+# LEGACY: @router.post("/videos", response_model=VideoResponse)
+# LEGACY: async def create_video(
+# LEGACY:     video_data: VideoCreate,
+# LEGACY:     current_user: User = Depends(get_current_teacher),
+# LEGACY:     db: Session = Depends(get_db),
+# LEGACY: ):
+# LEGACY:     """Create a new video in admin scope."""
+# LEGACY:     unit = db.query(Unit).filter(Unit.id == video_data.unit_id).first()
+# LEGACY:     if not unit:
+# LEGACY:         raise HTTPException(status_code=404, detail="Unit not found")
+# LEGACY:
+# LEGACY:     if video_data.source_type == VideoSourceType.URL:
+# LEGACY:         if not video_data.external_url:
+# LEGACY:             raise HTTPException(status_code=400, detail="External URL is required for URL source type")
+# LEGACY:         if not (validate_youtube_url(video_data.external_url) or validate_vimeo_url(video_data.external_url)):
+# LEGACY:             raise HTTPException(status_code=400, detail="Invalid YouTube or Vimeo URL")
+# LEGACY:
+# LEGACY:     base_slug = video_data.title.lower().replace(" ", "-")
+# LEGACY:     base_slug = re.sub(r"[^\w\-а-яё]", "", base_slug, flags=re.IGNORECASE)
+# LEGACY:     slug = base_slug
+# LEGACY:
+# LEGACY:     counter = 1
+# LEGACY:     while db.query(Video).filter(Video.slug == slug).first():
+# LEGACY:         slug = f"{base_slug}-{counter}"
+# LEGACY:         counter += 1
+# LEGACY:         if counter > 1000:
+# LEGACY:             slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
+# LEGACY:             break
+# LEGACY:
+# LEGACY:     video = Video(
+# LEGACY:         **video_data.dict(),
+# LEGACY:         created_by=current_user.id,
+# LEGACY:         slug=slug,
+# LEGACY:     )
+# LEGACY:     try:
+# LEGACY:         db.add(video)
+# LEGACY:         db.commit()
+# LEGACY:         db.refresh(video)
+# LEGACY:     except Exception as e:
+# LEGACY:         db.rollback()
+# LEGACY:         if "unique" in str(e).lower() or "duplicate" in str(e).lower() or "slug" in str(e).lower():
+# LEGACY:             slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
+# LEGACY:             video.slug = slug
+# LEGACY:             db.add(video)
+# LEGACY:             db.commit()
+# LEGACY:             db.refresh(video)
+# LEGACY:         else:
+# LEGACY:             raise HTTPException(status_code=500, detail=f"Error creating video: {str(e)}")
+# LEGACY:
+# LEGACY:     if not video.thumbnail_path and unit.level:
+# LEGACY:         try:
+# LEGACY:             from app.utils.thumbnail_generator import generate_default_thumbnail, get_thumbnail_path
+# LEGACY:
+# LEGACY:             thumbnail_path = get_thumbnail_path(video.id, unit.level)
+# LEGACY:             uploads_path = get_uploads_path()
+# LEGACY:             full_path = os.path.join(uploads_path, thumbnail_path)
+# LEGACY:             generate_default_thumbnail(unit.level, full_path, title=video.title)
+# LEGACY:             video.thumbnail_path = thumbnail_path
+# LEGACY:             db.commit()
+# LEGACY:             db.refresh(video)
+# LEGACY:         except Exception:
+# LEGACY:             pass
+# LEGACY:
+# LEGACY:     return video
 
-    if video_data.external_url:
-        if not (validate_youtube_url(video_data.external_url) or validate_vimeo_url(video_data.external_url)):
-            raise HTTPException(status_code=400, detail="Invalid YouTube or Vimeo URL")
 
-    update_data = video_data.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(video, field, value)
+# ── LEGACY: GET /admin/videos/{video_id} ──────────────────────────────────────
+# Replaced by: reading the video_embed block from Segment.media_blocks
+# LEGACY: @router.get("/videos/{video_id}", response_model=VideoResponse)
+# LEGACY: async def get_video(
+# LEGACY:     video_id: int,
+# LEGACY:     current_user: User = Depends(get_current_teacher),
+# LEGACY:     db: Session = Depends(get_db),
+# LEGACY: ):
+# LEGACY:     """Get video details in admin scope."""
+# LEGACY:     video = db.query(Video).filter(
+# LEGACY:         Video.id == video_id,
+# LEGACY:         Video.created_by == current_user.id,
+# LEGACY:     ).first()
+# LEGACY:     if not video:
+# LEGACY:         raise HTTPException(status_code=404, detail="Video not found")
+# LEGACY:     return video
 
-    video.updated_by = current_user.id
-    video.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(video)
-    return video
+
+# ── LEGACY: PUT /admin/videos/{video_id} ──────────────────────────────────────
+# Replaced by: editing the video_embed block in the segment editor
+# LEGACY: @router.put("/videos/{video_id}", response_model=VideoResponse)
+# LEGACY: async def update_video(
+# LEGACY:     video_id: int,
+# LEGACY:     video_data: VideoUpdate,
+# LEGACY:     current_user: User = Depends(get_current_teacher),
+# LEGACY:     db: Session = Depends(get_db),
+# LEGACY: ):
+# LEGACY:     """Update video in admin scope."""
+# LEGACY:     video = db.query(Video).filter(
+# LEGACY:         Video.id == video_id,
+# LEGACY:         Video.created_by == current_user.id,
+# LEGACY:     ).first()
+# LEGACY:     if not video:
+# LEGACY:         raise HTTPException(status_code=404, detail="Video not found")
+# LEGACY:
+# LEGACY:     if video_data.external_url:
+# LEGACY:         if not (validate_youtube_url(video_data.external_url) or validate_vimeo_url(video_data.external_url)):
+# LEGACY:             raise HTTPException(status_code=400, detail="Invalid YouTube or Vimeo URL")
+# LEGACY:
+# LEGACY:     update_data = video_data.dict(exclude_unset=True)
+# LEGACY:     for field, value in update_data.items():
+# LEGACY:         setattr(video, field, value)
+# LEGACY:
+# LEGACY:     video.updated_by = current_user.id
+# LEGACY:     video.updated_at = datetime.utcnow()
+# LEGACY:     db.commit()
+# LEGACY:     db.refresh(video)
+# LEGACY:     return video
 
 
-@router.delete("/videos/{video_id}")
-async def delete_video(
-    video_id: int,
-    current_user: User = Depends(get_current_teacher),
-    db: Session = Depends(get_db),
-):
-    """Delete video in admin scope."""
-    video = db.query(Video).filter(
-        Video.id == video_id,
-        Video.created_by == current_user.id,
-    ).first()
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-
-    db.delete(video)
-    db.commit()
-    return {"message": "Video deleted successfully"}
+# ── LEGACY: DELETE /admin/videos/{video_id} ───────────────────────────────────
+# Replaced by: removing the video_embed block from Segment.media_blocks
+# LEGACY: @router.delete("/videos/{video_id}")
+# LEGACY: async def delete_video(
+# LEGACY:     video_id: int,
+# LEGACY:     current_user: User = Depends(get_current_teacher),
+# LEGACY:     db: Session = Depends(get_db),
+# LEGACY: ):
+# LEGACY:     """Delete video in admin scope."""
+# LEGACY:     video = db.query(Video).filter(
+# LEGACY:         Video.id == video_id,
+# LEGACY:         Video.created_by == current_user.id,
+# LEGACY:     ).first()
+# LEGACY:     if not video:
+# LEGACY:         raise HTTPException(status_code=404, detail="Video not found")
+# LEGACY:
+# LEGACY:     db.delete(video)
+# LEGACY:     db.commit()
+# LEGACY:     return {"message": "Video deleted successfully"}
