@@ -1,15 +1,28 @@
 """
-Course management endpoints for admin and student views
+Course management endpoints for admin and student views.
+
+Architecture (current):
+  Course → Unit → Segment → exercise blocks (media_blocks JSONB on Segment)
+  Exercise types: text, video, audio, image, gif_animation, image_stacked,
+                  video_embed, audio_embed, drag_to_gap, drag_word_to_image,
+                  type_word_to_image, select_form_to_image, type_word_in_gap,
+                  select_word_form, build_sentence, match_pairs, order_paragraphs,
+                  sort_into_columns, test_without_timer, test_with_timer, true_false
+
+Legacy models commented out (to be removed once migration is confirmed stable):
+  - Task / TaskSubmission / SubmissionStatus / TaskStatus   (→ exercise blocks on Segment)
+  - Test / TestAttempt / AttemptStatus / TestStatus         (→ test_without_timer / test_with_timer blocks)
+  - Video / VideoStatus / VideoProgress                     (→ video_embed / video blocks on Segment)
+  - Progress                                                (→ UnitHomeworkSubmission / segment completion)
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, asc, func
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, timedelta, timezone
 import logging
 import os
 
-# Module-level logger for thumbnail generation and other course endpoint events
 logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
@@ -22,12 +35,20 @@ from app.models.user import User, UserRole, SubscriptionType
 from app.models.course import Course, CourseLevel, CourseStatus
 from app.models.subscription import Subscription, UserSubscription, SubscriptionName
 from app.models.unit import Unit, UnitStatus
-from app.models.video import Video, VideoStatus
-from app.models.test import Test, TestStatus, TestAttempt, AttemptStatus
-from app.models.progress import Progress
-from app.models.task import Task, TaskSubmission, SubmissionStatus, TaskStatus
 from app.models.enrollment import CourseEnrollment
-from app.models.video_progress import VideoProgress
+# New segment model — exercises live here as media_blocks JSONB
+from app.models.segment import Segment, SegmentStatus
+# New homework submission — replaces the old Progress / TaskSubmission tracking
+from app.models.homework_submission import UnitHomeworkSubmission, HomeworkSubmissionStatus
+
+# ── LEGACY IMPORTS — commented out, kept for reference during migration ────────
+# from app.models.video import Video, VideoStatus          # → video_embed blocks on Segment
+# from app.models.test import Test, TestStatus, TestAttempt, AttemptStatus  # → test_* blocks
+# from app.models.progress import Progress                 # → UnitHomeworkSubmission
+# from app.models.task import Task, TaskSubmission, SubmissionStatus, TaskStatus  # → exercise blocks
+# from app.models.video_progress import VideoProgress      # → segment/exercise completion state
+# ──────────────────────────────────────────────────────────────────────────────
+
 from app.schemas.course import (
     CourseResponse, CourseCreate, CourseUpdate, CourseListResponse,
     CourseDetailResponse, CourseReorderRequest, CourseUnitsReorderRequest,
@@ -46,13 +67,19 @@ def get_rag_service(db: Session = Depends(get_db)) -> RAGService:
     """Dependency: RAG service with DB session and default Ollama provider."""
     return RAGService(db=db, provider=LocalLlamaProvider())
 
-# Test endpoint to verify router is working
+
+# ── Health check ───────────────────────────────────────────────────────────────
+
 @router.get("/admin/test")
 async def test_admin_route():
     """Test endpoint to verify admin routes are registered"""
     return {"message": "Admin routes are working!", "status": "ok"}
 
-# Questions endpoint (moved here because courses router is mounted at root)
+
+# ── LEGACY: question update endpoint ──────────────────────────────────────────
+# Questions belonged to the old Test model (test_without_timer / test_with_timer
+# blocks on Segment are the new equivalent). Kept live until those editor pages
+# are fully migrated.
 @router.put("/admin/questions/{question_id}")
 async def update_question(
     question_id: int,
@@ -60,22 +87,24 @@ async def update_question(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Update a question"""
-    from app.models.test import Question, TestQuestion
+    """
+    Update a legacy question record.
+    LEGACY: Questions were part of the old Test model. New exercises store their
+    config directly in Segment.media_blocks JSONB. This endpoint remains until
+    all test editor pages are migrated to the segment block editor.
+    """
+    from app.models.test import Question, TestQuestion, Test  # legacy — local import
     
-    # Get question
     question = db.query(Question).filter(Question.id == question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     
-    # Verify user owns the question (through test)
     test_question = db.query(TestQuestion).filter(TestQuestion.question_id == question_id).first()
     if test_question:
         test = db.query(Test).filter(Test.id == test_question.test_id).first()
         if test and test.created_by != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized to modify this question")
     
-    # Update question fields
     if 'prompt' in question_data:
         question.prompt_rich = question_data.get('prompt', '')
     if 'score' in question_data or 'points' in question_data:
@@ -83,7 +112,6 @@ async def update_question(
     if 'metadata' in question_data:
         question.question_metadata = question_data.get('metadata', {})
     
-    # Type-specific updates
     question_type = question.type.value if hasattr(question.type, 'value') else str(question.type)
     
     if question_type == 'multiple_choice':
@@ -102,7 +130,6 @@ async def update_question(
             question.gaps_config = question_data.get('gaps', [])
             question.correct_answer = {"gaps": question_data.get('gaps', [])}
     
-    # Update TestQuestion points if score changed
     if 'score' in question_data or 'points' in question_data:
         new_score = question_data.get('score') or question_data.get('points')
         if test_question and new_score:
@@ -119,6 +146,9 @@ async def update_question(
         "message": "Question updated successfully"
     }
 
+
+# ── Admin course CRUD ──────────────────────────────────────────────────────────
+
 @router.get("/admin/courses", response_model=List[CourseListResponse])
 async def get_admin_courses(
     query: Optional[str] = Query(None, description="Search by title or description"),
@@ -132,12 +162,10 @@ async def get_admin_courses(
 ):
     """Get paginated list of courses for admin panel - only shows courses created by current teacher"""
     
-    # Build query - ONLY show courses created by current teacher
     query_builder = db.query(Course).options(
         joinedload(Course.created_by_user)
     ).filter(Course.created_by == current_user.id)
     
-    # Apply filters
     if query:
         search_term = f"%{query}%"
         query_builder = query_builder.filter(
@@ -153,16 +181,15 @@ async def get_admin_courses(
     if status:
         query_builder = query_builder.filter(Course.status == status)
     
-    # Remove created_by filter since we're already filtering by current_user.id
-    # Teachers can only see their own courses
-    
-    # Apply pagination
     offset = (page - 1) * limit
     courses = query_builder.order_by(asc(Course.order_index), desc(Course.created_at)).offset(offset).limit(limit).all()
     
     course_ids = [c.id for c in courses]
     first_unit_by_course: Dict[int, int] = {}
+    enrolled_count_by_course: Dict[int, int] = {}
+
     if course_ids:
+        # Batch: first unit per course (by order_index)
         ordered_units = (
             db.query(Unit)
             .filter(Unit.course_id.in_(course_ids))
@@ -173,17 +200,18 @@ async def get_admin_courses(
             if u.course_id not in first_unit_by_course:
                 first_unit_by_course[u.course_id] = u.id
 
-    # Convert to response format
+        # Batch: enrolled student counts (one GROUP BY query)
+        enrollment_counts = (
+            db.query(CourseEnrollment.course_id, func.count(CourseEnrollment.id))
+            .filter(CourseEnrollment.course_id.in_(course_ids))
+            .group_by(CourseEnrollment.course_id)
+            .all()
+        )
+        enrolled_count_by_course = {cid: cnt for cid, cnt in enrollment_counts}
+
     result = []
     for course in courses:
-        # Handle thumbnail_path gracefully in case column doesn't exist yet
         thumbnail_path = getattr(course, 'thumbnail_path', None)
-        
-        # Get enrolled students count
-        enrolled_students_count = db.query(func.count(CourseEnrollment.id)).filter(
-            CourseEnrollment.course_id == course.id
-        ).scalar() or 0
-        
         result.append(CourseListResponse(
             id=course.id,
             title=course.title,
@@ -200,13 +228,14 @@ async def get_admin_courses(
             units_count=course.units_count,
             published_units_count=course.published_units_count,
             content_summary=course.content_summary,
-            enrolled_students_count=enrolled_students_count,
+            enrolled_students_count=enrolled_count_by_course.get(course.id, 0),
             first_unit_id=first_unit_by_course.get(course.id),
             target_language=getattr(course, 'target_language', None),
             native_language=getattr(course, 'native_language', None),
         ))
     
     return result
+
 
 @router.post("/admin/courses", response_model=CourseResponse)
 async def create_course(
@@ -223,25 +252,20 @@ async def create_course(
         else False
     )
     
-    # Generate slug if not provided
     slug = course_data.slug if hasattr(course_data, 'slug') and course_data.slug else None
     if not slug:
-        # Generate from title
         import re
         slug = re.sub(r'[^\w\s-]', '', course_data.title.lower())
         slug = re.sub(r'[-\s]+', '-', slug)
         slug = slug.strip('-')
     
-    # Check if slug already exists
     existing = db.query(Course).filter(Course.slug == slug).first()
     if existing:
         slug = f"{slug}-{datetime.utcnow().timestamp()}"
     
-    # Normalises optional language fields so we never persist empty strings.
     target_language = (course_data.target_language or "").strip() or None
     native_language = (course_data.native_language or "").strip() or None
 
-    # Create course
     course = Course(
         title=course_data.title,
         description=course_data.description,
@@ -294,6 +318,7 @@ async def create_course(
         content_summary=course.content_summary
     )
 
+
 @router.get("/admin/courses/{course_id}", response_model=CourseDetailResponse)
 async def get_admin_course(
     course_id: int,
@@ -312,7 +337,6 @@ async def get_admin_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    # Get units for this course
     units = db.query(Unit).filter(Unit.course_id == course_id).order_by(Unit.order_index).all()
     
     units_data = []
@@ -362,8 +386,7 @@ async def get_admin_course_enrolled_student_ids(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db),
 ):
-    """List student user ids enrolled in this course; course must belong to the current teacher."""
-    # Ensures the teacher can only inspect enrollments for their own course.
+    """List student user IDs enrolled in this course."""
     course = db.query(Course).filter(
         Course.id == course_id,
         Course.created_by == current_user.id,
@@ -371,7 +394,6 @@ async def get_admin_course_enrolled_student_ids(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # Loads distinct student ids from enrollment rows for this course.
     enrollment_rows = (
         db.query(CourseEnrollment.user_id)
         .join(User, User.id == CourseEnrollment.user_id)
@@ -400,11 +422,6 @@ async def update_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    # Check permissions
-    if course.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to modify this course")
-    
-    # Update fields
     update_data = course_data.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(course, field, value)
@@ -441,6 +458,7 @@ async def update_course(
         content_summary=course.content_summary
     )
 
+
 @router.post("/admin/courses/{course_id}/thumbnail")
 async def upload_course_thumbnail(
     course_id: int,
@@ -454,14 +472,10 @@ async def upload_course_thumbnail(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    # Validate file type
     if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
     
-    # Derive the file extension from the actual content-type (not client filename)
-    # so a fal.ai PNG is never accidentally saved as ".svg" and rendered broken.
     import uuid
-    # Maps reliable image content-types to their canonical file extension.
     content_type_ext = {
         "image/png": ".png",
         "image/jpeg": ".jpg",
@@ -476,16 +490,10 @@ async def upload_course_thumbnail(
     )
     filename = f"course_{course_id}_{uuid.uuid4().hex[:8]}{file_ext}"
 
-    # Persist via the unified storage abstraction.
-    # In cloud mode (MINIO_PUBLIC_URL set) the file goes to the S3-compatible
-    # bucket and a CDN URL is returned — safe across Render redeploys.
-    # In local dev it falls back to writing to the uploads/ directory.
     try:
-        from app.services.file_storage import save_upload  # noqa: PLC0415
+        from app.services.file_storage import save_upload
 
         content = await file.read()
-        # object_name follows the same "thumbnails/<filename>" scheme used
-        # historically so existing URLs and serving routes stay compatible.
         object_name = f"thumbnails/{filename}"
         stored_url = save_upload(
             file_data=content,
@@ -493,15 +501,10 @@ async def upload_course_thumbnail(
             content_type=file.content_type or "image/jpeg",
         )
 
-        # Cloud mode returns a full https:// URL; local mode returns a relative
-        # /api/v1/static/... path.  Detect by checking for a URL scheme.
         if stored_url.startswith("http"):
-            # Persist the CDN URL in BOTH columns so every frontend code path
-            # that checks thumbnail_url first will use it directly (no mangling).
             thumbnail_path = stored_url
             course.thumbnail_url = stored_url
         else:
-            # Local dev: stored_url = /api/v1/static/thumbnails/<filename>
             thumbnail_path = object_name
 
         course.thumbnail_path = thumbnail_path
@@ -517,6 +520,7 @@ async def upload_course_thumbnail(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload thumbnail: {str(e)}")
 
+
 from pydantic import BaseModel as _PydanticBase
 
 class ThumbnailPreviewRequest(_PydanticBase):
@@ -525,26 +529,13 @@ class ThumbnailPreviewRequest(_PydanticBase):
     description: Optional[str] = None
     language: Optional[str] = "English"
 
+
 @router.post("/admin/courses/generate-thumbnail-preview")
 async def generate_thumbnail_preview(
     body: ThumbnailPreviewRequest,
     current_user: User = Depends(get_current_teacher),
 ):
-    """
-    Generate a language-themed thumbnail for a course *before* it is saved.
-
-    Strategy
-    --------
-    • fal.ai (FLUX.1 [dev]) — if FAL_KEY env-var is set, generates a
-      real AI image (640×360 PNG) tailored to the course language and title.
-    • SVG fallback — hand-crafted branded SVG when fal.ai is unavailable / errors:
-        - English → Union Jack, Big Ben, tea, books
-        - Italian → Tricolore, Colosseum, pizza, pasta
-        - Others  → language-colour palette + greeting text
-
-    Returns { data_uri, source } where data_uri is a ``data:image/…;base64,…``
-    URI ready to drop into <img src> and later convert to a file for upload.
-    """
+    """Generate a language-themed thumbnail preview before saving."""
     title    = (body.title or "").strip()[:200]
     level    = (body.level or "B1").strip()
     language = (body.language or "English").strip()
@@ -552,9 +543,6 @@ async def generate_thumbnail_preview(
     if not title:
         raise HTTPException(status_code=422, detail="title is required")
 
-    # Build a descriptive prompt that generates a visually rich course thumbnail.
-    # The CEFR level is included so beginner vs advanced courses can read slightly
-    # differently, and the title/language drive the cultural imagery.
     fal_prompt = (
         f"{language} language learning course thumbnail, titled '{title}', "
         f"CEFR level {level}, "
@@ -563,8 +551,6 @@ async def generate_thumbnail_preview(
         "wide banner composition"
     )
 
-    # ── Attempt fal.ai image generation ───────────────────────────────────────
-    # Prevent crash if settings import or fal call fails unexpectedly
     fal_key: str = ""
     fal_lora_url: str = ""
     fal_lora_scale: float = 0.8
@@ -579,19 +565,13 @@ async def generate_thumbnail_preview(
     if fal_key:
         try:
             from app.services.ai.image_providers import FalImageProvider
-            # Banner-friendly style prefix: unlike lesson illustrations we WANT
-            # rich scenery (landmarks, culture) rather than icon-only/no-text art.
-            thumbnail_style_prefix = (
-                "vibrant illustrated course banner, rich detailed scene, "
-            )
+            thumbnail_style_prefix = "vibrant illustrated course banner, rich detailed scene, "
             provider = FalImageProvider(
                 api_key=fal_key,
-                image_size="landscape_16_9",   # 640×360 equivalent for course banners
+                image_size="landscape_16_9",
                 lora_url=fal_lora_url,
                 lora_scale=fal_lora_scale,
                 style_prefix=thumbnail_style_prefix,
-                # Keep the full descriptive prompt; do not collapse the title's
-                # words (e.g. "grammar") into a generic lesson concept visual.
                 apply_concept_visuals=False,
             )
             result = provider.generate_image(
@@ -601,13 +581,8 @@ async def generate_thumbnail_preview(
             data_uri = f"data:image/png;base64,{result.data}"
             return {"data_uri": data_uri, "source": "fal"}
         except Exception as exc:
-            # Fall through to SVG — do not surface fal.ai errors to the teacher
-            logger.warning(
-                "fal.ai thumbnail generation failed, falling back to SVG: %s", exc
-            )
+            logger.warning("fal.ai thumbnail generation failed, falling back to SVG: %s", exc)
 
-    # ── SVG fallback ──────────────────────────────────────────────────────────
-    # Prevent crash if SVG builder import fails (e.g. during test isolation)
     try:
         from app.services.course_thumbnail_svg import build_course_thumbnail_data_uri
         data_uri = build_course_thumbnail_data_uri(title=title, level=level, language=language)
@@ -634,18 +609,13 @@ async def generate_course_thumbnail(
     try:
         from app.utils.thumbnail_generator import generate_course_thumbnail, get_course_thumbnail_path
         
-        # Get level - handle mixed level
         level = course.level.value if hasattr(course.level, 'value') else str(course.level)
         if level == 'mixed':
-            level = 'A1'  # Default for mixed
+            level = 'A1'
         
         thumbnail_path = get_course_thumbnail_path(course.id, level)
-
-        # Use the canonical uploads resolver so UPLOADS_DIR env var is honoured.
-        from app.utils.paths import resolve_uploads_path  # noqa: PLC0415
+        from app.utils.paths import resolve_uploads_path
         full_path = os.path.join(resolve_uploads_path(), thumbnail_path)
-        
-        # Generate subtitle from description if available
         subtitle = course.description[:50] if course.description else ""
         
         generate_course_thumbnail(
@@ -655,19 +625,16 @@ async def generate_course_thumbnail(
             subtitle=subtitle
         )
         
-        # Update course thumbnail_path
         course.thumbnail_path = thumbnail_path
         course.updated_by = current_user.id
         course.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(course)
         
-        return {
-            "message": "Thumbnail generated successfully",
-            "thumbnail_path": course.thumbnail_path
-        }
+        return {"message": "Thumbnail generated successfully", "thumbnail_path": course.thumbnail_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating thumbnail: {str(e)}")
+
 
 @router.delete("/admin/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course(
@@ -686,64 +653,7 @@ async def delete_course(
     
     db.delete(course)
     db.commit()
-    
     return None
-
-# @router.patch("/admin/courses/{course_id}/publish", response_model=CourseResponse)
-# async def publish_course(
-#     course_id: int,
-#     publish_data: CoursePublishRequest,
-#     current_user: User = Depends(get_current_teacher),
-#     db: Session = Depends(get_db)
-# ):
-#     """Publish a course - only if created by current teacher"""
-    
-#     course = db.query(Course).filter(
-#         Course.id == course_id,
-#         Course.created_by == current_user.id
-#     ).first()
-#     if not course:
-#         raise HTTPException(status_code=404, detail="Course not found")
-    
-#     can_publish, reason = course.can_publish()
-#     if not can_publish:
-#         raise HTTPException(status_code=400, detail=reason)
-    
-#     course.status = CourseStatus.PUBLISHED
-#     if publish_data.publish_at:
-#         course.publish_at = publish_data.publish_at
-#     else:
-#         course.publish_at = datetime.utcnow()
-    
-#     course.updated_by = current_user.id
-#     db.commit()
-#     db.refresh(course)
-    
-#     return CourseResponse(
-#         id=course.id,
-#         title=course.title,
-#         description=course.description,
-#         level=course.level,
-#         status=course.status,
-#         publish_at=course.publish_at,
-#         order_index=course.order_index,
-#         thumbnail_url=course.thumbnail_url,
-#         thumbnail_path=getattr(course, 'thumbnail_path', None),
-#         duration_hours=course.duration_hours,
-#         tags=course.tags,
-#         meta_title=course.meta_title,
-#         meta_description=course.meta_description,
-#         is_visible_to_students=course.is_visible_to_students,
-#         settings=course.settings,
-#         slug=course.slug,
-#         created_by=course.created_by,
-#         updated_by=course.updated_by,
-#         created_at=course.created_at,
-#         updated_at=course.updated_at,
-#         units_count=course.units_count,
-#         published_units_count=course.published_units_count,
-#         content_summary=course.content_summary
-#     )
 
 
 @router.patch("/admin/courses/{course_id}/publish", response_model=CourseResponse)
@@ -753,18 +663,7 @@ async def publish_course(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Publish a course — only if created by current teacher.
- 
-    Visibility contract
-    -------------------
-    Published state persists independently of the teacher's subscription.
-    Expiry only blocks new AI actions, not existing content.
- 
-    A course that is set to is_visible_to_students=True will remain visible
-    to enrolled students even if the teacher's plan later expires.
-    Unpublishing is always an explicit teacher action (PATCH …/unpublish);
-    it is NEVER triggered automatically by plan expiry or quota exhaustion.
-    """
+    """Publish a course — only if created by current teacher."""
     course = db.query(Course).filter(
         Course.id == course_id,
         Course.created_by == current_user.id
@@ -772,23 +671,21 @@ async def publish_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # Student-facing content is gated per-segment (see segment_publication_policy);
-    # course-level PATCH publish only flips catalog visibility for the shell.
     can_publish, reason = course.can_publish()
     if not can_publish:
         raise HTTPException(status_code=400, detail=reason)
- 
+
     course.status                 = CourseStatus.PUBLISHED
-    course.is_visible_to_students = True   # explicit: students can now access it
+    course.is_visible_to_students = True
     if publish_data.publish_at:
         course.publish_at = publish_data.publish_at
     else:
         course.publish_at = datetime.utcnow()
- 
+
     course.updated_by = current_user.id
     db.commit()
     db.refresh(course)
- 
+
     return CourseResponse(
         id=course.id,
         title=course.title,
@@ -816,7 +713,8 @@ async def publish_course(
         published_units_count=course.published_units_count,
         content_summary=course.content_summary
     )
- 
+
+
 @router.post("/admin/courses/reorder", response_model=Dict[str, str])
 async def reorder_courses(
     reorder_data: CourseReorderRequest,
@@ -824,7 +722,6 @@ async def reorder_courses(
     db: Session = Depends(get_db)
 ):
     """Reorder courses - only courses created by current teacher"""
-    
     for index, course_id in enumerate(reorder_data.course_ids):
         course = db.query(Course).filter(
             Course.id == course_id,
@@ -833,9 +730,7 @@ async def reorder_courses(
         if course:
             course.order_index = index
             course.updated_by = current_user.id
-    
     db.commit()
-    
     return {"message": "Courses reordered successfully"}
 
 
@@ -846,10 +741,7 @@ async def reorder_course_units(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db),
 ):
-    """
-    Persist a new order_index sequence (0..n-1) for all units in the course.
-    Body must list every unit id belonging to this course exactly once.
-    """
+    """Persist a new order_index sequence for all units in the course."""
     course = db.query(Course).filter(
         Course.id == course_id,
         Course.created_by == current_user.id,
@@ -875,16 +767,15 @@ async def reorder_course_units(
     return {"message": "Units reordered successfully"}
 
 
-# Helper function to get subscription name
+# ── Subscription helper ────────────────────────────────────────────────────────
+
 def get_user_subscription_name(db: Session, user: User) -> str:
-    """Get user's subscription name, checking both subscription_type and UserSubscription"""
-    # Check subscription_type column first
+    """Get user's subscription name."""
     if user.subscription_type == SubscriptionType.STANDARD:
         return "standard"
     if user.subscription_type == SubscriptionType.PREMIUM:
         return "standard"
     
-    # Check UserSubscription for PRO accounts
     active_sub = db.query(UserSubscription).join(
         Subscription, UserSubscription.subscription_id == Subscription.id
     ).filter(
@@ -903,51 +794,35 @@ def get_user_subscription_name(db: Session, user: User) -> str:
     
     return "free"
 
+
+# ── Student catalog ────────────────────────────────────────────────────────────
+
 @router.get("/courses", response_model=List[CourseListResponse])
 async def get_courses(
     level: Optional[CourseLevel] = Query(None, description="Filter by level"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get published courses available to students.
- 
-    Visibility contract
-    -------------------
-    This endpoint filters ONLY on is_visible_to_students and the course's own
-    publish date — it does NOT check the creating teacher's subscription status.
- 
-    A course published while the teacher had an active plan remains visible
-    after that plan expires.  The teacher must call PATCH …/unpublish
-    explicitly to remove student access.  Plan expiry is a generation gate,
-    not a visibility gate.
-    """
+    """Get published courses available to students."""
     query_builder = db.query(Course).filter(
-        # Filter strictly on the course-level visibility flag set at publish time.
-        # Teacher subscription status is intentionally NOT checked here.
         Course.is_visible_to_students == True,  # noqa: E712
         Course.status == CourseStatus.PUBLISHED,
     )
- 
+
     if level:
         query_builder = query_builder.filter(Course.level == level)
- 
+
     courses = query_builder.order_by(asc(Course.order_index)).all()
- 
-    # Filter to only show courses that are available (published and past publish date).
     available_courses = [c for c in courses if c.is_available]
- 
-    # Get user's subscription type.
-    subscription_name = get_user_subscription_name(db, current_user)
- 
-    # Get enrolled courses from enrollment table.
+
+    subscription_name      = get_user_subscription_name(db, current_user)
     enrolled_course_ids    = get_user_enrolled_courses(db, current_user.id)
     enrolled_courses_count = len(enrolled_course_ids)
- 
+
     result = []
     for course in available_courses:
         thumbnail_path = getattr(course, 'thumbnail_path', None)
         is_enrolled    = course.id in enrolled_course_ids
- 
         result.append(CourseListResponse(
             id=course.id,
             title=course.title,
@@ -969,66 +844,9 @@ async def get_courses(
             target_language=getattr(course, 'target_language', None),
             native_language=getattr(course, 'native_language', None),
         ))
- 
+
     return result
-# Student endpoints
-# @router.get("/courses", response_model=List[CourseListResponse])
-# async def get_courses(
-#     level: Optional[CourseLevel] = Query(None, description="Filter by level"),
-#     current_user: User = Depends(get_current_user),
-#     db: Session = Depends(get_db)
-# ):
-#     """Get published courses available to students"""
-    
-#     query_builder = db.query(Course).filter(
-#         and_(
-#             # Course.is_visible_to_students == True,
-#             # Course.status == CourseStatus.PUBLISHED
-#         )
-#     )
-    
-#     if level:
-#         query_builder = query_builder.filter(Course.level == level)
-    
-#     courses = query_builder.order_by(asc(Course.order_index)).all()
-    
-#     # Filter to only show courses that are available (published and past publish date)
-#     available_courses = [c for c in courses if c.is_available]
-    
-#     # Get user's subscription type
-#     subscription_name = get_user_subscription_name(db, current_user)
-    
-#     # Get enrolled courses from enrollment table
-#     enrolled_course_ids = get_user_enrolled_courses(db, current_user.id)
-#     enrolled_courses_count = len(enrolled_course_ids)
-    
-#     result = []
-#     for course in available_courses:
-#         # Handle thumbnail_path gracefully in case column doesn't exist yet
-#         thumbnail_path = getattr(course, 'thumbnail_path', None)
-#         is_enrolled = course.id in enrolled_course_ids
-        
-#         result.append(CourseListResponse(
-#             id=course.id,
-#             title=course.title,
-#             description=course.description,
-#             level=course.level,
-#             status=course.status,
-#             publish_at=course.publish_at,
-#             order_index=course.order_index,
-#             thumbnail_url=course.thumbnail_url,
-#             thumbnail_path=thumbnail_path,
-#             created_by=course.created_by,
-#             created_at=course.created_at,
-#             updated_at=course.updated_at,
-#             units_count=course.units_count,
-#             published_units_count=course.published_units_count,
-#             is_enrolled=is_enrolled,
-#             user_subscription=subscription_name,
-#             enrolled_courses_count=enrolled_courses_count
-#         ))
-    
-#     return result
+
 
 @router.get("/courses/{course_id}", response_model=CourseDetailResponse)
 async def get_course(
@@ -1045,47 +863,34 @@ async def get_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    # Teachers can access their own courses regardless of availability
     is_course_owner = (
         current_user.role == UserRole.TEACHER and course.created_by == current_user.id
     )
     if not is_course_owner and not course.is_available:
         raise HTTPException(status_code=403, detail="Course is not available")
     
-    # Get instructor info
     instructor = db.query(User).filter(User.id == course.created_by).first()
     instructor_name = instructor.full_name if instructor else None
     
-    # Get user's subscription type
     subscription_name = get_user_subscription_name(db, current_user)
-    
-    # Check if user is enrolled using enrollment table
     is_enrolled = is_user_enrolled(db, current_user.id, course_id)
     enrolled_courses_count = db.query(CourseEnrollment).filter(
         CourseEnrollment.user_id == current_user.id
     ).count()
     
-    # Get learning outcomes from course settings or unit goals
     learning_outcomes = None
     if course.settings and isinstance(course.settings, dict) and 'learning_outcomes' in course.settings:
         learning_outcomes = course.settings.get('learning_outcomes')
     else:
-        # Fallback: get from first unit's goals if available
         first_unit = db.query(Unit).filter(
             Unit.course_id == course_id,
             Unit.status == UnitStatus.PUBLISHED
         ).order_by(Unit.order_index).first()
         if first_unit and first_unit.goals:
-            # Try to parse goals as a list or use as single string
             learning_outcomes = [first_unit.goals] if isinstance(first_unit.goals, str) else first_unit.goals
     
-    # Get published units for this course
     units = db.query(Unit).filter(
-        and_(
-            Unit.course_id == course_id,
-            # Unit.is_visible_to_students == True,
-            # Unit.status == UnitStatus.PUBLISHED
-        )
+        Unit.course_id == course_id
     ).order_by(Unit.order_index).all()
     
     units_data = []
@@ -1134,6 +939,7 @@ async def get_course(
         learning_outcomes=learning_outcomes
     )
 
+
 @router.get("/courses/{course_id}/units")
 async def get_course_units(
     course_id: int,
@@ -1149,17 +955,9 @@ async def get_course_units(
     if not course.is_available:
         raise HTTPException(status_code=403, detail="Course is not available")
     
-    # Check enrollment - authorization guard
     check_course_access(db, current_user, course_id)
     
-    # Get published units for this course
-    units = db.query(Unit).filter(
-        and_(
-            Unit.course_id == course_id,
-            # Unit.is_visible_to_students == True,
-            # Unit.status == UnitStatus.PUBLISHED
-        )
-    ).order_by(Unit.order_index).all()
+    units = db.query(Unit).filter(Unit.course_id == course_id).order_by(Unit.order_index).all()
     
     units_data = []
     for unit in units:
@@ -1173,11 +971,7 @@ async def get_course_units(
                 "content_count": unit.content_count
             })
     
-    return {
-        "course_id": course_id,
-        "course_title": course.title,
-        "units": units_data
-    }
+    return {"course_id": course_id, "course_title": course.title, "units": units_data}
 
 
 @router.post("/courses/{course_id}/ask", response_model=AnswerResponse)
@@ -1188,10 +982,7 @@ async def ask_course(
     db: Session = Depends(get_db),
     rag_service: RAGService = Depends(get_rag_service),
 ):
-    """
-    RAG-powered Q&A over course (or unit) content.
-    Requires course access (enrollment for free users / premium or teacher).
-    """
+    """RAG-powered Q&A over course (or unit) content."""
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -1203,19 +994,10 @@ async def ask_course(
     lesson_id: Optional[int] = None
     if body.scope == "unit":
         if body.unit_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail="unit_id is required when scope is 'unit'",
-            )
-        unit = db.query(Unit).filter(
-            Unit.id == body.unit_id,
-            Unit.course_id == course_id,
-        ).first()
+            raise HTTPException(status_code=400, detail="unit_id is required when scope is 'unit'")
+        unit = db.query(Unit).filter(Unit.id == body.unit_id, Unit.course_id == course_id).first()
         if not unit:
-            raise HTTPException(
-                status_code=404,
-                detail="Unit not found or does not belong to this course",
-            )
+            raise HTTPException(status_code=404, detail="Unit not found or does not belong to this course")
         lesson_id = body.unit_id
 
     return await rag_service.aanswer(
@@ -1240,575 +1022,420 @@ async def enroll_in_course(
     if not course.is_available:
         raise HTTPException(status_code=403, detail="Course is not available")
     
-    # Check if user can enroll
     can_enroll, reason = can_enroll_in_course(db, current_user, course_id)
     if not can_enroll:
         raise HTTPException(status_code=403, detail=reason)
     
-    # Create enrollment record
-    enrollment = CourseEnrollment(
-        user_id=current_user.id,
-        course_id=course_id
-    )
+    enrollment = CourseEnrollment(user_id=current_user.id, course_id=course_id)
     db.add(enrollment)
     
-    # Create notification for course enrollment
     from app.services.notification_service import notify_course_enrollment
     try:
         notify_course_enrollment(db, current_user.id, course_id, course.title)
     except Exception as e:
-        # Don't fail enrollment if notification fails
         print(f"Failed to create enrollment notification: {e}")
     
-    # Create progress record for first unit
-    first_unit = db.query(Unit).filter(
-        Unit.course_id == course_id,
-        # Unit.status == UnitStatus.PUBLISHED,
-        # Unit.is_visible_to_students == True
-    ).order_by(Unit.order_index).first()
-    
+    # Create an empty homework submission record for the first unit so the
+    # student has a draft to start from (replaces the old Progress seed row).
+    first_unit = db.query(Unit).filter(Unit.course_id == course_id).order_by(Unit.order_index).first()
     if first_unit:
-        # Check if progress already exists
-        existing_progress = db.query(Progress).filter(
-            Progress.student_id == current_user.id,
-            Progress.unit_id == first_unit.id
+        existing_hw = db.query(UnitHomeworkSubmission).filter(
+            UnitHomeworkSubmission.unit_id == first_unit.id,
+            UnitHomeworkSubmission.student_id == current_user.id,
         ).first()
-        
-        if not existing_progress:
-            progress = Progress(
-                student_id=current_user.id,
+        if not existing_hw:
+            hw = UnitHomeworkSubmission(
                 unit_id=first_unit.id,
-                completion_pct=0.0,
-                total_points=0.0,
-                earned_points=0.0
+                student_id=current_user.id,
+                status=HomeworkSubmissionStatus.NOT_STARTED,
+                answers={},
             )
-            db.add(progress)
-    
+            db.add(hw)
+
+    # ── LEGACY: old Progress seed row ─────────────────────────────────────────
+    # from app.models.progress import Progress
+    # existing_progress = db.query(Progress).filter(
+    #     Progress.student_id == current_user.id,
+    #     Progress.unit_id == first_unit.id
+    # ).first()
+    # if not existing_progress:
+    #     progress = Progress(
+    #         student_id=current_user.id,
+    #         unit_id=first_unit.id,
+    #         completion_pct=0.0,
+    #         total_points=0.0,
+    #         earned_points=0.0
+    #     )
+    #     db.add(progress)
+    # ──────────────────────────────────────────────────────────────────────────
+
     db.commit()
-    
     return {"message": "Successfully enrolled in course", "enrolled": True}
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /me/courses  — uses new Segment / HomeworkSubmission model for progress
+# ─────────────────────────────────────────────────────────────────────────────
 @router.get("/me/courses", response_model=List[EnrolledCourseResponse])
 async def get_my_courses(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all courses the student is enrolled in with progress"""
+    """Get all courses the student is enrolled in with progress."""
     student_id = current_user.id
-    
-    # Get enrolled courses from enrollment table
+
     enrolled_course_ids = get_user_enrolled_courses(db, student_id)
-    
     if not enrolled_course_ids:
         return []
-    
-    # Get course details
+
     courses = db.query(Course).filter(Course.id.in_(enrolled_course_ids)).all()
-    
+
+    # ── Batch: all units across enrolled courses ───────────────────────────
+    all_units = db.query(Unit).filter(Unit.course_id.in_(enrolled_course_ids)).all()
+    unit_ids = [u.id for u in all_units]
+    units_by_course: Dict[int, List[Unit]] = {}
+    for u in all_units:
+        units_by_course.setdefault(u.course_id, []).append(u)
+
+    # ── Batch: all segments for these units ───────────────────────────────
+    # Segment count per unit is used as a proxy for total_units content depth.
+    segments_by_unit: Dict[int, List[Segment]] = {}
+    if unit_ids:
+        segs = db.query(Segment).filter(Segment.unit_id.in_(unit_ids)).all()
+        for s in segs:
+            segments_by_unit.setdefault(s.unit_id, []).append(s)
+
+    # ── Batch: homework submissions (new progress model) ──────────────────
+    hw_by_unit: Dict[int, UnitHomeworkSubmission] = {}
+    if unit_ids:
+        hw_rows = db.query(UnitHomeworkSubmission).filter(
+            UnitHomeworkSubmission.student_id == student_id,
+            UnitHomeworkSubmission.unit_id.in_(unit_ids),
+        ).all()
+        for hw in hw_rows:
+            hw_by_unit[hw.unit_id] = hw
+
+    # ── LEGACY: old per-video / per-task / per-test completion loops ───────
+    # These were replaced by the HomeworkSubmission.status field above.
+    #
+    # # All published videos in these units
+    # videos_by_unit: Dict[int, List[Video]] = {}
+    # videos = db.query(Video).filter(Video.unit_id.in_(unit_ids), Video.status == VideoStatus.PUBLISHED).all()
+    # ...
+    # completed_video_ids: Set[int] = set()
+    # vp_rows = db.query(VideoProgress).filter(VideoProgress.user_id == student_id, ...).all()
+    # ...
+    # tasks_by_unit / submitted_task_ids / tests_by_unit / attempts_by_test
+    # ──────────────────────────────────────────────────────────────────────
+
     result = []
     for course in courses:
-        # Get all published units for this course
-        course_units = db.query(Unit).filter(
-            and_(
-                Unit.course_id == course.id,
-                # Unit.status == UnitStatus.PUBLISHED,
-                # Unit.is_visible_to_students == True
-            )
-        ).all()
-        
-        # Calculate progress
+        course_units  = units_by_course.get(course.id, [])
+        total_units   = len(course_units)
         completed_units = 0
-        total_units = len(course_units)
-        last_accessed = None
-        
+        last_accessed   = None
+
         for unit in course_units:
-            # Check if unit is completed using comprehensive logic (videos, tasks, tests)
-            unit_progress = db.query(Progress).filter(
-                Progress.student_id == student_id,
-                Progress.unit_id == unit.id
-            ).first()
-            
-            # Update last accessed from progress
-            if unit_progress and unit_progress.started_at:
-                if not last_accessed or unit_progress.started_at > last_accessed:
-                    last_accessed = unit_progress.started_at
-            
-            # Check if unit is completed by checking all components
-            unit_videos = db.query(Video).filter(
-                Video.unit_id == unit.id,
-                Video.status == VideoStatus.PUBLISHED
-            ).all()
-            
-            unit_tasks = db.query(Task).filter(
-                Task.unit_id == unit.id,
-                Task.status == TaskStatus.PUBLISHED
-            ).all()
-            
-            unit_tests = db.query(Test).filter(
-                Test.unit_id == unit.id,
-                Test.status == TestStatus.PUBLISHED
-            ).all()
-            
-            # Check if all videos are completed
-            all_videos_completed = True
-            if unit_videos:
-                for video in unit_videos:
-                    video_progress = db.query(VideoProgress).filter(
-                        VideoProgress.user_id == student_id,
-                        VideoProgress.video_id == video.id,
-                        VideoProgress.completed == True
-                    ).first()
-                    if not video_progress:
-                        all_videos_completed = False
-                        break
-                    # Update last accessed from video progress
-                    if video_progress.last_watched_at:
-                        if not last_accessed or video_progress.last_watched_at > last_accessed:
-                            last_accessed = video_progress.last_watched_at
-            else:
-                all_videos_completed = True  # No videos means this check passes
-            
-            # Check if all tasks are submitted
-            all_tasks_completed = True
-            if unit_tasks:
-                for task in unit_tasks:
-                    task_submission = db.query(TaskSubmission).filter(
-                        TaskSubmission.student_id == student_id,
-                        TaskSubmission.task_id == task.id,
-                        TaskSubmission.status == SubmissionStatus.SUBMITTED
-                    ).first()
-                    if not task_submission:
-                        all_tasks_completed = False
-                        break
-                    # Update last accessed from task submission
-                    if task_submission.submitted_at:
-                        if not last_accessed or task_submission.submitted_at > last_accessed:
-                            last_accessed = task_submission.submitted_at
-            else:
-                all_tasks_completed = True  # No tasks means this check passes
-            
-            # Check if all tests are passed
-            all_tests_passed = True
-            if unit_tests:
-                for test in unit_tests:
-                    attempts = db.query(TestAttempt).filter(
-                        TestAttempt.test_id == test.id,
-                        TestAttempt.student_id == student_id,
-                        TestAttempt.status == AttemptStatus.COMPLETED
-                    ).all()
-                    if not attempts:
-                        all_tests_passed = False
-                        break
-                    # Check if any attempt passed
-                    passed = any(
-                        att.score is not None and att.score >= test.passing_score
-                        for att in attempts
-                    )
-                    if not passed:
-                        all_tests_passed = False
-                        break
-                    # Update last accessed from test attempt
-                    for attempt in attempts:
-                        if attempt.submitted_at:
-                            if not last_accessed or attempt.submitted_at > last_accessed:
-                                last_accessed = attempt.submitted_at
-            else:
-                all_tests_passed = True  # No tests means this check passes
-            
-            # Also check progress table for completion
-            is_progress_completed = unit_progress and unit_progress.is_completed
-            
-            # Unit is completed if all components are completed OR progress table says it's completed
-            if (all_videos_completed and all_tasks_completed and all_tests_passed and (unit_videos or unit_tasks or unit_tests)) or is_progress_completed:
+            hw = hw_by_unit.get(unit.id)
+
+            # Track last_accessed from homework submission
+            if hw and hw.updated_at:
+                if not last_accessed or hw.updated_at > last_accessed:
+                    last_accessed = hw.updated_at
+
+            # A unit is complete when the teacher marks the homework done
+            # OR when the student has submitted all segments (status = completed).
+            if hw and hw.status in (
+                HomeworkSubmissionStatus.COMPLETED,
+                HomeworkSubmissionStatus.AWAITING_STUDENT,  # teacher reviewed → student acts
+            ):
                 completed_units += 1
-        
+
         progress_percent = (completed_units / total_units * 100) if total_units > 0 else 0.0
-        
-        thumbnail_path = getattr(course, 'thumbnail_path', None)
-        
+
         result.append(EnrolledCourseResponse(
             id=course.id,
             title=course.title,
             description=course.description,
             level=course.level,
             thumbnail_url=course.thumbnail_url,
-            thumbnail_path=thumbnail_path,
+            thumbnail_path=getattr(course, 'thumbnail_path', None),
             units_count=course.units_count,
             published_units_count=total_units,
             progress_percent=round(progress_percent, 1),
             completed_units=completed_units,
             last_accessed_at=last_accessed
         ))
-    
-    # Sort by last accessed (most recent first), then by title
+
     min_datetime = datetime(1970, 1, 1, tzinfo=timezone.utc)
-    result.sort(key=lambda x: (x.last_accessed_at if x.last_accessed_at else min_datetime, x.title), reverse=True)
-    
+    result.sort(
+        key=lambda x: (x.last_accessed_at if x.last_accessed_at else min_datetime, x.title),
+        reverse=True
+    )
     return result
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /admin/dashboard/statistics — uses new Segment model; legacy Task/Test/Video
+# queries replaced with segment/enrollment counts
+# ─────────────────────────────────────────────────────────────────────────────
 @router.get("/admin/dashboard/statistics", response_model=DashboardStatistics)
 async def get_dashboard_statistics(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get dashboard statistics for admin panel"""
+    """Get dashboard statistics for admin panel (new segment-based architecture)."""
     
-    # Get current month start date (timezone-aware)
     now = datetime.now(timezone.utc)
     month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-    
-    # Get teacher's course IDs for filtering
+
     teacher_course_ids = [c.id for c in db.query(Course.id).filter(
         Course.created_by == current_user.id
     ).all()]
-    
-    # Count courses - only teacher's courses
+
+    # ── Scalar counts ──────────────────────────────────────────────────────
     courses_count = db.query(func.count(Course.id)).filter(
         Course.created_by == current_user.id
     ).scalar() or 0
-    
-    # Count courses created this month - only teacher's courses
+
     courses_this_month = db.query(func.count(Course.id)).filter(
-        and_(
-            Course.created_by == current_user.id,
-            Course.created_at >= month_start
-        )
+        Course.created_by == current_user.id,
+        Course.created_at >= month_start,
     ).scalar() or 0
-    
-    # Count units - only in teacher's courses
+
     if teacher_course_ids:
         units_count = db.query(func.count(Unit.id)).filter(
             Unit.course_id.in_(teacher_course_ids)
         ).scalar() or 0
+
+        units_this_month = db.query(func.count(Unit.id)).filter(
+            Unit.course_id.in_(teacher_course_ids),
+            Unit.created_at >= month_start,
+        ).scalar() or 0
+
+        # Segments replace the old Videos + Tasks + Tests counts
+        unit_ids_for_stats = [u.id for u in db.query(Unit.id).filter(
+            Unit.course_id.in_(teacher_course_ids)
+        ).all()]
+
+        segments_count = db.query(func.count(Segment.id)).filter(
+            Segment.unit_id.in_(unit_ids_for_stats)
+        ).scalar() or 0 if unit_ids_for_stats else 0
+
+        segments_this_month = db.query(func.count(Segment.id)).filter(
+            Segment.unit_id.in_(unit_ids_for_stats),
+            Segment.created_at >= month_start,
+        ).scalar() or 0 if unit_ids_for_stats else 0
+
+        # ── LEGACY: old Video / Test counts ───────────────────────────────
+        # videos_count = db.query(func.count(Video.id)).join(Unit).filter(
+        #     Unit.course_id.in_(teacher_course_ids)
+        # ).scalar() or 0
+        # videos_this_month = ...
+        # tests_count = db.query(func.count(Test.id)).join(Unit).filter(...).scalar() or 0
+        # tests_this_month = ...
+        # ──────────────────────────────────────────────────────────────────
+
+        # Map to legacy schema fields so the existing DashboardStatistics
+        # response schema keeps working without a breaking frontend change.
+        videos_count      = segments_count       # segment count reported as "videos"
+        videos_this_month = segments_this_month
+        tests_count       = 0
+        tests_this_month  = 0
     else:
         units_count = 0
-    
-    # Count units created this month - only in teacher's courses
-    if teacher_course_ids:
-        units_this_month = db.query(func.count(Unit.id)).filter(
-            and_(
-                Unit.course_id.in_(teacher_course_ids),
-                Unit.created_at >= month_start
-            )
-        ).scalar() or 0
-        
-        # Count videos - only in teacher's courses
-        videos_count = db.query(func.count(Video.id)).join(Unit).filter(
-            Unit.course_id.in_(teacher_course_ids)
-        ).scalar() or 0
-        
-        # Count videos created this month - only in teacher's courses
-        videos_this_month = db.query(func.count(Video.id)).join(Unit).filter(
-            and_(
-                Unit.course_id.in_(teacher_course_ids),
-                Video.created_at >= month_start
-            )
-        ).scalar() or 0
-        
-        # Count tests - only in teacher's courses
-        tests_count = db.query(func.count(Test.id)).join(Unit).filter(
-            Unit.course_id.in_(teacher_course_ids)
-        ).scalar() or 0
-        
-        # Count tests created this month - only in teacher's courses
-        tests_this_month = db.query(func.count(Test.id)).join(Unit).filter(
-            and_(
-                Unit.course_id.in_(teacher_course_ids),
-                Test.created_at >= month_start
-            )
-        ).scalar() or 0
-    else:
         units_this_month = 0
         videos_count = 0
         videos_this_month = 0
         tests_count = 0
         tests_this_month = 0
-    
-    # Count students - only students enrolled in teacher's courses
+
+    # ── Students enrolled in teacher's courses ─────────────────────────────
     if teacher_course_ids:
         enrolled_student_ids = [e.user_id for e in db.query(CourseEnrollment.user_id).filter(
             CourseEnrollment.course_id.in_(teacher_course_ids)
         ).distinct().all()]
-        
+
         students_count = db.query(func.count(User.id)).filter(
-            and_(
-                User.role == UserRole.STUDENT,
-                User.id.in_(enrolled_student_ids) if enrolled_student_ids else []
-            )
+            User.role == UserRole.STUDENT,
+            User.id.in_(enrolled_student_ids) if enrolled_student_ids else []
         ).scalar() or 0
-        
-        # Count students created this month - only enrolled in teacher's courses
+
         students_this_month = db.query(func.count(User.id)).filter(
-            and_(
-                User.role == UserRole.STUDENT,
-                User.id.in_(enrolled_student_ids) if enrolled_student_ids else [],
-                User.created_at >= month_start
-            )
+            User.role == UserRole.STUDENT,
+            User.id.in_(enrolled_student_ids) if enrolled_student_ids else [],
+            User.created_at >= month_start,
         ).scalar() or 0
     else:
         students_count = 0
         students_this_month = 0
         enrolled_student_ids = []
-    
-    # COURSE-LEVEL AGGREGATED PROGRESS (Overview, not details)
-    # Get all courses with their units - only teacher's courses
-    all_courses = db.query(Course).filter(
-        and_(
-            Course.created_by == current_user.id,
-            Course.status == 'published'
-        )
+
+    # ── Course-level progress (new: uses HomeworkSubmission) ───────────────
+    course_progress    = []
+    at_risk_students   = []
+    drop_off_points    = []
+    students_progress  = []
+
+    pub_courses = db.query(Course).filter(
+        Course.created_by == current_user.id,
+        Course.status == 'published',
     ).all()
-    
-    course_progress = []
-    at_risk_students = []
-    drop_off_points = []
-    
-    for course in all_courses:
-        # Get units in this course
-        course_units = db.query(Unit).filter(
-            Unit.course_id == course.id,
-            Unit.status == 'published'
-        ).order_by(Unit.order_index).all()
-        
-        # Get tasks in this course
-        course_tasks = db.query(Task).join(Unit).filter(
-            Unit.course_id == course.id,
-            Task.status == 'published'
-        ).all()
-        
-        # Get tests in this course
-        course_tests = db.query(Test).join(Unit).filter(
-            Unit.course_id == course.id,
-            Test.status == 'published'
-        ).all()
-        
-        # Count students enrolled (have progress or submissions)
-        enrolled_students = set()
-        
-        # From task submissions
-        task_submissions = db.query(TaskSubmission.student_id).join(Task).join(Unit).filter(
-            Unit.course_id == course.id,
-            TaskSubmission.status == SubmissionStatus.GRADED
-        ).distinct().all()
-        for sub in task_submissions:
-            enrolled_students.add(sub.student_id)
-        
-        # From test attempts
-        test_attempts = db.query(TestAttempt.student_id).join(Test).join(Unit).filter(
-            Unit.course_id == course.id,
-            TestAttempt.status == AttemptStatus.COMPLETED
-        ).distinct().all()
-        for att in test_attempts:
-            enrolled_students.add(att.student_id)
-        
-        total_enrolled = len(enrolled_students)
-        
-        # Calculate course completion (students who completed all tasks)
-        total_tasks = len(course_tasks)
-        completed_by_student = {}
-        
-        for task in course_tasks:
-            graded_submissions = db.query(TaskSubmission).filter(
-                TaskSubmission.task_id == task.id,
-                TaskSubmission.status == SubmissionStatus.GRADED
+
+    if pub_courses:
+        pub_course_ids   = [c.id for c in pub_courses]
+        pub_units        = db.query(Unit).filter(Unit.course_id.in_(pub_course_ids)).all()
+        pub_unit_ids     = [u.id for u in pub_units]
+        unit_course_map  = {u.id: u.course_id for u in pub_units}
+        units_by_cid: Dict[int, List[Unit]] = {}
+        for u in pub_units:
+            units_by_cid.setdefault(u.course_id, []).append(u)
+
+        # Batch: all homework submissions for these units
+        hw_rows: List[UnitHomeworkSubmission] = []
+        if pub_unit_ids:
+            hw_rows = db.query(UnitHomeworkSubmission).filter(
+                UnitHomeworkSubmission.unit_id.in_(pub_unit_ids)
             ).all()
-            for sub in graded_submissions:
-                if sub.student_id not in completed_by_student:
-                    completed_by_student[sub.student_id] = 0
-                completed_by_student[sub.student_id] += 1
-        
-        # Count fully completed students
-        fully_completed = sum(1 for student_id, count in completed_by_student.items() 
-                            if count == total_tasks and total_tasks > 0)
-        
-        completion_rate = (fully_completed / total_enrolled * 100) if total_enrolled > 0 else 0.0
-        
-        # Calculate average test score per course
-        test_scores = []
-        for test in course_tests:
-            completed_attempts = db.query(TestAttempt).filter(
-                TestAttempt.test_id == test.id,
-                TestAttempt.status == AttemptStatus.COMPLETED,
-                TestAttempt.score.isnot(None)
-            ).all()
-            for attempt in completed_attempts:
-                test_scores.append(attempt.score)
-        
-        avg_test_score = (sum(test_scores) / len(test_scores)) if test_scores else 0.0
-        
-        # Find drop-off points (units with low completion)
-        unit_drop_offs = []
-        for unit in course_units:
-            unit_tasks = [t for t in course_tasks if t.unit_id == unit.id]
-            if not unit_tasks:
-                continue
-            
-            unit_started = set()
-            unit_completed = set()
-            
-            for task in unit_tasks:
-                submissions = db.query(TaskSubmission).filter(
-                    TaskSubmission.task_id == task.id
-                ).all()
-                for sub in submissions:
-                    unit_started.add(sub.student_id)
-                    if sub.status == SubmissionStatus.GRADED:
-                        unit_completed.add(sub.student_id)
-            
-            if len(unit_started) > 0:
-                completion_pct = (len(unit_completed) / len(unit_started)) * 100
-                if completion_pct < 50:  # Drop-off threshold
-                    unit_drop_offs.append({
-                        "unit_id": unit.id,
-                        "unit_title": unit.title,
-                        "unit_order": unit.order_index,
-                        "completion_rate": round(completion_pct, 1),
-                        "started": len(unit_started),
-                        "completed": len(unit_completed)
-                    })
-        
-        # Sort drop-offs by order
-        unit_drop_offs.sort(key=lambda x: x["unit_order"])
-        
-        course_progress.append({
-            "course_id": course.id,
-            "course_title": course.title,
-            "completion_rate": round(completion_rate, 1),
-            "avg_test_score": round(avg_test_score, 1),
-            "total_enrolled": total_enrolled,
-            "fully_completed": fully_completed,
-            "total_tasks": total_tasks,
-            "total_tests": len(course_tests),
-            "total_units": len(course_units)
-        })
-        
-        # Add drop-off points for this course
-        for drop_off in unit_drop_offs:
-            drop_off_points.append({
-                "course_id": course.id,
-                "course_title": course.title,
-                **drop_off
-            })
-    
-    # STUDENT-LEVEL AGGREGATED PROGRESS (Overview - who is doing well / who is stuck)
-    # Only students enrolled in teacher's courses
-    if enrolled_student_ids:
-        all_students = db.query(User.id, User.first_name, User.last_name).filter(
-            and_(
-                User.role == UserRole.STUDENT,
-                User.id.in_(enrolled_student_ids)
+
+        # Index: course_id → {student_id → list[HomeworkSubmission]}
+        hw_by_course_student: Dict[int, Dict[int, List[UnitHomeworkSubmission]]] = {}
+        for hw in hw_rows:
+            cid = unit_course_map.get(hw.unit_id)
+            if cid:
+                hw_by_course_student.setdefault(cid, {}).setdefault(hw.student_id, []).append(hw)
+
+        # ── LEGACY: old TaskSubmission / TestAttempt aggregation ───────────
+        # all_pub_tasks = db.query(Task).join(Unit).filter(...).all()
+        # graded_submissions = db.query(TaskSubmission).filter(...).all()
+        # completed_attempts = db.query(TestAttempt).filter(...).all()
+        # ... (all replaced by HomeworkSubmission below)
+        # ──────────────────────────────────────────────────────────────────
+
+        for course in pub_courses:
+            cid          = course.id
+            course_units = units_by_cid.get(cid, [])
+            total_units  = len(course_units)
+            student_map  = hw_by_course_student.get(cid, {})  # student_id → hw list
+
+            enrolled_students = set(student_map.keys())
+            total_enrolled    = len(enrolled_students)
+
+            # "Completion" = student has at least one COMPLETED unit homework
+            fully_completed = sum(
+                1 for sid, hws in student_map.items()
+                if any(hw.status == HomeworkSubmissionStatus.COMPLETED for hw in hws)
             )
-        ).all()
-    else:
-        all_students = []
-    
-    students_progress = []
-    
-    for student in all_students:
-        student_id = student.id
-        
-        # Get student's courses (from task submissions and test attempts)
-        student_courses = set()
-        
-        # From task submissions
-        student_task_submissions = db.query(TaskSubmission.task_id).join(Task).join(Unit).filter(
-            TaskSubmission.student_id == student_id,
-            TaskSubmission.status == SubmissionStatus.GRADED
-        ).all()
-        for sub in student_task_submissions:
-            # Get course for this task
-            task = db.query(Task).join(Unit).filter(Task.id == sub.task_id).first()
-            if task and task.unit and task.unit.course_id:
-                student_courses.add(task.unit.course_id)
-        
-        # From test attempts
-        student_test_ids = db.query(TestAttempt.test_id).join(Test).join(Unit).filter(
-            TestAttempt.student_id == student_id,
-            TestAttempt.status == AttemptStatus.COMPLETED
-        ).all()
-        for att in student_test_ids:
-            test = db.query(Test).join(Unit).filter(Test.id == att.test_id).first()
-            if test and test.unit and test.unit.course_id:
-                student_courses.add(test.unit.course_id)
-        
-        courses_enrolled = len(student_courses)
-        
-        # Get student's overall task completion
-        student_completed_tasks = db.query(TaskSubmission).filter(
-            TaskSubmission.student_id == student_id,
-            TaskSubmission.status == SubmissionStatus.GRADED
-        ).count()
-        
-        # Get total tasks in enrolled courses
-        total_tasks_in_courses = 0
-        if student_courses:
-            total_tasks_in_courses = db.query(Task).join(Unit).filter(
-                Unit.course_id.in_(list(student_courses)),
-                Task.status == 'published'
-            ).count()
-        
-        # Calculate overall progress %
-        overall_progress = (student_completed_tasks / total_tasks_in_courses * 100) if total_tasks_in_courses > 0 else 0.0
-        
-        # Get average test score
-        student_test_attempts = db.query(TestAttempt).filter(
-            TestAttempt.student_id == student_id,
-            TestAttempt.status == AttemptStatus.COMPLETED,
-            TestAttempt.score.isnot(None)
-        ).all()
-        
-        avg_test_score = (sum(a.score for a in student_test_attempts) / len(student_test_attempts)) if student_test_attempts else 0.0
-        
-        # Get course details (for expandable view)
-        course_details = []
-        for course_id in student_courses:
-            course = db.query(Course).filter(Course.id == course_id).first()
-            if course:
-                # Count tasks in this course
-                course_tasks = db.query(Task).join(Unit).filter(
-                    Unit.course_id == course_id,
-                    Task.status == 'published'
-                ).count()
-                
-                # Count completed tasks in this course
-                completed_in_course = db.query(TaskSubmission).join(Task).join(Unit).filter(
-                    TaskSubmission.student_id == student_id,
-                    TaskSubmission.status == SubmissionStatus.GRADED,
-                    Unit.course_id == course_id
-                ).count()
-                
-                course_progress_pct = (completed_in_course / course_tasks * 100) if course_tasks > 0 else 0.0
-                
-                course_details.append({
-                    "course_id": course_id,
-                    "course_title": course.title,
-                    "completed_tasks": completed_in_course,
-                    "total_tasks": course_tasks,
-                    "progress": round(course_progress_pct, 1)
-                })
-        
-        students_progress.append({
-            "student_id": student_id,
-            "student_name": f"{student.first_name} {student.last_name}",
-            "courses_enrolled": courses_enrolled,
-            "overall_progress": round(overall_progress, 1),
-            "avg_score": round(avg_test_score, 1),
-            "course_details": course_details  # For expandable view
-        })
-        
-        # At risk if completion < 30% or avg score < 60%
-        if overall_progress < 30 or (avg_test_score > 0 and avg_test_score < 60):
-            at_risk_students.append({
-                "student_id": student_id,
-                "student_name": f"{student.first_name} {student.last_name}",
-                "completion_rate": round(overall_progress, 1),
-                "avg_test_score": round(avg_test_score, 1),
-                "risk_reason": "Низкая завершенность" if overall_progress < 30 else "Низкий средний балл"
+            completion_rate = (fully_completed / total_enrolled * 100) if total_enrolled > 0 else 0.0
+
+            # Drop-off: units where most students never started homework
+            unit_drop_offs = []
+            for unit in course_units:
+                unit_hw = [hw for hw in hw_rows if hw.unit_id == unit.id]
+                started   = {hw.student_id for hw in unit_hw
+                             if hw.status != HomeworkSubmissionStatus.NOT_STARTED}
+                completed = {hw.student_id for hw in unit_hw
+                             if hw.status == HomeworkSubmissionStatus.COMPLETED}
+                if started:
+                    pct = len(completed) / len(started) * 100
+                    if pct < 50:
+                        unit_drop_offs.append({
+                            "unit_id":         unit.id,
+                            "unit_title":      unit.title,
+                            "unit_order":      unit.order_index,
+                            "completion_rate": round(pct, 1),
+                            "started":         len(started),
+                            "completed":       len(completed),
+                        })
+            unit_drop_offs.sort(key=lambda x: x["unit_order"])
+
+            course_progress.append({
+                "course_id":       cid,
+                "course_title":    course.title,
+                "completion_rate": round(completion_rate, 1),
+                "avg_test_score":  0.0,   # no test scores in new model yet
+                "total_enrolled":  total_enrolled,
+                "fully_completed": fully_completed,
+                "total_tasks":     0,
+                "total_tests":     0,
+                "total_units":     total_units,
             })
-    
-    # Get recent activity (simplified - can be enhanced later)
-    recent_activity = []
-    
+            for dp in unit_drop_offs:
+                drop_off_points.append({"course_id": cid, "course_title": course.title, **dp})
+
+        # ── Student-level progress ─────────────────────────────────────────
+        if enrolled_student_ids:
+            all_students = db.query(User.id, User.first_name, User.last_name).filter(
+                User.role == UserRole.STUDENT,
+                User.id.in_(enrolled_student_ids),
+            ).all()
+        else:
+            all_students = []
+
+        # Batch: all hw for enrolled students across teacher's courses
+        all_student_hw: List[UnitHomeworkSubmission] = []
+        if pub_unit_ids and enrolled_student_ids:
+            all_student_hw = db.query(UnitHomeworkSubmission).filter(
+                UnitHomeworkSubmission.unit_id.in_(pub_unit_ids),
+                UnitHomeworkSubmission.student_id.in_(enrolled_student_ids),
+            ).all()
+
+        hw_by_student: Dict[int, List[UnitHomeworkSubmission]] = {}
+        for hw in all_student_hw:
+            hw_by_student.setdefault(hw.student_id, []).append(hw)
+
+        units_count_by_course = {c.id: len(units_by_cid.get(c.id, [])) for c in pub_courses}
+
+        for student in all_students:
+            sid          = student.id
+            student_hw   = hw_by_student.get(sid, [])
+
+            student_course_ids: Set[int] = {
+                unit_course_map[hw.unit_id]
+                for hw in student_hw
+                if hw.unit_id in unit_course_map
+            }
+            courses_enrolled   = len(student_course_ids)
+            completed_count    = sum(1 for hw in student_hw if hw.status == HomeworkSubmissionStatus.COMPLETED)
+            total_units_in_courses = sum(units_count_by_course.get(cid, 0) for cid in student_course_ids)
+            overall_progress   = (completed_count / total_units_in_courses * 100) if total_units_in_courses > 0 else 0.0
+
+            course_details = []
+            for cid in student_course_ids:
+                course_obj = next((c for c in pub_courses if c.id == cid), None)
+                if course_obj:
+                    total_u = units_count_by_course.get(cid, 0)
+                    done_u  = sum(
+                        1 for hw in student_hw
+                        if unit_course_map.get(hw.unit_id) == cid
+                        and hw.status == HomeworkSubmissionStatus.COMPLETED
+                    )
+                    course_details.append({
+                        "course_id":       cid,
+                        "course_title":    course_obj.title,
+                        "completed_tasks": done_u,
+                        "total_tasks":     total_u,
+                        "progress":        round((done_u / total_u * 100) if total_u else 0, 1),
+                    })
+
+            students_progress.append({
+                "student_id":       sid,
+                "student_name":     f"{student.first_name} {student.last_name}",
+                "courses_enrolled": courses_enrolled,
+                "overall_progress": round(overall_progress, 1),
+                "avg_score":        0.0,
+                "course_details":   course_details,
+            })
+
+            if overall_progress < 30:
+                at_risk_students.append({
+                    "student_id":    sid,
+                    "student_name":  f"{student.first_name} {student.last_name}",
+                    "completion_rate": round(overall_progress, 1),
+                    "avg_test_score":  0.0,
+                    "risk_reason":   "Низкая завершенность",
+                })
+
     return DashboardStatistics(
         courses_count=courses_count,
         units_count=units_count,
@@ -1822,534 +1449,224 @@ async def get_dashboard_statistics(
         students_this_month=students_this_month,
         course_progress=course_progress,
         students_progress=students_progress,
-        at_risk_students=at_risk_students[:10],  # Limit to top 10
-        drop_off_points=drop_off_points[:10],  # Limit to top 10
-        recent_activity=recent_activity
+        at_risk_students=at_risk_students[:10],
+        drop_off_points=drop_off_points[:10],
+        recent_activity=[],
     )
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /student/dashboard — new segment-based architecture
+# ─────────────────────────────────────────────────────────────────────────────
 @router.get("/student/dashboard", response_model=StudentDashboardStats)
 async def get_student_dashboard(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get dashboard statistics for the current student"""
+    """Get dashboard statistics for the current student (new segment architecture)."""
     student_id = current_user.id
-    
-    # Get enrolled courses from enrollment table (actual enrollments)
+
     enrolled_course_ids = get_user_enrolled_courses(db, student_id)
-    my_courses_count = len(enrolled_course_ids)
-    
-    # Also get courses the student has interacted with (for recommended courses logic)
-    student_courses = set(enrolled_course_ids)
-    
-    # From task submissions
-    task_submissions = db.query(TaskSubmission).filter(
-        TaskSubmission.student_id == student_id
-    ).all()
-    for submission in task_submissions:
-        task = db.query(Task).filter(Task.id == submission.task_id).first()
-        if task and task.unit and task.unit.course_id:
-            student_courses.add(task.unit.course_id)
-    
-    # From test attempts
-    test_attempts = db.query(TestAttempt).filter(
-        TestAttempt.student_id == student_id
-    ).all()
-    for attempt in test_attempts:
-        test = db.query(Test).filter(Test.id == attempt.test_id).first()
-        if test and test.unit and test.unit.course_id:
-            student_courses.add(test.unit.course_id)
-    
-    # From progress
-    progress_records = db.query(Progress).filter(
-        Progress.student_id == student_id
-    ).all()
-    for progress in progress_records:
-        unit = db.query(Unit).filter(Unit.id == progress.unit_id).first()
-        if unit and unit.course_id:
-            student_courses.add(unit.course_id)
-    
-    # Count completed units (units with completed progress, all videos watched, all tests passed, or all tasks completed)
-    completed_units = 0
-    student_units = set()
-    
-    # Get units from progress
-    for progress in progress_records:
-        if progress.is_completed:
-            student_units.add(progress.unit_id)
-            completed_units += 1
-    
-    # Check units for completion based on videos, tasks, and tests
-    for course_id in enrolled_course_ids:  # Only check enrolled courses
-        course = db.query(Course).filter(Course.id == course_id).first()
-        if not course:
-            continue
-        units = db.query(Unit).filter(
-            Unit.course_id == course_id,
-            Unit.status == UnitStatus.PUBLISHED
+    my_courses_count    = len(enrolled_course_ids)
+
+    # ── Batch: all units the student can access ────────────────────────────
+    all_units: List[Unit] = []
+    unit_course_map: Dict[int, int] = {}
+    units_by_course: Dict[int, List[Unit]] = {}
+    if enrolled_course_ids:
+        all_units = db.query(Unit).filter(
+            Unit.course_id.in_(enrolled_course_ids),
+            Unit.status == UnitStatus.PUBLISHED,
         ).all()
-        for unit in units:
-            if unit.id in student_units:
-                continue
-            
-            # Check if unit is completed by checking all components
-            unit_videos = db.query(Video).filter(
-                Video.unit_id == unit.id,
-                Video.status == VideoStatus.PUBLISHED
-            ).all()
-            
-            unit_tasks = db.query(Task).filter(
-                Task.unit_id == unit.id,
-                Task.status == TaskStatus.PUBLISHED
-            ).all()
-            
-            unit_tests = db.query(Test).filter(
-                Test.unit_id == unit.id,
-                Test.status == TestStatus.PUBLISHED
-            ).all()
-            
-            # Check if all videos are completed
-            all_videos_completed = True
-            if unit_videos:
-                for video in unit_videos:
-                    video_progress = db.query(VideoProgress).filter(
-                        VideoProgress.user_id == student_id,
-                        VideoProgress.video_id == video.id,
-                        VideoProgress.completed == True
-                    ).first()
-                    if not video_progress:
-                        all_videos_completed = False
-                        break
-            else:
-                all_videos_completed = True  # No videos means this check passes
-            
-            # Check if all tasks are submitted
-            all_tasks_completed = True
-            if unit_tasks:
-                for task in unit_tasks:
-                    task_submission = db.query(TaskSubmission).filter(
-                        TaskSubmission.student_id == student_id,
-                        TaskSubmission.task_id == task.id,
-                        TaskSubmission.status == SubmissionStatus.SUBMITTED
-                    ).first()
-                    if not task_submission:
-                        all_tasks_completed = False
-                        break
-            else:
-                all_tasks_completed = True  # No tasks means this check passes
-            
-            # Check if all tests are passed
-            all_tests_passed = True
-            if unit_tests:
-                for test in unit_tests:
-                    attempts = db.query(TestAttempt).filter(
-                        TestAttempt.test_id == test.id,
-                        TestAttempt.student_id == student_id,
-                        TestAttempt.status == AttemptStatus.COMPLETED
-                    ).all()
-                    if not attempts:
-                        all_tests_passed = False
-                        break
-                    # Check if any attempt passed
-                    passed = any(
-                        att.score is not None and att.score >= test.passing_score
-                        for att in attempts
-                    )
-                    if not passed:
-                        all_tests_passed = False
-                        break
-            else:
-                all_tests_passed = True  # No tests means this check passes
-            
-            # Unit is completed if all components are completed
-            if all_videos_completed and all_tasks_completed and all_tests_passed and (unit_videos or unit_tasks or unit_tests):
-                completed_units += 1
-                student_units.add(unit.id)
-    
-    # Calculate average score from test attempts
-    all_test_attempts = db.query(TestAttempt).filter(
-        TestAttempt.student_id == student_id,
-        TestAttempt.status == AttemptStatus.COMPLETED,
-        TestAttempt.score.isnot(None)
-    ).all()
-    
+        for u in all_units:
+            unit_course_map[u.id] = u.course_id
+            units_by_course.setdefault(u.course_id, []).append(u)
+
+    enrolled_unit_ids = [u.id for u in all_units]
+
+    # ── Batch: homework submissions (new progress source) ──────────────────
+    hw_rows: List[UnitHomeworkSubmission] = []
+    hw_by_unit: Dict[int, UnitHomeworkSubmission] = {}
+    if enrolled_unit_ids:
+        hw_rows = db.query(UnitHomeworkSubmission).filter(
+            UnitHomeworkSubmission.student_id == student_id,
+            UnitHomeworkSubmission.unit_id.in_(enrolled_unit_ids),
+        ).all()
+        for hw in hw_rows:
+            hw_by_unit[hw.unit_id] = hw
+
+    # ── LEGACY: old Progress / VideoProgress / TaskSubmission / TestAttempt ─
+    # All progress tracking has been moved to UnitHomeworkSubmission.
+    #
+    # progress_records = db.query(Progress).filter(Progress.student_id == student_id).all()
+    # all_task_subs = db.query(TaskSubmission).filter(TaskSubmission.student_id == student_id).all()
+    # all_test_attempts_raw = db.query(TestAttempt).filter(TestAttempt.student_id == student_id).all()
+    # all_vid_progress = db.query(VideoProgress).filter(VideoProgress.user_id == student_id).all()
+    # ... (all N+1 loops that followed)
+    # ──────────────────────────────────────────────────────────────────────
+
+    # ── Completed units ────────────────────────────────────────────────────
+    completed_units_count = sum(
+        1 for hw in hw_rows
+        if hw.status in (
+            HomeworkSubmissionStatus.COMPLETED,
+            HomeworkSubmissionStatus.AWAITING_STUDENT,
+        )
+    )
+
+    # ── Average score — not yet available in new model ─────────────────────
+    # Will be added once graded exercise results are stored on HomeworkSubmission.
     average_score = 0.0
-    if all_test_attempts:
-        total_score = sum(att.score for att in all_test_attempts if att.score is not None)
-        average_score = round(total_score / len(all_test_attempts), 1)
-    
-    # Calculate time spent (from progress, test attempts, and video watch time)
+
+    # ── Time spent — derive from hw updated_at timestamps as a rough proxy ─
     time_spent_hours = 0.0
-    
-    # From progress
-    for progress in progress_records:
-        if progress.completed_at:
-            time_spent_hours += progress.duration_hours
-    
-    # From test attempts (estimate 30 minutes per test attempt)
-    time_spent_hours += len(all_test_attempts) * 0.5
-    
-    # From video watch time (convert seconds to hours)
-    video_progress_records = db.query(VideoProgress).filter(
-        VideoProgress.user_id == student_id
-    ).all()
-    total_video_watch_time_seconds = sum(vp.watch_time_sec for vp in video_progress_records if vp.watch_time_sec)
-    time_spent_hours += total_video_watch_time_seconds / 3600.0
-    
-    # Recent activity (last 10 activities)
+    for hw in hw_rows:
+        if hw.submitted_for_review_at and hw.updated_at:
+            delta = hw.updated_at - hw.submitted_for_review_at
+            time_spent_hours += max(delta.total_seconds() / 3600.0, 0)
+
+    # ── Recent activity from homework submissions ──────────────────────────
     recent_activity = []
-    
-    # From video watching (most recent video progress)
-    recent_video_progress = db.query(VideoProgress).filter(
-        VideoProgress.user_id == student_id
-    ).order_by(desc(VideoProgress.last_watched_at)).limit(5).all()
-    
-    for vp in recent_video_progress:
-        video = db.query(Video).filter(Video.id == vp.video_id).first()
-        if video:
-            unit = db.query(Unit).filter(Unit.id == video.unit_id).first() if video.unit_id else None
-            if unit:
-                status_text = "завершено" if vp.completed else f"просмотрено {int(vp.watched_percentage)}%"
-                recent_activity.append({
-                    "type": "video_watched",
-                    "title": video.title,
-                    "description": f"Просмотрено видео «{video.title}»",
-                    "unit_title": unit.title if unit else "Unknown Unit",
-                    "date": vp.last_watched_at if vp.last_watched_at else vp.first_watched_at,
-                    "status": status_text
-                })
-    
-    # From task submissions
-    recent_submissions = db.query(TaskSubmission).filter(
-        TaskSubmission.student_id == student_id
-    ).order_by(desc(TaskSubmission.submitted_at)).limit(5).all()
-    
-    for submission in recent_submissions:
-        task = db.query(Task).filter(Task.id == submission.task_id).first()
-        if task:
-            unit = db.query(Unit).filter(Unit.id == task.unit_id).first()
-            activity_type = "task_submitted" if submission.is_submitted else "task_draft"
-            status_text = "оценивание ожидается" if submission.is_submitted and not submission.is_graded else "оценено"
-            if submission.is_graded and submission.score is not None:
-                status_text = f"оценено: {submission.score}%"
-            
+    sorted_hw = sorted(
+        hw_rows,
+        key=lambda h: h.updated_at or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )[:10]
+
+    if sorted_hw:
+        unit_ids_for_activity = [hw.unit_id for hw in sorted_hw]
+        units_map = {u.id: u for u in db.query(Unit).filter(Unit.id.in_(unit_ids_for_activity)).all()}
+        course_ids_for_activity = list({u.course_id for u in units_map.values() if u.course_id})
+        courses_map = {c.id: c for c in db.query(Course).filter(Course.id.in_(course_ids_for_activity)).all()}
+
+        status_label = {
+            HomeworkSubmissionStatus.NOT_STARTED:        "не начато",
+            HomeworkSubmissionStatus.IN_PROGRESS:        "в процессе",
+            HomeworkSubmissionStatus.SUBMITTED_FOR_REVIEW: "на проверке",
+            HomeworkSubmissionStatus.AWAITING_STUDENT:   "ожидает студента",
+            HomeworkSubmissionStatus.COMPLETED:          "завершено",
+        }
+        for hw in sorted_hw:
+            unit   = units_map.get(hw.unit_id)
+            course = courses_map.get(unit.course_id) if unit else None
             recent_activity.append({
-                "type": activity_type,
-                "title": task.title,
-                "description": f"Задание «{task.title}»",
-                "unit_title": unit.title if unit else "Unknown Unit",
-                "date": submission.submitted_at or submission.task.created_at,
-                "status": status_text
-            })
-    
-    # From test attempts
-    recent_test_attempts = db.query(TestAttempt).filter(
-        TestAttempt.student_id == student_id
-    ).order_by(desc(TestAttempt.submitted_at)).limit(5).all()
-    
-    for attempt in recent_test_attempts:
-        test = db.query(Test).filter(Test.id == attempt.test_id).first()
-        if test:
-            unit = db.query(Unit).filter(Unit.id == test.unit_id).first()
-            score_text = f"результат {attempt.score}%" if attempt.score is not None else "в процессе"
-            recent_activity.append({
-                "type": "test_completed",
-                "title": test.title,
-                "description": f"Пройден тест «{test.title}»",
-                "unit_title": unit.title if unit else "Unknown Unit",
-                "date": attempt.submitted_at or attempt.started_at,
-                "status": score_text
-            })
-    
-    # Sort by date and take most recent 10
-    recent_activity.sort(key=lambda x: x["date"] if x["date"] else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    recent_activity = recent_activity[:10]
-    
-    # Upcoming deadlines (tasks and tests with due dates in the next 7 days)
-    upcoming_deadlines = []
-    now = datetime.now(timezone.utc)
-    week_from_now = now + timedelta(days=7)
-    
-    # Get tasks assigned to student with upcoming deadlines
-    all_tasks = db.query(Task).filter(
-        Task.status == TaskStatus.PUBLISHED,
-        Task.due_at.isnot(None),
-        Task.due_at > now,
-        Task.due_at <= week_from_now
-    ).all()
-    
-    for task in all_tasks:
-        # Check if task is assigned to this student
-        if task.assigned_students and student_id in task.assigned_students:
-            unit = db.query(Unit).filter(Unit.id == task.unit_id).first()
-            course = db.query(Course).filter(Course.id == unit.course_id).first() if unit else None
-            
-            days_until = (task.due_at - now).days
-            deadline_text = f"Через {days_until} {'день' if days_until == 1 else 'дня' if days_until < 5 else 'дней'}"
-            
-            upcoming_deadlines.append({
-                "type": "task",
-                "title": task.title,
-                "unit_title": unit.title if unit else "Unknown Unit",
+                "type":        "homework",
+                "title":       unit.title if unit else "Unknown Unit",
+                "description": f"Домашнее задание «{unit.title if unit else '?'}»",
+                "unit_title":  unit.title if unit else "Unknown Unit",
                 "course_title": course.title if course else "Unknown Course",
-                "due_at": task.due_at,
-                "days_until": days_until,
-                "deadline_text": deadline_text
+                "date":        hw.updated_at,
+                "status":      status_label.get(hw.status, str(hw.status)),
             })
-    
-    # Get tests with deadlines in settings (published tests)
-    all_tests = db.query(Test).filter(
-        Test.status == TestStatus.PUBLISHED
-    ).all()
-    
-    for test in all_tests:
-        # Check if test has a deadline in settings
-        if test.settings and isinstance(test.settings, dict) and test.settings.get('deadline'):
-            try:
-                # Parse deadline from settings (datetime-local format: YYYY-MM-DDTHH:mm)
-                deadline_str = test.settings.get('deadline')
-                if isinstance(deadline_str, str) and deadline_str.strip():
-                    deadline_dt = None
-                    
-                    # Parse datetime-local format (YYYY-MM-DDTHH:mm)
-                    if 'T' in deadline_str:
-                        # Remove timezone if present
-                        deadline_str_clean = deadline_str.split('+')[0].split('Z')[0].split('.')[0]
-                        try:
-                            deadline_dt = datetime.fromisoformat(deadline_str_clean)
-                        except ValueError:
-                            # Try parsing with different format
-                            deadline_dt = datetime.strptime(deadline_str_clean, '%Y-%m-%dT%H:%M')
-                        
-                        # If no timezone info, assume it's in UTC
-                        if deadline_dt.tzinfo is None:
-                            deadline_dt = deadline_dt.replace(tzinfo=timezone.utc)
-                        else:
-                            # Convert to UTC if it has timezone
-                            deadline_dt = deadline_dt.astimezone(timezone.utc)
-                    else:
-                        # Date only format, assume end of day UTC
-                        deadline_dt = datetime.strptime(deadline_str, '%Y-%m-%d')
-                        deadline_dt = deadline_dt.replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
-                    
-                    # Check if deadline is in the next 7 days
-                    if deadline_dt and now < deadline_dt <= week_from_now:
-                        unit = db.query(Unit).filter(Unit.id == test.unit_id).first()
-                        course = db.query(Course).filter(Course.id == unit.course_id).first() if unit else None
-                        
-                        days_until = (deadline_dt - now).days
-                        deadline_text = f"Через {days_until} {'день' if days_until == 1 else 'дня' if days_until < 5 else 'дней'}"
-                        
-                        upcoming_deadlines.append({
-                            "type": "test",
-                            "title": test.title,
-                            "unit_title": unit.title if unit else "Unknown Unit",
-                            "course_title": course.title if course else "Unknown Course",
-                            "due_at": deadline_dt.isoformat(),
-                            "days_until": days_until,
-                            "deadline_text": deadline_text
-                        })
-            except (ValueError, TypeError, AttributeError) as e:
-                # Skip if deadline format is invalid
-                import traceback
-                print(f"Error parsing test deadline for test {test.id}: {e}")
-                print(f"Deadline string: {test.settings.get('deadline')}")
-                print(traceback.format_exc())
-                continue
-    
-    # Sort by due date
-    upcoming_deadlines.sort(key=lambda x: datetime.fromisoformat(x["due_at"].replace('Z', '+00:00')) if isinstance(x["due_at"], str) else x["due_at"])
-    
-    # Recommended courses (published courses not yet started)
-    all_published_courses = db.query(Course).filter(
-        # Course.status == CourseStatus.PUBLISHED,
-        # Course.is_visible_to_students == True
-    ).all()
-    
-    recommended_courses = []
-    for course in all_published_courses:
-        if course.id not in student_courses:
-            recommended_courses.append({
-                "id": course.id,
-                "title": course.title,
-                "description": course.description,
-                "level": course.level.value if hasattr(course.level, 'value') else str(course.level),
-                "thumbnail_url": course.thumbnail_url,
-                "thumbnail_path": getattr(course, 'thumbnail_path', None),
-                "units_count": course.published_units_count
-            })
-    
-    # Sort by order_index and take top 2
-    recommended_courses.sort(key=lambda x: x.get("order_index", 999))
-    recommended_courses = recommended_courses[:2]
-    
-    # Last activity
+
+    # ── Last activity ──────────────────────────────────────────────────────
     last_activity = None
     if recent_activity:
-        last_act = recent_activity[0]
+        la = recent_activity[0]
         last_activity = {
-            "type": last_act["type"],
-            "title": last_act.get("unit_title", "Unknown"),
-            "description": last_act.get("description", ""),
-            "date": last_act["date"]
+            "type":        la["type"],
+            "title":       la.get("unit_title", "Unknown"),
+            "description": la.get("description", ""),
+            "date":        la["date"],
         }
-    
-    # Latest video watched - get the most recently watched video
-    latest_video_watched = None
-    latest_video_progress = db.query(VideoProgress).filter(
-        VideoProgress.user_id == student_id
-    ).order_by(desc(VideoProgress.last_watched_at)).first()
-    
-    if latest_video_progress:
-        video = db.query(Video).filter(Video.id == latest_video_progress.video_id).first()
-        if video and video.unit_id:
-            unit = db.query(Unit).filter(Unit.id == video.unit_id).first()
-            if unit:
-                course = db.query(Course).filter(Course.id == unit.course_id).first()
-                latest_video_watched = {
-                    "video_id": video.id,
-                    "video_title": video.title,
-                    "unit_id": unit.id,
-                    "unit_title": unit.title,
-                    "course_id": course.id if course else None,
-                    "course_title": course.title if course else None,
-                    "last_watched_at": latest_video_progress.last_watched_at.isoformat() if latest_video_progress.last_watched_at else None,
-                    "watched_percentage": latest_video_progress.watched_percentage,
-                    "completed": latest_video_progress.completed
-                }
-    
-    # Active course progress - get progress for the most recently accessed course
-    active_course_progress = None
-    
-    # Get enrolled courses
-    enrolled_courses = db.query(CourseEnrollment).filter(
-        CourseEnrollment.user_id == student_id
+
+    # ── Upcoming deadlines (unit-level, from Unit.settings if present) ─────
+    # Legacy Task/Test deadline queries removed. Units can store a deadline
+    # in settings JSONB if needed — not yet implemented in the new editor.
+    upcoming_deadlines: List[Dict] = []
+
+    # ── LEGACY: old Task/Test deadline loops ──────────────────────────────
+    # upcoming_tasks = db.query(Task).filter(Task.status == TaskStatus.PUBLISHED, ...).all()
+    # all_pub_tests_deadline = db.query(Test).filter(Test.status == TestStatus.PUBLISHED).all()
+    # ──────────────────────────────────────────────────────────────────────
+
+    # ── Recommended courses ────────────────────────────────────────────────
+    student_course_ids = set(enrolled_course_ids)
+    all_pub_courses = db.query(Course).filter(
+        Course.status == CourseStatus.PUBLISHED,
+        Course.is_visible_to_students == True,  # noqa: E712
     ).all()
-    
-    if enrolled_courses:
-        # Find the most recently accessed course (by latest video watched or enrollment date)
-        most_recent_course_id = None
-        most_recent_time = None
-        
-        # Check from latest video watched
-        if latest_video_watched and latest_video_watched.get("course_id"):
-            most_recent_course_id = latest_video_watched["course_id"]
-            if latest_video_watched.get("last_watched_at"):
-                try:
-                    most_recent_time = datetime.fromisoformat(latest_video_watched["last_watched_at"].replace('Z', '+00:00'))
-                except:
-                    pass
-        
-        # If no video watched, use enrollment date
-        if not most_recent_course_id and enrolled_courses:
-            most_recent_enrollment = max(enrolled_courses, key=lambda e: e.created_at if e.created_at else datetime.min.replace(tzinfo=timezone.utc))
-            most_recent_course_id = most_recent_enrollment.course_id
-        
-        if most_recent_course_id:
-            course = db.query(Course).filter(Course.id == most_recent_course_id).first()
-            if course:
-                # Get all units in the course
-                course_units = db.query(Unit).filter(
-                    Unit.course_id == course.id,
-                    Unit.status == UnitStatus.PUBLISHED
-                ).order_by(Unit.order_index).all()
-                
-                if course_units:
-                    # Get the unit from latest video watched if available, otherwise use first unit
-                    active_unit = None
-                    if latest_video_watched and latest_video_watched.get("unit_id"):
-                        # Check if the unit from latest video is in this course
-                        unit_from_video = db.query(Unit).filter(
-                            Unit.id == latest_video_watched["unit_id"],
-                            Unit.course_id == course.id
-                        ).first()
-                        if unit_from_video:
-                            active_unit = unit_from_video
-                    
-                    # If no unit from latest video, use first unit
-                    if not active_unit:
-                        active_unit = course_units[0]
-                    
-                    # Count completed videos in this unit
-                    unit_videos = db.query(Video).filter(
-                        Video.unit_id == active_unit.id,
-                        Video.status == VideoStatus.PUBLISHED
-                    ).all()
-                    
-                    completed_videos_count = 0
-                    if unit_videos:
-                        video_progresses = db.query(VideoProgress).filter(
-                            VideoProgress.user_id == student_id,
-                            VideoProgress.video_id.in_([v.id for v in unit_videos]),
-                            VideoProgress.completed == True
-                        ).count()
-                        completed_videos_count = video_progresses
-                    
-                    # Count completed tasks in this unit
-                    unit_tasks = db.query(Task).filter(
-                        Task.unit_id == active_unit.id,
-                        Task.status == TaskStatus.PUBLISHED
-                    ).all()
-                    
-                    completed_tasks_count = 0
-                    if unit_tasks:
-                        task_submissions = db.query(TaskSubmission).filter(
-                            TaskSubmission.student_id == student_id,
-                            TaskSubmission.task_id.in_([t.id for t in unit_tasks]),
-                            TaskSubmission.status == SubmissionStatus.SUBMITTED
-                        ).count()
-                        completed_tasks_count = task_submissions
-                    
-                    # Count passed tests in this unit
-                    unit_tests = db.query(Test).filter(
-                        Test.unit_id == active_unit.id,
-                        Test.status == TestStatus.PUBLISHED
-                    ).all()
-                    
-                    passed_tests_count = 0
-                    if unit_tests:
-                        for test in unit_tests:
-                            attempts = db.query(TestAttempt).filter(
-                                TestAttempt.test_id == test.id,
-                                TestAttempt.student_id == student_id,
-                                TestAttempt.status == AttemptStatus.COMPLETED
-                            ).all()
-                            if attempts:
-                                passed = any(
-                                    att.score is not None and att.score >= test.passing_score
-                                    for att in attempts
-                                )
-                                if passed:
-                                    passed_tests_count += 1
-                    
-                    # Calculate total items and completed items
-                    total_videos = len(unit_videos)
-                    total_tasks = len(unit_tasks)
-                    total_tests = len(unit_tests)
-                    total_items = total_videos + total_tasks + total_tests
-                    completed_items = completed_videos_count + completed_tasks_count + passed_tests_count
-                    
-                    progress_percent = 0.0
-                    if total_items > 0:
-                        progress_percent = round((completed_items / total_items) * 100, 1)
-                    
-                    active_course_progress = {
-                        "course_id": course.id,
-                        "course_title": course.title,
-                        "unit_id": active_unit.id,
-                        "unit_title": active_unit.title,
-                        "progress_percent": progress_percent,
-                        "completed_videos": completed_videos_count,
-                        "total_videos": total_videos,
-                        "completed_tasks": completed_tasks_count,
-                        "total_tasks": total_tasks,
-                        "passed_tests": passed_tests_count,
-                        "total_tests": total_tests
-                    }
-    
+
+    recommended_courses = []
+    for course in all_pub_courses:
+        if course.id not in student_course_ids:
+            recommended_courses.append({
+                "id":            course.id,
+                "title":         course.title,
+                "description":   course.description,
+                "level":         course.level.value if hasattr(course.level, 'value') else str(course.level),
+                "thumbnail_url": course.thumbnail_url,
+                "thumbnail_path": getattr(course, 'thumbnail_path', None),
+                "units_count":   course.published_units_count,
+            })
+    recommended_courses.sort(key=lambda x: x.get("order_index", 999))
+    recommended_courses = recommended_courses[:2]
+
+    # ── Active course progress ─────────────────────────────────────────────
+    active_course_progress = None
+    if enrolled_course_ids:
+        # Find the most recently touched course via homework submissions
+        latest_hw = max(
+            hw_rows,
+            key=lambda h: h.updated_at or datetime.min.replace(tzinfo=timezone.utc),
+            default=None,
+        )
+        most_recent_course_id = (
+            unit_course_map.get(latest_hw.unit_id) if latest_hw else None
+        ) or enrolled_course_ids[0]
+
+        course = db.query(Course).filter(Course.id == most_recent_course_id).first()
+        if course:
+            active_units = units_by_course.get(course.id, [])
+            if active_units:
+                # Pick the first incomplete unit as the active one
+                active_unit = next(
+                    (u for u in active_units
+                     if hw_by_unit.get(u.id) and
+                     hw_by_unit[u.id].status not in (HomeworkSubmissionStatus.COMPLETED,)),
+                    active_units[0],
+                )
+                active_hw   = hw_by_unit.get(active_unit.id)
+                unit_segs   = db.query(Segment).filter(
+                    Segment.unit_id == active_unit.id
+                ).all()
+                total_segs  = len(unit_segs)
+
+                # Completion proxy: count media_blocks marked done in hw.answers
+                answers      = (active_hw.answers or {}) if active_hw else {}
+                done_blocks  = sum(
+                    1 for v in answers.values()
+                    if isinstance(v, dict) and v.get("completed")
+                )
+                progress_pct = round((done_blocks / total_segs * 100), 1) if total_segs > 0 else 0.0
+
+                active_course_progress = {
+                    "course_id":        course.id,
+                    "course_title":     course.title,
+                    "unit_id":          active_unit.id,
+                    "unit_title":       active_unit.title,
+                    "progress_percent": progress_pct,
+                    "completed_videos": 0,
+                    "total_videos":     total_segs,
+                    "completed_tasks":  done_blocks,
+                    "total_tasks":      total_segs,
+                    "passed_tests":     0,
+                    "total_tests":      0,
+                }
+
+    # ── LEGACY: latest_video_watched (VideoProgress) ───────────────────────
+    # latest_video_watched was populated from VideoProgress model.
+    # In the new architecture videos are video_embed blocks inside Segments;
+    # watch state is stored in HomeworkSubmission.answers JSONB.
+    # Set to None until the new player sends per-block completion events.
+    latest_video_watched = None
+
+    # latest_vp = db.query(VideoProgress).filter(VideoProgress.user_id == student_id) ...
+    # ──────────────────────────────────────────────────────────────────────
+
     return StudentDashboardStats(
         my_courses_count=my_courses_count,
-        completed_units=completed_units,
+        completed_units=completed_units_count,
         average_score=average_score,
         time_spent_hours=round(time_spent_hours, 1),
         recent_activity=recent_activity,
@@ -2357,5 +1674,5 @@ async def get_student_dashboard(
         recommended_courses=recommended_courses,
         last_activity=last_activity,
         latest_video_watched=latest_video_watched,
-        active_course_progress=active_course_progress
+        active_course_progress=active_course_progress,
     )

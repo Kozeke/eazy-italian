@@ -1,11 +1,11 @@
 from .user import User, UserRole, SubscriptionType
 from .course import Course
 from .unit import Unit
-from .video import Video
-from .video_progress import VideoProgress
-from .task import Task, TaskSubmission
-from .test import Test, TestQuestion, TestAttempt, Question
-from .progress import Progress
+# LEGACY: from .video import Video                                   # → video_embed blocks on Segment
+# LEGACY: from .video_progress import VideoProgress                  # → UnitHomeworkSubmission / segment completion
+# LEGACY: from .task import Task, TaskSubmission                     # → exercise blocks on Segment + UnitHomeworkSubmission
+# LEGACY: from .test import Test, TestQuestion, TestAttempt, Question  # → test_without_timer / test_with_timer blocks
+# LEGACY: from .progress import Progress                             # → UnitHomeworkSubmission
 from .segment import Segment, SegmentStatus
 from .email import EmailCampaign, EmailLog
 from .email_verification import EmailVerificationCode
@@ -24,16 +24,16 @@ __all__ = [
     "UserRole",
     "SubscriptionType",
     "Course",
-    "Unit", 
-    "Video",
-    "VideoProgress",
-    "Task",
-    "TaskSubmission",
-    "Test",
-    "TestQuestion", 
-    "TestAttempt",
-    "Question",
-    "Progress",
+    "Unit",
+    # LEGACY: "Video",           # → video_embed blocks on Segment
+    # LEGACY: "VideoProgress",   # → UnitHomeworkSubmission / segment completion
+    # LEGACY: "Task",            # → exercise blocks on Segment
+    # LEGACY: "TaskSubmission",  # → UnitHomeworkSubmission.answers JSONB
+    # LEGACY: "Test",            # → test_without_timer / test_with_timer blocks
+    # LEGACY: "TestQuestion",    # → test block questions in Segment.media_blocks JSONB
+    # LEGACY: "TestAttempt",     # → UnitHomeworkSubmission.answers JSONB
+    # LEGACY: "Question",        # → individual question entries in test block JSONB
+    # LEGACY: "Progress",        # → UnitHomeworkSubmission
     "Segment",
     "SegmentStatus",
     "EmailCampaign",

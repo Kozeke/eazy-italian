@@ -13,14 +13,15 @@ from app.models import (
     Course,
     Unit,
     User,
-    Video,
-    Task,
-    Test,
-    Progress,
     EmailCampaign,
-    VideoProgress,
     TeacherPayment,
 )
+# LEGACY: legacy ORM tables still registered with SQLAlchemy metadata for existing DB rows
+from app.models.video import Video  # → video_embed blocks on Segment
+from app.models.video_progress import VideoProgress  # → UnitHomeworkSubmission / segment completion
+from app.models.task import Task  # → exercise blocks on Segment (TaskSubmission in same module)
+from app.models.test import Test  # → test_without_timer / test_with_timer blocks (Question, TestAttempt in same module)
+from app.models.progress import Progress  # → UnitHomeworkSubmission
 from app.models.presentation import Presentation, PresentationSlide
 from app.models.live_session import LiveSession
 import logging
@@ -134,47 +135,14 @@ async def start_presence_eviction():
 
 @app.on_event("startup")
 async def warmup_rag():
-    """
-    Pre-warm LaBSE so the first real user request isn't slow.
-
-    Without this:
-      - LaBSE loads 199 weight tensors on the first /ask → +5-10s cold start
-    With this it happens at container start, invisibly to users.
-    
-    Note: Ollama warmup is not needed when using external Groq API.
-    """
-    import asyncio
-
-    async def _warm_labse():
-        try:
-            from app.services.ai.embedding_service import get_embedding_service
-            svc = get_embedding_service()
-            await asyncio.to_thread(svc.embed, "warmup")
-            print("✅ [warmup] LaBSE loaded and ready", flush=True)
-        except Exception as exc:
-            print(f"⚠️  [warmup] LaBSE failed — {exc}", flush=True)
-
-    # Ollama warmup commented out — not needed when using external Groq API
-    # async def _warm_ollama():
-    #     try:
-    #         import os, httpx
-    #         base_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434").rstrip("/")
-    #         model    = os.environ.get("OLLAMA_MODEL", "llama3.2")
-    #         # num_predict=1 → generate 1 token only; forces model into RAM quickly
-    #         payload  = {"model": model, "prompt": "hi", "stream": False,
-    #                     "options": {"num_predict": 1}}
-    #         timeout  = httpx.Timeout(connect=10.0, write=10.0, read=120.0, pool=5.0)
-    #         async with httpx.AsyncClient(timeout=timeout) as client:
-    #             r = await client.post(f"{base_url}/api/generate", json=payload)
-    #             r.raise_for_status()
-    #         print(f"✅ [warmup] Ollama '{model}' loaded and ready", flush=True)
-    #     except Exception as exc:
-    #         # Non-fatal — will still work on first user request (just slower)
-    #         print(f"⚠️  [warmup] Ollama warmup failed — {exc}", flush=True)
-
-    print("🔥 [warmup] Pre-loading LaBSE in background…", flush=True)
-    # ensure_future = fire and forget, doesn't block startup completion
-    asyncio.ensure_future(asyncio.gather(_warm_labse()))
+    # RAG / LaBSE warmup disabled — not in use.
+    # Re-enable when /courses/{id}/ask goes live for students.
+    # async def _warm_labse():
+    #     from app.services.ai.embedding_service import get_embedding_service
+    #     svc = get_embedding_service()
+    #     await asyncio.to_thread(svc.embed, "warmup")
+    # asyncio.ensure_future(_warm_labse())
+    pass
 
 
 @app.on_event("startup")

@@ -56,13 +56,14 @@ const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 // ─── Language detection helpers ───────────────────────────────────────────────
 
 /**
- * Five main European languages — keyword variants for detection from free-text input.
+ * Supported teaching/explanation languages — keyword variants for detection from free-text input.
  */
 const LANGUAGE_DETECT_MAP = {
   English: ['english'],
   French:  ['french', 'français', 'francais'],
   German:  ['german', 'deutsch'],
   Italian: ['italian', 'italiano'],
+  Russian: ['russian', 'русский', 'russkiy', 'рус'],
   Spanish: ['spanish', 'español', 'espanol', 'castellano'],
 };
 
@@ -71,7 +72,7 @@ const ALL_LANGUAGES = Object.keys(LANGUAGE_DETECT_MAP).sort();
 
 /** Country-flag emoji for each language (best-effort). */
 const FLAG_MAP = {
-  English: '🇬🇧', French: '🇫🇷', German: '🇩🇪', Italian: '🇮🇹', Spanish: '🇪🇸',
+  English: '🇬🇧', French: '🇫🇷', German: '🇩🇪', Italian: '🇮🇹', Russian: '🇷🇺', Spanish: '🇪🇸',
 };
 
 /**
