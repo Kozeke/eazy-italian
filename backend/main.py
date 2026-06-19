@@ -202,253 +202,203 @@ async def startup_event():
                 break
 
 
-def _run_all_migrations(conn):
+def _add_enum_values(enum_name: str, values: list):
     """
-    All one-time schema migrations.
-    Called only on the very first boot after deployment (or after migration_tracking reset).
-    On subsequent boots this function is never called — startup cost drops to ~2 queries.
+    ALTER TYPE ... ADD VALUE must run outside any transaction block in PostgreSQL.
+    We open a raw AUTOCOMMIT connection for these statements only.
     """
     from sqlalchemy import text
-    from app.models.test import QuestionType
+    raw = engine.raw_connection()
+    try:
+        raw.set_isolation_level(0)  # AUTOCOMMIT — required for ALTER TYPE ADD VALUE
+        cur = raw.cursor()
+        for val in values:
+            try:
+                cur.execute(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{val}'")
+            except Exception as e:
+                # Value already exists or enum doesn't exist — both are fine
+                print(f"  ⚠️  {enum_name} ADD VALUE '{val}': {e}")
+        cur.close()
+    finally:
+        raw.close()
 
+
+def _run_all_migrations(_unused_conn):
+    """
+    All one-time schema migrations.
+    Called only on the very first boot after deployment.
+    On subsequent boots this is never called — startup cost drops to 2 queries.
+
+    Each step opens its own connection so a failure in one step cannot
+    poison the transaction state for any other step.
+
+    PostgreSQL rule: ALTER TYPE ... ADD VALUE cannot run inside a transaction.
+    Those calls go through _add_enum_values() which uses AUTOCOMMIT isolation.
+    """
+    from sqlalchemy import text
+
+    # ── Helper: run ALTER TABLE statements in their own connection ────────────
+    def run(sql: str, params=None):
+        with engine.connect() as c:
+            c.execute(text(sql), params or {})
+            c.commit()
+
+    def run_many(statements: list):
+        """Each statement gets its own try/connect so one failure can't abort others."""
+        for sql in statements:
+            try:
+                run(sql)
+            except Exception as e:
+                # IF NOT EXISTS makes most of these no-ops on repeated runs
+                print(f"  ⚠️  (non-fatal) {str(e)[:120]}")
+
+    # ── Presentations tables ──────────────────────────────────────────────────
     print("  Running migration: presentations tables...")
     try:
         from app.models.presentation import Presentation, PresentationSlide
-        Presentation.__table__.create(bind=conn, checkfirst=True)
-        PresentationSlide.__table__.create(bind=conn, checkfirst=True)
-        conn.commit()
+        with engine.connect() as c:
+            Presentation.__table__.create(bind=c, checkfirst=True)
+            PresentationSlide.__table__.create(bind=c, checkfirst=True)
+            c.commit()
         print("  ✅ Presentations tables ensured")
     except Exception as exc:
         print(f"  ⚠️  Presentations table: {exc}")
 
-    # ── questions table ───────────────────────────────────────────────────────
+    # ── questions columns ─────────────────────────────────────────────────────
     print("  Running migration: questions columns...")
-    question_migrations = [
-        ("shuffle_options",          "BOOLEAN DEFAULT FALSE"),
-        ("autograde",                "BOOLEAN DEFAULT TRUE"),
-        ("manual_review_threshold",  "DOUBLE PRECISION"),
-        ("expected_answer_config",   "JSON DEFAULT '{}'"),
-        ("gaps_config",              "JSON DEFAULT '[]'"),
-        ("question_metadata",        "JSON DEFAULT '{}'"),
-    ]
-    for col, defn in question_migrations:
-        try:
-            conn.execute(text(f"ALTER TABLE questions ADD COLUMN IF NOT EXISTS {col} {defn}"))
-            conn.commit()
-        except Exception:
-            pass
+    run_many([
+        "ALTER TABLE questions ADD COLUMN IF NOT EXISTS shuffle_options BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE questions ADD COLUMN IF NOT EXISTS autograde BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE questions ADD COLUMN IF NOT EXISTS manual_review_threshold DOUBLE PRECISION",
+        "ALTER TABLE questions ADD COLUMN IF NOT EXISTS expected_answer_config JSON DEFAULT '{}'",
+        "ALTER TABLE questions ADD COLUMN IF NOT EXISTS gaps_config JSON DEFAULT '[]'",
+        "ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_metadata JSON DEFAULT '{}'",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS questions JSON DEFAULT '[]'",
+    ])
 
-    # ── tasks table (questions column) ────────────────────────────────────────
-    try:
-        conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS questions JSON DEFAULT '[]'"))
-        conn.commit()
-    except Exception:
-        pass
-
-    # ── TaskType enum ─────────────────────────────────────────────────────────
-    print("  Running migration: TaskType enum...")
-    for value in ('listening', 'reading'):
-        try:
-            conn.execute(text(f"ALTER TYPE tasktype ADD VALUE IF NOT EXISTS '{value}'"))
-            conn.commit()
-        except Exception:
-            pass
+    # ── Enum: TaskType — MUST use AUTOCOMMIT ──────────────────────────────────
+    print("  Running migration: TaskType enum values...")
+    _add_enum_values("tasktype", ["listening", "reading"])
 
     # ── tasks.type / tasks.status: enum → VARCHAR ─────────────────────────────
-    print("  Running migration: tasks type/status columns...")
-    try:
-        conn.execute(text(
-            "ALTER TABLE tasks ALTER COLUMN type TYPE VARCHAR(50) USING type::text"
-        ))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text(
-            "ALTER TABLE tasks ALTER COLUMN status TYPE VARCHAR(50) USING status::text"
-        ))
-        conn.commit()
-    except Exception:
-        pass
+    print("  Running migration: tasks type/status to VARCHAR...")
+    run_many([
+        "ALTER TABLE tasks ALTER COLUMN type TYPE VARCHAR(50) USING type::text",
+        "ALTER TABLE tasks ALTER COLUMN status TYPE VARCHAR(50) USING status::text",
+    ])
 
-    # ── SubscriptionType enum ─────────────────────────────────────────────────
+    # ── Enum: SubscriptionType — MUST use AUTOCOMMIT ─────────────────────────
     print("  Running migration: SubscriptionType enum...")
     try:
-        conn.execute(text("""
+        run("""
             DO $$ BEGIN
                 CREATE TYPE subscriptiontype AS ENUM ('free', 'standard', 'premium');
             EXCEPTION WHEN duplicate_object THEN null;
             END $$;
-        """))
-        conn.commit()
+        """)
     except Exception:
         pass
-    for val in ('free', 'standard', 'premium', 'FREE', 'STANDARD', 'PREMIUM'):
-        try:
-            conn.execute(text(f"ALTER TYPE subscriptiontype ADD VALUE IF NOT EXISTS '{val}'"))
-            conn.commit()
-        except Exception:
-            pass
+    _add_enum_values("subscriptiontype", [
+        "free", "standard", "premium", "FREE", "STANDARD", "PREMIUM"
+    ])
 
-    # ── users table ───────────────────────────────────────────────────────────
+    # ── users columns ─────────────────────────────────────────────────────────
     print("  Running migration: users columns...")
+    run_many([
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_type subscriptiontype",
+    ])
     try:
-        conn.execute(text(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE"
-        ))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_type subscriptiontype"))
-        conn.commit()
-        conn.execute(text(
-            "UPDATE users SET subscription_type = 'FREE'::subscriptiontype WHERE subscription_type IS NULL"
-        ))
-        conn.commit()
+        run("UPDATE users SET subscription_type = 'FREE'::subscriptiontype WHERE subscription_type IS NULL")
     except Exception:
         pass
 
-    # ── QuestionType enum ─────────────────────────────────────────────────────
-    print("  Running migration: QuestionType enum...")
-    required_values = [e.value for e in QuestionType]
-    for value in required_values:
-        try:
-            conn.execute(text(f"ALTER TYPE questiontype ADD VALUE IF NOT EXISTS '{value}'"))
-            conn.commit()
-        except Exception:
-            pass
+    # ── Enum: QuestionType — MUST use AUTOCOMMIT ──────────────────────────────
+    print("  Running migration: QuestionType enum values...")
+    try:
+        from app.models.test import QuestionType
+        _add_enum_values("questiontype", [e.value for e in QuestionType])
+    except Exception as e:
+        print(f"  ⚠️  QuestionType enum: {e}")
 
-    # ── courses table columns ─────────────────────────────────────────────────
+    # ── courses columns ───────────────────────────────────────────────────────
     print("  Running migration: courses columns...")
-    course_columns = [
-        ("thumbnail_path",          "VARCHAR(500)"),
-        ("target_language",         "VARCHAR(100)"),
-        ("native_language",         "VARCHAR(100)"),
-        ("units_count",             "INTEGER DEFAULT 0"),
-        ("published_units_count",   "INTEGER DEFAULT 0"),
-        ("content_summary",         "JSONB DEFAULT '{}'::jsonb"),
-    ]
-    for col, defn in course_columns:
-        try:
-            conn.execute(text(f"ALTER TABLE courses ADD COLUMN IF NOT EXISTS {col} {defn}"))
-            conn.commit()
-        except Exception:
-            pass
+    run_many([
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS thumbnail_path VARCHAR(500)",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS target_language VARCHAR(100)",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS native_language VARCHAR(100)",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS units_count INTEGER DEFAULT 0",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS published_units_count INTEGER DEFAULT 0",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS content_summary JSONB DEFAULT '{}'::jsonb",
+    ])
 
-    # ── units table columns ───────────────────────────────────────────────────
+    # ── units columns ─────────────────────────────────────────────────────────
     print("  Running migration: units columns...")
-    unit_columns = [
-        ("course_id",       "INTEGER REFERENCES courses(id) ON DELETE CASCADE"),
-        ("goals",           "TEXT"),
-        ("homework_blocks", "JSONB DEFAULT '[]'::jsonb"),
-        ("content_count",   "INTEGER DEFAULT 0"),
-        ("segment_count",   "INTEGER DEFAULT 0"),
-    ]
-    for col, defn in unit_columns:
-        try:
-            conn.execute(text(f"ALTER TABLE units ADD COLUMN IF NOT EXISTS {col} {defn}"))
-            conn.commit()
-        except Exception:
-            pass
+    run_many([
+        "ALTER TABLE units ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE",
+        "ALTER TABLE units ADD COLUMN IF NOT EXISTS goals TEXT",
+        "ALTER TABLE units ADD COLUMN IF NOT EXISTS homework_blocks JSONB DEFAULT '[]'::jsonb",
+        "ALTER TABLE units ADD COLUMN IF NOT EXISTS content_count INTEGER DEFAULT 0",
+        "ALTER TABLE units ADD COLUMN IF NOT EXISTS segment_count INTEGER DEFAULT 0",
+    ])
 
-    # ── video_progress table ──────────────────────────────────────────────────
+    # ── video_progress columns ────────────────────────────────────────────────
     print("  Running migration: video_progress columns...")
-    vp_columns = [
-        ("watch_time_sec",      "DOUBLE PRECISION DEFAULT 0"),
-        ("first_watched_at",    "TIMESTAMP WITH TIME ZONE"),
-        ("last_watched_at",     "TIMESTAMP WITH TIME ZONE"),
-        ("watched_percentage",  "DOUBLE PRECISION DEFAULT 0"),
-        ("progress_percent",    "DOUBLE PRECISION DEFAULT 0"),
-        ("completed_at",        "TIMESTAMP WITH TIME ZONE"),
-        ("is_completed",        "BOOLEAN DEFAULT FALSE"),
-    ]
-    for col, defn in vp_columns:
-        try:
-            conn.execute(text(f"ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS {col} {defn}"))
-            conn.commit()
-        except Exception:
-            pass
-    try:
-        conn.execute(text("""
-            ALTER TABLE video_progress
-            ADD CONSTRAINT unique_user_video_progress UNIQUE (user_id, video_id)
-        """))
-        conn.commit()
-    except Exception:
-        pass
+    run_many([
+        "ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS watch_time_sec DOUBLE PRECISION DEFAULT 0",
+        "ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS first_watched_at TIMESTAMP WITH TIME ZONE",
+        "ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS last_watched_at TIMESTAMP WITH TIME ZONE",
+        "ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS watched_percentage DOUBLE PRECISION DEFAULT 0",
+        "ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS progress_percent DOUBLE PRECISION DEFAULT 0",
+        "ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE",
+        "ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS is_completed BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE video_progress ADD CONSTRAINT unique_user_video_progress UNIQUE (user_id, video_id)",
+    ])
 
     # ── course_enrollments table ──────────────────────────────────────────────
     print("  Running migration: course_enrollments table...")
-    try:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS course_enrollments (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                UNIQUE(user_id, course_id)
-            )
-        """))
-        conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS idx_course_enrollments_user_id
-            ON course_enrollments(user_id)
-        """))
-        conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS idx_course_enrollments_course_id
-            ON course_enrollments(course_id)
-        """))
-        conn.commit()
-    except Exception:
-        pass
+    run_many([
+        """CREATE TABLE IF NOT EXISTS course_enrollments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            UNIQUE(user_id, course_id)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_course_enrollments_user_id ON course_enrollments(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_course_enrollments_course_id ON course_enrollments(course_id)",
+    ])
 
     # ── task_submissions + tasks extra columns ────────────────────────────────
-    print("  Running migration: task_submissions columns...")
-    task_sub_cols = [
-        ("attempt_number",      "INTEGER DEFAULT 1"),
-        ("time_spent_minutes",  "INTEGER DEFAULT 0"),
-    ]
-    for col, defn in task_sub_cols:
-        try:
-            conn.execute(text(f"ALTER TABLE task_submissions ADD COLUMN IF NOT EXISTS {col} {defn}"))
-            conn.commit()
-        except Exception:
-            pass
+    print("  Running migration: task_submissions + tasks columns...")
+    run_many([
+        "ALTER TABLE task_submissions ADD COLUMN IF NOT EXISTS attempt_number INTEGER DEFAULT 1",
+        "ALTER TABLE task_submissions ADD COLUMN IF NOT EXISTS time_spent_minutes INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS instructions TEXT",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS auto_task_type VARCHAR(50)",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS allow_late_submissions BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS late_penalty_percent INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS max_attempts INTEGER DEFAULT 1",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_cohorts JSON DEFAULT '[]'",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_students JSON DEFAULT '[]'",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assign_to_all BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS send_assignment_email BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reminder_days_before INTEGER DEFAULT 1",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS send_results_email BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS send_teacher_copy BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notify_on_assignment BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notify_reminder_days INTEGER DEFAULT 1",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notify_on_submit BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notify_on_grade BOOLEAN DEFAULT FALSE",
+    ])
 
-    task_extra_cols = [
-        ("instructions",            "TEXT"),
-        ("auto_task_type",          "VARCHAR(50)"),
-        ("allow_late_submissions",  "BOOLEAN DEFAULT FALSE"),
-        ("late_penalty_percent",    "INTEGER DEFAULT 0"),
-        ("max_attempts",            "INTEGER DEFAULT 1"),
-        ("assigned_cohorts",        "JSON DEFAULT '[]'"),
-        ("assigned_students",       "JSON DEFAULT '[]'"),
-        ("assign_to_all",           "BOOLEAN DEFAULT FALSE"),
-        ("send_assignment_email",   "BOOLEAN DEFAULT FALSE"),
-        ("reminder_days_before",    "INTEGER DEFAULT 1"),
-        ("send_results_email",      "BOOLEAN DEFAULT FALSE"),
-        ("send_teacher_copy",       "BOOLEAN DEFAULT FALSE"),
-        ("notify_on_assignment",    "BOOLEAN DEFAULT FALSE"),
-        ("notify_reminder_days",    "INTEGER DEFAULT 1"),
-        ("notify_on_submit",        "BOOLEAN DEFAULT FALSE"),
-        ("notify_on_grade",         "BOOLEAN DEFAULT FALSE"),
-    ]
-    for col, defn in task_extra_cols:
-        try:
-            conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {defn}"))
-            conn.commit()
-        except Exception:
-            pass
-
-    # ── SubscriptionName enum + user subscription sync ────────────────────────
+    # ── Enum: SubscriptionName — MUST use AUTOCOMMIT ──────────────────────────
     print("  Running migration: SubscriptionName enum + subscription sync...")
+    _add_enum_values("subscriptionname", ["standard"])
+
+    # Sync subscription_type on users from active subscriptions
     try:
-        conn.execute(text("ALTER TYPE subscriptionname ADD VALUE IF NOT EXISTS 'standard'"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("""
+        run("""
             UPDATE users u
             SET subscription_type = 'PREMIUM'::subscriptiontype
             FROM user_subscriptions us
@@ -457,11 +407,10 @@ def _run_all_migrations(conn):
               AND us.is_active = true
               AND s.name IN ('PREMIUM', 'premium', 'PRO', 'pro')
               AND u.subscription_type = 'FREE'::subscriptiontype
-        """))
-        conn.commit()
+        """)
         print("  ✅ Migrated subscription types from UserSubscription")
     except Exception as e:
-        print(f"  ⚠️  Subscription migration note: {e}")
+        print(f"  ⚠️  Subscription sync (non-fatal): {e}")
 
     print("  ✅ All migrations complete")
 
