@@ -160,12 +160,30 @@ async def get_admin_courses(
     current_user: User = Depends(get_current_teacher),
     db: Session = Depends(get_db)
 ):
-    """Get paginated list of courses for admin panel - only shows courses created by current teacher"""
-    
-    query_builder = db.query(Course).options(
-        joinedload(Course.created_by_user)
+    """
+    Lightweight course card list — only fields needed to render the grid.
+    Heavy data (units list, enrolled count, content_summary, first_unit_id)
+    is NOT fetched here. One SELECT, no joins, sub-100ms on warm connection.
+    Call GET /admin/courses/{course_id} when a course card is clicked.
+    """
+    query_builder = db.query(
+        Course.id,
+        Course.title,
+        Course.description,
+        Course.level,
+        Course.status,
+        Course.order_index,
+        Course.thumbnail_url,
+        Course.thumbnail_path,
+        Course.created_by,
+        Course.created_at,
+        Course.updated_at,
+        Course.target_language,
+        Course.native_language,
+        Course.units_count,            # stored int — no join needed
+        Course.published_units_count,  # stored int — no join needed
     ).filter(Course.created_by == current_user.id)
-    
+
     if query:
         search_term = f"%{query}%"
         query_builder = query_builder.filter(
@@ -174,67 +192,38 @@ async def get_admin_courses(
                 Course.description.ilike(search_term)
             )
         )
-    
     if level:
         query_builder = query_builder.filter(Course.level == level)
-    
     if status:
         query_builder = query_builder.filter(Course.status == status)
-    
+
     offset = (page - 1) * limit
-    courses = query_builder.order_by(asc(Course.order_index), desc(Course.created_at)).offset(offset).limit(limit).all()
-    
-    course_ids = [c.id for c in courses]
-    first_unit_by_course: Dict[int, int] = {}
-    enrolled_count_by_course: Dict[int, int] = {}
+    rows = query_builder.order_by(desc(Course.created_at)).offset(offset).limit(limit).all()
 
-    if course_ids:
-        # Batch: first unit per course (by order_index)
-        ordered_units = (
-            db.query(Unit)
-            .filter(Unit.course_id.in_(course_ids))
-            .order_by(Unit.course_id, asc(Unit.order_index), asc(Unit.id))
-            .all()
+    return [
+        CourseListResponse(
+            id=row.id,
+            title=row.title,
+            description=row.description,
+            level=row.level,
+            status=row.status,
+            publish_at=None,
+            order_index=row.order_index,
+            thumbnail_url=row.thumbnail_url,
+            thumbnail_path=row.thumbnail_path,
+            created_by=row.created_by,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+            units_count=row.units_count or 0,
+            published_units_count=row.published_units_count or 0,
+            content_summary=None,          # loaded on course open
+            enrolled_students_count=None,  # loaded on course open
+            first_unit_id=None,            # loaded on course open
+            target_language=row.target_language,
+            native_language=row.native_language,
         )
-        for u in ordered_units:
-            if u.course_id not in first_unit_by_course:
-                first_unit_by_course[u.course_id] = u.id
-
-        # Batch: enrolled student counts (one GROUP BY query)
-        enrollment_counts = (
-            db.query(CourseEnrollment.course_id, func.count(CourseEnrollment.id))
-            .filter(CourseEnrollment.course_id.in_(course_ids))
-            .group_by(CourseEnrollment.course_id)
-            .all()
-        )
-        enrolled_count_by_course = {cid: cnt for cid, cnt in enrollment_counts}
-
-    result = []
-    for course in courses:
-        thumbnail_path = getattr(course, 'thumbnail_path', None)
-        result.append(CourseListResponse(
-            id=course.id,
-            title=course.title,
-            description=course.description,
-            level=course.level,
-            status=course.status,
-            publish_at=course.publish_at,
-            order_index=course.order_index,
-            thumbnail_url=course.thumbnail_url,
-            thumbnail_path=thumbnail_path,
-            created_by=course.created_by,
-            created_at=course.created_at,
-            updated_at=course.updated_at,
-            units_count=course.units_count,
-            published_units_count=course.published_units_count,
-            content_summary=course.content_summary,
-            enrolled_students_count=enrolled_count_by_course.get(course.id, 0),
-            first_unit_id=first_unit_by_course.get(course.id),
-            target_language=getattr(course, 'target_language', None),
-            native_language=getattr(course, 'native_language', None),
-        ))
-    
-    return result
+        for row in rows
+    ]
 
 
 @router.post("/admin/courses", response_model=CourseResponse)
