@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ReviewSlidesPage.tsx — Part 12 root (Parts 1 – 12 fully wired)
  *

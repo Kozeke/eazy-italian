@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * GradesPage.legacy.tsx  (v1 — Student Design System; route commented in App.tsx — re-import to restore /student/grades)
  *

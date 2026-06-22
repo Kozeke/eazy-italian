@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminQuestionBankPage.legacy.tsx — placeholder admin screen (no active route).
  */

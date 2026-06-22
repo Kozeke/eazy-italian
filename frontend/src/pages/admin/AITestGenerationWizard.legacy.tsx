@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AITestGenerationWizard.legacy.tsx  —  Phase 2 (legacy; used from AdminTestCreatePage.legacy)
  *

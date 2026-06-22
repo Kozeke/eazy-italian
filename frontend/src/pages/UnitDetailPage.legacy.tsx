@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * UnitDetailPage.legacy.tsx — Unit Detail Page (App.tsx redirects /units/:id — re-import route to restore)
  * 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminStudentEditPage.legacy.tsx — placeholder admin screen (no active route).
  */

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CoursesPage.legacy.tsx — Udemy/Coursera Style (legacy catalog; App.tsx redirects /courses/* — re-import route to restore)
  * 

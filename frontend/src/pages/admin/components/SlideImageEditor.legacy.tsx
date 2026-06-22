@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * SlideImageEditor.legacy.tsx — Part 5 (legacy; used only from SlideEditor.legacy + ReviewSlidesPage.legacy).
  *

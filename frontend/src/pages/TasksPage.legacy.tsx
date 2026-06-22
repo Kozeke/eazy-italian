@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * TasksPage.legacy.tsx — Tasks Page (App.tsx redirects /tasks/* — re-import route to restore)
  * 

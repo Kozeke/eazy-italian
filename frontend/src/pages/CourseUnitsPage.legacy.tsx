@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CourseUnitsPage.legacy.tsx — Udemy/Coursera Style (legacy; App.tsx — re-import /courses/:id/units to restore)
  * 

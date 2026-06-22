@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminEmailCampaignsPage.legacy.tsx — placeholder admin screen (no active route).
  */

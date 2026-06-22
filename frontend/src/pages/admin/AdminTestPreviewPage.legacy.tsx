@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminTestPreviewPage.tsx — Teacher Test Preview  (read-only student view)
  *

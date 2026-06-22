@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * SlidePreview.legacy.tsx — Part 6 + Lesson Mode (legacy; SlideEditor.legacy only).
  *

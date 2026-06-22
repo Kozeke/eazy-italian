@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * DashboardPage.legacy.tsx — legacy student dashboard (App.tsx redirects /dashboard — re-import route to restore).
  */

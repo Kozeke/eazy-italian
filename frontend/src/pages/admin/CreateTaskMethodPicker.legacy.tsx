@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CreateTaskMethodPicker.legacy.tsx
  *

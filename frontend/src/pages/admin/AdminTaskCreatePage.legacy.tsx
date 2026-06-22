@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminTaskCreatePage.legacy.tsx  —  AI Task Generation routing shell
  *

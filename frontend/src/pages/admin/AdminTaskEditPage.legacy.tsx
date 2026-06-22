@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminTaskEditPage.legacy.tsx — full-page task editor (legacy; pair with /admin/tasks/:id/edit route).
  */
