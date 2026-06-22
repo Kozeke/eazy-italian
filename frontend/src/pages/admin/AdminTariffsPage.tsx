@@ -353,23 +353,94 @@ export default function AdminTariffsPage() {
 
       {activeTab === "tariffs" ? (
         <>
+          {/* ── Trial clarity banner (shown for free plan with an active trial window) */}
+          {tariffMeReady && currentTariffPlanId === "free" && tariffMe?.subscription_ends_at && !tariffMe.period_expired && (() => {
+            const endLabel = formatSubscriptionEnd(tariffMe.subscription_ends_at);
+            return (
+              <section
+                role="status"
+                style={{
+                  background: "#EEF0FE",
+                  border: "1px solid #C7C9F7",
+                  borderRadius: 14,
+                  padding: "14px 18px",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 20, flexShrink: 0, lineHeight: 1.4 }}>ℹ️</span>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#2F318C" }}>
+                    {t("admin.tariffs.trialBannerTitle", { defaultValue: "You're on the Free plan — free forever." })}
+                  </p>
+                  <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#4F52C2", lineHeight: 1.55 }}>
+                    {t("admin.tariffs.trialBannerBody", {
+                      date: endLabel ?? "",
+                      defaultValue: `Your 30-day trial window ends on ${endLabel}. After that, your account stays on the Free plan automatically — no payment will ever be taken without your explicit choice to upgrade.`,
+                    })}
+                  </p>
+                </div>
+              </section>
+            );
+          })()}
+
           {/* Current plan strip */}
           <section className="rounded-2xl border border-[#E8E8F0] bg-white p-4 shadow-[0_1px_4px_rgba(108,111,239,0.04)]">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium text-slate-500">{t("admin.tariffs.currentPlan")}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-800">
-                    {tariffMeLoad === "loading" || tariffMeLoad === "idle"
-                      ? t("admin.tariffs.loadingShort")
-                      : tariffMeLoad === "error"
-                        ? t("admin.tariffs.dash")
-                        : currentPlanLabel ?? t("admin.tariffs.dash")}
-                  </span>
-                  {currentPlanStatusPill ? (
-                    <span className={currentPlanStatusPill.className}>{currentPlanStatusPill.text}</span>
-                  ) : null}
+              <div className="space-y-2">
+                {/* Row 1: Plan type */}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t("admin.tariffs.currentPlan")}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold text-violet-800">
+                      {tariffMeLoad === "loading" || tariffMeLoad === "idle"
+                        ? t("admin.tariffs.loadingShort")
+                        : tariffMeLoad === "error"
+                          ? t("admin.tariffs.dash")
+                          : currentPlanLabel ?? t("admin.tariffs.dash")}
+                    </span>
+                    {/* "Free forever" badge for free plan */}
+                    {tariffMeReady && currentTariffPlanId === "free" && (
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                        {t("admin.tariffs.forever", { defaultValue: "Free forever" })}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {/* Row 2: Trial window — only shown when there is an ends_at on a free plan */}
+                {tariffMeReady && currentTariffPlanId === "free" && tariffMe?.subscription_ends_at && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      {t("admin.tariffs.trialWindowLabel", { defaultValue: "Trial window" })}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {tariffMe.period_expired ? (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                          {t("admin.tariffs.trialWindowExpired", { defaultValue: "Expired — you remain on Free, no charge" })}
+                        </span>
+                      ) : (
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">
+                          {t("admin.tariffs.trialWindowActive", {
+                            date: formatSubscriptionEnd(tariffMe.subscription_ends_at) ?? "",
+                            defaultValue: `Ends ${formatSubscriptionEnd(tariffMe.subscription_ends_at)} · No payment needed`,
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {/* For paid plans: show the existing status pill */}
+                {tariffMeReady && currentTariffPlanId !== "free" && currentPlanStatusPill && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      {t("admin.tariffs.billingStatus", { defaultValue: "Billing" })}
+                    </p>
+                    <div className="mt-1">
+                      <span className={currentPlanStatusPill.className}>{currentPlanStatusPill.text}</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="text-right text-xs">
                 <p className="text-slate-400">{t("admin.tariffs.courses")}</p>
@@ -420,7 +491,7 @@ export default function AdminTariffsPage() {
                   })}
                 </ul>
                 <p className="mt-3 text-center text-base font-bold text-slate-800">{t("admin.tariffs.zeroUsd")}</p>
-                <p className="text-center text-[10px] text-slate-500">{t("admin.tariffs.forever")}</p>
+                <p className="text-center text-[10px] text-slate-500">{t("admin.tariffs.forever", { defaultValue: "Free forever · No credit card required" })}</p>
                 <button
                   type="button"
                   disabled={tariffPlanActionsBlocked || isCurrentPlan("free")}

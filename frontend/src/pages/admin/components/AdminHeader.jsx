@@ -15,7 +15,7 @@
  *   • "Renew plan →" calls the existing onTariffs() prop (navigates to /admin/tariffs).
  *
  * UI strings: `admin.header.*`, plus `admin.help`, `admin.subscription`,
- * `admin.tariffs`, `admin.userMenu`, `admin.theme`, and root `nav.logout`.
+ * `admin.tariffs`, `admin.userMenu`, `admin.th§eme`, and root `nav.logout`.
  */
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
@@ -123,34 +123,29 @@ const CSS = `
   .ah-logo { display: flex; align-items: center; gap: 9px; text-decoration: none; flex-shrink: 0; }
   .ah-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
-  /* ── Trial icon ─────────────────────────────────────────────────────────── */
-  .ah-trial-btn {
-    width: 36px; height: 36px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    border: none; background: none; cursor: pointer;
-    transition: background .14s; position: relative; flex-shrink: 0;
-    color: ${T.lime};
+  /* ── Trial plan pill chip (replaces the old animated icon button) ────────── */
+  .ah-trial-pill {
+    display: inline-flex; align-items: center;
+    padding: 0 12px; height: 30px; border-radius: 99px;
+    border: 1.5px solid ${T.border};
+    background: ${T.bg};
+    cursor: pointer;
+    font-size: 12.5px; font-weight: 600; color: ${T.sub};
+    font-family: 'Inter', system-ui, sans-serif;
+    transition: background .14s, border-color .14s, color .14s;
+    white-space: nowrap; flex-shrink: 0;
   }
-  .ah-trial-btn:hover { background: ${T.limeL}; }
-  .ah-trial-btn[aria-expanded="true"] { background: ${T.limeL}; }
-  .ah-trial-btn:hover .ah-trial-days,
-  .ah-trial-btn[aria-expanded="true"] .ah-trial-days { background: ${T.violet}; color: ${T.white}; }
-  .ah-trial-ring {
-    position: absolute; inset: 4px; border-radius: 50%;
-    border: 1.5px solid currentColor; opacity: .35;
-    animation: ah-ring-pulse 2.6s ease-in-out infinite;
+  .ah-trial-pill:hover,
+  .ah-trial-pill[aria-expanded="true"] {
+    background: ${T.violetL}; border-color: ${T.violet}; color: ${T.violet};
   }
-  .ah-trial-days {
-    position: absolute; top: -6px; right: -6px;
-    min-width: 18px; height: 18px; border-radius: 9px;
-    background: ${T.white}; border: 1px solid ${T.border};
-    padding: 0 4px; display: inline-flex; align-items: center; justify-content: center;
-    font-size: 10px; font-weight: 700; color: ${T.violet}; line-height: 1;
-    box-shadow: 0 2px 6px rgba(17,24,39,.1); transition: background .14s, color .14s;
+  /* Variant shown when the teacher has a paid plan */
+  .ah-trial-pill--paid {
+    color: ${T.lime}; border-color: ${T.limeL}; background: ${T.limeL};
   }
-  @keyframes ah-ring-pulse {
-    0%,100% { transform: scale(1); opacity: .35; }
-    50%      { transform: scale(1.15); opacity: .15; }
+  .ah-trial-pill--paid:hover,
+  .ah-trial-pill--paid[aria-expanded="true"] {
+    background: #D1FAE5; border-color: ${T.lime}; color: #0A7A3D;
   }
 
   .ah-divider { width: 1px; height: 20px; background: ${T.borderL}; margin: 0 4px; flex-shrink: 0; }
@@ -204,6 +199,12 @@ const CSS = `
   .ah-tp-plan-name { font-size: 17px; font-weight: 700; color: ${T.text}; font-family: 'Nunito', system-ui, sans-serif; }
   .ah-tp-badge { font-size: 11px; font-weight: 600; color: ${T.violet}; background: ${T.violetL}; border-radius: 5px; padding: 2px 7px; }
   .ah-tp-note { font-size: 12.5px; color: ${T.muted}; line-height: 1.5; margin-bottom: 14px; text-align: center; }
+  /* Tinted blue note shown in the free-plan popover body */
+  .ah-tp-note--trial-window {
+    background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 7px;
+    padding: 9px 11px; color: #1D4ED8; font-size: 12.5px; line-height: 1.55;
+    margin-bottom: 14px; text-align: left;
+  }
   .ah-tp-cta {
     display: block; width: 100%; padding: 10px 0; border-radius: 8px;
     background: ${T.sky}; color: ${T.white};
@@ -455,11 +456,26 @@ function TrialPopover({ trialUntil, teacherSubscriptionPlan, onClose, onTariffs 
             <span className="ah-tp-plan-name">{planLabel}</span>
             <span className="ah-tp-badge">{isPaid ? t("admin.subscription.active") : t("admin.tariffs.plans.free")}</span>
           </div>
-          {paidNote
-            ? <p className="ah-tp-note">{paidNote}</p>
-            : <p className="ah-tp-note">{t("admin.subscription.upgradeHint")}</p>
-          }
-          <button type="button" className="ah-tp-cta" onClick={() => { onClose(); onTariffs?.(); }}>{t("admin.subscription.goToPlans")}</button>
+          {isPaid ? (
+            <>
+              {paidNote && <p className="ah-tp-note">{paidNote}</p>}
+              <button type="button" className="ah-tp-cta" onClick={() => { onClose(); onTariffs?.(); }}>{t("admin.subscription.goToPlans")}</button>
+            </>
+          ) : (
+            <>
+              {/* Free-forever statement — no payment ambiguity */}
+              <p className="ah-tp-note" style={{ textAlign: "left", marginBottom: 10 }}>
+                {t("admin.header.trialPopover.freeForever")}
+              </p>
+              {/* Tinted blue note clarifying the trial window ends but no charge follows */}
+              {trialDate && (
+                <p className="ah-tp-note--trial-window">
+                  {t("admin.header.trialPopover.freeTrialWindow", { date: trialDate })}
+                </p>
+              )}
+              <button type="button" className="ah-tp-cta" onClick={() => { onClose(); onTariffs?.(); }}>{t("admin.subscription.goToPlans")}</button>
+            </>
+          )}
         </div>
       )}
       <LimitsTab visible={tab === "limits"} />
@@ -537,7 +553,7 @@ export default function AdminHeader({
   onProfileSettings       = () => {},
   onTariffs               = () => {},
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [userOpen,  setUserOpen]  = useState(false);
   const [trialOpen, setTrialOpen] = useState(false);
   const [helpOpen,  setHelpOpen]  = useState(false);
@@ -569,6 +585,8 @@ export default function AdminHeader({
   const initial       = useMemo(() => getInitial(userName), [userName]);
   const showTrial     = true;
   const trialDaysLeft = useMemo(() => getTrialDaysLeft(trialUntil), [trialUntil]);
+  // Formatted trial end date used by the pill label and the free-plan popover body
+  const trialDate     = useMemo(() => formatTrialDate(trialUntil, i18n.language), [trialUntil, i18n.language]);
   // True when /users/me reports a paid teacher tier (Pro has no subscription_ends_at).
   const hasPaidTeacherPlan = useMemo(
     () => normalizeTeacherPlanKey(teacherSubscriptionPlan) !== "free",
@@ -642,27 +660,22 @@ export default function AdminHeader({
             {helpOpen && <HelpDropdown onClose={closeHelp} />}
           </div>
 
-          {/* Trial popover trigger */}
+          {/* Trial plan pill — plain-language chip replacing the old animated countdown icon */}
           {showTrial && (
             <div style={{ position: "relative" }} ref={trialBtnRef}>
               <button
                 type="button"
-                className="ah-trial-btn"
+                className={`ah-trial-pill${hasPaidTeacherPlan ? " ah-trial-pill--paid" : ""}`}
                 onClick={openTrial}
                 aria-haspopup="dialog"
                 aria-expanded={trialOpen}
-                aria-label={trialDaysLeft != null ? t("admin.subscription.daysLeftAria", { days: trialDaysLeft }) : t("admin.subscription.planAria")}
-                title={
-                  trialDaysLeft != null
-                    ? t("admin.subscription.daysLeftTitle", { days: trialDaysLeft })
-                    : hasPaidTeacherPlan
-                      ? t("admin.subscription.activePlanTitle")
-                      : t("admin.subscription.freePlanTitle")
-                }
+                aria-label={hasPaidTeacherPlan ? t("admin.subscription.activePlanTitle") : (trialDate ? t("admin.subscription.trialPillFree", { date: trialDate }) : t("admin.subscription.freePlanTitle"))}
               >
-                <span className="ah-trial-ring" aria-hidden="true" />
-                <IcoTrial />
-                {trialDaysLeft != null && <span className="ah-trial-days" aria-hidden="true">{trialDaysLeft}d</span>}
+                {hasPaidTeacherPlan
+                  ? t("admin.subscription.activePlanPill")
+                  : trialDate
+                    ? t("admin.subscription.trialPillFree", { date: trialDate })
+                    : t("admin.subscription.trialPillNoDate")}
               </button>
               {trialOpen && (
                 <TrialPopover

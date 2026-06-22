@@ -138,8 +138,8 @@
     "fullNamePlaceholder": "Enter your full name",
     "passwordFieldLabel": "Password *",
     "passwordMinCharsHint": "Min. 8 characters",
-    "trialPeriodTitle": "Trial period",
-    "trialPeriodBody": "We've activated a free 31-day trial so you can explore everything the platform has to offer.",
+    "trialPeriodTitle": "You're on the Free plan!",
+    "trialPeriodBody": "Your account is free forever — no credit card, no hidden charges. For your first 30 days you can explore all platform features. After that, you stay on Free automatically. Upgrade any time only if you choose to.",
     "letsGoBtn": "Let's go!",
     "validEmailRequired": "Please enter a valid email address.",
     "emailAlreadyRegistered": "This email is already registered. Sign in instead.",
@@ -632,7 +632,10 @@
       "planAria": "Subscription plan",
       "daysLeftTitle": "{{days}} days left",
       "freePlanTitle": "Free plan - click to upgrade",
-      "activePlanTitle": "Active subscription"
+      "activePlanTitle": "Active subscription",
+      "activePlanPill": "Active plan",
+      "trialPillFree": "Trial ends {{date}}",
+      "trialPillNoDate": "Free trial"
     },
     "userMenu": {
       "label": "User menu",
@@ -657,7 +660,9 @@
         "paidDateOnly": "Paid until {{date}}",
         "paidOneDayLeft": "Paid until {{date}} · 1 day left",
         "paidManyDaysLeft": "Paid until {{date}} · {{days}} days left",
-        "openEndedActive": "Your plan is active. No end date — open-ended access."
+        "openEndedActive": "Your plan is active. No end date — open-ended access.",
+        "freeForever": "You're on the Free plan — free forever. No payment required.",
+        "freeTrialWindow": "Your 30-day trial window ends on {{date}}. After that, you stay on the Free plan — you won't be charged."
       },
       "updatesNewAria": "New"
     },
@@ -1410,7 +1415,7 @@
             "Homework & self-study mode",
             "Priority support"
           ],
-          "cta": "Start free trial"
+          "cta": "Get started free"
         },
         "school": {
           "name": "School",

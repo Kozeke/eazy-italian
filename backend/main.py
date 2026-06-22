@@ -143,7 +143,9 @@ async def startup_event():
     from sqlalchemy.exc import OperationalError
     from sqlalchemy import text
 
-    MIGRATION_VERSION = "v2_schema_complete"
+    # Bump this string whenever new one-time migrations are added so they run
+    # exactly once on the next deploy and are skipped on all subsequent boots.
+    MIGRATION_VERSION = "v3_add_missing_indexes"
 
     max_retries = 5
     retry_delay = 2
@@ -367,6 +369,11 @@ def _run_all_migrations(_unused_conn):
         )""",
         "CREATE INDEX IF NOT EXISTS idx_course_enrollments_user_id ON course_enrollments(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_course_enrollments_course_id ON course_enrollments(course_id)",
+        # Speed up the admin/courses list query: filter by created_by + order by order_index
+        "CREATE INDEX IF NOT EXISTS idx_courses_created_by ON courses(created_by)",
+        "CREATE INDEX IF NOT EXISTS idx_courses_order_index ON courses(order_index ASC, created_at DESC)",
+        # Speed up units listing per course
+        "CREATE INDEX IF NOT EXISTS idx_units_course_id_order ON units(course_id, order_index ASC)",
     ])
 
     # ── task_submissions + tasks extra columns ────────────────────────────────
