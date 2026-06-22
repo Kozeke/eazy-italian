@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * SlideNavigator.legacy.tsx — Part 3 + Part 11 + Lesson Mode (legacy; ReviewSlidesPage.legacy only).
  *

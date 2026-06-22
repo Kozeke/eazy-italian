@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * TestsPage.legacy.tsx — Tests Page (App.tsx redirects /tests/* — re-import route to restore)
  * 

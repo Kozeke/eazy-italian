@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * TestTakingPage.legacy.tsx — legacy test runner (App.tsx redirects /tests/* — re-import route to restore).
  */

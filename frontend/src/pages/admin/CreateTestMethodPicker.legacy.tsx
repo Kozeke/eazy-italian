@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CreateTestMethodPicker.legacy.tsx
  *

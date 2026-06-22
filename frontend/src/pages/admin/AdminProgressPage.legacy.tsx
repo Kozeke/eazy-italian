@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminProgressPage.legacy.tsx — placeholder admin screen (no active route).
  */

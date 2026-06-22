@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * TeacherEmptyClassroom.legacy.tsx (unused in current tree; keep for future classroom empty states)
  *

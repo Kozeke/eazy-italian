@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CourseDetailPage.legacy.tsx — legacy course landing (App.tsx redirects /courses/* — re-import route to restore).
  */

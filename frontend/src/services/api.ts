@@ -2,10 +2,6 @@ import axios, { AxiosInstance, AxiosResponse } from "axios";
 import {
   User,
   Unit,
-  Video,
-  Task,
-  TaskSubmission,
-  Test,
   Question,
   Progress,
   EmailCampaign,
@@ -719,6 +715,11 @@ export const videosApi = {
   // LEGACY:     return response.data;
   // LEGACY:   },
 
+  // Hard-delete a legacy video item by admin video id.
+  deleteVideo: async (id: number): Promise<void> => {
+    await api.delete(`/admin/videos/${id}`);
+  },
+
   // LEGACY:   deleteVideo: async (id: number): Promise<void> => {
   // LEGACY:     await api.delete(`/admin/videos/${id}`);
   // LEGACY:   },
@@ -850,6 +851,23 @@ export const tasksApi = {
   // LEGACY:     );
   // LEGACY:     return response.data;
   // LEGACY:   },
+
+  // Hard-delete a legacy task item by admin task id.
+  deleteTask: async (id: number): Promise<void> => {
+    await api.delete(`/tasks/admin/tasks/${id}`);
+  },
+
+  // Fetch a single student-facing task by id.
+  getTask: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.get(`/tasks/${id}`);
+    return response.data;
+  },
+
+  // Submit student answers for a task.
+  submitTask: async (id: number, answers: Record<string, unknown>): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(`/tasks/${id}/submit`, { answers });
+    return response.data;
+  },
 
   // LEGACY:   deleteTask: async (id: number): Promise<void> => {
   // LEGACY:     await api.delete(`/tasks/admin/tasks/${id}`);
@@ -1075,6 +1093,23 @@ export const testsApi = {
   // LEGACY:     );
   // LEGACY:     return response.data;
   // LEGACY:   },
+
+  // Hard-delete a legacy test item by admin test id.
+  deleteTest: async (id: number): Promise<void> => {
+    await api.delete(`/admin/tests/${id}`);
+  },
+
+  // Start a student test attempt and return attempt metadata.
+  startTest: async (id: number): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(`/tests/${id}/start`);
+    return response.data;
+  },
+
+  // Submit student answers for a timed/untimed test.
+  submitTest: async (id: number, answers: Record<string, any>): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(`/tests/${id}/submit`, { answers });
+    return response.data;
+  },
 
   // LEGACY:   deleteTest: async (id: number): Promise<void> => {
   // LEGACY:     await api.delete(`/admin/tests/${id}`);

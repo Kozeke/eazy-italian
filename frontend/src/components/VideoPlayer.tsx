@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { videosApi } from '../services/api';
+import { videoProgressApi } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface VideoPlayerProps {
@@ -46,11 +46,12 @@ export default function VideoPlayer({
     // Only save if progress changed by at least 5% or if completed
     if (completed || Math.abs(watchedPercentage - lastSavedProgress) >= 5) {
       try {
-        await videosApi.updateVideoProgress(video.id, {
-          watched_percentage: watchedPercentage,
-          last_position_sec: currentTime,
-          completed: completed
-        });
+        await videoProgressApi.updateVideoProgress(
+          video.id,
+          currentTime,
+          watchedPercentage,
+          completed,
+        );
         setLastSavedProgress(watchedPercentage);
         
         if (completed && onProgressUpdate) {
@@ -135,7 +136,7 @@ export default function VideoPlayer({
   const handleLoadedMetadata = async () => {
     if (videoRef.current && video.source_type === 'file') {
       try {
-        const progress = await videosApi.getVideoProgress(video.id);
+        const progress = await videoProgressApi.getVideoProgress(video.id);
         if (progress && progress.last_position_sec && !progress.completed) {
           // Resume from last position if video wasn't completed
           videoRef.current.currentTime = progress.last_position_sec;

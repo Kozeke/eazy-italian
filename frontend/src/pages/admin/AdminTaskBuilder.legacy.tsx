@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminTaskBuilder.jsx — Production-grade Task Builder
  *

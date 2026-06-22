@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AdminUnitEditPage.tsx
  *

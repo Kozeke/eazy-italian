@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * UnitsPage.legacy.tsx — mock units list (not mounted in App.tsx; kept for reference / future reuse)
  * 

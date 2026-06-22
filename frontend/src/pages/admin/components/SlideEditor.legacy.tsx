@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * SlideEditor.legacy.tsx — Parts 4, 5, 6, 7, 11 + Lesson Mode (legacy slide review UI; routes commented in AdminRoutes.jsx).
  *

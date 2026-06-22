@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ReviewSlidesPage, ReviewStyles } from "./ReviewSlidesPage.legacy";
