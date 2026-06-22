@@ -166,6 +166,27 @@ async def get_admin_courses(
     is NOT fetched here. One SELECT, no joins, sub-100ms on warm connection.
     Call GET /admin/courses/{course_id} when a course card is clicked.
     """
+    # Correlated subquery: total units belonging to each course row
+    units_count_sq = (
+        db.query(func.count(Unit.id))
+        .filter(Unit.course_id == Course.id)
+        .correlate(Course)
+        .scalar_subquery()
+        .label("units_count")
+    )
+
+    # Correlated subquery: only published units for each course row
+    published_units_sq = (
+        db.query(func.count(Unit.id))
+        .filter(
+            Unit.course_id == Course.id,
+            Unit.status == UnitStatus.PUBLISHED,
+        )
+        .correlate(Course)
+        .scalar_subquery()
+        .label("published_units_count")
+    )
+
     query_builder = db.query(
         Course.id,
         Course.title,
@@ -180,8 +201,8 @@ async def get_admin_courses(
         Course.updated_at,
         Course.target_language,
         Course.native_language,
-        Course.units_count,            # stored int — no join needed
-        Course.published_units_count,  # stored int — no join needed
+        units_count_sq,
+        published_units_sq,
     ).filter(Course.created_by == current_user.id)
 
     if query:
