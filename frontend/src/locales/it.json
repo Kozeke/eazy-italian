@@ -138,8 +138,8 @@
       "fullNamePlaceholder": "Inserisci il tuo nome completo",
       "passwordFieldLabel": "Password *",
       "passwordMinCharsHint": "Min. 8 caratteri",
-      "trialPeriodTitle": "Periodo di prova",
-      "trialPeriodBody": "Abbiamo attivato una prova gratuita di 31 giorni per esplorare tutte le funzionalità della piattaforma.",
+      "trialPeriodTitle": "Sei nel piano Gratuito!",
+      "trialPeriodBody": "Il tuo account è gratuito per sempre — nessuna carta di credito, nessun addebito nascosto. Nei primi 30 giorni puoi esplorare tutte le funzionalità della piattaforma. Dopo, rimani automaticamente nel piano Gratuito. Passa a un piano superiore solo se lo desideri.",
       "letsGoBtn": "Andiamo!",
       "validEmailRequired": "Inserisci un indirizzo email valido.",
       "emailAlreadyRegistered": "Questa email è già registrata. Accedi invece.",
@@ -632,7 +632,10 @@
         "planAria": "Subscription plan",
         "daysLeftTitle": "{{days}} days left",
         "freePlanTitle": "Free plan - click to upgrade",
-        "activePlanTitle": "Active subscription"
+        "activePlanTitle": "Active subscription",
+        "activePlanPill": "Piano attivo",
+        "trialPillFree": "Prova scade {{date}}",
+        "trialPillNoDate": "Periodo di prova"
       },
       "userMenu": {
         "label": "User menu",
@@ -657,7 +660,9 @@
           "paidDateOnly": "Paid until {{date}}",
           "paidOneDayLeft": "Paid until {{date}} · 1 day left",
           "paidManyDaysLeft": "Paid until {{date}} · {{days}} days left",
-          "openEndedActive": "Your plan is active. No end date — open-ended access."
+          "openEndedActive": "Your plan is active. No end date — open-ended access.",
+          "freeForever": "Sei nel piano Gratuito — gratuito per sempre. Nessun pagamento richiesto.",
+          "freeTrialWindow": "La finestra di prova di 30 giorni scade il {{date}}. Dopo di ciò, resti nel piano Gratuito — non ti verrà addebitato nulla."
         },
         "updatesNewAria": "New"
       },
@@ -1319,7 +1324,7 @@
               "Compiti e modalità studio autonomo",
               "Supporto prioritario"
             ],
-            "cta": "Inizia la prova gratuita"
+            "cta": "Inizia gratis"
           },
           "school": {
             "name": "Scuola",

@@ -5,7 +5,6 @@ import LayoutWrapper from './components/LayoutWrapper';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
-import TeacherRegisterFlow from './components/auth/TeacherRegisterFlow';
 import JoinClassroomPage from './components/auth/JoinClassroomPage';
 /* Legacy student catalog / LMS pages (*.legacy.tsx) — re-enable imports + routes below if needed:
 import DashboardPage from './pages/DashboardPage.legacy';
@@ -70,7 +69,6 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/register/teacher" element={<TeacherRegisterFlow />} />
       <Route path="/join-classroom" element={<JoinClassroomPage />} />
       <Route path="/success" element={<CheckoutSuccessPage />} />
       <Route path="/cancel" element={<CheckoutCancelPage />} />
