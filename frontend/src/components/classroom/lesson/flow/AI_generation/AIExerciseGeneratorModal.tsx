@@ -495,6 +495,9 @@ export default function AIExerciseGeneratorModal({
           gap_count:  gapCount  === "auto" ? "auto" : parseInt(gapCount,  10),
           pair_count: pairCount === "auto" ? "auto" : parseInt(pairCount, 10),
           gap_type:   cfg.showGaps ? gapType : undefined,
+          // Do not persist the block on generation — the teacher must click Save
+          // explicitly in the exercise editor before anything is written to the DB.
+          preview_only: true,
         };
         // fetchWithAuth automatically refreshes the access token on 401 and retries,
         // so a mid-session token expiry is handled transparently without user action.

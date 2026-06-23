@@ -2721,6 +2721,7 @@ async def generate_drag_word_to_image_from_unit_content(
         "- Bad: 'bonjour' (greeting), 'manger' (verb), 'grand' (adjective), 'merci' (expression)\n\n"
         "For each item provide:\n"
         '  - "answer": a concrete noun from the source material (target language)\n'
+        '  - "concept": the plain English translation of the answer word (always English, e.g. "apple", "book", "teacher"). Used internally for caching — never shown to the student.\n'
         '  - "description": a vivid English scene description used to AUTO-GENERATE an SVG illustration.\n'
         "    The description MUST follow these strict rules:\n"
         "    • Describe the noun as a SINGLE CLEAR OBJECT or scene — something a simple illustration can show.\n"
@@ -2740,7 +2741,7 @@ async def generate_drag_word_to_image_from_unit_content(
         "{\n"
         '  "title": "<descriptive exercise title>",\n'
         '  "items": [\n'
-        '    {"answer": "chat", "description": "a fluffy orange cat sitting upright on a windowsill"},\n'
+        '    {"answer": "chat", "concept": "cat", "description": "a fluffy orange cat sitting upright on a windowsill"},\n'
         "    ...\n"
         "  ]\n"
         "}"
@@ -2767,6 +2768,7 @@ async def generate_drag_word_to_image_from_unit_content(
                     # (fal.ai → SVG fallback); left empty here as a sentinel.
                     "imageUrl":    "",
                     "answer":      str(item.get("answer", "")).strip(),
+                    "concept":     str(item.get("concept", item.get("answer", ""))).strip().lower(),
                     "description": str(item.get("description", "")).strip(),
                 }
                 for i, item in enumerate(items, 1)
@@ -2948,6 +2950,7 @@ async def generate_select_form_to_image_from_unit_content(
         '  "items": [\n'
         '    {\n'
         '      "answer": "livre",\n'
+        '      "concept": "book",\n'
         '      "distractors": ["stylo", "cahier"],\n'
         '      "description": "an open book lying flat with its pages spread"\n'
         "    }\n"
@@ -2995,6 +2998,7 @@ async def generate_select_form_to_image_from_unit_content(
                         "imageUrl": "",
                         "options": options,
                         "answers": [answer],
+                        "concept": str(item.get("concept", answer)).strip().lower(),
                         "description": str(item.get("description", "")).strip(),
                     }
                 )
@@ -3736,6 +3740,7 @@ async def generate_image_block_from_unit_content(
     topic_hint: str | None = None,
     provider=None,
     max_retries: int = 2,
+    db=None,
     **_ignored,
 ) -> tuple[dict, dict]:
     """
@@ -3779,7 +3784,7 @@ async def generate_image_block_from_unit_content(
         prompt   = img_prompt,
         alt_text = alt,
         style    = style,
-        db       = None,   # no DB session in exercise generator context
+        db       = db,
     )
 
     caption = slide_title[:200] if slide_title else None
@@ -3807,6 +3812,7 @@ async def generate_image_stacked_from_unit_content(
     provider=None,
     max_retries: int = 2,
     pair_count: int | None = None,
+    db=None,
     **_ignored,
 ) -> tuple[dict, dict]:
     """
@@ -3858,7 +3864,7 @@ async def generate_image_stacked_from_unit_content(
             prompt   = img_prompt,
             alt_text = alt[:300],
             style    = style,
-            db       = None,   # no DB session in exercise generator context
+            db       = db,
         )
         images_out.append({
             "src": img_result.as_data_uri(),

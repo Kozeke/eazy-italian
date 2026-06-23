@@ -71,6 +71,17 @@ class ExerciseGenerateRequest(BaseModel):
         description="Optional difficulty preference (for example Beginner, Intermediate, Advanced).",
     )
 
+    # When True the AI runs and card images are generated, but the block is NOT
+    # persisted to the database.  The caller (lesson editor) is responsible for
+    # saving via the segment PUT when the teacher explicitly clicks Save.
+    preview_only: bool = Field(
+        default=False,
+        description=(
+            "When True, run AI generation and image creation but skip the DB write. "
+            "The returned block has an empty id — the client must persist it explicitly."
+        ),
+    )
+
     # ── Type-specific extras ──────────────────────────────────────────────────
     # Gap-based exercises (drag_to_gap, type_word_in_gap, select_word_form)
     gap_count: Union[int, Literal["auto"]] = Field(

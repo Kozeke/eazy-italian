@@ -452,6 +452,9 @@ async def generate_exercise_block(
         content_language=body.content_language,
         instruction_language=body.instruction_language,
         generator_params=body.build_generator_params(),
+        # Forwards the teacher's intent: preview=True skips the DB write so the
+        # block is only saved when the Save button is explicitly clicked.
+        preview_only=body.preview_only,
     )
 
     return {"block": block, "metadata": metadata}
