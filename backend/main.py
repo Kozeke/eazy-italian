@@ -24,6 +24,7 @@ from app.models.test import Test                        # → test_without_timer
 from app.models.progress import Progress                # → UnitHomeworkSubmission
 from app.models.presentation import Presentation, PresentationSlide
 from app.models.live_session import LiveSession
+from app.models.ai_cache import AICache  # ensures ai_cache table is created on boot
 import logging
 
 logging.basicConfig(
@@ -422,7 +423,89 @@ def _run_all_migrations(_unused_conn):
     print("  ✅ All migrations complete")
 
 
+
+@app.on_event("startup")
+async def ensure_ai_cache_image_index():
+    """
+    Ensure the partial index on ai_cache for image lookups exists.
+    The table is created by Base.metadata.create_all (AICache imported above).
+    The index is idempotent — IF NOT EXISTS makes it safe on every boot.
+    """
+    from sqlalchemy import text as _text
+    try:
+        with engine.connect() as conn:
+            conn.execute(_text("""
+                CREATE INDEX IF NOT EXISTS ix_ai_cache_image_lookup
+                    ON ai_cache (cache_key)
+                    WHERE content_type = 'image'
+            """))
+            conn.commit()
+        print("\u2705 [startup] ai_cache image index ensured", flush=True)
+    except Exception as exc:
+        print(f"\u26a0\ufe0f  [startup] ai_cache image index (non-fatal): {exc}", flush=True)
+
 # ── Utility endpoints ─────────────────────────────────────────────────────────
+
+
+@app.delete("/api/v1/admin/image-cache", tags=["Admin"])
+async def evict_image_cache(days: int = 30):
+    """
+    Delete image cache entries not accessed in the last ``days`` days.
+    Defaults to 30 days.  Returns counts of deleted and remaining rows.
+    """
+    from app.core.database import SessionLocal
+    from app.services.image_cache_service import (
+        evict_old_image_cache_entries,
+        count_image_cache_entries,
+    )
+    db = SessionLocal()
+    try:
+        total_before = count_image_cache_entries(db)
+        deleted = evict_old_image_cache_entries(db, days=days)
+        return {
+            "deleted": deleted,
+            "remaining": total_before - deleted,
+            "days_threshold": days,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/v1/admin/image-cache/stats", tags=["Admin"])
+async def image_cache_stats():
+    """Return total entry count and the 10 most-hit cached images."""
+    from app.core.database import SessionLocal
+    from app.models.ai_cache import AICache, CacheContentType
+    db = SessionLocal()
+    try:
+        total = (
+            db.query(AICache)
+            .filter(AICache.content_type == CacheContentType.IMAGE)
+            .count()
+        )
+        top_hits = (
+            db.query(AICache)
+            .filter(AICache.content_type == CacheContentType.IMAGE)
+            .order_by(AICache.usage_count.desc())
+            .limit(10)
+            .all()
+        )
+        return {
+            "total_entries": total,
+            "top_hits": [
+                {
+                    "cache_key": r.cache_key[:16] + "\u2026",
+                    "hit_count": r.usage_count,
+                    "model": (r.input_json or {}).get("model", "?"),
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "last_accessed_at": r.last_accessed_at.isoformat() if r.last_accessed_at else None,
+                }
+                for r in top_hits
+            ],
+        }
+    finally:
+        db.close()
+
 
 @app.get("/health")
 async def health_check():
