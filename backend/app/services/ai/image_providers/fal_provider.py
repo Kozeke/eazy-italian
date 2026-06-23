@@ -208,6 +208,16 @@ class FalImageProvider(ImageProvider):
             height      = h,
         )
 
+    def build_effective_prompt(self, user_prompt: str, style: str) -> str:
+        """
+        Return the FULL prompt that would be sent to fal.ai — after applying the
+        style prefix and concept-visual swap — WITHOUT making a network call.
+
+        Called by ``image_cache_service`` to compute a stable cache key before
+        the actual generation request.  Must stay in sync with ``_build_prompt``.
+        """
+        return self._build_prompt(user_prompt, style)
+
     def _build_prompt(self, user_prompt: str, style: str) -> str:
         # Only collapse the prompt to a generic concept visual for lesson/section
         # illustrations. Disabled for course banners so the full descriptive

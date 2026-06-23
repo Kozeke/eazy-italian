@@ -3773,10 +3773,13 @@ async def generate_image_block_from_unit_content(
 
     style = "educational, flat illustration, clean background"
     alt = f"Educational illustration for: {slide_title}"
-    img_result = await img_provider.agenerate_image(
-        prompt=img_prompt,
-        alt_text=alt,
-        style=style,
+    from app.services.image_cache_service import cached_generate_image
+    img_result = await cached_generate_image(
+        provider = img_provider,
+        prompt   = img_prompt,
+        alt_text = alt,
+        style    = style,
+        db       = None,   # no DB session in exercise generator context
     )
 
     caption = slide_title[:200] if slide_title else None
@@ -3849,10 +3852,13 @@ async def generate_image_stacked_from_unit_content(
             style=style,
         )
         alt = f"Educational illustration {i + 1}/{n_images}: {slide_focus}"
-        img_result = await img_provider.agenerate_image(
-            prompt=img_prompt,
-            alt_text=alt[:300],
-            style=style,
+        from app.services.image_cache_service import cached_generate_image
+        img_result = await cached_generate_image(
+            provider = img_provider,
+            prompt   = img_prompt,
+            alt_text = alt[:300],
+            style    = style,
+            db       = None,   # no DB session in exercise generator context
         )
         images_out.append({
             "src": img_result.as_data_uri(),

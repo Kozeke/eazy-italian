@@ -743,10 +743,13 @@ async def generate_segment_image(
                 lora_url=fal_lora_url,
                 lora_scale=fal_lora_scale,
             )
-            img_result = await fal_provider.agenerate_image(
-                prompt=image_description,
-                alt_text=alt_text,
-                style=style,
+            from app.services.image_cache_service import cached_generate_image
+            img_result = await cached_generate_image(
+                provider = fal_provider,
+                prompt   = image_description,
+                alt_text = alt_text,
+                style    = style,
+                db       = db,
             )
         except Exception as exc:
             logger.warning(
