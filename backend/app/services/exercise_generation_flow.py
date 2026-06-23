@@ -184,6 +184,7 @@ async def _generate_single_card_image(
     fal_lora_scale: float,
     created_by: int,
     style: str,
+    db=None,
 ) -> None:
     """
     Generate and save an image for a single vocabulary card using fal.ai only.
@@ -197,6 +198,16 @@ async def _generate_single_card_image(
     # Skip cards that already have an image or lack a description to guide generation.
     if not description or card.get("imageUrl"):
         return
+
+    # Use the "concept" field (plain English translation of the answer word) as
+    # the stable cache key seed.  This ensures that "mela" (Italian) and "apple"
+    # (English) both produce concept="apple" and hit the same cache entry.
+    # Falls back to answer word if the LLM didn't emit a concept field.
+    concept = (card.get("concept") or card.get("answer") or "").strip().lower()
+    logger.info(
+        "_generate_single_card_image: card=%r concept=%r (used as cache key seed)",
+        card.get("id"), concept,
+    )
 
     # Use the scene description as alt text so the answer word never leaks
     # into the image-generation prompt (prevents text answers from appearing
@@ -213,9 +224,10 @@ async def _generate_single_card_image(
         )
         return
 
-    # Attempt fal.ai generation.
+    # Attempt fal.ai generation (cache-aware).
     try:
         from app.services.ai.image_providers import FalImageProvider  # noqa: PLC0415
+        from app.services.image_cache_service import cached_generate_image  # noqa: PLC0415
         fal_provider = FalImageProvider(
             api_key=fal_key,
             model=fal_model,
@@ -223,10 +235,15 @@ async def _generate_single_card_image(
             lora_url=fal_lora_url,
             lora_scale=fal_lora_scale,
         )
-        img_result = await fal_provider.agenerate_image(
-            prompt=description,
-            alt_text=alt_text,
-            style=style,
+        img_result = await cached_generate_image(
+            provider        = fal_provider,
+            prompt          = description,
+            alt_text        = alt_text,
+            style           = style,
+            db              = db,
+            # Key by the stable answer word so the same concept always hits
+            # the same cache entry, even when the LLM rephrases its description.
+            cache_key_seed  = concept or None,
         )
     except Exception as exc:  # noqa: BLE001
         # Prevent a single card failure from blocking the whole batch.
@@ -271,6 +288,7 @@ async def _generate_single_card_image(
 async def _generate_and_save_card_images(
     cards: list[dict],
     created_by: int,
+    db=None,
 ) -> None:
     """
     Generate and save images for all cards in a word-to-image exercise.
@@ -324,6 +342,7 @@ async def _generate_and_save_card_images(
             fal_lora_scale=fal_lora_scale,
             created_by=created_by,
             style=style,
+            db=db,
         )
         for card in cards
     ]
@@ -356,6 +375,11 @@ async def generate_exercise_for_segment(
     # When set (e.g. by UnitGenerator), forces the same LLM stack as unit text
     # instead of the module default chain (avoids surprise Groq fallback).
     provider: AIProvider | None = None,
+    # When True: run AI generation + card image creation but skip the DB write.
+    # The block id in the returned dict will be an empty string.
+    # The caller (lesson editor) is responsible for persisting when the teacher
+    # explicitly clicks Save.
+    preview_only: bool = False,
 ) -> tuple[dict, dict]:
     """
     Full pipeline for any exercise type:
@@ -544,6 +568,7 @@ async def generate_exercise_for_segment(
                 await _generate_and_save_card_images(
                     cards=cards,
                     created_by=created_by,
+                    db=db,
                 )
                 # Count how many cards received an image for the metadata log.
                 filled = sum(1 for c in cards if c.get("imageUrl"))
@@ -562,9 +587,26 @@ async def generate_exercise_for_segment(
                     exercise_type, segment_id, _img_exc,
                 )
 
-    # ── 4. Persist block ──────────────────────────────────────────────────────
+    # ── 4. Persist block (or return a preview-only block) ─────────────────────
     default_title = exercise_data.get("title") or exercise_type.replace("_", " ").title()
     title = block_title or default_title
+
+    if preview_only:
+        # Skip the DB write: build a block-shaped dict with an empty id so the
+        # frontend knows it was never persisted.  The teacher's Save button will
+        # call persistCustomLessonBlockToSegment which appends the block at that
+        # point.
+        block: dict = {
+            "id":    "",
+            "kind":  exercise_type,
+            "title": title,
+            "data":  exercise_data,
+        }
+        logger.info(
+            "%s preview generated (not saved) — segment_id=%d",
+            exercise_type, segment_id,
+        )
+        return block, metadata
 
     try:
         block = _append_block(

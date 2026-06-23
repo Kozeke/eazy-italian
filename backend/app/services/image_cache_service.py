@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 
-from app.models.ai_cache import AICache, CacheContentType
+from app.models.ai_cache import AICache
 from app.services.ai.image_providers.image_base import ImageFormat, ImageResult
 
 if TYPE_CHECKING:
@@ -54,15 +54,27 @@ def _normalise(text: str) -> str:
     return text.strip().lower()
 
 
-def build_cache_key(model: str, image_size: str, effective_prompt: str) -> str:
+def build_cache_key(
+    model: str,
+    image_size: str,
+    effective_prompt: str,
+    key_seed: str | None = None,
+) -> str:
     """
-    Deterministic SHA-256 key for (model, image_size, effective_prompt).
+    Deterministic SHA-256 key for (model, image_size, prompt/seed).
+
+    When ``key_seed`` is provided it replaces ``effective_prompt`` as the
+    hashed payload.  Use this for vocabulary card images where the answer word
+    is stable but the LLM-generated description varies across runs — keying by
+    word guarantees a cache hit whenever the same concept is illustrated again,
+    regardless of how the prompt was phrased.
 
     ``effective_prompt`` must already be the post-prefix, post-concept-swap
     string — i.e. what would actually be sent to fal.ai.  This is computed by
     FalImageProvider.build_effective_prompt() before the network call.
     """
-    raw = f"{model}::{image_size}::{_normalise(effective_prompt)}"
+    seed = _normalise(key_seed) if key_seed else _normalise(effective_prompt)
+    raw = f"{model}::{image_size}::{seed}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -100,28 +112,42 @@ def _json_to_result(payload: dict) -> ImageResult:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _get_cached(db: Session, cache_key: str) -> ImageResult | None:
-    row: AICache | None = (
-        db.query(AICache)
-        .filter(
-            AICache.content_type == CacheContentType.IMAGE,
-            AICache.cache_key    == cache_key,
-        )
-        .first()
-    )
-    if row is None:
+    # Use raw SQL to avoid SQLAlchemy coercing the string "image" to the
+    # Python enum *name* "IMAGE" when binding the SAEnum column filter.
+    from sqlalchemy import text as _text
+    result = db.execute(
+        _text("""
+            SELECT id, output_json, usage_count
+              FROM ai_cache
+             WHERE content_type = CAST('image' AS cache_content_type)
+               AND cache_key    = :cache_key
+             LIMIT 1
+        """),
+        {"cache_key": cache_key},
+    ).fetchone()
+
+    if result is None:
         return None
 
+    row_id, output_json, usage_count = result
+
     try:
-        # Update hit stats — non-fatal if this fails
-        row.usage_count      = (row.usage_count or 0) + 1
-        row.last_accessed_at = datetime.now(timezone.utc)
+        db.execute(
+            _text("""
+                UPDATE ai_cache
+                   SET usage_count      = usage_count + 1,
+                       last_accessed_at = NOW()
+                 WHERE id = :row_id
+            """),
+            {"row_id": row_id},
+        )
         db.commit()
     except Exception as exc:
         logger.warning("image_cache: failed to update hit stats: %s", exc)
         db.rollback()
 
     try:
-        return _json_to_result(row.output_json)
+        return _json_to_result(output_json)
     except Exception as exc:
         logger.warning("image_cache: corrupt cache entry %s — %s", cache_key[:16], exc)
         return None
@@ -136,24 +162,37 @@ def _store(
     result:         ImageResult,
 ) -> None:
     """Insert a new cache entry; silently skip on duplicate (race condition)."""
-    entry = AICache(
-        cache_key    = cache_key,
-        content_type = CacheContentType.IMAGE,
-        input_json   = {
-            "model":            model,
-            "image_size":       image_size,
-            "effective_prompt": effective_prompt,
-        },
-        output_json  = _result_to_json(result),
-        usage_count  = 1,
-    )
+    import json as _json
+    from sqlalchemy import text as _text
     try:
-        db.add(entry)
+        # Note: cannot mix :param and ::cast in the same text() statement
+        # (psycopg2 treats :: as a param prefix).  Use CAST() SQL function instead.
+        db.execute(
+            _text("""
+                INSERT INTO ai_cache
+                    (cache_key, content_type, input_json, output_json, usage_count)
+                VALUES
+                    (:cache_key,
+                     CAST('image' AS cache_content_type),
+                     CAST(:input_json AS jsonb),
+                     CAST(:output_json AS jsonb),
+                     1)
+                ON CONFLICT ON CONSTRAINT uq_ai_cache_type_key DO NOTHING
+            """),
+            {
+                "cache_key":   cache_key,
+                "input_json":  _json.dumps({
+                    "model":            model,
+                    "image_size":       image_size,
+                    "effective_prompt": effective_prompt,
+                }),
+                "output_json": _json.dumps(_result_to_json(result)),
+            },
+        )
         db.commit()
         logger.debug("image_cache: stored key=%s…", cache_key[:16])
     except Exception as exc:
         db.rollback()
-        # Unique-constraint violation is expected on concurrent misses — ignore.
         if "uq_ai_cache" in str(exc).lower() or "unique" in str(exc).lower():
             logger.debug("image_cache: concurrent insert — key already exists, skipping")
         else:
@@ -163,11 +202,12 @@ def _store(
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def cached_generate_image(
-    provider:  "ImageProvider",
-    prompt:    str,
-    alt_text:  str,
-    style:     str,
-    db:        Session | None,
+    provider:       "ImageProvider",
+    prompt:         str,
+    alt_text:       str,
+    style:          str,
+    db:             Session | None,
+    cache_key_seed: str | None = None,
 ) -> ImageResult:
     """
     Cache-aware wrapper around provider.agenerate_image().
@@ -177,11 +217,15 @@ async def cached_generate_image(
 
     Parameters
     ----------
-    provider  : Any ImageProvider instance.  Only FalImageProvider hits cache.
-    prompt    : Raw user prompt (before prefix / concept-swap).
-    alt_text  : Alt text forwarded to the provider.
-    style     : Style string forwarded to the provider.
-    db        : Sync SQLAlchemy Session.  If None, caching is skipped.
+    provider       : Any ImageProvider instance.  Only FalImageProvider hits cache.
+    prompt         : Raw user prompt (before prefix / concept-swap).
+    alt_text       : Alt text forwarded to the provider.
+    style          : Style string forwarded to the provider.
+    db             : Sync SQLAlchemy Session.  If None, caching is skipped.
+    cache_key_seed : Optional stable string used instead of the effective prompt
+                     when hashing the cache key.  Pass the vocabulary ``answer``
+                     word here so card images are keyed by concept, not by the
+                     LLM-generated description that changes on every run.
     """
     from app.services.ai.image_providers.fal_provider import FalImageProvider
 
@@ -193,7 +237,12 @@ async def cached_generate_image(
 
     # ── Compute the effective (post-transform) prompt for a stable cache key ──
     effective_prompt = provider.build_effective_prompt(prompt, style)
-    cache_key        = build_cache_key(provider.model, provider.image_size, effective_prompt)
+    cache_key        = build_cache_key(
+        provider.model,
+        provider.image_size,
+        effective_prompt,
+        key_seed=cache_key_seed,
+    )
 
     # ── Cache read ────────────────────────────────────────────────────────────
     cached = _get_cached(db, cache_key)
@@ -226,11 +275,11 @@ async def cached_generate_image(
 # ── Admin helpers (used by the eviction endpoint) ─────────────────────────────
 
 def count_image_cache_entries(db: Session) -> int:
-    return (
-        db.query(AICache)
-        .filter(AICache.content_type == CacheContentType.IMAGE)
-        .count()
-    )
+    from sqlalchemy import text as _text
+    result = db.execute(_text(
+        "SELECT COUNT(*) FROM ai_cache WHERE content_type = CAST('image' AS cache_content_type)"
+    )).scalar()
+    return result or 0
 
 
 def evict_old_image_cache_entries(db: Session, days: int = 30) -> int:
@@ -238,19 +287,18 @@ def evict_old_image_cache_entries(db: Session, days: int = 30) -> int:
     from sqlalchemy import func as sqlfunc
     from datetime import timedelta
 
+    from sqlalchemy import text as _text
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    rows = (
-        db.query(AICache)
-        .filter(
-            AICache.content_type    == CacheContentType.IMAGE,
-            AICache.last_accessed_at <  cutoff,
-        )
-        .all()
-    )
-    count = len(rows)
-    for row in rows:
-        db.delete(row)
     try:
+        result = db.execute(
+            _text("""
+                DELETE FROM ai_cache
+                 WHERE content_type      = CAST('image' AS cache_content_type)
+                   AND last_accessed_at  < :cutoff
+            """),
+            {"cutoff": cutoff},
+        )
+        count = result.rowcount
         db.commit()
     except Exception as exc:
         db.rollback()
