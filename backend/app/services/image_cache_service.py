@@ -31,14 +31,15 @@ Usage
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from app.models.ai_cache import AICache
+from app.models.ai_cache import AICache, CacheContentType
 from app.services.ai.image_providers.image_base import ImageFormat, ImageResult
 
 if TYPE_CHECKING:
@@ -112,42 +113,34 @@ def _json_to_result(payload: dict) -> ImageResult:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _get_cached(db: Session, cache_key: str) -> ImageResult | None:
-    # Use raw SQL to avoid SQLAlchemy coercing the string "image" to the
-    # Python enum *name* "IMAGE" when binding the SAEnum column filter.
-    from sqlalchemy import text as _text
-    result = db.execute(
-        _text("""
-            SELECT id, output_json, usage_count
-              FROM ai_cache
-             WHERE content_type = CAST('image' AS cache_content_type)
-               AND cache_key    = :cache_key
-             LIMIT 1
-        """),
-        {"cache_key": cache_key},
-    ).fetchone()
-
-    if result is None:
+    try:
+        row: AICache | None = (
+            db.query(AICache)
+            .filter(
+                AICache.content_type == CacheContentType.IMAGE,
+                AICache.cache_key    == cache_key,
+            )
+            .first()
+        )
+    except Exception as exc:
+        # Prevent a poisoned transaction from blocking fal.ai for every card.
+        db.rollback()
+        logger.warning("image_cache: lookup failed (treating as miss): %s", exc)
         return None
 
-    row_id, output_json, usage_count = result
+    if row is None:
+        return None
 
     try:
-        db.execute(
-            _text("""
-                UPDATE ai_cache
-                   SET usage_count      = usage_count + 1,
-                       last_accessed_at = NOW()
-                 WHERE id = :row_id
-            """),
-            {"row_id": row_id},
-        )
+        row.usage_count      = (row.usage_count or 0) + 1
+        row.last_accessed_at = datetime.now(timezone.utc)
         db.commit()
     except Exception as exc:
         logger.warning("image_cache: failed to update hit stats: %s", exc)
         db.rollback()
 
     try:
-        return _json_to_result(output_json)
+        return _json_to_result(row.output_json)
     except Exception as exc:
         logger.warning("image_cache: corrupt cache entry %s — %s", cache_key[:16], exc)
         return None
@@ -162,33 +155,24 @@ def _store(
     result:         ImageResult,
 ) -> None:
     """Insert a new cache entry; silently skip on duplicate (race condition)."""
-    import json as _json
-    from sqlalchemy import text as _text
-    try:
-        # Note: cannot mix :param and ::cast in the same text() statement
-        # (psycopg2 treats :: as a param prefix).  Use CAST() SQL function instead.
-        db.execute(
-            _text("""
-                INSERT INTO ai_cache
-                    (cache_key, content_type, input_json, output_json, usage_count)
-                VALUES
-                    (:cache_key,
-                     CAST('image' AS cache_content_type),
-                     CAST(:input_json AS jsonb),
-                     CAST(:output_json AS jsonb),
-                     1)
-                ON CONFLICT ON CONSTRAINT uq_ai_cache_type_key DO NOTHING
-            """),
-            {
-                "cache_key":   cache_key,
-                "input_json":  _json.dumps({
-                    "model":            model,
-                    "image_size":       image_size,
-                    "effective_prompt": effective_prompt,
-                }),
-                "output_json": _json.dumps(_result_to_json(result)),
+    stmt = (
+        pg_insert(AICache)
+        .values(
+            id           = uuid4(),
+            cache_key    = cache_key,
+            content_type = CacheContentType.IMAGE,
+            input_json   = {
+                "model":            model,
+                "image_size":       image_size,
+                "effective_prompt": effective_prompt,
             },
+            output_json  = _result_to_json(result),
+            usage_count  = 1,
         )
+        .on_conflict_do_nothing(index_elements=["content_type", "cache_key"])
+    )
+    try:
+        db.execute(stmt)
         db.commit()
         logger.debug("image_cache: stored key=%s…", cache_key[:16])
     except Exception as exc:
@@ -275,30 +259,30 @@ async def cached_generate_image(
 # ── Admin helpers (used by the eviction endpoint) ─────────────────────────────
 
 def count_image_cache_entries(db: Session) -> int:
-    from sqlalchemy import text as _text
-    result = db.execute(_text(
-        "SELECT COUNT(*) FROM ai_cache WHERE content_type = CAST('image' AS cache_content_type)"
-    )).scalar()
-    return result or 0
+    return (
+        db.query(AICache)
+        .filter(AICache.content_type == CacheContentType.IMAGE)
+        .count()
+    )
 
 
 def evict_old_image_cache_entries(db: Session, days: int = 30) -> int:
     """Delete image cache entries not accessed in `days` days. Returns count deleted."""
-    from sqlalchemy import func as sqlfunc
     from datetime import timedelta
 
-    from sqlalchemy import text as _text
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    try:
-        result = db.execute(
-            _text("""
-                DELETE FROM ai_cache
-                 WHERE content_type      = CAST('image' AS cache_content_type)
-                   AND last_accessed_at  < :cutoff
-            """),
-            {"cutoff": cutoff},
+    rows = (
+        db.query(AICache)
+        .filter(
+            AICache.content_type     == CacheContentType.IMAGE,
+            AICache.last_accessed_at <  cutoff,
         )
-        count = result.rowcount
+        .all()
+    )
+    count = len(rows)
+    for row in rows:
+        db.delete(row)
+    try:
         db.commit()
     except Exception as exc:
         db.rollback()

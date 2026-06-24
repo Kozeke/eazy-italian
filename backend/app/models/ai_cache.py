@@ -59,7 +59,12 @@ class AICache(Base):
     # ── Key ───────────────────────────────────────────────────────────────────
     cache_key = Column(String(64), nullable=False)
     content_type = Column(
-        SAEnum(CacheContentType, name="cache_content_type"),
+        SAEnum(
+            CacheContentType,
+            name="cache_content_type",
+            # Persist enum values ('slide', 'image'), not Python names ('SLIDE', 'IMAGE').
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
         nullable=False,
     )
 
