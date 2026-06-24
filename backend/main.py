@@ -430,14 +430,35 @@ async def ensure_ai_cache_image_index():
     Ensure the partial index on ai_cache for image lookups exists.
     The table is created by Base.metadata.create_all (AICache imported above).
     The index is idempotent — IF NOT EXISTS makes it safe on every boot.
+
+    The WHERE predicate must use the exact enum label stored in PostgreSQL.
+    Older deployments may have uppercase labels (IMAGE) created by SQLAlchemy
+    create_all, while migrations use lowercase (image). We detect the actual
+    label at runtime so the index creation works on both.
     """
     from sqlalchemy import text as _text
     try:
         with engine.connect() as conn:
-            conn.execute(_text("""
+            # Detect the actual enum label stored in this DB (IMAGE or image).
+            row = conn.execute(_text("""
+                SELECT e.enumlabel
+                  FROM pg_enum e
+                  JOIN pg_type t ON t.oid = e.enumtypid
+                 WHERE t.typname = 'cache_content_type'
+                   AND LOWER(e.enumlabel) = 'image'
+                 LIMIT 1
+            """)).fetchone()
+
+            if row is None:
+                print("⚠️  [startup] cache_content_type enum missing 'image' label — skipping index", flush=True)
+                return
+
+            # Use the exact label (IMAGE or image) from the DB.
+            image_label = row[0]
+            conn.execute(_text(f"""
                 CREATE INDEX IF NOT EXISTS ix_ai_cache_image_lookup
                     ON ai_cache (cache_key)
-                    WHERE content_type = 'image'
+                    WHERE content_type = '{image_label}'::cache_content_type
             """))
             conn.commit()
         print("\u2705 [startup] ai_cache image index ensured", flush=True)
