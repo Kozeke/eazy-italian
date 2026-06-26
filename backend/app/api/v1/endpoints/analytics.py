@@ -187,7 +187,7 @@ def failed_questions(
         results.append({
             "question_id": qid,
             "prompt": _truncate(q.prompt_rich if q else "Unknown question", 120),
-            "type": q.type.value if q else "unknown",
+            "type": (q.type if isinstance(q.type, str) else q.type.value) if q else "unknown",
             "attempt_count": t["attempts"],
             "correct_count": t["correct"],
             "fail_rate": fail_rate,
@@ -383,7 +383,8 @@ def student_weak_areas(
 
     for qid, t in q_tally.items():
         q_meta = questions_meta.get(qid)
-        qtype = q_meta.type.value if q_meta else "unknown"
+        # q_meta.type may be a plain str (raw PG enum label) or an Enum instance
+        qtype = (q_meta.type if isinstance(q_meta.type, str) else q_meta.type.value) if q_meta else "unknown"
         tt = type_tally[qtype]
         tt["score_sum"] += t["score_sum"]
         tt["max_sum"]   += t["max_sum"]
@@ -581,7 +582,7 @@ def test_analytics(
         if t["wrong_answers"]:
             answer_text, freq = t["wrong_answers"].most_common(1)[0]
             # Try to resolve option ID → option text for MCQ
-            if q_meta and q_meta.type.value == "multiple_choice":
+            if q_meta and (q_meta.type if isinstance(q_meta.type, str) else q_meta.type.value) == "multiple_choice":
                 opts = {o.get("id"): o.get("text") for o in (q_meta.options or [])}
                 # answer_text might be "B" or "B, C"
                 resolved = ", ".join(
@@ -600,7 +601,7 @@ def test_analytics(
         question_rows.append({
             "question_id": qid,
             "prompt": _truncate(q_meta.prompt_rich if q_meta else "Unknown", 150),
-            "type": q_meta.type.value if q_meta else "unknown",
+            "type": (q_meta.type if isinstance(q_meta.type, str) else q_meta.type.value) if q_meta else "unknown",
             "attempt_count": t["attempts"],
             "correct_count": t["correct"],
             "fail_rate": fail_rate,

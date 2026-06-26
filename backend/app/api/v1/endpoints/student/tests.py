@@ -119,16 +119,18 @@ def start_test(
     questions = []
     for tq in test_questions:
         q = tq.question
+        # Normalise type to plain str — works for both Enum instance and raw DB str
+        q_type_str = q.type if isinstance(q.type, str) else q.type.value
         payload = {
             "id": q.id,
-            "type": q.type.value,
+            "type": q_type_str,
             "prompt": q.prompt_rich,
             "points": tq.points,
         }
 
         # Debug: Log question details
-        logger.info(f"[DEBUG] Question {q.id}: type = {q.type}, type.value = {q.type.value}, type.name = {q.type.name}")
-        is_visual = q.type.value == "visual" or q.type.name == "VISUAL"
+        logger.info(f"[DEBUG] Question {q.id}: type = {q.type}, type_str = {q_type_str}")
+        is_visual = q_type_str == "visual"
         if is_visual:
             logger.info(f"[DEBUG] Visual question {q.id}: media = {q.media}, type = {type(q.media)}, has media = {bool(q.media)}, len = {len(q.media) if q.media else 0}")
 
@@ -187,13 +189,13 @@ def start_test(
                     })
             payload["media"] = media_list
 
-        if q.type.value == "multiple_choice":
+        if q_type_str == "multiple_choice":
             options = q.options or []
             if test.settings.get("shuffle_options") and q.shuffle_options:
                 import random
                 options = random.sample(options, len(options))
             payload["options"] = options
-        elif q.type.value == "visual":
+        elif q_type_str == "visual":
             # Visual questions can have multiple_choice, single_choice, open_answer, or true_false
             # Check question_metadata for the answer type
             answer_type = q.question_metadata.get("answer_type", "multiple_choice")
@@ -268,8 +270,10 @@ def submit_test(
         points = 0
         correct = False
 
+        # Normalise type for grading comparisons
+        q_type_str = q.type if isinstance(q.type, str) else q.type.value
         if q.autograde:
-            if q.type.value == "multiple_choice":
+            if q_type_str == "multiple_choice":
                 correct_ids = q.correct_answer.get("correct_option_ids", [])
                 if isinstance(student_answer, str):
                     student_answer = [student_answer]
@@ -277,7 +281,7 @@ def submit_test(
                     points = tq.points
                     correct = True
 
-            elif q.type.value == "open_answer":
+            elif q_type_str == "open_answer":
                 expected = q.expected_answer_config or {}
                 if expected.get("mode") == "keywords":
                     keywords = expected.get("keywords", [])
@@ -347,7 +351,7 @@ def get_my_attempts(
                 "started_at": a.started_at,
                 "submitted_at": a.submitted_at,
                 "score": a.score,
-                "status": a.status.value,
+                "status": a.status if isinstance(a.status, str) else a.status.value,
                 "duration_minutes": a.duration_minutes,
             }
             for a in attempts

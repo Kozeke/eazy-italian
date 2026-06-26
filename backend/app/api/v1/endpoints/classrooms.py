@@ -42,9 +42,10 @@ def get_live_session(
         raise HTTPException(status_code=404, detail="Classroom not found")
     
     # Check enrollment for students, or teacher ownership for teachers
-    if current_user.role.value == "student":
+    # Compare role directly — works for both Enum instance and plain str from DB
+    if current_user.role == "student":
         check_course_access(db, current_user, classroom_id)
-    elif current_user.role.value in ["teacher", "admin"]:
+    elif current_user.role in ["teacher", "admin"]:
         # Teachers can access their own courses
         if course.created_by != current_user.id and not current_user.is_superuser:
             raise HTTPException(status_code=403, detail="Not authorized")

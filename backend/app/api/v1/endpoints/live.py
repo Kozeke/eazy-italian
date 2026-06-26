@@ -158,8 +158,9 @@ async def _sync_presence(classroom_id: int, room: dict) -> None:
 
 
 def _is_teacher(user: User, course: Course) -> bool:
-    return user.role.value == "admin" or (
-        user.role.value == "teacher" and course.created_by == user.id
+    # Compare role directly — works for both Enum instance and plain str from DB
+    return user.role == "admin" or (
+        user.role == "teacher" and course.created_by == user.id
     )
 
 

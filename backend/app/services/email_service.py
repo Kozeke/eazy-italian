@@ -264,7 +264,7 @@ class EmailService:
         <p><strong>Инструкции:</strong> {task.instructions or 'Не указаны'}</p>
         <p><strong>Максимальный балл:</strong> {task.max_score}</p>
         <p><strong>Срок сдачи:</strong> {due_date}</p>
-        <p><strong>Тип задания:</strong> {task.type.value}</p>
+        <p><strong>Тип задания:</strong> {task.type if isinstance(task.type, str) else task.type.value}</p>
         
         <p>Перейдите в систему для выполнения задания.</p>
         """

@@ -46,7 +46,7 @@ def format_question_for_test(
     """
     question_data = {
         "id": question.id,
-        "type": question.type.value,
+        "type": question.type if isinstance(question.type, str) else question.type.value,
         "prompt": question.prompt_rich,
         "points": points_override if points_override is not None else question.points,
     }

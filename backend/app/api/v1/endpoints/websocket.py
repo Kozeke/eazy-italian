@@ -58,7 +58,8 @@ async def websocket_live_session(
             return
         
         # Determine role
-        is_teacher = user.role.value in ["teacher", "admin"] and course.created_by == user.id
+        # Compare role directly — works for both Enum instance and plain str from DB
+        is_teacher = user.role in ["teacher", "admin"] and course.created_by == user.id
         role = "teacher" if is_teacher else "student"
         
         # For students, check enrollment

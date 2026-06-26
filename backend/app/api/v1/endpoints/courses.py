@@ -140,7 +140,7 @@ async def update_question(
     
     return {
         "id": question.id,
-        "type": question.type.value,
+        "type": question.type if isinstance(question.type, str) else question.type.value,
         "prompt_rich": question.prompt_rich,
         "points": question.points,
         "message": "Question updated successfully"
@@ -354,8 +354,8 @@ async def get_admin_course(
         units_data.append({
             "id": unit.id,
             "title": unit.title,
-            "level": unit.level.value if unit.level else None,
-            "status": unit.status.value if unit.status else None,
+            "level": (unit.level if isinstance(unit.level, str) else unit.level.value) if unit.level else None,
+            "status": (unit.status if isinstance(unit.status, str) else unit.status.value) if unit.status else None,
             "order_index": unit.order_index,
             "content_count": unit.content_count
         })
@@ -781,8 +781,11 @@ async def reorder_course_units(
 
 def get_user_subscription_name(db: Session, user: User) -> str:
     """Get user's subscription name."""
-    if user.subscription_type in (SubscriptionType.STANDARD, SubscriptionType.PRO):
-        return user.subscription_type.value
+    # subscription_type is a native PG enum; guard in case SQLAlchemy returns plain str
+    # Compare subscription_type directly — works for Enum instance and plain str
+    raw_type = user.subscription_type
+    if raw_type in (SubscriptionType.STANDARD, SubscriptionType.PRO):
+        return raw_type if isinstance(raw_type, str) else raw_type.value
 
     active_sub = db.query(UserSubscription).join(
         Subscription, UserSubscription.subscription_id == Subscription.id
@@ -792,11 +795,12 @@ def get_user_subscription_name(db: Session, user: User) -> str:
     ).first()
 
     if active_sub and active_sub.subscription:
+        # subscription.name is Column(String(50)) — always a plain str, never an Enum
         sub_name = active_sub.subscription.name
         if sub_name in (SubscriptionName.STANDARD, SubscriptionName.PRO):
-            return sub_name.value
+            return sub_name  # already a plain str; calling .value would crash
 
-    return "free"
+    return "FREE"
 
 
 # ── Student catalog ────────────────────────────────────────────────────────────
@@ -903,8 +907,8 @@ async def get_course(
             units_data.append({
                 "id": unit.id,
                 "title": unit.title,
-                "level": unit.level.value,
-                "status": unit.status.value,
+                "level": unit.level if isinstance(unit.level, str) else unit.level.value,
+                "status": unit.status if isinstance(unit.status, str) else unit.status.value,
                 "order_index": unit.order_index,
                 "content_count": unit.content_count
             })
@@ -969,8 +973,8 @@ async def get_course_units(
             units_data.append({
                 "id": unit.id,
                 "title": unit.title,
-                "level": unit.level.value,
-                "status": unit.status.value,
+                "level": unit.level if isinstance(unit.level, str) else unit.level.value,
+                "status": unit.status if isinstance(unit.status, str) else unit.status.value,
                 "order_index": unit.order_index,
                 "content_count": unit.content_count
             })

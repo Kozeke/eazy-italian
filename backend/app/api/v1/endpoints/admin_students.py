@@ -511,11 +511,17 @@ def get_students(
         subscription_ends_at = None
         
         if active_user_sub:
-            subscription_name = active_user_sub.subscription.name.value if active_user_sub.subscription else "free"
+            if active_user_sub.subscription:
+                # subscription.name may be a plain str (raw DB value) or an Enum instance
+                raw_name = active_user_sub.subscription.name
+                subscription_name = raw_name if isinstance(raw_name, str) else raw_name.value
+            else:
+                subscription_name = "FREE"
             subscription_ends_at = active_user_sub.ends_at
         else:
             # Fallback to subscription_type column
-            subscription_name = student.subscription_type.value if student.subscription_type else "free"
+            raw_type = student.subscription_type
+            subscription_name = (raw_type if isinstance(raw_type, str) else raw_type.value) if raw_type else "FREE"
         
         # Stores notification_prefs map used for profile metadata and temporary credential.
         student_notification_prefs = _get_student_profile_meta(student)

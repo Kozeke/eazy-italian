@@ -50,8 +50,9 @@ async def get_presence_snapshot(
     if not course:
         raise HTTPException(status_code=404, detail="Classroom not found")
 
+    # Compare role directly — works for both Enum instance and plain str from DB
     is_teacher = (
-        current_user.role.value in ("teacher", "admin")
+        current_user.role in ("teacher", "admin")
         and (course.created_by == current_user.id or current_user.is_superuser)
     ) or current_user.is_superuser
 

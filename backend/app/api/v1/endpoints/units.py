@@ -661,7 +661,8 @@ async def get_units_by_course(
         
         # For students, only show published and visible units
         # Teachers/admins can see all units (for course management)
-        if current_user.role.value == "student":
+        # Compare role directly — works for both Enum instance and plain str from DB
+        if current_user.role == "student":
             query_builder = query_builder.filter(
                 and_(
                     # Unit.is_visible_to_students == True,
@@ -671,7 +672,7 @@ async def get_units_by_course(
     else:
         # If no course_id provided, only return published units for students
         # Teachers/admins can see all units if no course_id filter
-        if current_user.role.value == "student":
+        if current_user.role == "student":
             query_builder = query_builder.filter(
                 and_(
                     # Unit.is_visible_to_students == True,

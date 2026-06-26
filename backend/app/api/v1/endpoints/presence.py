@@ -73,9 +73,10 @@ async def _send_json(ws: WebSocket, data: dict) -> None:
 
 
 def _is_teacher(user: User, course: Course) -> bool:
-    is_admin = user.role.value == "admin"
+    # Compare role directly — works for both Enum instance and plain str from DB
+    is_admin = user.role == "admin"
     return is_admin or (
-        user.role.value == "teacher"
+        user.role == "teacher"
         and course.created_by == user.id
     )
 
