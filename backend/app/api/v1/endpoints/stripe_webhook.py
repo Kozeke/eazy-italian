@@ -106,6 +106,12 @@ def _handle_checkout_session_completed(db: Session, session: Any) -> None:
     )
     if user is None:
         db.rollback()
+        logger.error(
+            "checkout.session.completed: plan apply failed for user=%s plan=%s session=%s",
+            user_id,
+            target_plan,
+            session_id,
+        )
         return
 
     total = getattr(session, "amount_total", None) or 0

@@ -109,15 +109,28 @@ def resolve_subscription_row_for_teacher_plan(
     db: Session, plan: TeacherTariffName
 ) -> Optional[Subscription]:
     """Fetch the Subscription row whose name matches the given plan."""
-    # Map canonical plan name to the SubscriptionName enum variant.
+    canonical = canonicalize_teacher_plan_name(plan)
+
+    # Standard tier: legacy DBs store PREMIUM; newer seeds use STANDARD (see admin_students).
+    if canonical == "standard":
+        rows = (
+            db.query(Subscription)
+            .filter(
+                Subscription.name.in_(
+                    [SubscriptionName.STANDARD, SubscriptionName.PREMIUM]
+                )
+            )
+            .all()
+        )
+        by_name = {row.name: row for row in rows}
+        return by_name.get(SubscriptionName.STANDARD) or by_name.get(
+            SubscriptionName.PREMIUM
+        )
+
     try:
-        sub_name = SubscriptionName(plan)
+        sub_name = SubscriptionName(canonical)
     except ValueError:
-        # Legacy alias: try "premium" for "standard"
-        try:
-            sub_name = SubscriptionName("premium" if plan == "standard" else plan)
-        except ValueError:
-            return None
+        return None
 
     return db.query(Subscription).filter(Subscription.name == sub_name).first()
 
