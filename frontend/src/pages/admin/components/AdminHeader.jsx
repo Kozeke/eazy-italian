@@ -559,6 +559,10 @@ export default function AdminHeader({
 
   // ── Part C: fetch period_expired once on mount ────────────────────────────
   const [periodExpired, setPeriodExpired] = useState(false);
+  // Canonical plan resolved from /admin/tariffs/me — authoritative source that
+  // uses a direct DB query, unlike user?.subscription from /users/me which can
+  // return null when the ORM relationship is not eagerly loaded.
+  const [tariffApiPlan, setTariffApiPlan] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -571,6 +575,9 @@ export default function AdminHeader({
         if (!res.ok) return;   // fail-safe: never show banner on error
         const data = await res.json();
         if (mounted && data.period_expired === true) setPeriodExpired(true);
+        // Store the canonical plan from the tariff endpoint so the pill and
+        // popover always reflect the actual plan even when /users/me returns null.
+        if (mounted && data.plan) setTariffApiPlan(String(data.plan).toLowerCase());
       } catch {
         // Network error — hide banner (don't block teacher)
       }
@@ -586,11 +593,15 @@ export default function AdminHeader({
   const trialDaysLeft = useMemo(() => getTrialDaysLeft(trialUntil), [trialUntil]);
   // Formatted trial end date used by the pill label and the free-plan popover body
   const trialDate     = useMemo(() => formatTrialDate(trialUntil, i18n.language), [trialUntil, i18n.language]);
-  // True when /users/me reports a paid teacher tier (Pro has no subscription_ends_at).
-  const hasPaidTeacherPlan = useMemo(
-    () => normalizeTeacherPlanKey(teacherSubscriptionPlan) !== "free",
-    [teacherSubscriptionPlan],
+  // Effective plan: prefer the value from /admin/tariffs/me (direct DB query,
+  // always accurate) and fall back to the prop from /users/me only while the
+  // fetch is still in flight.
+  const effectivePlanKey = useMemo(
+    () => normalizeTeacherPlanKey(tariffApiPlan ?? teacherSubscriptionPlan),
+    [tariffApiPlan, teacherSubscriptionPlan],
   );
+  // True when the teacher is on a paid plan (Standard or Pro).
+  const hasPaidTeacherPlan = effectivePlanKey !== "free";
 
   const openUser   = useCallback(() => { setTrialOpen(false); setHelpOpen(false); setUserOpen(o => !o); }, []);
   const openTrial  = useCallback(() => { setUserOpen(false);  setHelpOpen(false); setTrialOpen(o => !o); }, []);
@@ -679,7 +690,7 @@ export default function AdminHeader({
               {trialOpen && (
                 <TrialPopover
                   trialUntil={trialUntil}
-                  teacherSubscriptionPlan={teacherSubscriptionPlan}
+                  teacherSubscriptionPlan={effectivePlanKey}
                   onClose={closeTrial}
                   onTariffs={onTariffs}
                 />
