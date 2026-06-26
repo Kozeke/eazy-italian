@@ -9,9 +9,11 @@ class UserRole(str, enum.Enum):
     TEACHER = "teacher"
 
 class SubscriptionType(str, enum.Enum):
-    FREE = "free"
-    STANDARD = "standard"
-    PRO = "pro"
+    FREE = "FREE"
+    STANDARD = "STANDARD"
+    # Keeps backward compatibility for legacy accounts using premium name.
+    PREMIUM = "PREMIUM"
+    PRO = "PRO"
 
 class User(Base):
     __tablename__ = "users"
@@ -75,7 +77,8 @@ class User(Base):
     @property
     def is_premium(self) -> bool:
         """True when the user has a paid plan (Standard or Pro)."""
-        if self.subscription_type in (SubscriptionType.STANDARD, SubscriptionType.PRO):
+        # PREMIUM kept for legacy rows; PRO is the highest paid tier.
+        if self.subscription_type in (SubscriptionType.STANDARD, SubscriptionType.PREMIUM, SubscriptionType.PRO):
             return True
 
         from app.models.subscription import SubscriptionName, UserSubscription
@@ -84,7 +87,7 @@ class User(Base):
             (sub.subscription.name for sub in self.user_subscriptions if sub.is_active),
             None,
         )
-        if active_sub and active_sub in (SubscriptionName.STANDARD, SubscriptionName.PRO):
+        if active_sub and active_sub in (SubscriptionName.STANDARD, SubscriptionName.PREMIUM, SubscriptionName.PRO):
             return True
 
         return False
@@ -92,12 +95,15 @@ class User(Base):
     @property
     def subscription(self):
         """Returns the name of the active subscription plan, or None for free users."""
+        from app.models.subscription import SubscriptionName
+
         active = next(
             (sub for sub in self.user_subscriptions if sub.is_active),
             None
         )
         if active and active.subscription:
-            return active.subscription.name.value
+            name = active.subscription.name
+            return name.value if isinstance(name, SubscriptionName) else str(name)
         return None
 
     @property
