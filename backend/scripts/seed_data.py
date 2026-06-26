@@ -45,10 +45,10 @@ def create_demo_data():
     try:
         # Create subscriptions
         free = Subscription(name="free", price=0)
-        premium = Subscription(name="premium", price=19.99)
+        standard = Subscription(name="standard", price=19.99)
         pro = Subscription(name="pro", price=29.99)
 
-        db.add_all([free, premium, pro])
+        db.add_all([free, standard, pro])
         db.flush()
 
         levels = ["A1", "A2", "B1", "B2", "C1", "C2"]
@@ -56,9 +56,9 @@ def create_demo_data():
         # FREE → A1 only
         db.add(SubscriptionLevel(subscription_id=free.id, level="A1"))
 
-        # PREMIUM & PRO → all levels
+        # Standard & Pro → all levels
         for lvl in levels:
-            db.add(SubscriptionLevel(subscription_id=premium.id, level=lvl))
+            db.add(SubscriptionLevel(subscription_id=standard.id, level=lvl))
             db.add(SubscriptionLevel(subscription_id=pro.id, level=lvl))
 
         # Create demo teacher

@@ -129,7 +129,7 @@ class CourseListResponse(BaseModel):
     enrolled_students_count: Optional[int] = 0  # Number of students enrolled in this course
     first_unit_id: Optional[int] = None  # First unit by order_index (admin list / deep-link)
     is_enrolled: Optional[bool] = False  # Whether the current user is enrolled
-    user_subscription: Optional[str] = None  # User's subscription type: 'free', 'premium', 'pro'
+    user_subscription: Optional[str] = None  # User's subscription type: 'free', 'standard', 'pro'
     enrolled_courses_count: Optional[int] = 0  # Total courses the user is enrolled in
     # Language the course teaches (e.g. "Italian"). Surfaced in list views so admin
     # tables and student dashboards can render/filter by language without a full fetch.
@@ -145,7 +145,7 @@ class CourseDetailResponse(CourseResponse):
     units: List[Dict[str, Any]] = []  # Will contain unit summaries
     instructor_name: Optional[str] = None  # Name of the course instructor
     is_enrolled: Optional[bool] = False  # Whether the current user is enrolled
-    user_subscription: Optional[str] = None  # User's subscription type: 'free', 'premium', 'pro'
+    user_subscription: Optional[str] = None  # User's subscription type: 'free', 'standard', 'pro'
     enrolled_courses_count: Optional[int] = 0  # Total courses the user is enrolled in
     learning_outcomes: Optional[List[str]] = None  # Learning outcomes (from settings or unit goals)
 

@@ -22,9 +22,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models.subscription import Subscription, SubscriptionName, UserSubscription
+from app.models.subscription import Subscription, UserSubscription
 from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -34,10 +35,9 @@ logger = logging.getLogger(__name__)
 # Public plan tag visible in the UI and stored in the tariff response.
 TeacherTariffName = str   # "free" | "standard" | "pro"
 
-# Legacy DB plan aliases that map to the canonical names.
+# Legacy input aliases that map to canonical plan names.
 _PLAN_ALIASES: dict[str, str] = {
-    "premium": "standard",
-    "basic":   "free",
+    "basic": "free",
 }
 
 # ── Plan limits catalog ───────────────────────────────────────────────────────
@@ -105,34 +105,59 @@ def build_teacher_tariff_catalog() -> list[dict]:
     ]
 
 
+# DB catalog labels per canonical plan (case-insensitive name::text match).
+_PLAN_CATALOG_NAME_ALIASES: dict[str, tuple[str, ...]] = {
+    "free": ("free",),
+    "standard": ("standard",),
+    "pro": ("pro",),
+}
+
+
+def _find_subscription_catalog_row_by_text(
+    db: Session, plan: TeacherTariffName
+) -> Optional[Subscription]:
+    """Load subscriptions.id via case-insensitive name::text (avoids ORM enum bind mismatch)."""
+    canonical = canonicalize_teacher_plan_name(plan)
+    aliases = _PLAN_CATALOG_NAME_ALIASES.get(canonical)
+    if not aliases:
+        return None
+
+    for alias in aliases:
+        # Raw SQL matches enum labels regardless of PG casing (FREE, free, standard, etc.).
+        raw_id = db.execute(
+            text(
+                "SELECT id FROM subscriptions "
+                "WHERE lower(name::text) = lower(:plan_name) "
+                "AND is_active IS TRUE "
+                "LIMIT 1"
+            ),
+            {"plan_name": alias},
+        ).scalar_one_or_none()
+        if raw_id is not None:
+            row = db.get(Subscription, raw_id)
+            if row is not None:
+                logger.info(
+                    "Subscription catalog resolved plan=%s alias=%s id=%s db_name=%s",
+                    canonical,
+                    alias,
+                    row.id,
+                    getattr(row.name, "value", row.name),
+                )
+                return row
+
+    logger.error(
+        "Subscription catalog lookup failed for plan=%s (tried aliases=%s)",
+        canonical,
+        aliases,
+    )
+    return None
+
+
 def resolve_subscription_row_for_teacher_plan(
     db: Session, plan: TeacherTariffName
 ) -> Optional[Subscription]:
     """Fetch the Subscription row whose name matches the given plan."""
-    canonical = canonicalize_teacher_plan_name(plan)
-
-    # Standard tier: legacy DBs store PREMIUM; newer seeds use STANDARD (see admin_students).
-    if canonical == "standard":
-        rows = (
-            db.query(Subscription)
-            .filter(
-                Subscription.name.in_(
-                    [SubscriptionName.STANDARD, SubscriptionName.PREMIUM]
-                )
-            )
-            .all()
-        )
-        by_name = {row.name: row for row in rows}
-        return by_name.get(SubscriptionName.STANDARD) or by_name.get(
-            SubscriptionName.PREMIUM
-        )
-
-    try:
-        sub_name = SubscriptionName(canonical)
-    except ValueError:
-        return None
-
-    return db.query(Subscription).filter(Subscription.name == sub_name).first()
+    return _find_subscription_catalog_row_by_text(db, plan)
 
 
 # ── Subscription resolution ───────────────────────────────────────────────────
@@ -472,10 +497,15 @@ def apply_teacher_plan_subscription_from_gateway(
     # Loads the account Stripe correlated via client_reference_id / metadata.
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
-        logger.warning("Gateway plan apply skipped: no user id=%s", user_id)
+        logger.error("Gateway plan apply failed: no user id=%s", user_id)
         return None
     if user.role != UserRole.TEACHER:
-        logger.warning("Gateway plan apply skipped: user id=%s is not a teacher", user_id)
+        logger.error(
+            "Gateway plan apply failed: user id=%s email=%s role=%s (expected teacher)",
+            user_id,
+            getattr(user, "email", None),
+            user.role,
+        )
         return None
 
     target_plan = canonicalize_teacher_plan_name(plan)

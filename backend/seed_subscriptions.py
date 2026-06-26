@@ -46,11 +46,6 @@ def seed_subscriptions():
             existing.price = plan_price
             existing.is_active = True
 
-        # Keeps premium rows active for backward compatibility while migrating to standard.
-        legacy_premium = existing_by_name.get(SubscriptionName.PREMIUM)
-        if legacy_premium is not None:
-            legacy_premium.is_active = True
-
         session.commit()
 
         print("✓ Subscriptions seeded/updated successfully")

@@ -11,7 +11,10 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.auth import get_current_teacher
 from app.core.security import get_password_hash
-from app.core.teacher_tariffs import canonicalize_teacher_plan_name
+from app.core.teacher_tariffs import (
+    canonicalize_teacher_plan_name,
+    resolve_subscription_row_for_teacher_plan,
+)
 from app.models.user import User, UserRole
 from app.models.course import Course
 from app.models.enrollment import CourseEnrollment
@@ -609,21 +612,10 @@ def change_student_subscription(
         teacher_id=current_user.id,
     )
 
-    # 2️⃣ Find target subscription
-    # Stores canonical plan so legacy premium and new standard are treated uniformly.
+    # 2️⃣ Find target subscription catalog row (free | standard | pro).
     canonical_subscription_name = canonicalize_teacher_plan_name(payload.subscription)
-    # Stores accepted DB enum values for this logical plan.
-    allowed_subscription_names = (
-        [SubscriptionName.STANDARD, SubscriptionName.PREMIUM]
-        if canonical_subscription_name == "standard"
-        else [SubscriptionName(canonical_subscription_name)]
-    )
-    subscription = db.query(Subscription).filter(
-        Subscription.name.in_(allowed_subscription_names),
-        Subscription.is_active == True
-    ).first()
-
-    if not subscription:
+    subscription = resolve_subscription_row_for_teacher_plan(db, canonical_subscription_name)
+    if subscription is None or not subscription.is_active:
         raise HTTPException(status_code=404, detail="Subscription not found")
 
     # 3️⃣ Deactivate current subscription(s)

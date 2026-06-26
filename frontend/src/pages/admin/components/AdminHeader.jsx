@@ -316,11 +316,10 @@ function getTrialDaysLeft(isoStr) {
 }
 function getInitial(name) { return name?.trim()[0]?.toUpperCase() ?? "?"; }
 
-/** Maps raw /users/me plan strings to canonical tariff keys (premium → standard, etc.). */
+/** Maps raw /users/me plan strings to canonical tariff keys. */
 function normalizeTeacherPlanKey(raw) {
   if (raw == null || String(raw).trim() === "") return "free";
   const n = String(raw).trim().toLowerCase();
-  if (n === "premium") return "standard";
   if (n === "basic") return "free";
   return n;
 }

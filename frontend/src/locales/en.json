@@ -252,13 +252,13 @@
     "emptySubtitle": "There are no published courses yet. Once the instructor adds them, they will appear here.",
     "errorLoading": "Error loading courses",
     "showing": "Showing {{start}}–{{end}} of {{total}}",
-    "upgradeRequired": "Please upgrade to Premium to enroll in more courses",
+    "upgradeRequired": "Please upgrade to Standard to enroll in more courses",
     "enrolledSuccess": "Successfully enrolled in course",
     "enrollError": "Failed to enroll in course",
     "enrolled": "Enrolled",
     "hours": "hours",
     "yourProgress": "Your progress",
-    "upgradeToPremium": "Upgrade to Premium",
+    "upgradeToStandard": "Upgrade to Standard",
     "continueLearning": "Continue Learning",
     "enrollNow": "Enroll Now",
     "noResults": "No results found. Try changing your filters.",
@@ -1227,7 +1227,7 @@
       "title": "Pricing Plans",
       "subtitle": "Choose the plan that's right for you",
       "free": "Free",
-      "premium": "Premium",
+      "standard": "Standard",
       "pro": "Pro",
       "perMonth": "/month",
       "popular": "Popular",
@@ -1236,7 +1236,7 @@
         "feature2": "Basic exercises",
         "feature3": "Community access"
       },
-      "premiumFeatures": {
+      "standardFeatures": {
         "feature1": "All lessons",
         "feature2": "Interactive exercises",
         "feature3": "Progress tracking",
@@ -1244,14 +1244,14 @@
         "feature5": "Priority support"
       },
       "proFeatures": {
-        "feature1": "All Premium features",
+        "feature1": "All Standard features",
         "feature2": "Individual lessons",
         "feature3": "CELI exam preparation",
         "feature4": "Personal learning plan",
         "feature5": "24/7 support"
       },
       "chooseFree": "Start Free",
-      "choosePremium": "Choose Premium",
+      "chooseStandard": "Choose Standard",
       "choosePro": "Choose Pro"
     },
     "cta": {

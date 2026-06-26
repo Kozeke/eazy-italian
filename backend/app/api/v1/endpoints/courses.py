@@ -781,27 +781,21 @@ async def reorder_course_units(
 
 def get_user_subscription_name(db: Session, user: User) -> str:
     """Get user's subscription name."""
-    if user.subscription_type == SubscriptionType.STANDARD:
-        return "standard"
-    if user.subscription_type == SubscriptionType.PREMIUM:
-        return "standard"
-    
+    if user.subscription_type in (SubscriptionType.STANDARD, SubscriptionType.PRO):
+        return user.subscription_type.value
+
     active_sub = db.query(UserSubscription).join(
         Subscription, UserSubscription.subscription_id == Subscription.id
     ).filter(
         UserSubscription.user_id == user.id,
         UserSubscription.is_active == True
     ).first()
-    
+
     if active_sub and active_sub.subscription:
         sub_name = active_sub.subscription.name
-        if sub_name == SubscriptionName.STANDARD:
-            return "standard"
-        if sub_name == SubscriptionName.PREMIUM:
-            return "standard"
-        if sub_name == SubscriptionName.PRO:
-            return "pro"
-    
+        if sub_name in (SubscriptionName.STANDARD, SubscriptionName.PRO):
+            return sub_name.value
+
     return "free"
 
 

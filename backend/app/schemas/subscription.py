@@ -3,5 +3,5 @@ from typing import Optional
 from datetime import datetime
 
 class ChangeSubscriptionRequest(BaseModel):
-    subscription: str  # free | standard | pro (premium is treated as standard)
+    subscription: str  # free | standard | pro
     ends_at: Optional[datetime] = None

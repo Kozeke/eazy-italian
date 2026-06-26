@@ -68,8 +68,8 @@ def set_teacher_pro_tariff(teacher_email: str) -> None:
             sub.is_active = False
             sub.ends_at = now
 
-        # Aligns legacy student-facing column with paid tier (enum has no PRO value).
-        user.subscription_type = SubscriptionType.PREMIUM
+        # Aligns legacy users.subscription_type column with the Pro catalog row.
+        user.subscription_type = SubscriptionType.PRO
 
         db.add(
             UserSubscription(

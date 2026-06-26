@@ -11,8 +11,7 @@ class UserRole(str, enum.Enum):
 class SubscriptionType(str, enum.Enum):
     FREE = "free"
     STANDARD = "standard"
-    # Keeps backward compatibility for legacy accounts using premium name.
-    PREMIUM = "premium"
+    PRO = "pro"
 
 class User(Base):
     __tablename__ = "users"
@@ -75,25 +74,19 @@ class User(Base):
 
     @property
     def is_premium(self) -> bool:
-        """Check if user has premium or pro subscription"""
-        # Check subscription_type column (FREE, STANDARD, or legacy PREMIUM)
-        if self.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]:
+        """True when the user has a paid plan (Standard or Pro)."""
+        if self.subscription_type in (SubscriptionType.STANDARD, SubscriptionType.PRO):
             return True
-        
-        # Also check UserSubscription for PRO accounts
-        # PRO users should be treated as premium
-        from app.models.subscription import UserSubscription, SubscriptionName
+
+        from app.models.subscription import SubscriptionName, UserSubscription
+
         active_sub = next(
             (sub.subscription.name for sub in self.user_subscriptions if sub.is_active),
-            None
+            None,
         )
-        if active_sub and active_sub in [
-            SubscriptionName.STANDARD,
-            SubscriptionName.PREMIUM,
-            SubscriptionName.PRO,
-        ]:
+        if active_sub and active_sub in (SubscriptionName.STANDARD, SubscriptionName.PRO):
             return True
-        
+
         return False
 
     @property
