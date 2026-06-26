@@ -364,7 +364,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)) -> dic
 
     # StripeObject and dict-shaped events both support keyed access.
     event_type = event["type"]
-    event_id = event.get("id")
+    # StripeObject does not implement .get(); use _session_field which falls back safely to None.
+    event_id = _session_field(event, "id")
     data_object = event["data"]["object"]
     logger.info("Stripe webhook received event_id=%s type=%s", event_id, event_type)
 
