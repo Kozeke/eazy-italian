@@ -25,11 +25,11 @@ def check_course_access(db: Session, user: User, course_id: int) -> None:
     Raises HTTPException if access is denied.
     
     Rules:
-    - Premium users: always have access
+    - Standard / Pro users: always have access
     - Free users: must be enrolled in the course
     """
     if user.is_premium:
-        return  # Premium users have unlimited access
+        return  # Paid users have unlimited access
     
     if not is_user_enrolled(db, user.id, course_id):
         raise HTTPException(
@@ -83,7 +83,7 @@ def can_enroll_in_course(db: Session, user: User, course_id: int) -> tuple[bool,
     if is_user_enrolled(db, user.id, course_id):
         return False, "Already enrolled in this course"
     
-    # Premium users can enroll in unlimited courses
+    # Standard / Pro users can enroll in unlimited courses
     if user.is_premium:
         return True, ""
     
@@ -93,6 +93,6 @@ def can_enroll_in_course(db: Session, user: User, course_id: int) -> tuple[bool,
     ).count()
     
     if enrolled_count >= 1:
-        return False, "Free users can only enroll in one course. Please upgrade to Premium."
+        return False, "Free users can only enroll in one course. Please upgrade to Standard."
     
     return True, ""

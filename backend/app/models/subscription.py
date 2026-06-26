@@ -10,8 +10,6 @@ import enum
 class SubscriptionName(str, enum.Enum):
     FREE = "free"
     STANDARD = "standard"
-    # Keeps backward compatibility for old rows created before standard rename.
-    PREMIUM = "premium"
     PRO = "pro"
 
 

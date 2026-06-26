@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from sqlalchemy import text
 from app.core.database import engine, SessionLocal
-from app.models.user import User
+from app.models.user import User, SubscriptionType
 from app.models.subscription import Subscription, UserSubscription, SubscriptionName
 from datetime import datetime, timedelta
 
@@ -65,8 +65,8 @@ def set_student_pro():
         )
         db.add(user_subscription)
         
-        # Update user's subscription_type to PREMIUM (PRO is treated as premium)
-        user.subscription_type = "premium"  # Use string value for enum
+        # Aligns users.subscription_type with the Pro catalog row.
+        user.subscription_type = SubscriptionType.PRO
         
         db.commit()
         

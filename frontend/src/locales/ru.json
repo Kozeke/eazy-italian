@@ -252,13 +252,13 @@
     "emptySubtitle": "Пока нет опубликованных курсов. Как только преподаватель их добавит, они появятся здесь.",
     "errorLoading": "Ошибка при загрузке курсов",
     "showing": "Показано {{start}}–{{end}} из {{total}}",
-    "upgradeRequired": "Для записи на дополнительные курсы необходимо обновить подписку до Premium",
+    "upgradeRequired": "Для записи на дополнительные курсы необходимо обновить подписку до Standard",
     "enrolledSuccess": "Успешно записан на курс",
     "enrollError": "Ошибка при записи на курс",
     "enrolled": "Записан",
     "hours": "часов",
     "yourProgress": "Ваш прогресс",
-    "upgradeToPremium": "Обновить до Premium",
+    "upgradeToStandard": "Обновить до Standard",
     "continueLearning": "Продолжить обучение",
     "enrollNow": "Записаться сейчас",
     "noResults": "По вашему запросу ничего не найдено. Попробуйте изменить фильтры.",
@@ -1235,7 +1235,7 @@
       "title": "Тарифные планы",
       "subtitle": "Выберите план, который подходит именно вам",
       "free": "Бесплатный",
-      "premium": "Premium",
+      "standard": "Standard",
       "pro": "Pro",
       "perMonth": "/месяц",
       "popular": "Популярный",
@@ -1244,7 +1244,7 @@
         "feature2": "Базовые упражнения",
         "feature3": "Доступ к сообществу"
       },
-      "premiumFeatures": {
+      "standardFeatures": {
         "feature1": "Все уроки",
         "feature2": "Интерактивные упражнения",
         "feature3": "Отслеживание прогресса",
@@ -1252,14 +1252,14 @@
         "feature5": "Приоритетная поддержка"
       },
       "proFeatures": {
-        "feature1": "Все возможности Premium",
+        "feature1": "Все возможности Standard",
         "feature2": "Индивидуальные занятия",
         "feature3": "Подготовка к экзаменам CELI",
         "feature4": "Персональный план обучения",
         "feature5": "24/7 поддержка"
       },
       "chooseFree": "Начать бесплатно",
-      "choosePremium": "Выбрать Premium",
+      "chooseStandard": "Выбрать Standard",
       "choosePro": "Выбрать Pro"
     },
     "cta": {

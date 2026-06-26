@@ -302,7 +302,7 @@ def _run_all_migrations(_unused_conn):
     except Exception:
         pass
     _add_enum_values("subscriptiontype", [
-        "free", "standard", "premium", "FREE", "STANDARD", "PREMIUM"
+        "free", "standard", "pro", "FREE", "STANDARD", "PRO"
     ])
 
     # ── users columns ─────────────────────────────────────────────────────────
@@ -402,19 +402,93 @@ def _run_all_migrations(_unused_conn):
 
     # ── Enum: SubscriptionName — MUST use AUTOCOMMIT ──────────────────────────
     print("  Running migration: SubscriptionName enum + subscription sync...")
-    _add_enum_values("subscriptionname", ["standard"])
+    _add_enum_values("subscriptionname", ["standard", "pro"])
+
+    # Consolidate legacy PREMIUM catalog rows into standard (idempotent).
+    print("  Running migration: premium -> standard catalog consolidation...")
+    try:
+        run("""
+            INSERT INTO subscriptions (name, price, is_active)
+            SELECT 'standard'::subscriptionname, COALESCE(p.price, 12.00), true
+            FROM subscriptions p
+            WHERE lower(p.name::text) = 'premium'
+              AND NOT EXISTS (
+                SELECT 1 FROM subscriptions WHERE lower(name::text) = 'standard'
+              )
+            LIMIT 1
+        """)
+    except Exception as e:
+        print(f"  ⚠️  standard catalog insert (non-fatal): {e}")
+
+    try:
+        run("""
+            WITH std AS (
+                SELECT id FROM subscriptions
+                WHERE lower(name::text) = 'standard' AND is_active IS TRUE
+                ORDER BY id LIMIT 1
+            ),
+            prem AS (
+                SELECT id FROM subscriptions WHERE lower(name::text) = 'premium'
+            )
+            UPDATE user_subscriptions us
+            SET subscription_id = (SELECT id FROM std)
+            WHERE subscription_id IN (SELECT id FROM prem)
+              AND EXISTS (SELECT 1 FROM std)
+        """)
+        print("  ✅ Repointed user_subscriptions from premium to standard")
+    except Exception as e:
+        print(f"  ⚠️  user_subscriptions premium->standard (non-fatal): {e}")
+
+    try:
+        run("""
+            UPDATE subscriptions SET is_active = false
+            WHERE lower(name::text) = 'premium'
+        """)
+    except Exception as e:
+        print(f"  ⚠️  deactivate premium catalog (non-fatal): {e}")
+
+    try:
+        run("""
+            UPDATE users SET subscription_type = 'standard'::subscriptiontype
+            WHERE lower(subscription_type::text) = 'premium'
+        """)
+        print("  ✅ Migrated users.subscription_type premium -> standard")
+    except Exception as e:
+        print(f"  ⚠️  users premium->standard (non-fatal): {e}")
+
+    try:
+        run("""
+            DELETE FROM subscriptions s
+            WHERE lower(s.name::text) = 'premium'
+              AND NOT EXISTS (
+                SELECT 1 FROM user_subscriptions us WHERE us.subscription_id = s.id
+              )
+        """)
+        print("  ✅ Removed unused premium catalog rows")
+    except Exception as e:
+        print(f"  ⚠️  delete premium catalog (non-fatal): {e}")
 
     # Sync subscription_type on users from active subscriptions
     try:
         run("""
             UPDATE users u
-            SET subscription_type = 'PREMIUM'::subscriptiontype
+            SET subscription_type = 'standard'::subscriptiontype
             FROM user_subscriptions us
             JOIN subscriptions s ON s.id = us.subscription_id
             WHERE u.id = us.user_id
               AND us.is_active = true
-              AND s.name IN ('PREMIUM', 'premium', 'PRO', 'pro')
-              AND u.subscription_type = 'FREE'::subscriptiontype
+              AND lower(s.name::text) = 'standard'
+              AND lower(u.subscription_type::text) = 'free'
+        """)
+        run("""
+            UPDATE users u
+            SET subscription_type = 'pro'::subscriptiontype
+            FROM user_subscriptions us
+            JOIN subscriptions s ON s.id = us.subscription_id
+            WHERE u.id = us.user_id
+              AND us.is_active = true
+              AND lower(s.name::text) = 'pro'
+              AND lower(u.subscription_type::text) = 'free'
         """)
         print("  ✅ Migrated subscription types from UserSubscription")
     except Exception as e:
