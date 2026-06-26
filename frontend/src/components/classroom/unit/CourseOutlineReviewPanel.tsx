@@ -418,12 +418,45 @@ function UnitCard({
 
   // ── Auto-save ─────────────────────────────────────────────────────────────
   // Accepts explicit values so callers don't have to wait for setState to flush.
+  // Uses optimistic updates: parent state is updated immediately so the UI
+  // feels instant; the PATCH fires in the background and reverts on failure.
   const saveChanges = useCallback(async (
     newTitle: string,
     newDesc: string,
     newSections: Array<{ title: string; description: string }>,
   ) => {
     if (!courseId || isGenerating) return;
+
+    // Build the optimistic (new) and rollback (previous) outline snapshots.
+    const optimisticUnits = allOutlineUnits.map((u: any, i: number) =>
+      i === index
+        ? { ...u, title: newTitle, description: newDesc, sections: newSections }
+        : u,
+    );
+    // Snapshot of the previous state used to revert if the server rejects the save.
+    const rollbackUnits = allOutlineUnits.map((u: any) => u);
+
+    // Apply optimistic update immediately — teacher sees the change at once.
+    onOutlineChanged?.({ units: optimisticUnits });
+
+    // Invalidate plan cache when any inputs changed (before the await so UI
+    // stays consistent regardless of how long the network call takes).
+    const newSectionsKey = newSections.map((s) => s.title).join('|');
+    if (
+      planGeneratedFor.current !== null &&
+      (planGeneratedFor.current.title       !== newTitle       ||
+       planGeneratedFor.current.description !== newDesc        ||
+       planGeneratedFor.current.sectionsKey !== newSectionsKey)
+    ) {
+      setSegmentPlans(null);
+      planGeneratedFor.current = null;
+      // Auto-reload plan if the panel is already open so the teacher sees fresh results
+      if (expanded) {
+        // slight delay so state flushes first
+        setTimeout(() => { void loadPlan(); }, 50);
+      }
+    }
+
     setSaving(true);
     try {
       await patchOutline(
@@ -434,31 +467,11 @@ function UnitCard({
             : { title: u.title ?? '', description: u.description ?? '', sections: u.sections ?? [] },
         ),
       );
-      onOutlineChanged?.({
-        units: allOutlineUnits.map((u: any, i: number) =>
-          i === index
-            ? { ...u, title: newTitle, description: newDesc, sections: newSections }
-            : u,
-        ),
-      });
-      // Invalidate plan cache when any inputs changed
-      const newSectionsKey = newSections.map((s) => s.title).join('|');
-      if (
-        planGeneratedFor.current !== null &&
-        (planGeneratedFor.current.title       !== newTitle       ||
-         planGeneratedFor.current.description !== newDesc        ||
-         planGeneratedFor.current.sectionsKey !== newSectionsKey)
-      ) {
-        setSegmentPlans(null);
-        planGeneratedFor.current = null;
-        // Auto-reload plan if the panel is already open so the teacher sees fresh results
-        if (expanded) {
-          // slight delay so state flushes first
-          setTimeout(() => { void loadPlan(); }, 50);
-        }
-      }
-    } catch { /* silently ignore — local state is still correct */ }
-    finally { setSaving(false); }
+    } catch {
+      // Revert optimistic update on server error so the teacher isn't left with
+      // unsaved changes that look saved.
+      onOutlineChanged?.({ units: rollbackUnits });
+    } finally { setSaving(false); }
   }, [courseId, isGenerating, index, allOutlineUnits, onOutlineChanged, expanded, loadPlan]);
 
   const handleTitleBlur = () => {

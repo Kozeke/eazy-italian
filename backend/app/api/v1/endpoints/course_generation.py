@@ -1189,20 +1189,33 @@ async def patch_course_outline(
         # Keeps a mutable list so we can append newly created stubs below.
         db_units_list: list[UnitModel] = list(db_units)
 
-        # Update existing units (title / description / timestamp)
+        # Update existing units (title / description / timestamp).
+        # Skip units whose title, description, and sections are all unchanged
+        # to avoid unnecessary DB writes and updated_at bumps.
         for idx, edited in enumerate(body.units):
             if idx < len(db_units_list):
                 db_unit = db_units_list[idx]
-                db_unit.title       = edited.title.strip() or db_unit.title
-                db_unit.description = edited.description.strip()
-                db_unit.updated_at  = _dt.datetime.utcnow()
-                # Persist teacher-edited sections so the SSE stream can
-                # generate exactly those segments without re-running the AI
-                # topic planner.  Stored as [{title, description}, ...].
-                db_unit.outline_sections = [
+
+                new_title       = edited.title.strip() or db_unit.title
+                new_description = edited.description.strip()
+                new_sections    = [
                     {"title": s.title, "description": s.description}
                     for s in edited.sections
                 ]
+
+                # Detect whether anything actually changed before touching the row.
+                title_changed       = new_title       != (db_unit.title or "")
+                description_changed = new_description != (db_unit.description or "")
+                sections_changed    = new_sections    != (db_unit.outline_sections or [])
+
+                if not (title_changed or description_changed or sections_changed):
+                    # Nothing changed — skip the write entirely for this unit.
+                    continue
+
+                db_unit.title            = new_title
+                db_unit.description      = new_description
+                db_unit.outline_sections = new_sections
+                db_unit.updated_at       = _dt.datetime.utcnow()
             else:
                 # Teacher added a new unit in the outline review panel.
                 # Create a DB stub so the SSE stream picks it up for generation.
