@@ -305,7 +305,10 @@ async def _generate_and_save_card_images(
     # Resolve fal.ai settings from app config, fall back to environment vars.
     fal_key = ""
     fal_model = "fal-ai/flux/dev"
-    # square_hd produces the best aspect ratio for vocabulary flashcard thumbnails.
+    # square_hd (1024×1024) is always used for vocabulary card images regardless
+    # of the global FAL_IMAGE_SIZE env var (which is tuned for slides/banners).
+    # landscape_4_3 at ~683×512 produces noticeably blurry cards when displayed
+    # at card size, so we never inherit the global setting here.
     fal_image_size = "square_hd"
     fal_lora_url = ""
     fal_lora_scale = 0.8
@@ -313,9 +316,8 @@ async def _generate_and_save_card_images(
         from app.core.config import settings as _settings  # noqa: PLC0415
         fal_key = getattr(_settings, "FAL_KEY", "") or ""
         fal_model = getattr(_settings, "FAL_MODEL", "") or "fal-ai/flux/dev"
-        # FAL_IMAGE_SIZE from config overrides the default only when explicitly set;
-        # square_hd is kept as the fallback because it suits vocabulary cards best.
-        fal_image_size = getattr(_settings, "FAL_IMAGE_SIZE", "") or "square_hd"
+        # Intentionally NOT reading FAL_IMAGE_SIZE here — vocabulary cards must
+        # always be square_hd for sharpness; the global preset is for slides.
         fal_lora_url = getattr(_settings, "FAL_LORA_URL", "") or ""
         fal_lora_scale = float(getattr(_settings, "FAL_LORA_SCALE", 0.8) or 0.8)
     except Exception:  # noqa: BLE001
