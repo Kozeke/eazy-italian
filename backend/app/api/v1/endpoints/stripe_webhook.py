@@ -34,12 +34,18 @@ class StripeWebhookApplyError(Exception):
 
 def _metadata_dict(meta: Any) -> dict[str, str]:
     # Normalizes Stripe metadata objects to plain strings for lookups.
+    if meta is None:
+        return {}
+    # stripe-python 5.x returns metadata as a StripeObject (not a plain dict);
+    # extract the underlying _data dict so isinstance(meta, dict) matches below.
+    if hasattr(meta, "_data"):
+        meta = meta._data
     if not meta:
         return {}
     if isinstance(meta, dict):
         return {str(k): str(v) for k, v in meta.items() if v is not None}
     try:
-        return dict(meta)
+        return {str(k): str(v) for k, v in meta.items() if v is not None}
     except Exception:
         return {}
 
