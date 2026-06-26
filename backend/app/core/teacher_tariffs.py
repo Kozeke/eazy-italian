@@ -209,7 +209,10 @@ def get_teacher_tariff_display_state(
         return "free", False
 
     # Resolve the plan name from the subscription row.
-    raw_name = row.subscription.name.value if row.subscription else "free"
+    # name is now a plain string (e.g. "standard", "FREE") — use getattr fallback
+    # so the code still works if the column ever returns a SubscriptionName enum member.
+    sub_name = row.subscription.name if row.subscription else "free"
+    raw_name = sub_name.value if hasattr(sub_name, "value") else str(sub_name)
     plan = canonicalize_teacher_plan_name(raw_name)
     expired = _is_period_expired(row.ends_at)
 

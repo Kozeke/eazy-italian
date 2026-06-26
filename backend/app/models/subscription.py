@@ -1,6 +1,6 @@
 """Subscription and user-plan persistence models."""
 
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -17,7 +17,10 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
 
     id = Column(Integer, primary_key=True)
-    name = Column(Enum(SubscriptionName), unique=True, nullable=False)
+    # Declared as String so SQLAlchemy reads the raw PG enum label as plain text.
+    # The DB column remains of type subscriptionname (PostgreSQL still enforces validity on writes).
+    # This avoids LookupError when the PG enum has mixed-case labels (e.g. 'STANDARD' vs 'standard').
+    name = Column(String(50), unique=True, nullable=False)
     price = Column(Float, default=0.0)
     is_active = Column(Boolean, default=True)
 
