@@ -169,6 +169,11 @@ class FalImageProvider(ImageProvider):
             "guidance_scale":  self.guidance_scale,
             "num_images":      1,
             "enable_safety_checker": False,
+            # Request lossless PNG so the image arrives without JPEG compression
+            # artifacts.  fal.ai defaults to JPEG which produces heavily
+            # compressed files (~35–70 KB) that look blurry when displayed in
+            # vocabulary card slots.
+            "output_format":   "png",
         }
 
         # Attach LoRA if configured

@@ -305,11 +305,11 @@ async def _generate_and_save_card_images(
     # Resolve fal.ai settings from app config, fall back to environment vars.
     fal_key = ""
     fal_model = "fal-ai/flux/dev"
-    # square_hd (1024×1024) is always used for vocabulary card images regardless
-    # of the global FAL_IMAGE_SIZE env var (which is tuned for slides/banners).
-    # landscape_4_3 at ~683×512 produces noticeably blurry cards when displayed
-    # at card size, so we never inherit the global setting here.
-    fal_image_size = "square_hd"
+    # square (512×512) is used for vocabulary card images — enough detail for
+    # small cards, 4× fewer pixels than square_hd so fal.ai is faster and cheaper.
+    # Never inherit the global FAL_IMAGE_SIZE env var here; that preset is tuned
+    # for slides/banners, not card thumbnails.
+    fal_image_size = "square"
     fal_lora_url = ""
     fal_lora_scale = 0.8
     try:
