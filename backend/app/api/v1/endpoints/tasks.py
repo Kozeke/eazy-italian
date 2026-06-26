@@ -1,19 +1,26 @@
 """
-LEGACY FILE — tasks.py (student & admin task router)
+app/api/v1/endpoints/tasks.py — task router (partial migration state)
 
-Architecture change: Task / TaskSubmission are replaced by exercise blocks stored
-as media_blocks JSONB on the Segment model.
+Active endpoints
+----------------
+- POST /admin/tasks/upload-file  — filesystem-only file upload for unit materials
+  (listening audio/video or reading documents). No dependency on the old Task model.
 
-Old model:  Course → Unit → Task / TaskSubmission
-New model:  Course → Unit → Segment → media_blocks (exercise blocks)
+Architecture note
+-----------------
+The Task / TaskSubmission models were replaced by exercise blocks stored as
+media_blocks JSONB on the Segment model:
 
-Replaced by:
-  - Exercise authoring:   segment block editor (Segment.media_blocks JSONB)
-  - Student answers:      UnitHomeworkSubmission.answers JSONB
-  - Grading:              UnitHomeworkSubmission teacher feedback fields
+  Old: Course → Unit → Task / TaskSubmission
+  New: Course → Unit → Segment → media_blocks (exercise blocks)
 
-This file is fully commented out and kept for reference during migration.
-Do NOT re-enable these routes without migrating callers to the new segment API.
+All Task-model routes below are preserved as LEGACY comments for reference
+during the migration. Do NOT re-enable them without migrating callers to the
+new segment API.
+
+  - Exercise authoring:  segment block editor (Segment.media_blocks JSONB)
+  - Student answers:     UnitHomeworkSubmission.answers JSONB
+  - Grading:             UnitHomeworkSubmission teacher feedback fields
 """
 
 # LEGACY: from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks, UploadFile, File
@@ -39,9 +46,134 @@ Do NOT re-enable these routes without migrating callers to the new segment API.
 # LEGACY: from app.services.email_service import EmailService
 # LEGACY: from app.services.notification_service import notify_task_submitted
 
-from fastapi import APIRouter
+import os
+import uuid
+from typing import List
 
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+
+from app.core.auth import get_current_teacher
+from app.models.user import User
+from app.utils.paths import resolve_uploads_path
+
+# Router for this module — only the file-upload utility is active.
+# All Task-model routes remain commented out below (see LEGACY sections).
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# File upload utility
+# ---------------------------------------------------------------------------
+
+def _get_uploads_path() -> str:
+    """Delegates to the canonical uploads-path resolver."""
+    return resolve_uploads_path()
+
+
+@router.post("/admin/tasks/upload-file")
+async def upload_task_file(
+    files: List[UploadFile] = File(...),
+    # Distinguishes between audio/video ('listening') and document ('reading') uploads.
+    file_type: str = Query(..., description="Type of file: 'listening' for audio/video, 'reading' for documents"),
+    current_user: User = Depends(get_current_teacher),
+):
+    """Upload one or more files for a listening or reading task/unit material."""
+
+    # Accepted MIME types and extensions for audio/video material.
+    listening_mime_types = [
+        "audio/mpeg", "audio/mp3", "audio/wav", "audio/wave", "audio/x-wav",
+        "audio/ogg", "audio/webm", "audio/aac", "audio/flac",
+        "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo",
+        "video/x-matroska", "video/ogg", "video/x-flv", "video/3gpp", "video/x-ms-wmv",
+    ]
+    listening_extensions = [
+        ".mp3", ".wav", ".ogg", ".webm", ".aac", ".flac",
+        ".mp4", ".mov", ".avi", ".mkv", ".ogv", ".flv", ".3gp", ".wmv",
+    ]
+
+    # Accepted MIME types and extensions for document material.
+    reading_mime_types = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+        "text/html",
+        "application/rtf",
+    ]
+    reading_extensions = [".pdf", ".doc", ".docx", ".txt", ".html", ".rtf"]
+
+    # Resolve allowed types and storage subfolder based on the requested file_type.
+    if file_type == "listening":
+        allowed_mime_types = listening_mime_types
+        allowed_extensions = listening_extensions
+        subfolder = "audio"
+    elif file_type == "reading":
+        allowed_mime_types = reading_mime_types
+        allowed_extensions = reading_extensions
+        subfolder = "documents"
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file_type. Must be 'listening' or 'reading'",
+        )
+
+    # Build the per-user destination directory and ensure it exists.
+    uploads_path = _get_uploads_path()
+    files_dir = os.path.join(uploads_path, "tasks", subfolder, str(current_user.id))
+    os.makedirs(files_dir, exist_ok=True)
+
+    uploaded_files = []
+
+    for file in files:
+        # Validate content-type; fall back to extension check when MIME is absent.
+        if not file.content_type:
+            if file.filename:
+                file_ext = os.path.splitext(file.filename)[1].lower()
+                if file_ext not in allowed_extensions:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid file type for {file.filename}. Allowed: {', '.join(allowed_extensions)}",
+                    )
+            else:
+                raise HTTPException(status_code=400, detail="File type could not be determined")
+        elif file.content_type not in allowed_mime_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type for {file.filename}. Allowed: {', '.join(allowed_extensions)}",
+            )
+
+        # Derive extension and produce a collision-safe filename.
+        file_ext = os.path.splitext(file.filename or f"file{allowed_extensions[0]}")[1] or allowed_extensions[0]
+        filename = f"{uuid.uuid4().hex[:16]}{file_ext}"
+        file_path = os.path.join(files_dir, filename)
+
+        # Prevent crash on disk/permission errors.
+        try:
+            content = await file.read()
+            with open(file_path, "wb") as buffer:
+                buffer.write(content)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error uploading file {file.filename}: {exc}",
+            ) from exc
+
+        # Relative path used by the static-file mount (/api/v1/static/…).
+        relative_path = f"tasks/{subfolder}/{current_user.id}/{filename}"
+        uploaded_files.append(
+            {
+                "file_path": relative_path,
+                "filename": filename,
+                "original_filename": file.filename,
+                "size": len(content),
+                "url": f"/api/v1/static/{relative_path}",
+            }
+        )
+
+    return {
+        "message": f"{len(uploaded_files)} file(s) uploaded successfully",
+        "files": uploaded_files,
+    }
 
 # LEGACY: # Helper functions
 # LEGACY: def get_task_with_relations(db: Session, task_id: int) -> Optional[Task]:
