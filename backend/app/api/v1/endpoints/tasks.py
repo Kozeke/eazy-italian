@@ -92,15 +92,23 @@ async def upload_task_file(
     ]
 
     # Accepted MIME types and extensions for document material.
+    # Only PDF and DOCX are supported for reading uploads; other types are intentionally disabled.
     reading_mime_types = [
         "application/pdf",
-        "application/msword",
+        # "application/msword",  # .doc — disabled, use .docx instead
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "text/plain",
-        "text/html",
-        "application/rtf",
+        # "text/plain",  # .txt — disabled
+        # "text/html",   # .html — disabled
+        # "application/rtf",  # .rtf — disabled
     ]
-    reading_extensions = [".pdf", ".doc", ".docx", ".txt", ".html", ".rtf"]
+    reading_extensions = [
+        ".pdf",
+        # ".doc",   # disabled, use .docx instead
+        ".docx",
+        # ".txt",   # disabled
+        # ".html",  # disabled
+        # ".rtf",   # disabled
+    ]
 
     # Resolve allowed types and storage subfolder based on the requested file_type.
     if file_type == "listening":

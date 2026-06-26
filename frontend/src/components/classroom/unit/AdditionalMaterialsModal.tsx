@@ -106,12 +106,12 @@ export default function AdditionalMaterialsModal({
             className="mb-4 rounded-xl border border-dashed p-4"
             style={{ borderColor: "#CBD5E1", background: "#F7F7FA" }}
           >
-            {/* Accepts document formats teachers can share with students. */}
+            {/* Accepts PDF and DOCX only; .doc/.txt/.rtf are disabled on the upload endpoint. */}
             <input
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept=".pdf,.doc,.docx,.txt,.rtf"
+              accept=".pdf,.docx"
               multiple
               onChange={(event) => {
                 const selectedFiles = event.target.files ? Array.from(event.target.files) : [];
