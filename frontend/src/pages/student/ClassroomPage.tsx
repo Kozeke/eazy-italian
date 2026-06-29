@@ -649,7 +649,8 @@ function ClassroomPageInner({
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   // True while POST …/publish is in flight so the lesson footer cannot double-submit.
   const [publishBusy, setPublishBusy] = useState(false);
-  // True when the teacher's tariff blocks unit publishing (course_publish limit = 0).
+  // True when the teacher has exhausted their course_publish quota AND this course
+  // has no already-published units (meaning the credit hasn't been consumed for it yet).
   const [isPublishBlocked, setIsPublishBlocked] = useState(false);
   // When the teacher picks another unit while the current unit is still a draft, we confirm first.
   const [draftSwitchModalOpen, setDraftSwitchModalOpen] = useState(false);
@@ -1224,14 +1225,28 @@ function ClassroomPageInner({
         });
         if (res.ok) {
           const data = await res.json();
+          // null = unlimited (Standard / Pro) — always allow.
           const limit: number | null = data?.ai_limits?.course_publish ?? null;
-          if (limit !== null && limit <= 0) {
-            setIsPublishBlocked(true);
-            return;
+          const used: number = data?.ai_usage?.course_publishes ?? 0;
+
+          if (limit !== null && used >= limit) {
+            // Quota exhausted globally — but this course may have already consumed
+            // its one credit on a previous unit publish.  The backend charges only
+            // ONCE per course (first student-visible segment); subsequent unit
+            // publishes within the same course are free.
+            // Mirror that logic: if any unit in this course is already published,
+            // the credit was already spent here → allow without blocking.
+            const courseAlreadyPublished = units.some(
+              (u) => u.status === "published" || u.is_visible_to_students === true,
+            );
+            if (!courseAlreadyPublished) {
+              setIsPublishBlocked(true);
+              return;
+            }
           }
         }
       } catch {
-        // tariff check failed — let the server gate it
+        // Tariff check failed — let the server enforce the gate.
       }
       // ──────────────────────────────────────────────────────────────────────
 

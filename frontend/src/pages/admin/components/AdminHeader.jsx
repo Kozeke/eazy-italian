@@ -488,6 +488,10 @@ function TrialPopover({ trialUntil, teacherSubscriptionPlan, onClose, onTariffs 
               <p className="ah-tp-note" style={{ textAlign: "left", marginBottom: 10 }}>
                 {t("admin.header.trialPopover.freeForever")}
               </p>
+              {/* What the free plan includes — publish allowance prominently shown */}
+              <p className="ah-tp-note--trial-window" style={{ background: "#F0FDF4", borderColor: "#BBF7D0", color: "#166534", marginBottom: 10 }}>
+                ✓ {t("admin.header.trialPopover.freeIncludesPublish", "Includes 1 free course publish to students.")}
+              </p>
               {/* Tinted blue note clarifying the trial window ends but no charge follows */}
               {trialDate && (
                 <p className="ah-tp-note--trial-window">

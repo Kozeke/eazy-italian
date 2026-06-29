@@ -1222,7 +1222,7 @@ function UpgradePublishButton({ onClick }: { onClick: () => void }) {
   const [hovered, setHovered] = React.useState(false);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      {/* Info strip */}
+      {/* Info strip — shown when the free-plan 1-course publish quota is exhausted */}
       <div
         style={{
           display: 'flex',
@@ -1236,7 +1236,7 @@ function UpgradePublishButton({ onClick }: { onClick: () => void }) {
       >
         <Lock style={{ width: 11, height: 11, color: '#D97706', flexShrink: 0 }} />
         <span style={{ fontSize: 11, color: '#92400E', lineHeight: 1.4, fontWeight: 500 }}>
-          Publishing requires a paid plan
+          Free plan: 1 course publish used. Upgrade for unlimited.
         </span>
       </div>
 
@@ -1270,7 +1270,7 @@ function UpgradePublishButton({ onClick }: { onClick: () => void }) {
         }}
       >
         <Zap style={{ width: 13, height: 13, color: '#ffffff' }} />
-        Upgrade to Publish
+        Upgrade for Unlimited Publishing
       </button>
     </div>
   );

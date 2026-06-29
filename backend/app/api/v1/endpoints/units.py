@@ -434,22 +434,18 @@ async def publish_unit(
         raise HTTPException(status_code=400, detail=reason)
 
     # ── Quota gate ────────────────────────────────────────────────────────────
-    # Two-phase check is required because maybe_consume_course_publish_for_new_live_segment
-    # returns early (without calling check_and_consume_teacher_ai_quota) when the course
-    # already has student-available segments — bypassing the free-tier block entirely.
-    #
-    # Phase 1 — hard plan/expiry check (always runs, no early-exit)
-    #   Blocks free-tier (action_limit == 0) and expired subscriptions unconditionally.
-    #
-    # Phase 2 — idempotent consumption (paid tiers only)
-    #   Consumes one course_publish credit the first time this course goes live;
-    #   subsequent publishes of the same course are free (quota flag already set).
+    # maybe_consume_course_publish_for_new_live_segment returns early when the
+    # course already has student-available segments (subsequent unit publishes on
+    # the same course are free of quota).  For the very first publish it calls
+    # check_and_consume_teacher_ai_quota which enforces both expiry and the
+    # per-period credit limit (free: 1, standard/pro: unlimited).
     if unit.course_id:
         course = db.query(Course).filter(Course.id == unit.course_id).first()
         if course:
             plan, period_expired = get_teacher_tariff_display_state(db, current_user)
 
-            # Phase 1: expiry gate
+            # Expiry gate — checked before quota so an expired teacher with remaining
+            # credits cannot publish new content.
             if period_expired:
                 raise HTTPException(
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -459,19 +455,9 @@ async def publish_unit(
                     ),
                 )
 
-            # Phase 1: plan-level block (free tier has course_publish = 0)
-            # TEMP: disabled alongside teacher_tariffs course_publish gate — re-enable before prod.
-            # limits = get_teacher_tariff_limits(plan)
-            # if limits.get("course_publish") == 0:
-            #     raise HTTPException(
-            #         status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            #         detail=(
-            #             "Publishing units is not available on the Free plan. "
-            #             "Upgrade to Standard or Pro to unlock this feature."
-            #         ),
-            #     )
-
-            # Phase 2: idempotent credit consumption for paid/pro tiers
+            # Idempotent credit consumption: consumes one course_publish quota
+            # the first time this course goes live; re-publishes of the same course
+            # are free (the quota-consumed flag is stored in Course.settings).
             maybe_consume_course_publish_for_new_live_segment(
                 db,
                 current_user,

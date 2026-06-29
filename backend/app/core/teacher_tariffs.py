@@ -48,7 +48,8 @@ _PLAN_LIMITS: dict[str, dict[str, int | None]] = {
         "exercise_generation":  10,
         "unit_generation":       3,
         "course_generation":     1,
-        "course_publish":        0,   # 0 = blocked on free
+        # Free plan may publish exactly 1 course (first student-visible segment consumes the credit).
+        "course_publish":        1,
     },
     "standard": {
         "exercise_generation":  100,
@@ -407,31 +408,9 @@ def check_and_consume_teacher_ai_quota(
             ),
         )
 
-    # ── Step 2: plan-level block (e.g. course_publish on free) ───────────────
+    # ── Step 2: plan-level block (action explicitly unavailable on this plan) ──
     limits = get_teacher_tariff_limits(plan)
     action_limit = limits.get(action)
-
-    # TEMP: Free-tier course_publish guard disabled for development — re-enable before prod.
-    # if action_limit == 0:
-    #     # Explicitly blocked — not a quota issue, a plan-tier restriction.
-    #     raise HTTPException(
-    #         status_code=status.HTTP_402_PAYMENT_REQUIRED,
-    #         detail=(
-    #             f"The '{action}' action is not available on the {plan.capitalize()} plan. "
-    #             "Upgrade to Standard or Pro to unlock this feature."
-    #         ),
-    #     )
-
-    # With Step 2 commented, limit 0 would fall through to Step 3 and always "exhaust" quota;
-    # treat course_publish on Free like a tracked-but-unblocked action until the gate returns.
-    if action == "course_publish" and action_limit == 0:
-        _increment_usage(db, user, action)
-        logger.debug(
-            "course_publish allowed (free-tier gate off): user=%s plan=%s",
-            user.id,
-            plan,
-        )
-        return
 
     if action_limit == 0:
         # Explicitly blocked — not a quota issue, a plan-tier restriction.

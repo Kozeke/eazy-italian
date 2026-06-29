@@ -1250,7 +1250,7 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExercises', 'AI exercise generations')}</span><span className="feat-row-val">10 / mo</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowUnits', 'AI unit generations')}</span><span className="feat-row-val">3 / mo</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val">1 total</span></div>
-              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val dash">—</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val">1 course</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val dash">—</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.basic', 'Basic')}</span></div>
             </div>
