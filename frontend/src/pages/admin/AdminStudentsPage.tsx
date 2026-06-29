@@ -379,15 +379,13 @@ const STUDENTS_PAGE_CSS = `
 }
 `;
 
-/**
- * ProgressData stores progress statistics received from the backend.
- */
-type ProgressData = {
-  id: number;
-  passed_tests: number;
-  progress_percent: number;
-  total_tests: number;
-};
+// ProgressData type is kept here for when /progress/students endpoint is re-enabled.
+// type ProgressData = {
+//   id: number;
+//   passed_tests: number;
+//   progress_percent: number;
+//   total_tests: number;
+// };
 
 /**
  * StudentRow stores normalized data used by the UI list.
