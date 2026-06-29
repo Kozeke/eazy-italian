@@ -15,7 +15,8 @@ import {
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
-import { progressApi, usersApi } from "../../services/api";
+// progressApi is imported but commented out — uncomment when /progress/students endpoint is ready.
+import { /* progressApi, */ usersApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import AddStudentModal, { AddStudentFormData } from "./components/AddStudentModal";
 import StudentLoginCredentialsModal, {
@@ -517,7 +518,7 @@ export default function AdminStudentsPage() {
     useState<StudentLoginCredentials | null>(null);
 
   /**
-   * fetchStudents loads student roster and merges progress metadata.
+   * fetchStudents loads student roster from the backend.
    */
   const fetchStudents = async () => {
     try {
@@ -532,23 +533,30 @@ export default function AdminStudentsPage() {
         totalTests: 0,
       }));
 
-      const progressData: ProgressData[] =
-        await progressApi.getStudentsProgress();
-      const progressMap = new Map(progressData.map((p) => [p.id, p]));
+      // Progress stats (passed_tests, total_tests) are not currently used in this view.
+      // Uncomment the block below when the /progress/students endpoint is ready.
+      //
+      // let progressMap = new Map<number, ProgressData>();
+      // try {
+      //   const progressData: ProgressData[] = await progressApi.getStudentsProgress();
+      //   progressMap = new Map(progressData.map((p) => [p.id, p]));
+      // } catch (progressError) {
+      //   console.warn("Could not load student progress data:", progressError);
+      // }
+      // const merged: StudentRow[] = normalized.map((student) => {
+      //   const progress = progressMap.get(student.id);
+      //   if (progress) {
+      //     return {
+      //       ...student,
+      //       completedUnits: progress.passed_tests || 0,
+      //       totalTests: progress.total_tests || 0,
+      //     };
+      //   }
+      //   return student;
+      // });
+      // setStudents(merged);
 
-      const merged: StudentRow[] = normalized.map((student) => {
-        const progress = progressMap.get(student.id);
-        if (progress) {
-          return {
-            ...student,
-            completedUnits: progress.passed_tests || 0,
-            totalTests: progress.total_tests || 0,
-          };
-        }
-        return student;
-      });
-
-      setStudents(merged);
+      setStudents(normalized);
     } catch (error) {
       console.error(error);
     }
