@@ -1297,7 +1297,7 @@
         },
         {
           "icon": "🧩",
-          "title": "20+ Exercise Types",
+          "title": "12+ Exercise Types",
           "body": "Drag-to-gap, match pairs, true/false, listening, build-a-sentence and more — all generated or hand-crafted in one editor."
         },
         {
@@ -1314,8 +1314,8 @@
     },
     "exercisesSection": {
       "label": "Interactive exercises",
-      "heading": "20+ exercise types,",
-      "headingHighlight": "all AI-generated"
+      "heading": "12+ interactive",
+      "headingHighlight": "exercise types"
     },
     "aiSection": {
       "label": "AI Generation",

@@ -31,6 +31,7 @@ import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { getAppOrigin } from '../../../utils/appOrigin';
+import api from '../../../services/api';
 import {
   BookOpen,
   FileText,
@@ -46,6 +47,7 @@ import {
   Pen,
   Trash2,
   Sparkles,
+  Download,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -131,6 +133,32 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
       return false;
     }
   }
+}
+
+/**
+ * Downloads a unit's self-contained HTML export.
+ *
+ * Uses the shared `api` axios instance (not window.open) so the
+ * Authorization header attached by api.ts's request interceptor is sent —
+ * the export endpoint requires teacher auth because the file embeds the
+ * full answer key.
+ */
+async function downloadUnitExport(unitId: number, unitTitle: string): Promise<void> {
+  const response = await api.get(`/units/admin/units/${unitId}/export/html`, {
+    responseType: 'blob',
+  });
+  const blob = new Blob([response.data], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  // The server sets Content-Disposition with the canonical slugified
+  // filename; this is just a fallback if a proxy strips that header.
+  link.download =
+    `${(unitTitle || 'unit').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'unit'}.html`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Level colors (unused while CEFR pill next to unit title is hidden) ─────────
@@ -245,6 +273,16 @@ function UnitActionDropdown({
       {/* Copy unit — hidden per product request; restore with `Copy` from lucide-react */}
       {/* {menuItem(<Copy className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.copy'), () => onCopy?.(unit))} */}
       {menuItem(<Pen    className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.edit'), () => onEdit?.(unit))}
+      {menuItem(
+        <Download className="h-4 w-4 shrink-0" />,
+        t('classroom.unitList.actions.exportHtml'),
+        () => {
+          const toastId = toast.loading(t('classroom.unitList.exportInProgress'));
+          downloadUnitExport(unit.id, unit.title)
+            .then(() => toast.success(t('classroom.unitList.exportComplete'), { id: toastId }))
+            .catch(() => toast.error(t('classroom.unitList.exportFailed'), { id: toastId }));
+        },
+      )}
       {onDelete && <div className="border-t border-slate-100" />}
       {onDelete &&
         menuItem(

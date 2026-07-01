@@ -1206,7 +1206,7 @@
           },
           {
             "icon": "🧩",
-            "title": "20+ tipi di esercizi",
+            "title": "12+ tipi di esercizi",
             "body": "Trascina nelle lacune, abbina coppie, vero/falso, ascolto, costruisci frasi e altro — tutti generati o creati in un solo editor."
           },
           {
@@ -1223,8 +1223,8 @@
       },
       "exercisesSection": {
         "label": "Esercizi interattivi",
-        "heading": "20+ tipi di esercizi,",
-        "headingHighlight": "tutti generati con AI"
+        "heading": "12+ interattivi",
+        "headingHighlight": "tipi di esercizi"
       },
       "aiSection": {
         "label": "Generazione AI",

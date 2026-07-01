@@ -1,6 +1,6 @@
 /**
  * LandingPage.tsx
- * Rebuilt from landing__2_.html — design system: #6C6FEF primary, Syne + Inter fonts.
+ * Rebuilt from landing__2_.html — design system: #6C6FEF primary, Sora + Inter fonts.
  * Fully internationalised — EN / RU / IT via i18next.
  */
 import { useState, useEffect, useRef } from "react";
@@ -10,7 +10,7 @@ import i18n from "../i18n";
 
 /* ─── CSS (verbatim from landing__2_.html, adapted for JSX injection) ─── */
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -111,7 +111,7 @@ nav {
 }
 .hero-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); display: inline-block; }
 h1 {
-  font-family: 'Syne', system-ui, sans-serif;
+  font-family: 'Sora', system-ui, sans-serif;
   font-size: clamp(36px, 6vw, 64px);
   font-weight: 800; line-height: 1.1; letter-spacing: -1.5px;
   color: var(--text-main);
@@ -148,7 +148,7 @@ h1 em { font-style: normal; color: var(--primary); }
 
 /* ── HERO VISUAL ── */
 .hero-visual {
-  margin-top: 64px; width: 100%; max-width: 980px;
+  margin-top: 64px; width: 100%; max-width: 900px;
   background: var(--white); border-radius: var(--r-lg);
   border: 1px solid var(--border);
   box-shadow: 0 4px 40px rgba(108,111,239,0.13), 0 1px 4px rgba(108,111,239,0.06);
@@ -164,6 +164,25 @@ h1 em { font-style: normal; color: var(--primary); }
 .dot-y { background: #FEBC2E; }
 .dot-g { background: #28C840; }
 
+.hero-langs {
+  margin-top: 32px; display: flex; flex-direction: column;
+  align-items: center; gap: 12px;
+  animation: fadeUp .7s .4s ease both;
+}
+.hero-langs-label {
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.hero-langs-list {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+}
+.hero-lang-pill {
+  background: var(--tint); color: var(--primary-dk);
+  border: 1px solid var(--tint-mid);
+  border-radius: 999px; padding: 6px 16px;
+  font-size: 14px; font-weight: 600;
+}
+
 /* ── HERO DEMO VIDEO ── */
 .hero-video-wrap {
   position: relative;
@@ -171,11 +190,13 @@ h1 em { font-style: normal; color: var(--primary); }
   aspect-ratio: 16 / 9;
   background: #0f0f12;
 }
-.hero-video-wrap iframe {
+.hero-video {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  display: block;
+  object-fit: cover;
   border: none;
 }
 
@@ -187,7 +208,7 @@ h1 em { font-style: normal; color: var(--primary); }
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 18px 0 14px; z-index: 10;
 }
-.db-topbar-logo { display: flex; align-items: center; gap: 7px; font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-main); }
+.db-topbar-logo { display: flex; align-items: center; gap: 7px; font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-main); }
 .db-topbar-logo em { color: var(--primary); font-style: normal; }
 .db-topbar-right { display: flex; align-items: center; gap: 14px; }
 .db-icon-btn { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 13px; cursor: pointer; transition: background .15s; }
@@ -204,7 +225,7 @@ h1 em { font-style: normal; color: var(--primary); }
 .db-main { flex: 1; overflow-y: auto; padding: 64px 0 0; background: var(--white); display: flex; flex-direction: column; position: relative; }
 .db-content { padding: 28px 28px 20px; flex: 1; }
 .db-content-inner { background: var(--white); border-radius: 16px; border: 1px solid var(--border); padding: 24px; box-shadow: var(--shadow-sm); height: 100%; }
-.db-page-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: var(--text-main); margin-bottom: 18px; }
+.db-page-title { font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 800; color: var(--text-main); margin-bottom: 18px; }
 .db-search { width: 100%; height: 38px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); display: flex; align-items: center; gap: 8px; padding: 0 12px; margin-bottom: 16px; }
 .db-search-icon { color: var(--text-muted); font-size: 13px; }
 .db-search-placeholder { font-size: 13px; color: var(--text-muted); }
@@ -216,7 +237,7 @@ h1 em { font-style: normal; color: var(--primary); }
 .db-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .db-course-card { border-radius: 12px; border: 1px solid var(--border); overflow: hidden; background: var(--white); cursor: pointer; transition: transform .18s, box-shadow .18s; }
 .db-course-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
-.db-course-thumb { height: 100px; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 38px; font-weight: 800; letter-spacing: -1px; }
+.db-course-thumb { height: 100px; display: flex; align-items: center; justify-content: center; font-family: 'Sora', sans-serif; font-size: 38px; font-weight: 800; letter-spacing: -1px; }
 .db-course-info { padding: 10px 11px 11px; }
 .db-course-name { font-size: 12px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; line-height: 1.3; }
 .db-course-meta { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
@@ -236,7 +257,7 @@ h1 em { font-style: normal; color: var(--primary); }
 /* ── SECTIONS ── */
 section { max-width: 1100px; margin: 0 auto; padding: 88px 24px; }
 .section-label { font-size: 13px; font-weight: 600; color: var(--primary); letter-spacing: .5px; text-transform: uppercase; margin-bottom: 12px; }
-h2 { font-family: 'Syne', sans-serif; font-size: clamp(28px, 4vw, 44px); font-weight: 800; letter-spacing: -.8px; line-height: 1.15; color: var(--text-main); margin-bottom: 16px; }
+h2 { font-family: 'Sora', sans-serif; font-size: clamp(28px, 4vw, 44px); font-weight: 800; letter-spacing: -.8px; line-height: 1.15; color: var(--text-main); margin-bottom: 16px; }
 h2 em { font-style: normal; color: var(--primary); }
 .section-sub { font-size: 17px; color: var(--text-sub); max-width: 500px; line-height: 1.7; }
 
@@ -246,7 +267,7 @@ h2 em { font-style: normal; color: var(--primary); }
 .feat-card { background: var(--white); border-radius: var(--r-lg); border: 1px solid var(--border); padding: 28px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow-sm); transition: transform .22s, box-shadow .22s; }
 .feat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
 .feat-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
-.feat-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; color: var(--text-main); }
+.feat-title { font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 700; color: var(--text-main); }
 .feat-body { font-size: 14px; color: var(--text-sub); line-height: 1.65; }
 
 /* ── HOW IT WORKS ── */
@@ -254,9 +275,9 @@ h2 em { font-style: normal; color: var(--primary); }
 .steps { display: flex; flex-direction: column; gap: 0; }
 .step { display: flex; gap: 20px; padding: 24px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: opacity .2s; }
 .step:last-child { border-bottom: none; }
-.step-num { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; background: var(--tint); color: var(--primary-dk); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px; transition: background .2s, color .2s; }
+.step-num { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; background: var(--tint); color: var(--primary-dk); display: flex; align-items: center; justify-content: center; font-family: 'Sora', sans-serif; font-weight: 800; font-size: 15px; transition: background .2s, color .2s; }
 .step.active .step-num { background: var(--primary); color: #fff; }
-.step-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; margin-bottom: 6px; color: var(--text-main); }
+.step-title { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; margin-bottom: 6px; color: var(--text-main); }
 .step-body { font-size: 13px; color: var(--text-sub); line-height: 1.6; max-width: 340px; }
 .step-screen { background: var(--white); border-radius: var(--r-lg); border: 1px solid var(--border); box-shadow: var(--shadow-md); overflow: hidden; }
 .step-screen-bar { background: var(--bg); border-bottom: 1px solid var(--border); padding: 10px 14px; display: flex; align-items: center; gap: 6px; }
@@ -292,7 +313,7 @@ h2 em { font-style: normal; color: var(--primary); }
 .ai-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .ai-point { display: flex; gap: 14px; }
 .ai-point-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-.ai-point-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.ai-point-title { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
 .ai-point-body { font-size: 13px; color: var(--text-sub); line-height: 1.6; }
 /* Prevent grid children from overflowing on narrow screens */
 .features-grid > *, .testi-grid > *, .pricing-grid > * { min-width: 0; }
@@ -307,7 +328,7 @@ h2 em { font-style: normal; color: var(--primary); }
 /* ── STATS BAND ── */
 .stats-band { background: var(--primary); padding: 52px 24px; }
 .stats-band-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-around; flex-wrap: wrap; gap: 32px; }
-.stat-num { font-family: 'Syne', sans-serif; font-size: 40px; font-weight: 800; color: #fff; line-height: 1; }
+.stat-num { font-family: 'Sora', sans-serif; font-size: 40px; font-weight: 800; color: #fff; line-height: 1; }
 .stat-label { font-size: 14px; color: rgba(255,255,255,0.7); margin-top: 4px; }
 
 /* ── TESTIMONIALS ── */
@@ -318,6 +339,66 @@ h2 em { font-style: normal; color: var(--primary); }
 .testi-author { display: flex; align-items: center; gap: 10px; }
 .testi-name { font-size: 13px; font-weight: 700; color: var(--text-main); }
 .testi-role { font-size: 12px; color: var(--text-muted); }
+
+/* ── FOUNDER NOTE ── */
+.founder-card {
+  margin-top: 40px; max-width: 720px;
+  background: var(--white); border-radius: var(--r-lg);
+  border: 1px solid var(--border); box-shadow: var(--shadow-md);
+  padding: 40px 44px;
+  position: relative; overflow: hidden;
+}
+.founder-card::before {
+  content: ""; position: absolute; top: 0; left: 0;
+  width: 4px; height: 100%; background: var(--primary);
+}
+.founder-body p {
+  font-size: 16px; color: var(--text-sub); line-height: 1.75;
+  margin-bottom: 18px;
+}
+.founder-body p:last-child { margin-bottom: 0; }
+.founder-sign {
+  display: flex; align-items: center; gap: 16px;
+  margin-top: 28px; padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.founder-name { font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-main); }
+.founder-role { font-size: 13px; color: var(--text-muted); }
+.founder-photo-wrap {
+  width: 104px; height: 104px; border-radius: 50%;
+  overflow: hidden; flex-shrink: 0;
+  border: 2px solid var(--tint);
+  background: var(--bg);
+  box-shadow: var(--shadow-sm);
+}
+.founder-photo {
+  width: 100%; height: 100%; display: block;
+  object-fit: cover; object-position: center center;
+}
+
+/* ── DEMO VIDEO ── */
+.demo-section-wrap {
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 88px 24px;
+}
+.demo-video-frame {
+  max-width: 340px; margin: 44px auto 0;
+  border-radius: 28px; overflow: hidden;
+  border: 8px solid #18181B;
+  box-shadow: var(--shadow-md);
+  background: #000;
+  aspect-ratio: 9 / 16;
+}
+.demo-video { width: 100%; height: 100%; display: block; object-fit: cover; }
+.demo-cta { margin-top: 36px; }
+@media (max-width: 640px) {
+  .founder-card { padding: 28px 24px; }
+  .founder-body p { font-size: 15px; }
+  .demo-section-wrap { padding: 64px 20px; }
+  .demo-video-frame { max-width: 280px; }
+}
 
 /* ── PRICING ── */
 /* Billing toggle */
@@ -347,13 +428,13 @@ h2 em { font-style: normal; color: var(--primary); }
 .price-card.featured .feat-row-val.dash { color: rgba(255,255,255,0.4); }
 
 /* Header */
-.price-name { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; color: var(--text-main); }
+.price-name { font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 700; color: var(--text-main); }
 .price-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
 
 /* Price display */
 .price-amount-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
-.price-val { font-family: 'Syne', sans-serif; font-size: 44px; font-weight: 800; color: var(--text-main); line-height: 1; }
-.price-currency { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--text-muted); align-self: flex-start; margin-top: 6px; }
+.price-val { font-family: 'Sora', sans-serif; font-size: 44px; font-weight: 800; color: var(--text-main); line-height: 1; }
+.price-currency { font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 700; color: var(--text-muted); align-self: flex-start; margin-top: 6px; }
 .price-savings { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: #EAF3DE; color: #3B6D11; white-space: nowrap; align-self: center; }
 .price-card.featured .price-savings { background: rgba(255,255,255,0.22); color: #fff; }
 .price-per { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
@@ -575,6 +656,37 @@ footer { max-width: 1100px; margin: 0 auto; padding: 48px 24px; display: flex; f
 }
 `;
 
+// Static path to the hero demo clip in frontend/public/demo.mp4
+const DEMO_VIDEO_SRC = '/demo.mp4';
+
+// Vertical reels-style demo clip for the mid-page "Describe it. AI" section
+const DEMO_REELS_VIDEO_SRC = '/demo_reels.mp4';
+
+// Square-cropped founder portrait (head + crossed arms) for circular avatar display
+const FOUNDER_PHOTO_SRC = '/founder-avatar.jpeg';
+
+type DemoVideoProps = {
+  className: string;
+  src?: string;
+  autoPlay?: boolean;
+};
+
+// Renders a landing-page product demo clip with controls for codec/autoplay fallbacks
+function DemoVideo({ className, src = DEMO_VIDEO_SRC, autoPlay = false }: DemoVideoProps) {
+  return (
+    <video
+      className={className}
+      src={src}
+      autoPlay={autoPlay}
+      muted
+      loop
+      playsInline
+      controls
+      preload="metadata"
+    />
+  );
+}
+
 /* ─── Logo SVG ─── */
 const LogoSVG = ({ width = 150, height = 36 }: { width?: number; height?: number }) => (
   <svg width={width} height={height} viewBox="0 0 180 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -584,8 +696,8 @@ const LogoSVG = ({ width = 150, height = 36 }: { width?: number; height?: number
     <circle cx="20" cy="3" r="2" fill="#6C6FEF" opacity="0.75" />
     <circle cx="34.7" cy="11.5" r="2" fill="#6C6FEF" opacity="0.75" />
     <circle cx="34.7" cy="28.5" r="2" fill="#6C6FEF" opacity="0.75" />
-    <text x="48" y="26" fontFamily="'Syne', system-ui, sans-serif" fontWeight="700" fontSize="19" fill="#1A1A2E" letterSpacing="-0.5">Lingu</text>
-    <text x="106" y="26" fontFamily="'Syne', system-ui, sans-serif" fontWeight="700" fontSize="19" fill="#6C6FEF" letterSpacing="-0.5">AI</text>
+    <text x="48" y="26" fontFamily="'Sora', system-ui, sans-serif" fontWeight="700" fontSize="19" fill="#1A1A2E" letterSpacing="-0.5">Lingu</text>
+    <text x="106" y="26" fontFamily="'Sora', system-ui, sans-serif" fontWeight="700" fontSize="19" fill="#6C6FEF" letterSpacing="-0.5">AI</text>
   </svg>
 );
 
@@ -603,9 +715,6 @@ const LANGS = [
   { code: 'ru', label: 'Русский', flag: '🇷🇺' },
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
 ] as const;
-
-// YouTube video ID embedded in the hero section product demo
-const DEMO_VIDEO_ID = "xI9vXxaiBHw";
 
 function LangSwitcher() {
   const { i18n } = useTranslation();
@@ -666,7 +775,6 @@ function LangSwitcher() {
 /* ─── Main Component ─── */
 export default function LandingPage() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<"unit" | "exercise" | "course">("unit");
 
   // First-time visitors default to English; switcher choice is cached in localStorage.
   useEffect(() => {
@@ -736,7 +844,7 @@ export default function LandingPage() {
         <div className="nav-links">
           <a href="#features">{t('landing.nav.features', 'Features')}</a>
           <a href="#exercises">{t('landing.nav.exercises', 'Exercises')}</a>
-          <a href="#ai-generation">{t('landing.nav.aiGeneration', 'AI Generation')}</a>
+          <a href="#demo">{t('landing.nav.aiGeneration', 'Demo')}</a>
           <a href="#pricing">{t('landing.nav.pricing', 'Pricing')}</a>
           <Link to="/login">{t('landing.nav.login', 'Log in')}</Link>
           <LangSwitcher />
@@ -756,7 +864,7 @@ export default function LandingPage() {
       <div className={`mobile-menu${mobileMenuOpen ? " open" : ""}`} role="dialog" aria-modal="true">
         <a href="#features" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.features', 'Features')}</a>
         <a href="#exercises" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.exercises', 'Exercises')}</a>
-        <a href="#ai-generation" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.aiGeneration', 'AI Generation')}</a>
+        <a href="#demo" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.aiGeneration', 'Demo')}</a>
         <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.pricing', 'Pricing')}</a>
         <div className="mobile-menu-divider" />
         <Link to="/login" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.login', 'Log in')}</Link>
@@ -772,6 +880,15 @@ export default function LandingPage() {
           <Link to="/register" className="btn-primary">{t('landing.hero.startFree', 'Start for free →')}</Link>
         </div>
 
+        <div className="hero-langs">
+          <span className="hero-langs-label">{t('landing.hero.langsLabel', 'Generate lessons in')}</span>
+          <div className="hero-langs-list">
+            {["English", "Spanish", "Italian", "German", "French", "Russian"].map((lang) => (
+              <span key={lang} className="hero-lang-pill">{lang}</span>
+            ))}
+          </div>
+        </div>
+
         {/* Product demo video */}
         <div className="hero-visual">
           <div className="hero-visual-bar">
@@ -780,12 +897,7 @@ export default function LandingPage() {
           </div>
 
           <div className="hero-video-wrap">
-            <iframe
-              src={`https://www.youtube.com/embed/${DEMO_VIDEO_ID}?rel=0&modestbranding=1`}
-              title={t("landing.hero.demoVideoTitle", "LinguAI product demo")}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
+            <DemoVideo className="hero-video" autoPlay />
           </div>
         </div>
       </div>
@@ -839,7 +951,7 @@ export default function LandingPage() {
             {/* CENTRE */}
             <div style={{ background: "var(--white)", borderRadius: 20, border: "1.5px dashed var(--border)", padding: "36px 28px", textAlign: "center", minWidth: 180, boxShadow: "var(--shadow-sm)" }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--tint)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 20 }}>✦</div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: "var(--text-muted)" }}>Section name</div>
+              <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 14, color: "var(--text-muted)" }}>Section name</div>
               <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>+ Add exercise</div>
             </div>
 
@@ -906,140 +1018,20 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── AI GENERATION ── */}
-      <div className="ai-section-wrap" style={{ background: "var(--white)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "88px 24px" }} id="ai-generation">
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <div className="section-label">{t('landing.aiSection.label', 'AI generation')}</div>
-          <h2>{t('landing.aiSection.heading', 'Describe it. AI')}<br /><em>{t('landing.aiSection.headingHighlight', 'builds it for you.')}</em></h2>
-          <p className="section-sub">{t('landing.aiSection.subtext', 'Generate full units, individual exercises, or entire courses — all from a simple description.')}</p>
+      {/* ── MID-PAGE CTA ── */}
+      <div className="demo-section-wrap" id="demo">
+        <div style={{ maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
+          <div className="section-label">{t('landing.demoSection.label', 'See it in action')}</div>
+          <h2>{t('landing.demoSection.heading', 'Describe it. AI')}<br /><em>{t('landing.demoSection.headingHighlight', 'builds the whole lesson.')}</em></h2>
+          <p className="section-sub" style={{ margin: "0 auto 32px" }}>{t('landing.demoSection.subtext', 'Type a topic or upload a file — get grammar, vocabulary, and interactive exercises in minutes. No credit card needed to try.')}</p>
 
-          {/* Tab switcher */}
-          <div style={{ display: "flex", gap: 8, marginTop: 40, marginBottom: 36, flexWrap: "wrap" }}>
-            <button className={`ai-tab${activeTab === "unit" ? " active" : ""}`} onClick={() => setActiveTab("unit")}>✦ {t('landing.aiSection.tabUnit', 'Generate unit')}</button>
-            <button className={`ai-tab${activeTab === "exercise" ? " active" : ""}`} onClick={() => setActiveTab("exercise")}>⬜ {t('landing.aiSection.tabExercise', 'Generate exercise')}</button>
-            <button className={`ai-tab${activeTab === "course" ? " active" : ""}`} onClick={() => setActiveTab("course")}>📚 {t('landing.aiSection.tabCourse', 'Generate course')}</button>
+          <div className="demo-video-frame">
+            <DemoVideo className="demo-video" src={DEMO_REELS_VIDEO_SRC} autoPlay />
           </div>
 
-          {/* UNIT tab */}
-          {activeTab === "unit" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24, alignItems: "start" }}>
-              <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
-                <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
-                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
-                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>Generate Unit Content</span>
-                </div>
-                <div style={{ padding: 24 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--tint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>✦</div>
-                    <div>
-                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14 }}>Generate Unit Content</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Unit 14</div>
-                    </div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "var(--bg)", borderRadius: 10, padding: 3, marginBottom: 16 }}>
-                    <div style={{ textAlign: "center", padding: 8, background: "var(--white)", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "var(--text-main)", boxShadow: "var(--shadow-sm)" }}>✦ Generate with AI</div>
-                    <div style={{ textAlign: "center", padding: 8, fontSize: 12, color: "var(--text-muted)" }}>↑ From File</div>
-                  </div>
-                  <input style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", outline: "none", marginBottom: 10 }} placeholder="e.g. Present Simple tense, Vocabulary: Food & Drink..." readOnly />
-                  <textarea style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", resize: "none", height: 80, outline: "none", fontFamily: "inherit" }} placeholder="Describe what you'd like the AI to focus on…" readOnly />
-                  <div style={{ textAlign: "center", fontSize: 12, color: "var(--text-muted)", margin: "10px 0" }}>⌄ Advanced settings</div>
-                  <div style={{ background: "var(--primary)", color: "#fff", borderRadius: "var(--r)", padding: 12, textAlign: "center", fontSize: 14, fontWeight: 700 }}>★ Generate 3 Segments</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
-                {[
-                  { icon: "✦", bg: "#EEF0FE", title: t('landing.aiSection.p1Title', 'One prompt, full unit'), body: t('landing.aiSection.p1Body', 'Describe the topic and level — AI generates 3 lesson segments complete with slides, exercises, and a graded test.') },
-                  { icon: "📂", bg: "#dcfce7", title: t('landing.aiSection.p2Title', 'Or upload your materials'), body: t('landing.aiSection.p2Body', 'Got existing worksheets or PDFs? Upload them and AI extracts the content into an editable lesson automatically.') },
-                  { icon: "✏️", bg: "#fef3c7", title: t('landing.aiSection.p3Title', 'Always editable'), body: t('landing.aiSection.p3Body', 'Every slide, every exercise question, every test item is fully editable after generation. AI gives you the head start.') },
-                ].map((p) => (
-                  <div className="ai-point" key={p.title}>
-                    <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
-                    <div>
-                      <div className="ai-point-title">{p.title}</div>
-                      <div className="ai-point-body">{p.body}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* EXERCISE tab */}
-          {activeTab === "exercise" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24, alignItems: "start" }}>
-              <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
-                <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
-                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
-                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>AI Exercise Generator</span>
-                </div>
-                <div style={{ padding: 24 }}>
-                  <div className="ai-chip" style={{ marginBottom: 14 }}>⬜ Drag-to-Gap</div>
-                  <div style={{ background: "var(--bg)", border: "1.5px solid var(--primary)", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-sub)", marginBottom: 14 }}>"Practice Italian present tense with irregular verbs: essere, avere, fare — intermediate level"</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                    {["sono", "hai", "fa", "siamo", "avete"].map((w) => <span key={w} className="word-chip">{w}</span>)}
-                  </div>
-                  <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 2 }}>
-                    Io <span className="gap-slot" style={{ background: "var(--tint)", borderColor: "var(--primary)", color: "var(--primary-dk)" }}>sono</span> italiano. Tu <span className="gap-slot">___</span> una studentessa. Lei <span className="gap-slot">___</span> la spesa.
-                  </p>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
-                {[
-                  { icon: "✦", bg: "#EEF0FE", title: t('landing.aiSection.e1Title', 'Exercise-level AI'), body: t('landing.aiSection.e1Body', 'Generate a single exercise of any type — drag-to-gap, match pairs, sort columns, true/false — from just a description.') },
-                  { icon: "💡", bg: "#fef3c7", title: t('landing.aiSection.e2Title', 'Smart prompt suggestions'), body: t('landing.aiSection.e2Body', 'One-click prompt chips help you get started: "Write a text on the topic", "Practice past tense with", and more.') },
-                  { icon: "👁", bg: "#dcfce7", title: t('landing.aiSection.e3Title', 'Preview before adding'), body: t('landing.aiSection.e3Body', 'See the generated exercise with words in gaps before adding it to your lesson. Regenerate if needed.') },
-                ].map((p) => (
-                  <div className="ai-point" key={p.title}>
-                    <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
-                    <div>
-                      <div className="ai-point-title">{p.title}</div>
-                      <div className="ai-point-body">{p.body}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* COURSE tab */}
-          {activeTab === "course" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24, alignItems: "start" }}>
-              <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
-                <div style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
-                  <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
-                  <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>AI Course Generator</span>
-                </div>
-                <div style={{ padding: 24 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--tint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📚</div>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14 }}>Generate Full Course</div>
-                  </div>
-                  <div style={{ border: "1.5px solid var(--primary)", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-sub)", marginBottom: 10 }}>Italian A2 — Intermediate beginners, focused on everyday conversation and grammar</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", margin: "14px 0 10px" }}>Generated outline — 6 units</div>
-                  <div className="course-gen-row"><span className="cg-num">1</span><div><div className="cg-title">Greetings & Introductions</div><div className="cg-sub">3 segments · vocabulary + dialogue</div></div><span className="cg-check">✓</span></div>
-                  <div className="course-gen-row"><span className="cg-num">2</span><div><div className="cg-title">Daily Routines — Presente</div><div className="cg-sub">3 segments · grammar focus</div></div><span className="cg-check">✓</span></div>
-                  <div className="course-gen-row" style={{ opacity: .6 }}><span className="cg-num" style={{ background: "var(--bg)", color: "var(--text-muted)" }}>3</span><div><div className="cg-title">Food & Restaurants</div><div className="cg-sub">generating…</div></div><div className="cg-spinner" /></div>
-                  <div className="course-gen-row" style={{ opacity: .3 }}><span className="cg-num" style={{ background: "var(--bg)", color: "var(--text-muted)" }}>4</span><div><div className="cg-title">Shopping & Prices</div><div className="cg-sub">queued</div></div></div>
-                  <div style={{ background: "var(--primary)", color: "#fff", borderRadius: "var(--r)", padding: 12, textAlign: "center", fontSize: 13, fontWeight: 700, marginTop: 16 }}>★ Generate All Units</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 8 }}>
-                {[
-                  { icon: "📚", bg: "#EEF0FE", title: t('landing.aiSection.c1Title', 'Full course in minutes'), body: t('landing.aiSection.c1Body', 'Describe your course — level, audience, topic — and AI builds a complete outline with units, segments, slides, and exercises.') },
-                  { icon: "🔄", bg: "#fef3c7", title: t('landing.aiSection.c2Title', 'Edit the outline first'), body: t('landing.aiSection.c2Body', 'Review and adjust the AI-generated unit outline before generating content — add, remove, or reorder units freely.') },
-                  { icon: "⚡", bg: "#dcfce7", title: t('landing.aiSection.c3Title', 'Parallel generation'), body: t('landing.aiSection.c3Body', 'All units generate in parallel. A 6-unit course with slides, tasks, and tests is ready in under 2 minutes.') },
-                ].map((p) => (
-                  <div className="ai-point" key={p.title}>
-                    <div className="ai-point-icon" style={{ background: p.bg }}>{p.icon}</div>
-                    <div>
-                      <div className="ai-point-title">{p.title}</div>
-                      <div className="ai-point-body">{p.body}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="demo-cta">
+            <Link to="/register" className="btn-primary">{t('landing.demoSection.cta', 'Try it free →')}</Link>
+          </div>
         </div>
       </div>
 
@@ -1048,8 +1040,8 @@ export default function LandingPage() {
         <div className="stats-band-inner">
           <div><div className="stat-num">12+</div><div className="stat-label">{t('landing.stats.exerciseTypes', 'Exercise types')}</div></div>
           <div><div className="stat-num">3 min</div><div className="stat-label">{t('landing.stats.generationTime', 'Avg. lesson generation time')}</div></div>
-          <div><div className="stat-num">100%</div><div className="stat-label">{t('landing.stats.autoGraded', 'Auto-graded tests')}</div></div>
-          <div><div className="stat-num">∞</div><div className="stat-label">{t('landing.stats.students', 'Students per classroom')}</div></div>
+          <div><div className="stat-num">100%</div><div className="stat-label">{t('landing.stats.autoGraded', 'Auto-graded exercises')}</div></div>
+          <div><div className="stat-num">6</div><div className="stat-label">{t('landing.stats.languages', 'Teaching languages')}</div></div>
         </div>
       </div>
 
@@ -1087,7 +1079,7 @@ export default function LandingPage() {
                   <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)" }}>My Courses</span>
                 </div>
                 <div className="step-screen-body">
-                  <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 16 }}>My Courses</div>
+                  <div style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 16 }}>My Courses</div>
                   {[
                     { thumb: "🇮🇹", bg: "#EEF0FE", name: "Italian A1 — Beginners", meta: "6 units · 24 lessons", badge: "Active" },
                     { thumb: "📖", bg: "#dcfce7", name: "Italian B1 — Intermediate", meta: "8 units · 31 lessons", badge: "Active" },
@@ -1131,12 +1123,12 @@ export default function LandingPage() {
                 </div>
                 <div className="step-screen-body">
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15 }}>Italian A1 — Group 3</div>
+                    <div style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15 }}>Italian A1 — Group 3</div>
                     <div style={{ background: "#dcfce7", color: "#166534", fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99 }}>● Live</div>
                   </div>
                   <div style={{ background: "var(--tint)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
                     <div style={{ fontSize: 11, color: "var(--primary-dk)", fontWeight: 600, marginBottom: 4 }}>Join code</div>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, color: "var(--primary)", letterSpacing: 4 }}>A1-4892</div>
+                    <div style={{ fontFamily: "'Sora',sans-serif", fontSize: 26, fontWeight: 800, color: "var(--primary)", letterSpacing: 4 }}>A1-4892</div>
                   </div>
                   <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>Students online · 7 of 12</div>
                   {[
@@ -1163,11 +1155,11 @@ export default function LandingPage() {
                 <div className="step-screen-body">
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
                     <div style={{ background: "var(--tint)", borderRadius: 10, padding: 12, textAlign: "center" }}>
-                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 24, fontWeight: 800, color: "var(--primary)" }}>84%</div>
+                      <div style={{ fontFamily: "'Sora',sans-serif", fontSize: 24, fontWeight: 800, color: "var(--primary)" }}>84%</div>
                       <div style={{ fontSize: 11, color: "var(--primary-dk)" }}>Avg. score</div>
                     </div>
                     <div style={{ background: "#dcfce7", borderRadius: 10, padding: 12, textAlign: "center" }}>
-                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 24, fontWeight: 800, color: "#166534" }}>91%</div>
+                      <div style={{ fontFamily: "'Sora',sans-serif", fontSize: 24, fontWeight: 800, color: "#166534" }}>91%</div>
                       <div style={{ fontSize: 11, color: "#166534" }}>Pass rate</div>
                     </div>
                   </div>
@@ -1191,25 +1183,25 @@ export default function LandingPage() {
       </section>
       )}
 
-      {/* ── TESTIMONIALS ── */}
+      {/* ── FOUNDER'S NOTE ── */}
       <section>
-        <div className="section-label">{t('landing.testimonialsSection.label', 'What teachers say')}</div>
-        <h2>{t('landing.testimonialsSection.heading', 'Built for language')}<br /><em>{t('landing.testimonialsSection.headingHighlight', 'educators, by educators')}</em></h2>
-        <div className="testi-grid">
-          {[
-            { initials: "SM", bg: "#6C6FEF", name: t('landing.testimonialsSection.t1Name', 'Silvia M.'), role: t('landing.testimonialsSection.t1Role', 'Italian teacher, Milan'), text: t('landing.testimonialsSection.t1Text', 'I used to spend entire Sundays preparing lesson materials. Now I describe the topic, tweak the AI output, and I\'m done in 20 minutes. My students love the interactive exercises.') },
-            { initials: "LP", bg: "#10b981", name: t('landing.testimonialsSection.t2Name', 'Lorenzo P.'), role: t('landing.testimonialsSection.t2Role', 'Language school director, Rome'), text: t('landing.testimonialsSection.t2Text', 'The live classroom mode changed how I teach. I can see in real time who is stuck on slide 4 and who has already finished the test. No more guessing.') },
-            { initials: "CF", bg: "#f59e0b", name: t('landing.testimonialsSection.t3Name', 'Chiara F.'), role: t('landing.testimonialsSection.t3Role', 'Private tutor, Florence'), text: t('landing.testimonialsSection.t3Text', 'The analytics panel is genuinely useful. I identified that 60% of my class was struggling with subjunctive before anyone told me — the data just showed it.') },
-          ].map((tst) => (
-            <div className="testi-card" key={tst.name}>
-              <div className="testi-stars">★★★★★</div>
-              <p className="testi-text">"{tst.text}"</p>
-              <div className="testi-author">
-                <div className="avatar" style={{ background: tst.bg, width: 36, height: 36, fontSize: 13 }}>{tst.initials}</div>
-                <div><div className="testi-name">{tst.name}</div><div className="testi-role">{tst.role}</div></div>
-              </div>
+        <div className="section-label">{t('landing.founderSection.label', 'Why I built this')}</div>
+        <h2>{t('landing.founderSection.heading', 'Learning a language is hard enough —')}<br /><em>{t('landing.founderSection.headingHighlight', 'the practice shouldn\'t be boring')}</em></h2>
+        <div className="founder-card">
+          <div className="founder-body">
+            <p>{t('landing.founderSection.p1', 'I built LinguAI around one idea: students learn better when exercises are actually engaging. Tools like Kahoot made quizzes fun — but that\'s just one format. LinguAI gives you a rich variety of interactive exercise types: drag-and-drop, matching, gap-fill, build-a-sentence, and more — so your students stay engaged instead of grinding through the same worksheet every time.')}</p>
+            <p>{t('landing.founderSection.p2', 'You describe the lesson, AI builds it with varied interactive practice, and everything\'s auto-checked. Less prep for you, more fun for them.')}</p>
+            <p>{t('landing.founderSection.p3', 'It\'s early, and I\'m building this in the open. Try it free — and tell me what would make it better.')}</p>
+          </div>
+          <div className="founder-sign">
+            <div className="founder-photo-wrap">
+              <img className="founder-photo" src={FOUNDER_PHOTO_SRC} alt={t('landing.founderSection.name', 'Kozy-Korpesh')} />
             </div>
-          ))}
+            <div>
+              <div className="founder-name">{t('landing.founderSection.name', 'Kozy-Korpesh')}</div>
+              <div className="founder-role">{t('landing.founderSection.role', 'Founder, LinguAI')}</div>
+            </div>
+          </div>
         </div>
       </section>
 
