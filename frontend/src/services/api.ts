@@ -1369,7 +1369,7 @@ export const gradesApi = {
 
   getStudentEnrollments: async (studentId: number) => {
     const response = await api.get(
-      `grades/admin/students/${studentId}/enrollments`,
+      `admin/students/${studentId}/enrollments`,
     );
     return response.data;
   },

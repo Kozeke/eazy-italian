@@ -4,7 +4,7 @@ import secrets
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 
@@ -17,6 +17,7 @@ from app.core.teacher_tariffs import (
 )
 from app.models.user import User, UserRole
 from app.models.course import Course
+from app.models.unit import Unit
 from app.models.enrollment import CourseEnrollment
 from app.models.progress import Progress
 from app.models.notification import Notification
@@ -550,6 +551,67 @@ def get_students(
         students_with_count.append(UserResponse(**student_dict))
     
     return students_with_count
+
+
+@router.get("/{student_id}/enrollments")
+def get_student_enrollments(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+):
+    """Return enrolled courses for a student, scoped to courses owned by the current teacher."""
+    # Prevent returning enrollments for students that belong to another teacher.
+    _get_teacher_owned_student_or_403(
+        db=db,
+        student_id=student_id,
+        teacher_id=current_user.id,
+    )
+
+    # Collect only course IDs that this teacher created.
+    teacher_course_ids = [
+        c.id
+        for c in db.query(Course.id).filter(Course.created_by == current_user.id).all()
+    ]
+
+    if not teacher_course_ids:
+        return []
+
+    # Join enrollments with course data and unit counts, filtered to teacher-owned courses only.
+    enrollments = (
+        db.query(
+            Course.id.label("course_id"),
+            Course.title,
+            Course.level,
+            Course.thumbnail_path,
+            CourseEnrollment.created_at.label("enrolled_at"),
+            func.count(Unit.id).label("total_units"),
+        )
+        .join(CourseEnrollment, CourseEnrollment.course_id == Course.id)
+        .outerjoin(Unit, Unit.course_id == Course.id)
+        .filter(CourseEnrollment.user_id == student_id)
+        .filter(Course.id.in_(teacher_course_ids))
+        .group_by(
+            Course.id,
+            Course.title,
+            Course.level,
+            Course.thumbnail_path,
+            CourseEnrollment.created_at,
+        )
+        .order_by(desc(CourseEnrollment.created_at))
+        .all()
+    )
+
+    return [
+        {
+            "course_id": e.course_id,
+            "title": e.title,
+            "level": e.level,
+            "thumbnail_path": e.thumbnail_path,
+            "enrolled_at": e.enrolled_at,
+            "total_units": e.total_units or 0,
+        }
+        for e in enrollments
+    ]
 
 
 @router.post("/{student_id}/enrollments")
