@@ -56,17 +56,16 @@ _MIN_SECTIONS = 2
 _MAX_SECTIONS = 4
 
 _DEFAULT_NUM_SEGMENTS   = 3
-# Base interactive exercises + two visual-vocabulary types.
-# drag_word_to_image goes into the 2nd content segment and
-# type_word_to_image into the 3rd — guaranteed by the coverage pass in
-# UnitGeneratorService._smart_assign_exercises (high-affinity types that
-# would otherwise fall past the rotation window are injected there).
+# Base interactive exercises assigned automatically during course generation.
+# Image-card types (drag_word_to_image, type_word_to_image, select_form_to_image)
+# are intentionally excluded — they trigger fal.ai image generation per card and
+# slow down bulk course creation. Teachers can add them manually per segment later.
 _DEFAULT_EXERCISE_TYPES = [
     "drag_to_gap",
     "match_pairs",
     "build_sentence",
-    "drag_word_to_image",
-    "type_word_to_image",
+    # "drag_word_to_image",   # requires per-card image generation — skipped on auto-gen
+    # "type_word_to_image",   # requires per-card image generation — skipped on auto-gen
 ]
 
 # Content extracted from uploaded files is capped before being sent to the LLM
