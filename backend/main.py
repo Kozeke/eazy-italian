@@ -633,7 +633,28 @@ async def root():
 
 
 if os.path.exists("frontend/dist"):
-    app.mount("/static", StaticFiles(directory="frontend/dist", html=True), name="static")
+    # Serve actual build artifacts (JS, CSS, images) from the dist folder.
+    app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
+
+
+# ── SPA catch-all ──────────────────────────────────────────────────────────────
+# Must be declared LAST so every /api/v1/... route registered above takes
+# precedence.  For any path that is not an API route:
+#   - if the file exists in frontend/dist (e.g. favicon.ico), serve it directly
+#   - otherwise serve index.html so React Router handles the URL
+if os.path.exists("frontend/dist"):
+    from fastapi.responses import FileResponse as _FileResponse
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        """Serve the React SPA for any non-API path, enabling client-side routing on reload."""
+        # Stores resolved path to the requested file inside the built frontend.
+        candidate = os.path.join("frontend/dist", full_path)
+        if os.path.isfile(candidate):
+            return _FileResponse(candidate)
+        # Fall back to index.html so React Router handles the deep-link.
+        return _FileResponse("frontend/dist/index.html")
+
 
 if __name__ == "__main__":
     import uvicorn

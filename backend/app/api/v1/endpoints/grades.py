@@ -27,12 +27,80 @@ A new /grades endpoint will be added using HomeworkSubmission data.
 # LEGACY: from app.models.enrollment import CourseEnrollment
 # LEGACY: from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
+
+from app.core.database import get_db
+from app.core.auth import get_current_teacher
+from app.models.user import User
+from app.models.course import Course
+from app.models.unit import Unit
+from app.models.enrollment import CourseEnrollment
 
 router = APIRouter()
 
 
 # LEGACY: from sqlalchemy import desc, asc, func, case, and_
+
+
+@router.get("/admin/students/{student_id}/enrollments")
+def get_student_enrollments(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_teacher),
+):
+    """Return enrolled courses for a student, scoped to courses owned by the current teacher.
+
+    Kept at this path for backwards compatibility — the canonical route is
+    GET /api/v1/admin/students/{student_id}/enrollments in admin_students.py.
+    """
+    # Collect only course IDs that this teacher created.
+    teacher_course_ids = [
+        c.id
+        for c in db.query(Course.id).filter(Course.created_by == current_user.id).all()
+    ]
+
+    if not teacher_course_ids:
+        return []
+
+    # Join enrollments with course data and unit counts, filtered to teacher-owned courses only.
+    enrollments = (
+        db.query(
+            Course.id.label("course_id"),
+            Course.title,
+            Course.level,
+            Course.thumbnail_path,
+            CourseEnrollment.created_at.label("enrolled_at"),
+            func.count(Unit.id).label("total_units"),
+        )
+        .join(CourseEnrollment, CourseEnrollment.course_id == Course.id)
+        .outerjoin(Unit, Unit.course_id == Course.id)
+        .filter(CourseEnrollment.user_id == student_id)
+        .filter(Course.id.in_(teacher_course_ids))
+        .group_by(
+            Course.id,
+            Course.title,
+            Course.level,
+            Course.thumbnail_path,
+            CourseEnrollment.created_at,
+        )
+        .order_by(desc(CourseEnrollment.created_at))
+        .all()
+    )
+
+    return [
+        {
+            "course_id": e.course_id,
+            "title": e.title,
+            "level": e.level,
+            "thumbnail_path": e.thumbnail_path,
+            "enrolled_at": e.enrolled_at,
+            "total_units": e.total_units or 0,
+        }
+        for e in enrollments
+    ]
+
 
 # LEGACY: @router.get("/admin/grades")
 # LEGACY: def get_grades(
