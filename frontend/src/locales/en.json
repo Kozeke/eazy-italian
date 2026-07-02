@@ -1390,10 +1390,7 @@
       "rowCourses": "AI course generations",
       "rowPublish": "Publish to students",
       "rowLive": "Live classroom",
-      "rowAnalytics": "Analytics",
-      "basic": "Basic",
-      "full": "Full",
-      "fullExports": "Full + exports",
+      "rowExportHtml": "Export interactive HTML",
       "unlimited": "Unlimited",
       "footnote": "All plans include homework mode, 12+ exercise types, and student progress tracking. Prices in USD · Billed via Stripe · Cancel anytime."
     },

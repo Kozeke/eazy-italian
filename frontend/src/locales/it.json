@@ -1301,10 +1301,7 @@
         "rowCourses": "Generazioni AI di corsi",
         "rowPublish": "Pubblicazione per studenti",
         "rowLive": "Classe in diretta",
-        "rowAnalytics": "Analisi",
-        "basic": "Base",
-        "full": "Completa",
-        "fullExports": "Completa + export",
+        "rowExportHtml": "Export HTML interattivo",
         "unlimited": "Illimitato",
         "footnote": "Tutti i piani includono modalità compiti, oltre 12 tipi di esercizi e monitoraggio del progresso degli studenti. Prezzi in USD · Fatturazione via Stripe · Annulla in qualsiasi momento."
       },
