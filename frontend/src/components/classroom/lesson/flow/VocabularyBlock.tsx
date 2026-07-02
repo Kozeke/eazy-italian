@@ -18,7 +18,7 @@
  * Read-only for both teacher and student — no interactive state needed.
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import type { ExerciseBlockProps } from "./exerciseBlock.types";
 import { BookMarked } from "lucide-react";
 
