@@ -59,3 +59,5 @@ registerExercise("image_stacked", () => import("./ImageStackedBlock"));
 registerExercise("gif_animation", () => import("./GifAnimationBlock"));
 registerExercise("video_embed", () => import("./VideoBlock"));
 registerExercise("audio_embed", () => import("./AudioBlock"));
+
+registerExercise("vocabulary", () => import("./VocabularyBlock"));

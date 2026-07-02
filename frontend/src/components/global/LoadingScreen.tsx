@@ -515,18 +515,28 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
         }
 
         /* soft halo that grounds the logo into the background rather than floating */
+        .lngai-logo-wrap {
+          position: relative;
+          display: flex;
+          justify-content: center;
+        }
         .lngai-logo-halo {
           position: absolute;
           top: 50%; left: 50%;
           width: 280px; height: 170px;
-          transform: translate(-50%, -62%);
+          transform: translate(-50%, -50%);
           background: radial-gradient(ellipse at center, rgba(108,111,239,0.15) 0%, rgba(108,111,239,0) 68%);
           pointer-events: none;
           z-index: 0;
         }
 
         /* ── orbit ── */
-        .lngai-logo-svg { position: relative; z-index: 1; }
+        .lngai-logo-svg {
+          position: relative;
+          z-index: 1;
+          display: block;
+          margin: 0 auto;
+        }
         .lngai-orbit-ring {
           transform-origin: 20px 20px;
           animation: lngai-orbit 3.6s linear infinite;
@@ -617,11 +627,13 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
           align-items: center;
           gap: 9px;
         }
-        .lngai-quote-attr::before {
+        .lngai-quote-attr::before,
+        .lngai-quote-attr::after {
           content: '';
           width: 18px;
           height: 1px;
           background: #C9CBEA;
+          flex-shrink: 0;
         }
 
         /* respect users who prefer less motion */
@@ -644,20 +656,20 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
 
         {/* ── stage: logo, stem and quote breathe together as one piece ── */}
         <div className="lngai-stage">
-          {/* halo grounds the logo into the page background */}
-          <span className="lngai-logo-halo" aria-hidden="true" />
+          <div className="lngai-logo-wrap">
+            {/* halo grounds the logo into the page background */}
+            <span className="lngai-logo-halo" aria-hidden="true" />
 
-          {/* ── Logo SVG ────────────────────────────────────────────────── */}
-          <svg
+            {/* ── Logo SVG ────────────────────────────────────────────────── */}
+            <svg
             className="lngai-logo-svg"
-            width="240"
-            height="64"
-            viewBox="0 0 180 48"
+            width="216"
+            height="48"
+            viewBox="0 0 180 40"
             fill="none"
             overflow="visible"
             xmlns="http://www.w3.org/2000/svg"
             aria-hidden="true"
-            style={{ display: "block", overflow: "visible" }}
           >
             <circle
               className="lngai-outer-ring"
@@ -678,21 +690,20 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
 
             <g className="lngai-wordmark">
               <text
-                x="48" y="27"
-                dominantBaseline="alphabetic"
+                x="48" y="26"
                 fontFamily="'Syne', system-ui, sans-serif"
                 fontWeight="700" fontSize="19"
                 fill="#1A1A2E" letterSpacing="-0.5"
               >Lingu</text>
               <text
-                x="106" y="27"
-                dominantBaseline="alphabetic"
+                x="106" y="26"
                 fontFamily="'Syne', system-ui, sans-serif"
                 fontWeight="700" fontSize="19"
                 fill="#6C6FEF" letterSpacing="-0.5"
               >AI</text>
             </g>
           </svg>
+          </div>
 
           {/* hairline that ties the logo down to the quote */}
           <span className="lngai-stem" aria-hidden="true" />

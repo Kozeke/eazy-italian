@@ -155,6 +155,22 @@ class ExerciseBlueprint(BaseModel):
         return self
 
 
+class VocabularyEntry(BaseModel):
+    """One row of the first-section vocabulary table.
+
+    Three columns, in this order:
+      1. ``word``        — the key term in the TARGET language being taught.
+      2. ``translation`` — its meaning rendered in the explanation
+                           (instruction) language.
+      3. ``example``     — one short example sentence in the TARGET language
+                           that uses ``word`` in context.
+    """
+
+    word: str = Field(..., min_length=1, max_length=120)
+    translation: str = Field(..., min_length=1, max_length=200)
+    example: str = Field(..., min_length=1, max_length=300)
+
+
 class SegmentBlueprint(BaseModel):
     """One segment as returned by the LLM."""
 
@@ -164,6 +180,9 @@ class SegmentBlueprint(BaseModel):
         default_factory=list,
         description="Text / explanation blocks (grammar rules, vocabulary, examples).",
     )
+    # Populated only for the first section of a generated unit — a compact
+    # 3-column glossary of key words that recur throughout the unit.
+    vocabulary: list[VocabularyEntry] = Field(default_factory=list)
     exercises: list[ExerciseBlueprint] = Field(default_factory=list)
 
 
@@ -392,6 +411,29 @@ class UnitGeneratorService:
                 "UnitGenerator: phase2 segment %d/%d complete — %r",
                 idx + 1, len(titles), title,
             )
+
+        # ── Phase 2b: unit vocabulary table (first section only) ──────────────
+        # Attach a compact 3-column glossary (target word · translation ·
+        # example) of words that recur across the whole unit. Rendered as a
+        # dedicated "vocabulary" block at the top of section 1.
+        if segments:
+            try:
+                vocab = await self._generate_vocabulary(
+                    unit_topic=request.topic,
+                    section_titles=titles,
+                    request=request,
+                )
+                if vocab:
+                    segments[0].vocabulary = vocab
+                    logger.info(
+                        "UnitGenerator: phase2b vocabulary complete — %d words for unit_id=%d",
+                        len(vocab), request.unit_id,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "UnitGenerator: phase2b vocabulary generation failed for unit_id=%d "
+                    "— skipping table: %s", request.unit_id, exc,
+                )
 
         blueprint = UnitBlueprint(segments=segments)
 
@@ -799,10 +841,16 @@ The "sections" array must contain EXACTLY {n} objects. Do not return fewer than 
 
         max_sections = request.num_segments
         full_text = (request.source_content or "").strip()
-        source_body = full_text[:10000]
+        # Keep in step with the upload budget (course_generation._MAX_FILE_CONTENT_CHARS)
+        # so a multi-file upload is analysed in full rather than having later
+        # files silently cut off — which caused whole sections to be planned
+        # from only the first uploaded file.
+        _ANALYSIS_CHAR_CAP = 40_000
+        source_body = full_text[:_ANALYSIS_CHAR_CAP]
         truncated_note = (
-            f"\n[Document truncated to 10 000 chars; full length {len(full_text):,} chars]"
-            if len(full_text) > 10000
+            f"\n[Document truncated to {_ANALYSIS_CHAR_CAP:,} chars; "
+            f"full length {len(full_text):,} chars]"
+            if len(full_text) > _ANALYSIS_CHAR_CAP
             else ""
         )
 
@@ -814,6 +862,12 @@ A teacher uploaded a document to build a {request.language} lesson (level {reque
 TASK
 ════════════════════════════════════════
 1. Read the entire document below.
+   NOTE: it may combine SEVERAL uploaded files, each introduced by a
+   "[File: <name>]" header and serving a different role (e.g. one file is a
+   syllabus/outline, another is a vocabulary list, another is reading text).
+   You MUST use ALL files together — draw topic structure from the syllabus
+   AND vocabulary/examples from the vocabulary file. Do not base the whole
+   lesson on the first file alone.
 2. Identify all DISTINCT named topics / concepts / grammar points it covers.
    Example: if the document is about past tenses, list "Past Simple",
    "Past Continuous", "Past Perfect" as separate topics.
@@ -1249,6 +1303,141 @@ BILINGUAL RULE (most important):
             ) from exc
 
         return self._parse_segment_text(raw, title)
+
+    # ── Phase 2b: unit vocabulary generation ──────────────────────────────────
+
+    async def _generate_vocabulary(
+        self,
+        unit_topic: str,
+        section_titles: list[str],
+        request: "UnitGenerateRequest",
+        count: int = 10,
+    ) -> list["VocabularyEntry"]:
+        """
+        Generate a compact 3-column glossary of key words for the whole unit.
+
+        Columns (fixed order):
+          word        — target-language term (``request.language``)
+          translation — meaning in the explanation language
+                        (``request.instruction_language``)
+          example     — one short target-language sentence using ``word``
+
+        Returns [] on any failure so the caller can skip the table gracefully.
+        """
+        tgt = (request.language or "").strip() or "the target language"
+        expl = (request.instruction_language or "").strip() or "English"
+        sections_block = "\n".join(f"  - {t}" for t in section_titles)
+
+        directive = ""
+        if request.description and request.description.strip():
+            directive = (
+                f"\nTEACHER DIRECTIVE — MANDATORY:\n  {request.description.strip()}\n"
+                f"Draw the vocabulary and example sentences from the sources named above "
+                f"whenever they are specified.\n"
+            )
+
+        source_block = ""
+        if request.source_content:
+            source_block = (
+                f"\nSOURCE MATERIAL (prefer words that actually appear here):\n"
+                f"---\n{request.source_content[:1200].strip()}\n---\n"
+            )
+
+        prompt = f"""You are an expert {tgt} language teacher building a unit glossary.
+
+Select the {count} most important {tgt} words for a learner to know across this whole unit.
+
+  Unit topic : {unit_topic}
+  Level      : {request.level} (CEFR)
+  Teaches    : {tgt} (the target language — every "word" and "example" is in {tgt})
+  Explain in : {expl} (every "translation" is in {expl})
+
+Unit sections:
+{sections_block}
+{directive}{source_block}
+Return ONLY a single valid JSON object — no markdown fences, no preamble:
+
+{{
+  "words": [
+    {{
+      "word": "<a key word or short phrase in {tgt}>",
+      "translation": "<its meaning in {expl}>",
+      "example": "<one short natural sentence in {tgt} that uses the word>"
+    }}
+  ]
+}}
+
+Rules:
+- Return exactly {count} entries (or as many as are genuinely useful, minimum 6).
+- "word" and "example" MUST be in {tgt}. "translation" MUST be in {expl}.
+- Pick words that recur across several sections, not niche one-offs.
+- Keep each example under 12 words and appropriate for {request.level} level.
+- No duplicates. Order from most to least fundamental.
+- Keep JSON strictly valid: escape inner quotes with \\", no trailing commas."""
+
+        try:
+            raw = await self.provider.agenerate(prompt)
+        except AIProviderError as exc:
+            raise RuntimeError(f"AI provider error generating vocabulary: {exc}") from exc
+
+        return self._parse_vocabulary(raw)
+
+    def _parse_vocabulary(self, raw: str) -> list["VocabularyEntry"]:
+        """Parse the vocabulary JSON into validated VocabularyEntry rows."""
+        import re as _re
+
+        text = raw.strip()
+        text = _re.sub(r"^```[a-z]*\n?", "", text, flags=_re.MULTILINE)
+        text = _re.sub(r"\n?```$", "", text.strip())
+
+        brace_start = text.find("{")
+        if brace_start != -1:
+            depth = 0
+            for i, ch in enumerate(text[brace_start:], brace_start):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        text = text[brace_start : i + 1]
+                        break
+
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            try:
+                data = json.loads(self._repair_json(text))
+            except json.JSONDecodeError:
+                logger.warning("UnitGenerator: could not parse vocabulary JSON — skipping table")
+                return []
+
+        rows = data.get("words") if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            return []
+
+        out: list[VocabularyEntry] = []
+        seen: set[str] = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            word = str(row.get("word", "")).strip()
+            translation = str(row.get("translation", "")).strip()
+            example = str(row.get("example", "")).strip()
+            if not (word and translation and example):
+                continue
+            key = word.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                out.append(VocabularyEntry(
+                    word=word[:120],
+                    translation=translation[:200],
+                    example=example[:300],
+                ))
+            except Exception:
+                continue
+        return out
 
     def _parse_segment_text(self, raw: str, title: str) -> "SegmentBlueprint":
         """Parse the per-segment JSON into a SegmentBlueprint."""
@@ -1922,6 +2111,34 @@ BILINGUAL RULE (most important):
                 logger.debug(
                     "UnitGenerator: text block '%s' added to segment id=%d",
                     txt_bp.title, segment.id,
+                )
+
+            # ── 1b. Vocabulary table block (first section only) ───────────────
+            # A dedicated 3-column glossary block (target word · translation ·
+            # example). Rendered by the frontend "vocabulary" block component.
+            seg_vocab = getattr(seg_bp, "vocabulary", None) or []
+            if seg_vocab:
+                vocab_block: dict[str, Any] = {
+                    "id": str(uuid.uuid4()),
+                    "kind": "vocabulary",
+                    "title": "Key Vocabulary",
+                    "data": {
+                        "target_language": request.language,
+                        "explanation_language": request.instruction_language,
+                        "entries": [
+                            {
+                                "word": v.word,
+                                "translation": v.translation,
+                                "example": v.example,
+                            }
+                            for v in seg_vocab
+                        ],
+                    },
+                }
+                prepend_blocks.append(vocab_block)
+                logger.info(
+                    "UnitGenerator: vocabulary block (%d words) added to segment id=%d",
+                    len(seg_vocab), segment.id,
                 )
 
             # ── 2. Image placeholder block (optional, placed after text, before exercises) ─

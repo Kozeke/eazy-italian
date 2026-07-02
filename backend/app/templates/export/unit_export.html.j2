@@ -1,0 +1,833 @@
+{# ════════════════════════════════════════════════════════════════════════════
+   app/templates/export/unit_export.html.j2
+
+   Self-contained single-file HTML export shell.
+
+   This is the reference file's (Chilli_Peppers_part_1.html) split-pane
+   layout, resizer, sticky timer header, panel-sync navigation, and results
+   modal — reused close to verbatim per the implementation brief, with:
+     - IELTS branding swapped for LinguAI brand colors (#6C6FEF / #4F52C2),
+       per "Open questions to confirm with product" → resolved in favour of
+       the mandatory design system rather than the IELTS file's blue.
+     - Band-score table dropped entirely (IELTS-specific, brief says it must go).
+     - Highlighting / notes / context-menu kept (generic UX win, brief said
+       this was Claude's call) but trimmed to the minimal version needed.
+     - Telegram link / IELTS logo / watermark removed (not relevant to us).
+     - The hardcoded `correctAnswers` dict and `totalQuestions=13` constant
+       are now templated from real unit data instead of one passage's
+       13 fixed questions.
+     - Multi-part skeleton (switchToPart) kept as a single-part no-op so a
+       future course-level (multi-unit) export is a thin follow-on per the
+       brief's "Architect it so a course-level export ... is a thin
+       follow-on, not a rewrite" requirement — NOT built out now.
+
+   Business logic (what each question means, how it's scored) lives entirely
+   in export_service.py and is injected here as already-normalised data.
+   This template only knows how to lay things out.
+════════════════════════════════════════════════════════════════════════════ #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ unit_title }} — LinguAI</title>
+<style>
+/* CSS Reset & Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+:root {
+  /* LIGHT MODE COLORS (DEFAULT) — LinguAI brand palette */
+  --brand-primary: #6C6FEF;
+  --brand-primary-dark: #4F52C2;
+  --brand-tint: #EEF0FE;
+  --bg-color: #F7F7FA;
+  --text-color: #1C1F3A;
+  --header-bg: #ffffff;
+  --border-color: #E8EAFD;
+  --panel-bg: #ffffff;
+  --question-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #d7d9f7;
+  --input-focus: #6C6FEF;
+  --correct-color: #28a745;
+  --incorrect-color: #dc3545;
+  --highlight-bg: #ffe27a;
+  --modal-bg: #ffffff;
+  --nav-bg: #ffffff;
+  --resizer-bg: #EEF0FE;
+  --part-header-bg: #EEF0FE;
+  --link-color: #6C6FEF;
+  --shadow-color: rgba(76, 78, 175, 0.12);
+}
+[data-theme="dark"] {
+  --bg-color: #16172A;
+  --text-color: #E7E8FA;
+  --header-bg: #1F2138;
+  --border-color: #34365A;
+  --panel-bg: #1F2138;
+  --question-bg: #262A4A;
+  --input-bg: #262A4A;
+  --input-border: #3C3F66;
+  --input-focus: #9799FF;
+  --correct-color: #2ecc71;
+  --incorrect-color: #e74c3c;
+  --highlight-bg: #5b5420;
+  --modal-bg: #1F2138;
+  --nav-bg: #1F2138;
+  --resizer-bg: #262A4A;
+  --part-header-bg: #262A4A;
+  --link-color: #9799FF;
+  --shadow-color: rgba(0,0,0,0.35);
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  line-height: 1.5;
+  font-size: 16px;
+  transition: background-color 0.3s, color 0.3s;
+}
+/* Header */
+.header {
+  background-color: var(--header-bg);
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  height: 60px;
+  transition: all 0.3s;
+}
+.header-left { display: flex; align-items: center; gap: 14px; }
+.header-right { display: flex; align-items: center; gap: 16px; }
+.brand-mark {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: 16px; color: var(--brand-primary-dark);
+  letter-spacing: -0.01em;
+}
+.brand-dot {
+  width: 24px; height: 24px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark));
+  flex-shrink: 0;
+}
+.unit-title-header {
+  font-size: 14px; color: var(--text-color); opacity: 0.7;
+  border-left: 1px solid var(--border-color); padding-left: 14px;
+  max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.timer-container { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 500; }
+.timer-display { font-weight: 600; min-width: 56px; }
+.timer-controls { display: flex; gap: 8px; }
+.timer-controls button, .dark-mode-btn {
+  background: var(--brand-tint);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+}
+.timer-controls button:hover, .dark-mode-btn:hover {
+  background: var(--border-color);
+  transform: scale(1.05);
+}
+.timer-controls button svg, .dark-mode-btn svg {
+  width: 18px; height: 18px; fill: var(--brand-primary-dark);
+  transition: fill 0.3s;
+}
+/* Main layout */
+.main-container {
+  margin-top: 60px;
+  display: flex; flex-direction: column;
+  background: var(--bg-color);
+  height: calc(100vh - 60px);
+  position: relative;
+}
+.panels-container { display: flex; flex: 1; overflow: hidden; }
+.passage-panel, .questions-panel {
+  flex: 1;
+  padding: 28px 32px 110px;
+  overflow-y: auto;
+  min-width: 220px;
+  background-color: var(--panel-bg);
+  transition: background-color 0.3s;
+}
+.questions-panel { border-left: 1px solid var(--border-color); }
+.resizer {
+  width: 8px;
+  cursor: col-resize;
+  background-color: var(--resizer-bg);
+  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="28" viewBox="0 0 8 28"><path d="M3 10h2v2H3zM3 14h2v2H3zM3 18h2v2H3z" fill="%236C6FEF"/></svg>');
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0; flex-grow: 0;
+  transition: background-color 0.3s;
+}
+/* Passage content */
+.reading-passage h4 {
+  font-size: 20px; font-weight: 700; margin-bottom: 16px; color: var(--brand-primary-dark);
+}
+.reading-passage h2 { font-size: 17px; font-weight: 700; margin: 18px 0 8px; color: var(--brand-primary-dark); }
+.reading-passage h3 { font-size: 14px; font-weight: 700; margin: 14px 0 6px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.03em; }
+.reading-passage p { margin-bottom: 1.1em; }
+.reading-passage ul { margin: 0 0 1.1em 20px; }
+.reading-passage strong { color: var(--text-color); }
+.passage-block { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--border-color); }
+.passage-block:last-child { border-bottom: none; }
+/* Question groups */
+.question-group-title { font-weight: 700; margin-bottom: 14px; color: var(--brand-primary-dark); font-size: 15px; }
+.question { margin-bottom: 36px; }
+/* True/False */
+.tf-question {
+  margin-bottom: 22px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--question-bg);
+  border: 1.5px solid var(--border-color);
+  box-shadow: 0 1px 4px var(--shadow-color);
+  transition: border-color 0.3s, background-color 0.3s;
+}
+.tf-question-line { display: flex; align-items: flex-start; margin-bottom: 12px; }
+.tf-question-number {
+  border: 1.5px solid var(--border-color);
+  padding: 2px 9px;
+  margin-right: 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  background-color: var(--brand-tint);
+  color: var(--brand-primary-dark);
+}
+.tf-question.active-question .tf-question-number { border-color: var(--input-focus); }
+.tf-question-text { padding-top: 3px; }
+.tf-options { padding-left: 4px; display: flex; gap: 8px; }
+.tf-option {
+  flex: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 12px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  background-color: var(--input-bg);
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.tf-option:hover { background-color: var(--part-header-bg); }
+.tf-option:has(input[type="radio"]:checked) {
+  background-color: var(--brand-tint);
+  border-color: var(--input-focus);
+}
+.tf-option.correct { background-color: rgba(40, 167, 69, 0.15) !important; border-color: var(--correct-color) !important; }
+.tf-option.incorrect { background-color: rgba(220, 53, 69, 0.15) !important; border-color: var(--incorrect-color) !important; }
+.tf-option input[type="radio"] { margin-right: 8px; transform: scale(1.1); accent-color: var(--input-focus); }
+/* Gap fill */
+.gap-fill-block {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--question-bg);
+  border: 1.5px solid var(--border-color);
+  box-shadow: 0 1px 4px var(--shadow-color);
+  line-height: 2.1;
+}
+.answer-input {
+  border: 1.5px solid var(--input-border);
+  border-radius: 8px;
+  background-color: var(--input-bg);
+  padding: 3px 8px;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 4px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.3s, color 0.3s;
+  height: 30px;
+  min-width: 110px;
+  color: var(--text-color);
+}
+.answer-input.active-input, .answer-input:focus { border-color: var(--input-focus); border-width: 2px; outline: none; }
+.answer-input::placeholder { color: var(--text-color); opacity: 0.5; font-weight: 700; }
+.answer-input.correct { border-color: var(--correct-color); background-color: rgba(40, 167, 69, 0.1); }
+.answer-input.incorrect { border-color: var(--incorrect-color); background-color: rgba(220, 53, 69, 0.1); }
+.correct-answer-display { font-weight: 700; color: var(--correct-color); margin-left: 8px; font-size: 14px; }
+/* Multiple choice */
+.multi-choice-question {
+  margin-bottom: 18px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--question-bg);
+  border: 1.5px solid var(--border-color);
+  box-shadow: 0 1px 4px var(--shadow-color);
+  transition: border-color 0.3s, background-color 0.3s;
+}
+.multi-choice-question .question-prompt-text {
+  display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; font-weight: 600;
+}
+.multi-choice-question .q-num-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 26px; height: 26px; padding: 0 6px;
+  border-radius: 8px; background: var(--brand-tint); color: var(--brand-primary-dark);
+  font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.multi-choice-question.active-question .q-num-badge { border: 2px solid var(--input-focus); }
+.multi-choice-option {
+  padding: 10px 12px;
+  background-color: var(--input-bg);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+.multi-choice-option:hover { background-color: var(--part-header-bg); }
+.multi-choice-option:has(input:checked) { background-color: var(--brand-tint); border-color: var(--input-focus); }
+.multi-choice-option.correct { background-color: rgba(40, 167, 69, 0.15) !important; border-color: var(--correct-color) !important; }
+.multi-choice-option.incorrect { background-color: rgba(220, 53, 69, 0.15) !important; border-color: var(--incorrect-color) !important; }
+.multi-choice-option label { display: flex; align-items: center; cursor: pointer; font-size: 15px; }
+.multi-choice-option input[type="checkbox"], .multi-choice-option input[type="radio"] {
+  margin-right: 12px; transform: scale(1.2); accent-color: var(--input-focus);
+}
+/* Nav arrows */
+.nav-arrows { position: fixed; bottom: 96px; right: 24px; display: flex; gap: 8px; z-index: 101; }
+.nav-arrow {
+  width: 44px; height: 44px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; border-radius: 14px;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px var(--shadow-color);
+}
+.nav-arrow.prev { background-color: var(--brand-primary-dark); }
+.nav-arrow.next { background-color: var(--brand-primary); }
+.nav-arrow:hover { transform: translateY(-1px); }
+.nav-arrow:active { transform: translateY(0); }
+/* Bottom nav */
+.nav-row {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--nav-bg);
+  display: flex; align-items: center;
+  height: 78px; z-index: 100;
+  border-top: 1px solid var(--border-color);
+  padding: 0 16px;
+}
+.question-wrapper { display: flex; align-items: center; gap: 4px; overflow-x: auto; flex: 1; }
+.subquestion-nav { display: flex; gap: 4px; flex-wrap: nowrap; }
+.subQuestion {
+  width: 32px; height: 32px;
+  border: 1.5px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.subQuestion:hover { background-color: var(--part-header-bg); border-color: var(--input-focus); }
+.subQuestion.answered { background-color: var(--brand-tint); border-color: var(--border-color); }
+.subQuestion.correct { background-color: var(--correct-color); color: white; border-color: var(--correct-color); }
+.subQuestion.incorrect { background-color: var(--incorrect-color); color: white; border-color: var(--incorrect-color); }
+.subQuestion.active { background-color: var(--input-focus); color: white; border-color: var(--input-focus); }
+.attempted-count { font-size: 13px; opacity: 0.65; margin-right: 12px; white-space: nowrap; }
+.deliver-button {
+  margin-left: 12px;
+  background-color: var(--brand-primary);
+  color: white;
+  border: none;
+  padding: 11px 20px;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: transform 0.08s ease, background-color 0.2s ease;
+  min-width: 150px; justify-content: center;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.deliver-button:hover { background-color: var(--brand-primary-dark); }
+.deliver-button:active { transform: translateY(1px); }
+.deliver-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.hidden { display: none !important; }
+/* Results modal */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background-color: rgba(28, 31, 58, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 2000;
+  display: flex; justify-content: center; align-items: center;
+}
+.modal-overlay.hidden { display: none; }
+.modal-content {
+  background: var(--modal-bg);
+  padding: 28px;
+  border-radius: 20px;
+  width: 92%; max-width: 760px; max-height: 86vh;
+  display: flex; flex-direction: column;
+  position: relative;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 20px 60px var(--shadow-color);
+  color: var(--text-color);
+}
+.modal-close-btn { position: absolute; top: 14px; right: 18px; background: none; border: none; font-size: 26px; cursor: pointer; color: var(--text-color); }
+.modal-content h2 { text-align: center; margin-bottom: 18px; color: var(--brand-primary-dark); }
+.results-summary { display: flex; gap: 12px; justify-content: center; margin-bottom: 18px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
+.results-summary p { margin: 0; font-size: 14px; }
+.results-summary p span {
+  display: inline-block; padding: 5px 12px; margin-left: 6px;
+  border-radius: 999px; background: var(--brand-tint); color: var(--brand-primary-dark);
+  font-weight: 700;
+}
+.results-details-container { overflow-y: auto; padding-right: 6px; }
+.result-row {
+  display: grid; grid-template-columns: 48px 1fr 1fr 100px; gap: 12px;
+  padding: 10px 8px; border-bottom: 1px solid var(--border-color); font-size: 14px; align-items: center;
+}
+.result-row.correct { background-color: rgba(40, 167, 69, 0.08); }
+.result-row.incorrect { background-color: rgba(220, 53, 69, 0.08); }
+.result-row .q-num {
+  font-weight: 700; background: var(--brand-tint); color: var(--brand-primary-dark);
+  border-radius: 8px; width: 36px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.result-row .user-ans { background: var(--part-header-bg); padding: 4px 8px; border-radius: 6px; }
+.result-row .correct-ans { color: var(--correct-color); font-weight: 600; background: rgba(40, 167, 69, 0.1); padding: 4px 8px; border-radius: 6px; }
+.status-badge { justify-self: end; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.status-badge.ok { background: rgba(40, 167, 69, 0.18); color: var(--correct-color); }
+.status-badge.bad { background: rgba(220, 53, 69, 0.18); color: var(--incorrect-color); }
+.dark-mode-btn { position: relative; }
+.dark-mode-btn .sun-icon, .dark-mode-btn .moon-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: opacity 0.3s, transform 0.3s; }
+.dark-mode-btn .moon-icon { opacity: 0; transform: translate(-50%, -50%) rotate(90deg); }
+[data-theme="dark"] .dark-mode-btn .sun-icon { opacity: 0; transform: translate(-50%, -50%) rotate(-90deg); }
+[data-theme="dark"] .dark-mode-btn .moon-icon { opacity: 1; transform: translate(-50%, -50%) rotate(0deg); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.empty-state { padding: 40px 20px; text-align: center; opacity: 0.6; font-size: 14px; }
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: var(--panel-bg); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--input-focus); }
+</style>
+</head>
+<body data-theme="light">
+<div class="header">
+  <div class="header-left">
+    <div class="brand-mark"><span class="brand-dot"></span>LinguAI</div>
+    <div class="unit-title-header">{{ unit_title }}</div>
+  </div>
+  <div class="header-right">
+    {% if total_questions > 0 %}
+    <div class="timer-container">
+      <span class="timer-display">60:00</span>
+      <div class="timer-controls">
+        <button id="timer-toggle-btn" title="Pause/Resume Timer">
+          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M8 5v14l11-7L8 5z"/></svg>
+        </button>
+        <button id="timer-reset-btn" title="Reset Timer">
+          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+        </button>
+      </div>
+    </div>
+    {% endif %}
+    <button class="dark-mode-btn" id="dark-mode-toggle" title="Toggle Dark Mode">
+      <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="main-container" id="main-container">
+  <div class="panels-container">
+    <div class="passage-panel" id="passage-panel">
+      {% if passage_blocks %}
+        {% for block in passage_blocks %}
+        <div class="reading-passage passage-block">{{ block.html | safe }}</div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">No reading content in this unit.</div>
+      {% endif %}
+    </div>
+
+    {% if total_questions > 0 %}<div class="resizer" id="resizer"></div>{% endif %}
+
+    <div class="questions-panel" id="questions-panel" {% if total_questions == 0 %}style="display:none;"{% endif %}>
+      <div class="questions-container">
+        {% for group in question_groups %}
+          {% if group.kind == "true_false" %}
+            {% include "export/_true_false.html.j2" %}
+          {% elif group.kind == "gap_fill" %}
+            {% include "export/_gap_fill.html.j2" %}
+          {% elif group.kind == "multiple_choice" %}
+            {% include "export/_multiple_choice.html.j2" %}
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if total_questions > 0 %}
+<div class="nav-arrows">
+  <button class="nav-arrow prev" onclick="previousQuestion()" id="prevBtn" aria-label="Previous question">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button class="nav-arrow next" onclick="nextQuestion()" id="nextBtn" aria-label="Next question">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<nav class="nav-row" aria-label="Questions">
+  <div class="question-wrapper">
+    <span class="attempted-count" id="attempted-count">0 of {{ total_questions }}</span>
+    <div class="subquestion-nav">
+      {% for n in range(1, total_questions + 1) %}
+      <button class="subQuestion" onclick="goToQuestion({{ n }})"><span class="sr-only">Question {{ n }}</span><span aria-hidden="true">{{ n }}</span></button>
+      {% endfor %}
+    </div>
+  </div>
+  <button id="deliver-button" aria-label="Check your answers" class="deliver-button">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/></svg>
+    <span>Check Answers</span>
+  </button>
+</nav>
+
+<div id="results-modal" class="modal-overlay hidden">
+  <div class="modal-content">
+    <button class="modal-close-btn" onclick="closeResultsModal()">&times;</button>
+    <h2>Results</h2>
+    <div class="results-summary">
+      <p>Score: <span id="results-score"></span> / {{ total_questions }}</p>
+    </div>
+    <div id="results-details" class="results-details-container"></div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // --- STATE ---
+  let currentQuestion = 1;
+  let timeInSeconds = 3600;
+  let timerInterval;
+  let activeQuestionElement = null;
+  const totalQuestions = {{ total_questions }};
+
+  // --- DARK MODE ---
+  const darkModeToggle = document.getElementById('dark-mode-toggle');
+  const body = document.body;
+  body.setAttribute('data-theme', 'light');
+  function toggleDarkMode() {
+    const isDark = body.getAttribute('data-theme') === 'dark';
+    body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  }
+  darkModeToggle.addEventListener('click', toggleDarkMode);
+
+  if (totalQuestions === 0) {
+    // Nothing gradable in this unit — skip all exercise wiring.
+    return;
+  }
+
+  // --- DOM ELEMENTS ---
+  const timerDisplay = document.querySelector('.timer-display');
+  const timerToggleButton = document.getElementById('timer-toggle-btn');
+  const timerResetButton = document.getElementById('timer-reset-btn');
+  const deliverButton = document.getElementById('deliver-button');
+  const resizer = document.getElementById('resizer');
+  const passagePanel = document.getElementById('passage-panel');
+  const questionsPanel = document.getElementById('questions-panel');
+
+  const playIcon = '<svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M8 5v14l11-7L8 5z"/></svg>';
+  const pauseIcon = '<svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+
+  // --- ANSWERS (embedded by export_service.py via build_export_context) ---
+  // Values are either a string (radio/single-correct/gap) or an array of
+  // strings (checkbox / multi-correct MCQ) — see normalise_test_block().
+  const correctAnswers = {{ correct_answers | tojson }};
+
+  // --- INIT ---
+  function initialize() {
+    startTimer();
+    deliverButton.addEventListener('click', checkAnswers);
+    timerToggleButton.addEventListener('click', toggleTimer);
+    timerResetButton.addEventListener('click', resetTimer);
+
+    document.querySelectorAll('[data-q-start]').forEach(el => {
+      el.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const qNum = parseInt(el.dataset.qStart, 10);
+        if (!isNaN(qNum) && currentQuestion !== qNum) goToQuestion(qNum);
+      });
+    });
+
+    document.querySelectorAll('.answer-input[id^="q"]').forEach(input => {
+      ['focus', 'click', 'input', 'change'].forEach(evt => {
+        input.addEventListener(evt, () => {
+          const qNum = parseInt(input.id.replace('q', ''), 10);
+          if (!isNaN(qNum) && currentQuestion !== qNum) goToQuestion(qNum);
+        });
+      });
+    });
+
+    document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(el => {
+      const update = () => {
+        const name = el.name || '';
+        if (name.startsWith('q')) {
+          const qNum = parseInt(name.replace('q', ''), 10);
+          if (!isNaN(qNum) && currentQuestion !== qNum) goToQuestion(qNum);
+        }
+      };
+      el.addEventListener('focus', update);
+      el.addEventListener('change', update);
+      el.addEventListener('click', update);
+    });
+
+    if (resizer) resizer.addEventListener('mousedown', initResize, false);
+
+    document.body.addEventListener('input', updateAllIndicators);
+    document.body.addEventListener('change', updateAllIndicators);
+    updateAllIndicators();
+    goToQuestion(1);
+  }
+
+  // --- SCORING ---
+  function checkAnswers() {
+    document.querySelectorAll('input, select, textarea').forEach(input => { input.disabled = true; });
+    deliverButton.disabled = true;
+    clearInterval(timerInterval);
+
+    let score = 0;
+    const resultsDetailsContainer = document.getElementById('results-details');
+    resultsDetailsContainer.innerHTML = '';
+
+    document.querySelectorAll('.correct, .incorrect').forEach(el => {
+      el.classList.remove('correct', 'incorrect');
+    });
+    document.querySelectorAll('.correct-answer-display').forEach(el => el.remove());
+
+    const normalize = (s) => (s || '').toString().trim().toLowerCase();
+
+    for (let i = 1; i <= totalQuestions; i++) {
+      const key = String(i);
+      const correctAnswer = correctAnswers[key];
+      let userAnswerDisplay = 'Not answered';
+      let isCorrect = false;
+
+      const textInput = document.getElementById(`q${i}`);
+      const radioGroup = document.querySelectorAll(`input[name="q${i}"][type="radio"]`);
+      const checkboxGroup = document.querySelectorAll(`input[name="q${i}"][type="checkbox"]`);
+
+      if (textInput && textInput.tagName === 'INPUT') {
+        // Gap-fill: case-insensitive trimmed compare (normalise_answer_text()).
+        const userAnswer = textInput.value.trim();
+        userAnswerDisplay = userAnswer || 'Not answered';
+        isCorrect = normalize(userAnswer) === normalize(correctAnswer);
+        if (isCorrect) {
+          score++;
+          textInput.classList.add('correct');
+        } else {
+          textInput.classList.add('incorrect');
+          const span = document.createElement('span');
+          span.className = 'correct-answer-display';
+          span.textContent = `→ ${correctAnswer}`;
+          textInput.parentNode.insertBefore(span, textInput.nextSibling);
+        }
+      } else if (checkboxGroup.length > 0) {
+        // Multi-correct MCQ: compare the checked set against the array.
+        const correctSet = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
+        const checked = Array.from(checkboxGroup).filter(c => c.checked).map(c => c.value);
+        userAnswerDisplay = checked.length ? checked.join(', ') : 'Not answered';
+        isCorrect = checked.length === correctSet.length && checked.every(v => correctSet.includes(v));
+        checkboxGroup.forEach(c => {
+          const label = c.closest('.multi-choice-option');
+          if (!label) return;
+          if (correctSet.includes(c.value)) label.classList.add('correct');
+          else if (c.checked) label.classList.add('incorrect');
+        });
+        if (isCorrect) score++;
+      } else if (radioGroup.length > 0) {
+        const checkedRadio = document.querySelector(`input[name="q${i}"]:checked`);
+        if (checkedRadio) {
+          userAnswerDisplay = checkedRadio.value;
+          isCorrect = checkedRadio.value === correctAnswer;
+          const label = checkedRadio.closest('.tf-option, .multi-choice-option');
+          if (label) label.classList.add(isCorrect ? 'correct' : 'incorrect');
+        }
+        if (isCorrect) {
+          score++;
+        } else {
+          const container = radioGroup[0].closest('.tf-question, .multi-choice-question');
+          if (container) {
+            const candidates = container.querySelectorAll(`input[name="q${i}"]`);
+            for (const cand of candidates) {
+              if (cand.value === String(correctAnswer)) {
+                const correctLabel = cand.closest('.tf-option, .multi-choice-option');
+                if (correctLabel) correctLabel.classList.add('correct');
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      const correctText = Array.isArray(correctAnswer) ? correctAnswer.join(', ') : correctAnswer;
+      resultsDetailsContainer.innerHTML += `
+        <div class="result-row ${isCorrect ? 'correct' : 'incorrect'}">
+          <span class="q-num">${i}</span>
+          <span class="user-ans">${userAnswerDisplay}</span>
+          <span class="correct-ans">${correctText}</span>
+          <span class="status-badge ${isCorrect ? 'ok' : 'bad'}">${isCorrect ? 'Correct' : 'Incorrect'}</span>
+        </div>`;
+
+      const navButton = document.querySelector(`.subQuestion[onclick="goToQuestion(${i})"]`);
+      if (navButton) {
+        navButton.classList.remove('answered', 'active');
+        navButton.classList.add(isCorrect ? 'correct' : 'incorrect');
+      }
+    }
+
+    document.getElementById('results-score').textContent = score;
+    document.getElementById('results-modal').classList.remove('hidden');
+
+    deliverButton.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/></svg><span>My Result</span>`;
+    deliverButton.disabled = false;
+    deliverButton.removeEventListener('click', checkAnswers);
+    deliverButton.addEventListener('click', showResultsModal);
+  }
+
+  function showResultsModal() { document.getElementById('results-modal').classList.remove('hidden'); }
+  window.closeResultsModal = function () { document.getElementById('results-modal').classList.add('hidden'); };
+
+  // --- NAVIGATION ---
+  // Single-part skeleton today; switchToPart is kept as the seam a future
+  // course-level (multi-unit) export hooks into without touching goToQuestion.
+  function switchToPart(_partNumber) { goToQuestion(1); }
+  window.switchToPart = switchToPart;
+
+  function goToQuestion(questionNumber) {
+    currentQuestion = questionNumber;
+    if (activeQuestionElement) {
+      activeQuestionElement.classList.remove('active-question', 'active-input');
+      const prevBlock = activeQuestionElement.closest('[data-q-start]');
+      if (prevBlock) prevBlock.classList.remove('active-question');
+    }
+
+    let targetEl = document.getElementById(`q${questionNumber}`);
+    if (targetEl) {
+      activeQuestionElement = targetEl;
+      targetEl.classList.add('active-input');
+      scrollIntoViewIfNeeded(targetEl);
+    } else {
+      targetEl = document.querySelector(`[data-q-start="${questionNumber}"]`);
+      if (targetEl) {
+        activeQuestionElement = targetEl;
+        targetEl.classList.add('active-question');
+        scrollIntoViewIfNeeded(targetEl);
+      }
+    }
+    updateNavigation();
+  }
+  window.goToQuestion = goToQuestion;
+  window.nextQuestion = () => currentQuestion < totalQuestions && goToQuestion(currentQuestion + 1);
+  window.previousQuestion = () => currentQuestion > 1 && goToQuestion(currentQuestion - 1);
+
+  function updateNavigation() {
+    document.querySelectorAll('.subQuestion').forEach(btn => btn.classList.remove('active'));
+    const activeNav = document.querySelector(`.subQuestion[onclick="goToQuestion(${currentQuestion})"]`);
+    if (activeNav) activeNav.classList.add('active');
+
+    document.querySelectorAll('.answer-input').forEach(input => input.classList.remove('active-input'));
+    const activeInput = document.getElementById(`q${currentQuestion}`);
+    if (activeInput) {
+      activeInput.classList.add('active-input');
+      if (typeof activeInput.focus === 'function') activeInput.focus();
+    } else {
+      const block = document.querySelector(`.tf-question[data-q-start="${currentQuestion}"]`)
+        || document.querySelector(`.multi-choice-question[data-q-start="${currentQuestion}"]`);
+      if (block) {
+        block.classList.add('active-question');
+        const firstInput = block.querySelector('input');
+        if (firstInput) firstInput.classList.add('active-input');
+      }
+    }
+  }
+
+  function updateAllIndicators() {
+    let answeredCount = 0;
+    for (let i = 1; i <= totalQuestions; i++) if (isQuestionAnswered(i)) answeredCount++;
+    const countEl = document.getElementById('attempted-count');
+    if (countEl) countEl.textContent = `${answeredCount} of ${totalQuestions}`;
+
+    document.querySelectorAll('.subQuestion').forEach((btn) => {
+      const match = (btn.getAttribute('onclick') || '').match(/goToQuestion\((\d+)\)/);
+      const qNum = match ? parseInt(match[1], 10) : NaN;
+      if (!isNaN(qNum)) btn.classList.toggle('answered', isQuestionAnswered(qNum));
+    });
+  }
+
+  function isQuestionAnswered(qNum) {
+    const textInput = document.getElementById(`q${qNum}`);
+    if (textInput && textInput.value && textInput.value.trim() !== '') return true;
+    if (document.querySelector(`input[name="q${qNum}"]:checked`)) return true;
+    return false;
+  }
+
+  function scrollIntoViewIfNeeded(element) {
+    const panel = element.closest('.questions-panel, .passage-panel');
+    if (!panel) return;
+    const panelRect = panel.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    if (elementRect.top < panelRect.top || elementRect.bottom > panelRect.bottom) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  // --- TIMER ---
+  function startTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timeInSeconds--;
+      const minutes = Math.floor(timeInSeconds / 60);
+      const seconds = timeInSeconds % 60;
+      timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      if (timeInSeconds <= 0) {
+        clearInterval(timerInterval);
+        timerDisplay.textContent = "Time's up!";
+      }
+    }, 1000);
+    timerToggleButton.innerHTML = pauseIcon;
+  }
+  function pauseTimer() { clearInterval(timerInterval); timerToggleButton.innerHTML = playIcon; }
+  function toggleTimer() {
+    if (timerToggleButton.innerHTML.includes('M6 19h4V5H6v14z')) pauseTimer(); else startTimer();
+  }
+  function resetTimer() {
+    timeInSeconds = 3600;
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = timeInSeconds % 60;
+    timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    startTimer();
+  }
+
+  // --- RESIZER ---
+  function initResize(e) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = passagePanel.offsetWidth;
+    const doDrag = (e) => {
+      const newWidth = startWidth + e.clientX - startX;
+      if (newWidth > 220 && (document.body.clientWidth - newWidth - resizer.offsetWidth) > 220) {
+        passagePanel.style.flex = `0 0 ${newWidth}px`;
+      }
+    };
+    const stopDrag = () => {
+      window.removeEventListener('mousemove', doDrag, false);
+      window.removeEventListener('mouseup', stopDrag, false);
+    };
+    window.addEventListener('mousemove', doDrag, false);
+    window.addEventListener('mouseup', stopDrag, false);
+  }
+
+  initialize();
+});
+</script>
+</body>
+</html>

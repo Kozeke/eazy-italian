@@ -18,7 +18,8 @@
  *   `group-hover:hidden` — both icon and cluster coexist in layout, no reflow.
  *
  * • `onOpen` and `onShare` props added (were absent from v3 project file).
- * • `shareCourseId` — Share opens a menu to copy teacher (unit) or student (course) links using VITE_APP_ORIGIN.
+ * • `shareCourseId` — ⋮ menu copies teacher (unit) or student (course) links using VITE_APP_ORIGIN.
+ * • Download icon exports self-contained interactive HTML.
  *
  * • Dropdown closes on Escape key.
  *
@@ -107,7 +108,7 @@ export type UnitListItemProps = {
     listeners?: SyntheticListenerMap;
   };
   /**
-   * When set, Share opens a small menu: teacher unit URL and student course URL (see getAppOrigin()).
+   * When set, ⋮ menu includes rows to copy teacher unit URL and student course URL (see getAppOrigin()).
    */
   shareCourseId?: number | null;
 };
@@ -213,6 +214,9 @@ function UnitActionDropdown({
   onHide,
   onEdit,
   onDelete,
+  shareEnabled = false,
+  onCopyTeacherLink,
+  onCopyStudentLink,
 }: {
   unit: any;
   onClose: () => void;
@@ -220,6 +224,9 @@ function UnitActionDropdown({
   onHide?:     (u: any) => void;
   onEdit?:     (u: any) => void;
   onDelete?:   (u: any) => void;
+  shareEnabled?: boolean;
+  onCopyTeacherLink?: () => void;
+  onCopyStudentLink?: () => void;
 }) {
   // Provides localized labels for the unit action dropdown.
   const { t } = useTranslation();
@@ -269,20 +276,15 @@ function UnitActionDropdown({
       className="absolute right-0 top-full mt-1 z-50 w-48 rounded-xl bg-white shadow-lg ring-1 ring-[#E5E7EB] py-1 overflow-hidden"
     >
       {onGenerate && menuItem(<Sparkles className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.generateAi'), () => onGenerate(unit))}
+      {shareEnabled && onCopyTeacherLink &&
+        menuItem(<Share2 className="h-4 w-4 shrink-0" />, t('classroom.unitList.share.forTeacher'), onCopyTeacherLink)}
+      {shareEnabled && onCopyStudentLink &&
+        menuItem(<Share2 className="h-4 w-4 shrink-0" />, t('classroom.unitList.share.forStudent'), onCopyStudentLink)}
+      {shareEnabled && (onCopyTeacherLink || onCopyStudentLink) && <div className="border-t border-slate-100" />}
       {menuItem(<EyeOff className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.hideUnit'),   () => onHide?.(unit))}
       {/* Copy unit — hidden per product request; restore with `Copy` from lucide-react */}
       {/* {menuItem(<Copy className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.copy'), () => onCopy?.(unit))} */}
       {menuItem(<Pen    className="h-4 w-4 shrink-0" />, t('classroom.unitList.actions.edit'), () => onEdit?.(unit))}
-      {menuItem(
-        <Download className="h-4 w-4 shrink-0" />,
-        t('classroom.unitList.actions.exportHtml'),
-        () => {
-          const toastId = toast.loading(t('classroom.unitList.exportInProgress'));
-          downloadUnitExport(unit.id, unit.title)
-            .then(() => toast.success(t('classroom.unitList.exportComplete'), { id: toastId }))
-            .catch(() => toast.error(t('classroom.unitList.exportFailed'), { id: toastId }));
-        },
-      )}
       {onDelete && <div className="border-t border-slate-100" />}
       {onDelete &&
         menuItem(
@@ -308,7 +310,6 @@ export default function UnitListItem({
   isAiGenerated = false,
   isAiGenerating = false,
   onOpen,
-  onShare,
   onGenerate,
   onHide,
   onEdit,
@@ -320,9 +321,6 @@ export default function UnitListItem({
   // Provides localized labels for unit rows and hover actions.
   const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  // True while the Share popover (teacher vs student link) is open
-  const [shareMenuOpen, setShareMenuOpen] = useState(false);
-  const shareMenuWrapRef = useRef<HTMLDivElement>(null);
   // Primary heading: parent may supply outline-backed text while callbacks still use unit.title
   const rowTitle = displayTitle ?? unit.title;
 
@@ -350,28 +348,6 @@ export default function UnitListItem({
 
   const shareEnabled = shareCourseId != null && Number.isFinite(Number(shareCourseId));
 
-  // Close Share menu on outside click so it does not trap focus
-  useEffect(() => {
-    if (!shareMenuOpen) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      if (shareMenuWrapRef.current && !shareMenuWrapRef.current.contains(e.target as Node)) {
-        setShareMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [shareMenuOpen]);
-
-  // Close Share menu on Escape
-  useEffect(() => {
-    if (!shareMenuOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShareMenuOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [shareMenuOpen]);
-
   const teacherShareUrl = useCallback(() => {
     const origin = getAppOrigin();
     const cid = Number(shareCourseId);
@@ -392,7 +368,7 @@ export default function UnitListItem({
           duration: 1800,
           style: { fontSize: 13, padding: '10px 14px' },
         });
-        setShareMenuOpen(false);
+        setDropdownOpen(false);
       } else {
         toast.error(t('classroom.unitList.linkCopyFailed'));
       }
@@ -400,16 +376,24 @@ export default function UnitListItem({
     [t],
   );
 
-  const handleShareButtonClick = useCallback(
+  const handleCopyTeacherLink = useCallback(() => {
+    void copyShareUrl(teacherShareUrl());
+  }, [copyShareUrl, teacherShareUrl]);
+
+  const handleCopyStudentLink = useCallback(() => {
+    void copyShareUrl(studentShareUrl());
+  }, [copyShareUrl, studentShareUrl]);
+
+  // Triggers the self-contained HTML export with loading/success toasts.
+  const handleExportHtml = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
-      if (shareEnabled) {
-        setShareMenuOpen((v) => !v);
-        return;
-      }
-      onShare?.(unit);
+      const toastId = toast.loading(t('classroom.unitList.exportInProgress'));
+      downloadUnitExport(unit.id, unit.title)
+        .then(() => toast.success(t('classroom.unitList.exportComplete'), { id: toastId }))
+        .catch(() => toast.error(t('classroom.unitList.exportFailed'), { id: toastId }));
     },
-    [shareEnabled, unit, onShare],
+    [t, unit.id, unit.title],
   );
 
   // Outer tag matches list semantics unless a parent `<li>` already wraps this row
@@ -600,54 +584,16 @@ export default function UnitListItem({
                 <AlignJustify className="h-4 w-4" />
               </button>
 
-              {/* Share — dropdown: teacher (unit) vs student (course) link, origin from VITE_APP_ORIGIN */}
-              <div className="relative" ref={shareMenuWrapRef}>
-                <button
-                  type="button"
-                  className={iconBtn}
-                  aria-label={
-                    shareEnabled
-                      ? t('classroom.unitList.aria.openShareMenu')
-                      : t('classroom.unitList.aria.shareUnit')
-                  }
-                  aria-expanded={shareMenuOpen}
-                  aria-haspopup="menu"
-                  tabIndex={-1}
-                  onClick={handleShareButtonClick}
-                >
-                  <Share2 className="h-4 w-4" />
-                </button>
-                {shareMenuOpen && shareEnabled && (
-                  <div
-                    role="menu"
-                    aria-label={t('classroom.unitList.share.menuLabel')}
-                    className="absolute right-0 top-full z-[60] mt-1 w-max min-w-[11rem] rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg ring-1 ring-black/5"
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-[#EEF0FE] hover:text-[#4F52C2]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void copyShareUrl(teacherShareUrl());
-                      }}
-                    >
-                      {t('classroom.unitList.share.forTeacher')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-[#EEF0FE] hover:text-[#4F52C2]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void copyShareUrl(studentShareUrl());
-                      }}
-                    >
-                      {t('classroom.unitList.share.forStudent')}
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* Download — self-contained interactive HTML export */}
+              <button
+                type="button"
+                className={iconBtn}
+                aria-label={t('classroom.unitList.aria.downloadUnit')}
+                tabIndex={-1}
+                onClick={handleExportHtml}
+              >
+                <Download className="h-4 w-4" />
+              </button>
 
               {/* Three-dot menu */}
               <div className="relative">
@@ -667,6 +613,9 @@ export default function UnitListItem({
                     onHide={onHide}
                     onEdit={onEdit}
                     onDelete={onDelete}
+                    shareEnabled={shareEnabled}
+                    onCopyTeacherLink={shareEnabled ? handleCopyTeacherLink : undefined}
+                    onCopyStudentLink={shareEnabled ? handleCopyStudentLink : undefined}
                   />
                 )}
               </div>

@@ -1010,16 +1010,18 @@
         "openUnit": "Open unit",
         "linkCopied": "Link copied",
         "linkCopyFailed": "Could not copy link",
+        "exportInProgress": "Preparazione export…",
+        "exportComplete": "Unità scaricata",
+        "exportFailed": "Export non riuscito — riprova",
         "share": {
           "forTeacher": "For teacher",
-          "forStudent": "For student",
-          "menuLabel": "Copy classroom link"
+          "forStudent": "For student"
         },
         "aria": {
           "reorder": "Reorder",
           "shareUnit": "Share unit",
           "copyUnitLink": "Copy link to unit",
-          "openShareMenu": "Share — copy link for teacher or student",
+          "downloadUnit": "Scarica HTML interattivo",
           "moreOptions": "More options"
         },
         "actions": {
@@ -1182,49 +1184,47 @@
         "title2": "in modo più intelligente con",
         "titleHighlight": "AI",
         "subtitle": "Crea corsi strutturati, genera lezioni in minuti e monitora il progresso di ogni studente — tutto in una bellissima piattaforma.",
-        "startFree": "Inizia gratis →"
+        "startFree": "Inizia gratis →",
+        "langsLabel": "Genera lezioni in"
+      },
+      "stats": {
+        "exerciseTypes": "Tipi di esercizi",
+        "generationTime": "Tempo medio di generazione lezione",
+        "autoGraded": "Esercizi con valutazione automatica",
+        "languages": "Lingue di insegnamento"
       },
       "featuresSection": {
-        "label": "Funzionalità della piattaforma",
-        "heading": "Tutto quello che ti serve per",
-        "headingHighlight": "insegnare meglio",
-        "items": [
-          {
-            "icon": "✦",
-            "title": "Costruttore di corsi AI",
-            "body": "Descrivi l'argomento e lascia che l'AI generi un curriculum completo — unità, lezioni ed esercizi — in minuti."
-          },
-          {
-            "icon": "🎯",
-            "title": "Classe in diretta",
-            "body": "Insegna in tempo reale. Vedi su quale slide è ogni studente, chi è in difficoltà e le risposte in diretta — tutto in uno schermo."
-          },
-          {
-            "icon": "📊",
-            "title": "Analisi del progresso",
-            "body": "Dashboard dettagliati per studente e per classe. Identifica le lacune prima che gli studenti te lo dicano."
-          },
-          {
-            "icon": "🧩",
-            "title": "12+ tipi di esercizi",
-            "body": "Trascina nelle lacune, abbina coppie, vero/falso, ascolto, costruisci frasi e altro — tutti generati o creati in un solo editor."
-          },
-          {
-            "icon": "📁",
-            "title": "Compiti e studio autonomo",
-            "body": "Assegna esercizi come compiti. Gli studenti li completano a proprio ritmo; tu rivedi e dai feedback in un posto solo."
-          },
-          {
-            "icon": "🌐",
-            "title": "Qualsiasi lingua",
-            "body": "Italiano, inglese, spagnolo, francese, tedesco, russo — LinguAI funziona per qualsiasi corso di lingue."
-          }
-        ]
+        "label": "Funzionalità",
+        "heading": "Tutto ciò che ti serve per",
+        "headingHighlight": "insegnare brillantemente",
+        "subtext": "Una piattaforma — dalla creazione dei contenuti alla gestione della classe e alla valutazione.",
+        "f1Title": "Costruttore di corsi strutturato",
+        "f1Body": "Organizza l'insegnamento in corsi, unità e lezioni. Trascina per riordinare, annida liberamente e offri sempre agli studenti un percorso chiaro.",
+        "f2Title": "Generazione di contenuti AI",
+        "f2Body": "Descrivi un argomento — ottieni una lezione completa, esercizi interattivi e un test valutato in minuti. Niente più ansia del foglio bianco.",
+        "f3Title": "Classe in diretta",
+        "f3Body": "Assegna lezioni alle classi. Gli studenti procedono al proprio ritmo tra slide, attività drag-and-drop e test a tempo.",
+        "f4Title": "Esporta e condividi ovunque",
+        "f4Body": "Esporta qualsiasi lezione come file interattivo autonomo. Invialo agli studenti o condividilo in qualsiasi videochiamata — gli esercizi si correggono subito, senza account.",
+        "f5Title": "Ricca varietà di esercizi",
+        "f5Body": "Trascina nelle lacune, abbina coppie, ordina in colonne, scrivi la parola, vero/falso, costruisci frasi — oltre 12 tipi di esercizi interattivi integrati.",
+        "f6Title": "Compiti e studio autonomo",
+        "f6Body": "Assegna compiti che gli studenti completano in autonomia. Le risposte vengono raccolte e valutate automaticamente, risparmiando ore ogni settimana."
       },
       "exercisesSection": {
-        "label": "Esercizi interattivi",
+        "label": "Libreria di esercizi",
         "heading": "12+ interattivi",
-        "headingHighlight": "tipi di esercizi"
+        "headingHighlight": "tipi di esercizi",
+        "subtext": "Ogni esercizio è interattivo, con valutazione automatica e funziona perfettamente su desktop e mobile.",
+        "tryCaption": "Clicca su qualsiasi esercizio sopra per provarlo — è esattamente ciò che vedono i tuoi studenti.",
+        "reset": "Reimposta"
+      },
+      "demoSection": {
+        "label": "Guardalo in azione",
+        "heading": "Descrivilo. L'AI",
+        "headingHighlight": "costruisce l'intera lezione.",
+        "subtext": "Inserisci un argomento o carica un file — ottieni grammatica, vocabolario ed esercizi interattivi in minuti. Nessuna carta di credito per provare.",
+        "cta": "Provalo gratis →"
       },
       "aiSection": {
         "label": "Generazione AI",
@@ -1271,75 +1271,42 @@
           }
         ]
       },
-      "testimonialsSection": {
-        "label": "Cosa dicono gli insegnanti",
-        "heading": "Creato per gli",
-        "headingHighlight": "insegnanti di lingue",
-        "items": [
-          {
-            "text": "Prima passavo intere domeniche a preparare materiali. Ora descrivo l'argomento, correggo l'output AI e ho finito in 20 minuti. Ai miei studenti piacciono gli esercizi interattivi.",
-            "name": "Silvia M.",
-            "role": "Insegnante d'italiano, Milano"
-          },
-          {
-            "text": "La modalità classe dal vivo ha cambiato il mio modo di insegnare. Vedo in tempo reale chi è bloccato alla slide 4 e chi ha già finito il test. Niente più congetture.",
-            "name": "Lorenzo P.",
-            "role": "Direttore scuola di lingue, Roma"
-          },
-          {
-            "text": "Il pannello di analisi è davvero utile. Ho scoperto che il 60% della mia classe aveva difficoltà con il congiuntivo prima che qualcuno me lo dicesse — i dati lo mostravano.",
-            "name": "Chiara F.",
-            "role": "Tutor privata, Firenze"
-          }
-        ]
+      "founderSection": {
+        "label": "Perché l'ho creato",
+        "heading": "Imparare una lingua è già difficile —",
+        "headingHighlight": "la pratica non dovrebbe essere noiosa",
+        "p1": "Ho creato LinguAI attorno a un'idea: gli studenti imparano meglio quando gli esercizi sono davvero coinvolgenti. Strumenti come Kahoot hanno reso i quiz divertenti — ma è solo un formato. LinguAI offre una ricca varietà di tipi di esercizi interattivi: drag-and-drop, abbinamento, lacune, costruzione di frasi e altro — così i tuoi studenti restano coinvolti invece di ripetere lo stesso foglio ogni volta.",
+        "p2": "Tu descrivi la lezione, l'AI la costruisce con pratica interattiva varia e tutto viene corretto automaticamente. Meno preparazione per te, più divertimento per loro.",
+        "p3": "È ancora agli inizi e lo sto costruendo in modo aperto. Provalo gratis — e dimmi cosa lo renderebbe migliore.",
+        "name": "Kozy-Korpesh",
+        "role": "Fondatore, LinguAI"
       },
       "pricingSection": {
         "label": "Prezzi",
         "heading": "Prezzi semplici e",
         "headingHighlight": "trasparenti",
-        "subtext": "Inizia gratis. Aggiorna quando sei pronto. Nessun costo nascosto.",
+        "subtext": "Inizia gratis. Aggiorna quando sei pronto. Nessuna carta di credito richiesta.",
         "mostPopular": "PIÙ POPOLARE",
-        "plans": {
-          "free": {
-            "name": "Gratuito",
-            "price": "€0",
-            "period": "gratis per sempre",
-            "features": [
-              "1 corso, 3 unità",
-              "Fino a 15 studenti",
-              "5 generazioni AI / mese",
-              "Analisi di base"
-            ],
-            "cta": "Inizia"
-          },
-          "pro": {
-            "name": "Pro",
-            "price": "€19",
-            "period": "al mese, fatturazione mensile",
-            "features": [
-              "Corsi e unità illimitati",
-              "Studenti illimitati",
-              "Generazioni AI illimitate",
-              "Dashboard analisi completo",
-              "Compiti e modalità studio autonomo",
-              "Supporto prioritario"
-            ],
-            "cta": "Inizia gratis"
-          },
-          "school": {
-            "name": "Scuola",
-            "price": "€49",
-            "period": "al mese · fino a 10 insegnanti",
-            "features": [
-              "Tutto il piano Pro",
-              "Gestione del team",
-              "Libreria corsi condivisa",
-              "Analisi scolastica",
-              "Onboarding dedicato"
-            ],
-            "cta": "Contattaci"
-          }
-        }
+        "freeName": "Gratuito",
+        "freeSubtitle": "Inizia senza costi",
+        "freePer": "gratis per sempre",
+        "freeCta": "Inizia",
+        "standardName": "Standard",
+        "standardSubtitle": "Per insegnanti attivi",
+        "trialCta": "Inizia la prova gratuita",
+        "proName": "Pro",
+        "proSubtitle": "AI illimitata, per educatori seri",
+        "rowExercises": "Generazioni AI di esercizi",
+        "rowUnits": "Generazioni AI di unità",
+        "rowCourses": "Generazioni AI di corsi",
+        "rowPublish": "Pubblicazione per studenti",
+        "rowLive": "Classe in diretta",
+        "rowAnalytics": "Analisi",
+        "basic": "Base",
+        "full": "Completa",
+        "fullExports": "Completa + export",
+        "unlimited": "Illimitato",
+        "footnote": "Tutti i piani includono modalità compiti, oltre 12 tipi di esercizi e monitoraggio del progresso degli studenti. Prezzi in USD · Fatturazione via Stripe · Annulla in qualsiasi momento."
       },
       "ctaSection": {
         "label": "Pronto per iniziare?",

@@ -17,6 +17,8 @@ SIMPLE_MEDIA_KINDS: set = {"image", "video", "audio"}
 RICH_MEDIA_KINDS: set = {"carousel_slides"}
 # Rich-text content blocks authored in the lesson editor
 TEXT_KINDS: set = {"text"}
+# Read-only glossary table written by unit generation (first section only)
+VOCABULARY_KINDS: set = {"vocabulary"}
 CUSTOM_EXERCISE_KINDS: set = {
     "image_stacked",
     "drag_to_gap",
@@ -38,7 +40,14 @@ CUSTOM_EXERCISE_KINDS: set = {
 # Contain image_description + _unit_id + _segment_id; resolved to "image" blocks
 # individually via POST /units/{unit_id}/segments/{segment_id}/generate-image.
 IMAGE_PLACEHOLDER_KINDS: set = {"image_placeholder"}
-ALLOWED_KINDS: set = SIMPLE_MEDIA_KINDS | RICH_MEDIA_KINDS | TEXT_KINDS | CUSTOM_EXERCISE_KINDS | IMAGE_PLACEHOLDER_KINDS
+ALLOWED_KINDS: set = (
+    SIMPLE_MEDIA_KINDS
+    | RICH_MEDIA_KINDS
+    | TEXT_KINDS
+    | VOCABULARY_KINDS
+    | CUSTOM_EXERCISE_KINDS
+    | IMAGE_PLACEHOLDER_KINDS
+)
 
 
 # ─── Carousel slides ──────────────────────────────────────────────────────────
@@ -116,8 +125,8 @@ def normalise_media_blocks(raw_media_blocks: Any) -> List[Dict[str, Any]]:
                 "kind": kind,
                 "slides": slides,
             })
-        elif kind in TEXT_KINDS:
-            # Preserve rich-text content authored in the lesson editor
+        elif kind in TEXT_KINDS or kind in VOCABULARY_KINDS:
+            # Preserve rich-text / vocabulary table payloads from the lesson editor
             data = item.get("data")
             normalised.append({
                 "id": block_id,

@@ -306,6 +306,79 @@ h2 em { font-style: normal; color: var(--primary); }
 .match-item { border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--text-sub); text-align: center; cursor: pointer; }
 .sort-chip { border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
 
+/* ── EXERCISE DEMO PLAYER ──
+   Visuals mirror the real lesson-player exercise blocks (DragToGap.css):
+   white chips w/ 6px radius, grey pool bar, dashed drop zones, dti player cards. */
+.exd-wrap { max-width: 780px; margin: 56px auto 0; }
+.exd-caption { text-align: center; font-size: 13.5px; color: var(--text-muted); margin-bottom: 16px; }
+.exd-card { background: var(--white); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); padding: 24px 24px 16px; }
+.exd-card > div:first-child { display: flex; flex-direction: column; gap: 12px; }
+/* Header — mirrors .dtg-exercise-title / .dtg-exercise-instruction */
+.exd-title { font-size: 14px; font-weight: 600; color: #1e293b; letter-spacing: -0.01em; line-height: 1.4; }
+.exd-instr { font-size: 12px; font-weight: 500; color: #64748b; letter-spacing: .01em; margin-top: -6px; }
+/* Word pool — mirrors .dtg-pool-bar */
+.exd-pool { display: flex; flex-wrap: wrap; gap: 6px; min-height: 46px; background: #f7f7fa; border-radius: 10px; padding: 8px 12px; align-items: center; }
+/* Chips — mirror .dtg-chip / .dtg-chip--draggable */
+.exd-chip { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 6px; background: var(--white); border: 1.5px solid #e2e8f0; font-size: 13px; font-weight: 500; color: #1e293b; user-select: none; white-space: nowrap; box-shadow: 0 1px 2px rgba(30,41,59,0.05); cursor: grab; touch-action: none; transition: box-shadow .15s, border-color .15s, background .15s, opacity .15s; }
+.exd-chip:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(108,111,239,0.2); }
+.exd-chip:active { cursor: grabbing; }
+.exd-chip.sel { border-color: var(--primary); background: var(--tint); box-shadow: 0 0 0 3px rgba(108,111,239,0.18); }
+.exd-chip.used { opacity: 0.32; pointer-events: none; background: #f7f7fa; }
+.exd-chip.drag { transition: none; cursor: grabbing; position: relative; z-index: 20; border-color: var(--primary); box-shadow: 0 10px 24px rgba(30,41,59,0.18); }
+.exd-chip.badchip { background: #fee2e2; color: #b91c1c; border-color: #ef4444; animation: exdShake .4s; }
+/* Exercise sentence — mirrors .dtg-text */
+.exd-text { font-size: 15px; line-height: 2.5; color: #1e293b; margin: 0; word-break: break-word; }
+/* Gaps — mirror .dtg-drop-zone (+ --over / --correct states) */
+.exd-gap { display: inline-flex; align-items: center; justify-content: center; min-width: 72px; height: 30px; margin: 0 6px; padding: 0 10px; border: 1.5px dashed #e2e8f0; border-radius: 6px; background: #f7f7fa; vertical-align: middle; font-size: 13px; font-weight: 500; color: #1e293b; cursor: pointer; transition: border-color .15s, background .15s; }
+.exd-gap:hover, .exd-gap.over { border-color: var(--primary); background: var(--tint); }
+.exd-gap.ok { border-style: solid; border-color: #22c55e; background: var(--white); }
+.exd-gap.bad { border-color: #ef4444; background: #fee2e2; animation: exdShake .4s; }
+/* Typed gap — same footprint as a drop zone */
+.exd-input { min-width: 96px; width: 110px; height: 30px; border: 1.5px dashed #e2e8f0; border-radius: 6px; background: #f7f7fa; padding: 0 10px; font-size: 13px; font-weight: 500; color: #1e293b; text-align: center; outline: none; font-family: 'Inter', sans-serif; vertical-align: middle; transition: border-color .15s, background .15s, box-shadow .15s; }
+.exd-input:focus { border-color: var(--primary); border-style: solid; background: var(--white); box-shadow: 0 0 0 3px rgba(108,111,239,0.18); }
+.exd-input.ok { border-style: solid; border-color: #22c55e; background: var(--white); }
+.exd-input.bad { border-color: #ef4444; background: #fee2e2; }
+/* Match / quiz items */
+.exd-mi { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 500; color: #1e293b; background: var(--white); text-align: center; cursor: pointer; user-select: none; box-shadow: 0 1px 2px rgba(30,41,59,0.05); transition: border-color .15s, background .15s, color .15s, box-shadow .15s; }
+.exd-mi:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(108,111,239,0.2); }
+.exd-mi.sel { border-color: var(--primary); background: var(--tint); box-shadow: 0 0 0 3px rgba(108,111,239,0.18); }
+.exd-mi.ok { border-color: #22c55e; background: #f0fdf4; color: #166534; pointer-events: none; }
+.exd-mi.bad { border-color: #ef4444; background: #fee2e2; color: #b91c1c; animation: exdShake .4s; }
+/* Sort columns — dashed drop zones */
+.exd-col { border: 1.5px dashed #e2e8f0; border-radius: 12px; background: #f7f7fa; padding: 12px; min-height: 110px; cursor: pointer; transition: border-color .15s, background .15s; }
+.exd-col:hover, .exd-col.over { border-color: var(--primary); background: var(--tint); }
+.exd-col.bad { border-color: #ef4444; background: #fee2e2; animation: exdShake .4s; }
+.exd-sorted { border: 1.5px solid #e2e8f0; border-radius: 6px; background: var(--white); padding: 5px 10px; font-size: 12.5px; font-weight: 500; color: #1e293b; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(30,41,59,0.05); }
+/* Build sentence — drop line takes chips */
+.exd-buildline { min-height: 46px; border: 1.5px dashed #e2e8f0; border-radius: 10px; background: #f7f7fa; padding: 8px 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; transition: border-color .15s, background .15s; }
+.exd-buildline.over { border-color: var(--primary); background: var(--tint); }
+.exd-built { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 6px; background: var(--white); border: 1.5px solid #e2e8f0; font-size: 13px; font-weight: 500; color: #1e293b; box-shadow: 0 1px 2px rgba(30,41,59,0.05); }
+.exd-buildline-hint { font-size: 12px; color: #94a3b8; font-style: italic; }
+/* True/false buttons */
+.exd-tfbtn { border: 1.5px solid #e2e8f0; background: var(--white); border-radius: 8px; padding: 7px 20px; font-size: 13px; font-weight: 500; color: #1e293b; cursor: pointer; font-family: 'Inter', sans-serif; box-shadow: 0 1px 2px rgba(30,41,59,0.05); transition: border-color .15s, background .15s, color .15s; }
+.exd-tfbtn:hover { border-color: var(--primary); }
+.exd-tfbtn.ok { border-color: #22c55e; background: #f0fdf4; color: #166534; }
+.exd-tfbtn.bad { border-color: #ef4444; background: #fee2e2; color: #b91c1c; animation: exdShake .4s; }
+/* Image cards — mirror .dti-player-card + image shell */
+.exd-imgcard { display: flex; flex-direction: column; gap: 10px; padding: 12px; width: 140px; border: 1.5px solid #e2e8f0; border-radius: 14px; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; }
+.exd-imgcard:hover, .exd-imgcard.over { border-color: var(--primary); box-shadow: 0 2px 10px rgba(108,111,239,0.18); }
+.exd-imgcard.bad { border-color: #ef4444; background: #fee2e2; animation: exdShake .4s; }
+.exd-imgshell { width: 100%; aspect-ratio: 1 / 1; border-radius: 12px; background: var(--tint); display: flex; align-items: center; justify-content: center; font-size: 44px; line-height: 1; }
+.exd-imgslot { min-height: 30px; border: 1.5px dashed #e2e8f0; border-radius: 6px; background: #f7f7fa; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: #94a3b8; transition: border-color .15s, background .15s; }
+.exd-imgslot.ok { border-style: solid; border-color: #22c55e; background: var(--white); color: #1e293b; }
+.exd-done { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #166534; background: #dcfce7; border-radius: 10px; padding: 9px 16px; align-self: flex-start; }
+.exd-reset { display: block; background: none; border: none; color: var(--text-muted); font-size: 12px; cursor: pointer; margin: 2px 0 0 auto; font-family: 'Inter', sans-serif; }
+.exd-reset:hover { color: var(--primary-dk); }
+@keyframes exdShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+@media (max-width: 640px) { .exd-card { padding: 18px 16px 12px; } }
+
+/* Pills that open a live demo below */
+.ex-pill.clickable { cursor: pointer; transition: transform .15s, box-shadow .15s, filter .15s; }
+.ex-pill.clickable:hover { transform: rotate(0deg) translateY(-3px) scale(1.05) !important; box-shadow: 0 8px 22px rgba(0,0,0,0.18); filter: saturate(1.08); }
+.ex-pill.clickable:active { transform: scale(0.96) !important; }
+.ex-pill .ex-pill-go { font-size: 10px; opacity: 0.85; margin-left: 2px; }
+.ex-pill.active { box-shadow: 0 0 0 2.5px var(--white), 0 0 0 5px var(--primary), 0 6px 18px rgba(108,111,239,0.3); }
+
 /* ── AI GENERATION ── */
 .ai-section-wrap { padding: 88px 24px; }
 .ai-tab { background: none; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; color: var(--text-sub); cursor: pointer; transition: all .18s; font-family: 'Inter', sans-serif; }
@@ -773,6 +846,503 @@ function LangSwitcher() {
 }
 
 /* ─── Main Component ─── */
+
+/* ─── Interactive exercise demo player ─────────────────────────────────── */
+/* Demo ids — selected via the exercise pills above the player (no duplicate tab row) */
+type ExdTabId = "gap" | "type" | "form" | "match" | "build" | "sort" | "order" | "tf" | "img" | "timg" | "quiz" | "timed";
+
+function ExdDone({ text }: { text: string }) {
+  return <div className="exd-done">✓ {text}</div>;
+}
+
+/**
+ * Pointer-based drag & drop that works with both mouse and touch.
+ * - Drag a chip and release it over an element carrying `data-exd-drop` → onDrop(word, dropId).
+ * - A press-and-release without movement counts as a tap → onTap(word) (tap-tap flow still works).
+ * Hit testing uses the CHIP'S rectangle (greatest overlap wins), not the pointer position,
+ * so a drop counts whenever the chip visibly covers the target — matching user expectation.
+ * Chips need `touch-action: none` (set on .exd-chip) so touch drags don't scroll the page.
+ */
+function useExdDrag(onDrop: (word: string, dropId: string) => void, onTap: (word: string) => void) {
+  const dragRef = useRef<{ word: string; el: HTMLElement; moved: boolean; startX: number; startY: number; overEl: HTMLElement | null } | null>(null);
+
+  const findZone = (chipRect: DOMRect, x: number, y: number): HTMLElement | null => {
+    const zones = Array.from(document.querySelectorAll<HTMLElement>("[data-exd-drop]")).filter((z) => !z.classList.contains("ok"));
+    let best: HTMLElement | null = null;
+    let bestArea = 0;
+    for (const z of zones) {
+      const r = z.getBoundingClientRect();
+      const ox = Math.min(chipRect.right, r.right) - Math.max(chipRect.left, r.left);
+      const oy = Math.min(chipRect.bottom, r.bottom) - Math.max(chipRect.top, r.top);
+      const area = ox > 0 && oy > 0 ? ox * oy : 0;
+      if (area > bestArea) { bestArea = area; best = z; }
+    }
+    if (best) return best;
+    // Fallback: pointer inside a zone even if the chip rect doesn't overlap
+    for (const z of zones) {
+      const r = z.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return z;
+    }
+    return null;
+  };
+
+  const endDrag = (e: React.PointerEvent<HTMLElement>, cancelled: boolean) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    const chipRect = d.el.getBoundingClientRect(); // measured while still transformed
+    d.overEl?.classList.remove("over");
+    d.el.classList.remove("drag");
+    d.el.style.transform = "";
+    if (cancelled) return;
+    if (!d.moved) { onTap(d.word); return; }
+    const zone = findZone(chipRect, e.clientX, e.clientY);
+    if (zone?.dataset.exdDrop != null) onDrop(d.word, zone.dataset.exdDrop);
+  };
+
+  return (word: string) => ({
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+      const el = e.currentTarget as HTMLElement;
+      dragRef.current = { word, el, moved: false, startX: e.clientX, startY: e.clientY, overEl: null };
+      el.setPointerCapture(e.pointerId);
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      if (!d.moved) {
+        if (Math.hypot(dx, dy) < 6) return; // dead zone: still a tap
+        d.moved = true;
+        d.el.classList.add("drag");
+      }
+      d.el.style.transform = `translate(${dx}px, ${dy}px)`;
+      const zone = findZone(d.el.getBoundingClientRect(), e.clientX, e.clientY);
+      if (zone !== d.overEl) {
+        d.overEl?.classList.remove("over");
+        zone?.classList.add("over");
+        d.overEl = zone;
+      }
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLElement>) => endDrag(e, false),
+    onPointerCancel: (e: React.PointerEvent<HTMLElement>) => endDrag(e, true),
+  });
+}
+
+function ExdGapDemo() {
+  const bank = ["mangia", "beve", "legge"];
+  const answers = ["mangia", "beve"];
+  const [placed, setPlaced] = useState<(string | null)[]>([null, null]);
+  const [sel, setSel] = useState<string | null>(null);
+  const [bad, setBad] = useState<number | null>(null);
+  const done = placed.every((p, i) => p === answers[i]);
+
+  const tryPlace = (word: string, gi: number) => {
+    if (placed[gi]) return;
+    if (word === answers[gi]) { const n = [...placed]; n[gi] = word; setPlaced(n); setSel(null); }
+    else { setBad(gi); setSel(null); setTimeout(() => setBad(null), 450); }
+  };
+
+  const tapGap = (gi: number) => {
+    if (placed[gi]) { const n = [...placed]; n[gi] = null; setPlaced(n); return; }
+    if (!sel) return;
+    tryPlace(sel, gi);
+  };
+
+  const drag = useExdDrag(
+    (word, dropId) => tryPlace(word, Number(dropId)),
+    (word) => setSel(sel === word ? null : word),
+  );
+
+  const gap = (gi: number) => (
+    <span className={`exd-gap${placed[gi] ? " ok" : ""}${bad === gi ? " bad" : ""}`} data-exd-drop={gi} onClick={() => tapGap(gi)}>
+      {placed[gi] ?? "\u00A0"}
+    </span>
+  );
+
+  return (
+    <div>
+      <div className="exd-title">Drag to gap</div>
+      <div className="exd-instr">Drag a word into its gap — or tap the word, then the gap. One word is a distractor.</div>
+      <div className="exd-pool">
+        {bank.map((w) => (
+          <span key={w} className={`exd-chip${sel === w ? " sel" : ""}${placed.includes(w) ? " used" : ""}`} {...drag(w)}>{w}</span>
+        ))}
+      </div>
+      <p className="exd-text">
+        Maria {gap(0)} la pizza e {gap(1)} il caffè.
+      </p>
+      {done && <ExdDone text="Correct — checked instantly, no teacher needed." />}
+    </div>
+  );
+}
+
+function ExdTypeDemo() {
+  const answer = "parlo";
+  const [val, setVal] = useState("");
+  const norm = val.trim().toLowerCase();
+  const ok = norm === answer;
+  const bad = !ok && norm.length >= answer.length;
+  return (
+    <div>
+      <div className="exd-title">Type the word</div>
+      <div className="exd-instr">Fill the gap — parlare (to speak), io-form.</div>
+      <p className="exd-text">
+        Io <input className={`exd-input${ok ? " ok" : ""}${bad ? " bad" : ""}`} value={val} onChange={(e) => setVal(e.target.value)} placeholder="…" aria-label="Answer" /> italiano ogni giorno.
+      </p>
+      {ok && <ExdDone text="Correct — typed answers are auto-checked too." />}
+    </div>
+  );
+}
+
+function ExdMatchDemo() {
+  const pairs: Record<string, string> = { Cane: "Dog", Gatto: "Cat", Pane: "Bread" };
+  const rights = ["Bread", "Dog", "Cat"];
+  const [selL, setSelL] = useState<string | null>(null);
+  const [matched, setMatched] = useState<string[]>([]);
+  const [badR, setBadR] = useState<string | null>(null);
+  const done = matched.length === 3;
+  const isRightMatched = (r: string) => matched.some((l) => pairs[l] === r);
+  const tapR = (r: string) => {
+    if (!selL || isRightMatched(r)) return;
+    if (pairs[selL] === r) { setMatched([...matched, selL]); setSelL(null); }
+    else { setBadR(r); setSelL(null); setTimeout(() => setBadR(null), 450); }
+  };
+  return (
+    <div>
+      <div className="exd-title">Match pairs</div>
+      <div className="exd-instr">Tap an Italian word, then its English match.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 400 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {Object.keys(pairs).map((l) => (
+            <div key={l} className={`exd-mi${selL === l ? " sel" : ""}${matched.includes(l) ? " ok" : ""}`} onClick={() => !matched.includes(l) && setSelL(selL === l ? null : l)}>{l}</div>
+          ))}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rights.map((r) => (
+            <div key={r} className={`exd-mi${isRightMatched(r) ? " ok" : ""}${badR === r ? " bad" : ""}`} onClick={() => tapR(r)}>{r}</div>
+          ))}
+        </div>
+      </div>
+      {done && <ExdDone text="All matched — each pair locks in the moment it's right." />}
+    </div>
+  );
+}
+
+function ExdBuildDemo() {
+  const target = ["La", "pizza", "è", "buona"];
+  const chips = ["è", "buona", "La", "pizza"];
+  const [built, setBuilt] = useState<string[]>([]);
+  const [badChip, setBadChip] = useState<string | null>(null);
+  const done = built.length === target.length;
+  const place = (w: string) => {
+    if (built.includes(w)) return;
+    if (target[built.length] === w) setBuilt([...built, w]);
+    else { setBadChip(w); setTimeout(() => setBadChip(null), 450); }
+  };
+  const drag = useExdDrag((w) => place(w), (w) => place(w));
+  return (
+    <div>
+      <div className="exd-title">Build the sentence</div>
+      <div className="exd-instr">Drag words onto the line in the right order — or just tap them. "The pizza is good."</div>
+      <div className="exd-buildline" data-exd-drop="line">
+        {built.length
+          ? built.map((w) => <span key={w} className="exd-built">{w}</span>)
+          : <span className="exd-buildline-hint">Drop words here…</span>}
+      </div>
+      <div className="exd-pool">
+        {chips.map((w) => (
+          <span key={w} className={`exd-chip${built.includes(w) ? " used" : ""}${badChip === w ? " badchip" : ""}`} {...drag(w)}>{w}</span>
+        ))}
+      </div>
+      {done && <ExdDone text="Perfetto! Word order is checked as you go." />}
+    </div>
+  );
+}
+
+function ExdSortDemo() {
+  const items: Record<string, "pres" | "pass"> = { parlo: "pres", "ho mangiato": "pass", mangio: "pres", "ho parlato": "pass" };
+  const order = ["parlo", "ho mangiato", "mangio", "ho parlato"];
+  const [sel, setSel] = useState<string | null>(null);
+  const [placed, setPlaced] = useState<Record<string, "pres" | "pass">>({});
+  const [badCol, setBadCol] = useState<string | null>(null);
+  const done = Object.keys(placed).length === order.length;
+  const tryPlace = (word: string, col: "pres" | "pass") => {
+    if (items[word] === col) { setPlaced({ ...placed, [word]: col }); setSel(null); }
+    else { setBadCol(col); setSel(null); setTimeout(() => setBadCol(null), 450); }
+  };
+  const drop = (col: "pres" | "pass") => { if (sel) tryPlace(sel, col); };
+  const drag = useExdDrag(
+    (word, dropId) => tryPlace(word, dropId as "pres" | "pass"),
+    (word) => setSel(sel === word ? null : word),
+  );
+  return (
+    <div>
+      <div className="exd-title">Sort into columns</div>
+      <div className="exd-instr">Drag each verb into its tense column — or tap the verb, then the column.</div>
+      <div className="exd-pool">
+        {order.filter((w) => !placed[w]).map((w) => (
+          <span key={w} className={`exd-chip${sel === w ? " sel" : ""}`} {...drag(w)}>{w}</span>
+        ))}
+        {order.every((w) => placed[w]) && <span className="exd-buildline-hint">All sorted</span>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 420 }}>
+        {(["pres", "pass"] as const).map((col) => (
+          <div key={col} className={`exd-col${badCol === col ? " bad" : ""}`} data-exd-drop={col} onClick={() => drop(col)}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: col === "pres" ? "#166534" : "#1e40af", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>{col === "pres" ? "Presente" : "Passato"}</div>
+            {order.filter((w) => placed[w] === col).map((w) => (
+              <div key={w} className="exd-sorted">{w}</div>
+            ))}
+          </div>
+        ))}
+      </div>
+      {done && <ExdDone text="All sorted — every drop is checked instantly." />}
+    </div>
+  );
+}
+
+function ExdTfDemo() {
+  const qs = [
+    { s: "\u201CGrazie\u201D means \u201Cthank you\u201D.", a: true },
+    { s: "\u201CBuongiorno\u201D means \u201Cgood night\u201D.", a: false },
+  ];
+  const [ans, setAns] = useState<(boolean | null)[]>([null, null]);
+  const done = ans.every((v, i) => v === qs[i].a);
+  const set = (i: number, v: boolean) => { const n = [...ans]; n[i] = v; setAns(n); };
+  return (
+    <div>
+      <div className="exd-title">True / false</div>
+      <div className="exd-instr">Tap your answer — feedback is immediate.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {qs.map((q, i) => {
+          const v = ans[i];
+          const correct = v === q.a;
+          return (
+            <div key={q.s}>
+              <div style={{ fontSize: 14, color: "var(--text-sub)", marginBottom: 8 }}>{q.s}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {[true, false].map((opt) => {
+                  const chosen = v === opt;
+                  const cls = chosen ? (correct ? " ok" : " bad") : "";
+                  return <button key={String(opt)} className={`exd-tfbtn${cls}`} onClick={() => set(i, opt)}>{opt ? "True" : "False"}</button>;
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {done && <ExdDone text="Both right — marked the moment you tap." />}
+    </div>
+  );
+}
+
+function ExdImgDemo() {
+  const cards = [
+    { emoji: "🐶", answer: "cane" },
+    { emoji: "🐱", answer: "gatto" },
+  ];
+  const bank = ["gatto", "cane", "pane"];
+  const [sel, setSel] = useState<string | null>(null);
+  const [placed, setPlaced] = useState<Record<string, string>>({});
+  const [badCard, setBadCard] = useState<string | null>(null);
+  const done = cards.every((c) => placed[c.emoji] === c.answer);
+  const tryPlace = (word: string, c: { emoji: string; answer: string }) => {
+    if (placed[c.emoji]) return;
+    if (word === c.answer) { setPlaced({ ...placed, [c.emoji]: word }); setSel(null); }
+    else { setBadCard(c.emoji); setSel(null); setTimeout(() => setBadCard(null), 450); }
+  };
+  const drop = (c: { emoji: string; answer: string }) => { if (sel) tryPlace(sel, c); };
+  const drag = useExdDrag(
+    (word, dropId) => { const c = cards.find((x) => x.emoji === dropId); if (c) tryPlace(word, c); },
+    (word) => setSel(sel === word ? null : word),
+  );
+  return (
+    <div>
+      <div className="exd-title">Word to image</div>
+      <div className="exd-instr">Drag a word onto the picture it names — or tap-tap. In real lessons these are AI-generated images.</div>
+      <div className="exd-pool">
+        {bank.map((w) => (
+          <span key={w} className={`exd-chip${sel === w ? " sel" : ""}${Object.values(placed).includes(w) ? " used" : ""}`} {...drag(w)}>{w}</span>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {cards.map((c) => (
+          <div key={c.emoji} className={`exd-imgcard${badCard === c.emoji ? " bad" : ""}`} data-exd-drop={c.emoji} onClick={() => drop(c)}>
+            <div className="exd-imgshell">{c.emoji}</div>
+            <div className={`exd-imgslot${placed[c.emoji] ? " ok" : ""}`}>{placed[c.emoji] ?? "Drop here"}</div>
+          </div>
+        ))}
+      </div>
+      {done && <ExdDone text="Matched — image exercises auto-check the same way." />}
+    </div>
+  );
+}
+
+/* Both test demos share one shell — in the product, TestWithTimerBlock and
+   TestWithoutTimerBlock render identically; the ONLY difference is the timer chip. */
+function ExdTestShell({ title, chip, expired }: { title: string; chip?: React.ReactNode; expired?: boolean }) {
+  const q = { text: "Which word means \u201Capple\u201D?", opts: ["pane", "mela", "latte"], a: "mela" };
+  const [pick, setPick] = useState<string | null>(null);
+  const done = pick === q.a;
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div className="exd-title">{title}</div>
+        {chip}
+      </div>
+      <div className="exd-instr">One question from a generated test — full tests run exactly like this.</div>
+      <div style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#cbd5e1", marginRight: 6 }}>Q1</span>{q.text}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 300, opacity: expired ? 0.5 : 1, pointerEvents: expired ? "none" : "auto" }}>
+        {q.opts.map((o) => {
+          const chosen = pick === o;
+          const cls = chosen ? (o === q.a ? " ok" : " bad") : "";
+          return <div key={o} className={`exd-mi${cls}`} onClick={() => setPick(o)}>{o}</div>;
+        })}
+      </div>
+      {expired && (
+        <div style={{ display: "flex", alignItems: "center", gap: 9, background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 12, padding: "11px 15px", fontSize: 13, color: "#b45309", fontWeight: 500 }}>
+          ⏱ Time's up — the test locks and submits automatically.
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: "#64748b" }}>{done ? 1 : 0} / 1 answered</div>
+      {done && <ExdDone text="Scored automatically the moment you submit." />}
+    </div>
+  );
+}
+
+function ExdQuizDemo() {
+  return <ExdTestShell title="Test without timer" />;
+}
+
+function ExdTimedDemo() {
+  const TOTAL = 30;
+  const [left, setLeft] = useState(TOTAL);
+  useEffect(() => {
+    const id = setInterval(() => setLeft((s) => (s > 0 ? s - 1 : s)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const expired = left <= 0;
+  const soon = !expired && left <= 10;
+  // Timer chip — exact styling of the product's TestWithTimerBlock chip
+  const chip = (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 999,
+      border: `1px solid ${expired ? "#fecaca" : soon ? "#fcd34d" : "#bfdbfe"}`,
+      background: expired ? "#fef2f2" : soon ? "#fffbeb" : "#eff6ff",
+      color: expired ? "#dc2626" : soon ? "#b45309" : "#1d4ed8",
+      fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0,
+    }}>
+      ⏱ 0:{String(left).padStart(2, "0")}
+    </div>
+  );
+  return <ExdTestShell title="Test with timer" chip={chip} expired={expired} />;
+}
+
+function ExdFormDemo() {
+  const opts = ["vai", "va", "vanno"];
+  const answer = "va";
+  const [pick, setPick] = useState<string | null>(null);
+  const ok = pick === answer;
+  return (
+    <div>
+      <div className="exd-title">Select word form</div>
+      <div className="exd-instr">Pick the correct form of andare (to go).</div>
+      <p className="exd-text">
+        Lei <span className={`exd-gap${ok ? " ok" : ""}`}>{ok ? answer : "\u00A0"}</span> al mercato ogni sabato.
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {opts.map((o) => {
+          const chosen = pick === o;
+          const cls = chosen ? (o === answer ? " ok" : " bad") : "";
+          return <button key={o} className={`exd-tfbtn${cls}`} onClick={() => setPick(o)}>{o}</button>;
+        })}
+      </div>
+      {ok && <ExdDone text="Correct form — graded the moment you pick." />}
+    </div>
+  );
+}
+
+function ExdOrderDemo() {
+  const correct = ["Buongiorno! Un caffè, per favore.", "Certo, subito!", "Grazie mille."];
+  const shuffled = ["Grazie mille.", "Buongiorno! Un caffè, per favore.", "Certo, subito!"];
+  const [ordered, setOrdered] = useState<string[]>([]);
+  const [badLine, setBadLine] = useState<string | null>(null);
+  const done = ordered.length === correct.length;
+  const tap = (l: string) => {
+    if (ordered.includes(l)) return;
+    if (correct[ordered.length] === l) setOrdered([...ordered, l]);
+    else { setBadLine(l); setTimeout(() => setBadLine(null), 450); }
+  };
+  return (
+    <div>
+      <div className="exd-title">Order paragraphs</div>
+      <div className="exd-instr">Tap the lines of this café dialogue in the right order.</div>
+      <div className="exd-buildline" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+        {ordered.length
+          ? ordered.map((l, i) => (
+              <div key={l} className="exd-built" style={{ justifyContent: "flex-start", gap: 8 }}>
+                <span style={{ color: "var(--primary-dk)", fontWeight: 700, fontSize: 12 }}>{i + 1}</span>{l}
+              </div>
+            ))
+          : <span className="exd-buildline-hint">The dialogue builds up here…</span>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {shuffled.filter((l) => !ordered.includes(l)).map((l) => (
+          <div key={l} className={`exd-mi${badLine === l ? " bad" : ""}`} style={{ textAlign: "left" }} onClick={() => tap(l)}>{l}</div>
+        ))}
+      </div>
+      {done && <ExdDone text="Perfect order — sequencing is auto-checked line by line." />}
+    </div>
+  );
+}
+
+function ExdTimgDemo() {
+  const answer = "sole";
+  const [val, setVal] = useState("");
+  const norm = val.trim().toLowerCase();
+  const ok = norm === answer;
+  const bad = !ok && norm.length >= answer.length;
+  return (
+    <div>
+      <div className="exd-title">Type word to image</div>
+      <div className="exd-instr">Type the Italian word for what you see. In real lessons these are AI-generated images.</div>
+      <div className="exd-imgcard" style={{ cursor: "default" }}>
+        <div className="exd-imgshell">☀️</div>
+        <input
+          className={`exd-input${ok ? " ok" : ""}${bad ? " bad" : ""}`}
+          style={{ width: "100%", minWidth: 0 }}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder="Type here…"
+          aria-label="Answer"
+        />
+      </div>
+      {ok && <ExdDone text="Correct — typed answers auto-check against each image." />}
+    </div>
+  );
+}
+
+function ExerciseDemoPlayer({ tab }: { tab: ExdTabId }) {
+  const { t } = useTranslation();
+  const [resetKey, setResetKey] = useState(0);
+  const demos = {
+    gap: <ExdGapDemo />, type: <ExdTypeDemo />, form: <ExdFormDemo />, match: <ExdMatchDemo />,
+    build: <ExdBuildDemo />, sort: <ExdSortDemo />, order: <ExdOrderDemo />, tf: <ExdTfDemo />,
+    img: <ExdImgDemo />, timg: <ExdTimgDemo />, quiz: <ExdQuizDemo />, timed: <ExdTimedDemo />,
+  };
+  return (
+    <div className="exd-wrap" id="exercise-demo">
+      <div className="exd-caption">{t('landing.exercisesSection.tryCaption', "Click any exercise above to try it — this is exactly what your students see.")}</div>
+      <div className="exd-card" key={`${tab}-${resetKey}`}>
+        {demos[tab]}
+        <button className="exd-reset" onClick={() => setResetKey((k) => k + 1)}>↺ {t('landing.exercisesSection.reset', 'Reset')}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const { t } = useTranslation();
 
@@ -784,6 +1354,13 @@ export default function LandingPage() {
   }, []);
   const [activeStep, setActiveStep] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [exdTab, setExdTab] = useState<ExdTabId>("gap");
+
+  // Pills in the exercise-library visual double as navigation into the live demo below.
+  const openExercise = (tab: ExdTabId) => {
+    setExdTab(tab);
+    document.getElementById("exercise-demo")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
   const [billingDuration, setBillingDuration] = useState<"1m" | "3m" | "6m" | "12m">("1m");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -912,7 +1489,7 @@ export default function LandingPage() {
             { icon: "📚", bg: "#EEF0FE", title: t('landing.featuresSection.f1Title', 'Structured course builder'), body: t('landing.featuresSection.f1Body', 'Organise teaching into courses, units, and lessons. Drag to reorder, nest freely, and always give students a clear path forward.') },
             { icon: "✨", bg: "#fef3c7", title: t('landing.featuresSection.f2Title', 'AI content generation'), body: t('landing.featuresSection.f2Body', 'Describe a topic — get a full lesson deck, interactive exercises, and a graded test generated in minutes. No blank-page anxiety.') },
             { icon: "🎓", bg: "#dcfce7", title: t('landing.featuresSection.f3Title', 'Live classroom mode'), body: t('landing.featuresSection.f3Body', 'Assign lessons to classrooms. Students follow at their own pace through slides, drag-and-drop tasks, and timed tests.') },
-            { icon: "📊", bg: "#e0f2fe", title: t('landing.featuresSection.f4Title', 'Progress & analytics'), body: t('landing.featuresSection.f4Body', 'See every student\'s completion, scores, and time spent at a glance. Spot weak areas and intervene before they fall behind.') },
+            { icon: "📤", bg: "#e0f2fe", title: t('landing.featuresSection.f4Title', 'Export & share anywhere'), body: t('landing.featuresSection.f4Body', 'Export any lesson as a self-contained interactive file. Send it to students or screen-share it on any call — exercises auto-check instantly, no account needed.') },
             { icon: "🎯", bg: "#fce7f3", title: t('landing.featuresSection.f5Title', 'Rich exercise types'), body: t('landing.featuresSection.f5Body', 'Drag-to-gap, match pairs, sort into columns, type word, true/false, build sentence — 12+ interactive exercise types built in.') },
             { icon: "🏠", bg: "#f0fdf4", title: t('landing.featuresSection.f6Title', 'Homework & self-study'), body: t('landing.featuresSection.f6Body', 'Assign homework that students complete independently. Submissions are collected and graded automatically, saving hours each week.') },
           ].map((f) => (
@@ -935,16 +1512,24 @@ export default function LandingPage() {
           <div className="exercise-pills-layout" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 32, alignItems: "center", width: "100%", maxWidth: 900, margin: "0 auto" }}>
             {/* LEFT */}
             <div className="exercise-pills-side" style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
-              {[
-                { bg: "linear-gradient(135deg,#f87171,#fb923c)", rot: "-2deg", label: "🖼 Image & GIF" },
-                { bg: "linear-gradient(135deg,#fb923c,#facc15)", rot: "-1deg", label: "▶ YouTube video" },
-                { bg: "linear-gradient(135deg,#4ade80,#22d3ee)", rot: "1.5deg", label: "⬜ Drag to gap" },
-                { bg: "linear-gradient(135deg,#22d3ee,#6366f1)", rot: "-1deg", label: "✅ Test with answers" },
-                { bg: "linear-gradient(135deg,#6366f1,#a855f7)", rot: "2deg", label: "✏️ Essay & translate" },
-                { bg: "linear-gradient(135deg,#a855f7,#ec4899)", rot: "-1.5deg", label: "🎧 Audio playback" },
-                { bg: "linear-gradient(135deg,#ec4899,#f87171)", rot: "1deg", label: "⌨️ Type in the gap" },
-              ].map((p) => (
-                <div key={p.label} className="ex-pill" style={{ background: p.bg, transform: `rotate(${p.rot})` }}>{p.label}</div>
+              {([
+                { bg: "linear-gradient(135deg,#4ade80,#22d3ee)", rot: "-2deg", label: "⬜ Drag to gap", tab: "gap" },
+                { bg: "linear-gradient(135deg,#ec4899,#f87171)", rot: "-1deg", label: "⌨️ Type in the gap", tab: "type" },
+                { bg: "linear-gradient(135deg,#6366f1,#a855f7)", rot: "1.5deg", label: "🔀 Select word form", tab: "form" },
+                { bg: "linear-gradient(135deg,#a855f7,#6366f1)", rot: "-1deg", label: "☰ Sort into columns", tab: "sort" },
+                { bg: "linear-gradient(135deg,#22d3ee,#6366f1)", rot: "2deg", label: "⏱ Test with timer", tab: "timed" },
+                { bg: "linear-gradient(135deg,#22d3ee,#4ade80)", rot: "-1.5deg", label: "✅ True / false", tab: "tf" },
+              ] as { bg: string; rot: string; label: string; tab: ExdTabId }[]).map((p) => (
+                <div
+                  key={p.label}
+                  className={`ex-pill clickable${exdTab === p.tab ? " active" : ""}`}
+                  style={{ background: p.bg, transform: `rotate(${p.rot})` }}
+                  onClick={() => openExercise(p.tab)}
+                  role="button"
+                  title="Try it live below"
+                >
+                  {p.label}<span className="ex-pill-go">▸</span>
+                </div>
               ))}
             </div>
 
@@ -957,65 +1542,31 @@ export default function LandingPage() {
 
             {/* RIGHT */}
             <div className="exercise-pills-side" style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
-              {[
-                { bg: "linear-gradient(135deg,#f87171,#a855f7)", rot: "2deg", label: "🖼 Word to image" },
-                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "-1.5deg", label: "📝 Build sentence" },
-                { bg: "linear-gradient(135deg,#22d3ee,#4ade80)", rot: "1deg", label: "🔤 Build from letters" },
-                { bg: "linear-gradient(135deg,#a855f7,#6366f1)", rot: "-2deg", label: "☰ Sort into columns" },
-                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "1.5deg", label: "↕ Order paragraphs" },
-                { bg: "linear-gradient(135deg,#22d3ee,#4ade80)", rot: "-1deg", label: "🎙 Voice record" },
-                { bg: "linear-gradient(135deg,#4ade80,#facc15)", rot: "2deg", label: "💬 Match pairs" },
-              ].map((p) => (
-                <div key={p.label} className="ex-pill" style={{ background: p.bg, transform: `rotate(${p.rot})` }}>{p.label}</div>
+              {([
+                { bg: "linear-gradient(135deg,#f87171,#a855f7)", rot: "2deg", label: "🖼 Word to image", tab: "img" },
+                { bg: "linear-gradient(135deg,#fb923c,#facc15)", rot: "-1.5deg", label: "🖼 Type word to image", tab: "timg" },
+                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "1deg", label: "📝 Build sentence", tab: "build" },
+                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "-2deg", label: "↕ Order paragraphs", tab: "order" },
+                { bg: "linear-gradient(135deg,#4ade80,#facc15)", rot: "1.5deg", label: "💬 Match pairs", tab: "match" },
+                { bg: "linear-gradient(135deg,#a855f7,#ec4899)", rot: "-1deg", label: "🎯 Test without timer", tab: "quiz" },
+              ] as { bg: string; rot: string; label: string; tab: ExdTabId }[]).map((p) => (
+                <div
+                  key={p.label}
+                  className={`ex-pill clickable${exdTab === p.tab ? " active" : ""}`}
+                  style={{ background: p.bg, transform: `rotate(${p.rot})` }}
+                  onClick={() => openExercise(p.tab)}
+                  role="button"
+                  title="Try it live below"
+                >
+                  {p.label}<span className="ex-pill-go">▸</span>
+                </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Exercise preview cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16, marginTop: 52 }}>
-          {/* Drag to gap */}
-          <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", padding: 24, boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 14 }}>Drag to gap</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-              <span className="word-chip">lives</span>
-              <span className="word-chip">watches</span>
-              <span className="word-chip" style={{ opacity: .4, pointerEvents: "none" }}>starts</span>
-              <span className="word-chip">buys</span>
-            </div>
-            <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 2 }}>
-              My brother <span className="gap-slot">starts</span> in a small flat. He <span className="gap-slot" style={{ background: "var(--tint)", borderColor: "var(--primary)", color: "var(--primary-dk)" }}>watches</span> TV every day and she <span className="gap-slot">___</span> a new book every week.
-            </p>
-          </div>
-          {/* Match pairs */}
-          <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", padding: 24, boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 14 }}>Match pairs</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <div className="match-item" style={{ borderColor: "var(--primary)", background: "var(--tint)", color: "var(--primary-dk)" }}>I live</div>
-              <div className="match-item">permanent situation</div>
-              <div className="match-item">I am living</div>
-              <div className="match-item" style={{ borderColor: "var(--primary)", background: "var(--tint)", color: "var(--primary-dk)" }}>temporary situation</div>
-              <div className="match-item" style={{ borderColor: "var(--primary)", background: "var(--tint)", color: "var(--primary-dk)" }}>every day</div>
-              <div className="match-item">adverb of frequency</div>
-            </div>
-          </div>
-          {/* Sort into columns */}
-          <div style={{ background: "var(--white)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", padding: 24, boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 14 }}>Sort into columns</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#166534", marginBottom: 8 }}>Presente</div>
-                <div className="sort-chip" style={{ background: "#dcfce7", color: "#166534", borderColor: "#86efac" }}>parlo</div>
-                <div className="sort-chip" style={{ background: "#dcfce7", color: "#166534", borderColor: "#86efac" }}>mangio</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#1e40af", marginBottom: 8 }}>Passato</div>
-                <div className="sort-chip" style={{ background: "#dbeafe", color: "#1e40af", borderColor: "#93c5fd" }}>ho parlato</div>
-                <div className="sort-chip" style={{ background: "var(--bg)", color: "var(--text-muted)", borderColor: "var(--border)", borderStyle: "dashed" }}>ho mangiato</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Try the exercises yourself */}
+        <ExerciseDemoPlayer tab={exdTab} />
       </section>
 
       {/* ── MID-PAGE CTA ── */}

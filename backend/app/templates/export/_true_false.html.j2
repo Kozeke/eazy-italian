@@ -1,0 +1,26 @@
+{#
+  app/templates/export/_true_false.html.j2
+
+  Renders one QuestionGroup of kind "true_false". Reuses the reference
+  file's .tf-question / .tf-options / .tf-option markup and classes, but
+  with two options (true/false) instead of the IELTS file's three-way
+  TRUE/FALSE/NOT GIVEN — our TrueFalseBlock.tsx data model is binary.
+
+  Expects `group` (a QuestionGroup with .true_false_questions populated)
+  in scope, provided by the {% include %} loop in unit_export.html.j2.
+#}
+<div class="question" data-q-start="{{ group.true_false_questions[0].number }}" data-q-end="{{ group.true_false_questions[-1].number }}">
+  {% if group.title %}<div class="question-group-title">{{ group.title }}</div>{% endif %}
+  {% for q in group.true_false_questions %}
+  <div class="tf-question" data-q-start="{{ q.number }}" data-q-end="{{ q.number }}">
+    <div class="tf-question-line">
+      <span class="tf-question-number">{{ q.number }}</span>
+      <span class="tf-question-text">{{ q.prompt }}</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q{{ q.number }}" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q{{ q.number }}" value="false"> False</label>
+    </div>
+  </div>
+  {% endfor %}
+</div>

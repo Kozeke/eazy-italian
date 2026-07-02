@@ -56,21 +56,32 @@ _MIN_SECTIONS = 2
 _MAX_SECTIONS = 4
 
 _DEFAULT_NUM_SEGMENTS   = 3
-# Base interactive exercises assigned automatically during course generation.
-# Image-card types (drag_word_to_image, type_word_to_image, select_form_to_image)
-# are intentionally excluded — they trigger fal.ai image generation per card and
-# slow down bulk course creation. Teachers can add them manually per segment later.
+# Base interactive exercises + two visual-vocabulary types.
+# drag_word_to_image goes into the 2nd content segment and
+# type_word_to_image into the 3rd — guaranteed by the coverage pass in
+# UnitGeneratorService._smart_assign_exercises (high-affinity types that
+# would otherwise fall past the rotation window are injected there).
 _DEFAULT_EXERCISE_TYPES = [
     "drag_to_gap",
     "match_pairs",
     "build_sentence",
-    # "drag_word_to_image",   # requires per-card image generation — skipped on auto-gen
-    # "type_word_to_image",   # requires per-card image generation — skipped on auto-gen
+    "drag_word_to_image",
+    "type_word_to_image",
 ]
 
-# Content extracted from uploaded files is capped before being sent to the LLM
-# (avoids blowing the context window of smaller models).
-_MAX_FILE_CONTENT_CHARS = 12_000
+# ── Uploaded-file limits ──────────────────────────────────────────────────────
+# deepseek-chat has a 64K-token context (~200K+ chars), so these caps are about
+# keeping cost/latency reasonable and — crucially — making sure EVERY uploaded
+# file is represented in the prompt rather than one long file starving the rest.
+#
+#   _MAX_UPLOAD_FILES        — reject the request beyond this many files.
+#   _MAX_UPLOAD_BYTES        — reject any single file larger than this (raw).
+#   _MAX_PER_FILE_CHARS      — hard cap on one file's extracted text.
+#   _MAX_FILE_CONTENT_CHARS  — total budget across ALL files, fair-shared.
+_MAX_UPLOAD_FILES       = 5
+_MAX_UPLOAD_BYTES       = 10 * 1024 * 1024   # 10 MB per file
+_MAX_PER_FILE_CHARS     = 25_000
+_MAX_FILE_CONTENT_CHARS = 40_000
 
 # Source-token cache: token → (extracted_text, expiry_unix_ts)
 # Tokens expire after 30 minutes.  The stream endpoint pops them on first use
@@ -533,13 +544,62 @@ def _fallback_outline(description: str) -> CourseOutlineResponse:
 # ── File text extraction ──────────────────────────────────────────────────────
 
 
+def _fair_share_budget(blocks: list[tuple[str, str]], total_budget: int) -> str:
+    """Combine per-file (name, text) blocks into one string within *total_budget*.
+
+    When the combined length exceeds the budget, every file is trimmed
+    proportionally to its share of the total so that NO file is dropped
+    entirely — a long syllabus can't crowd out a short vocabulary list.
+    Each file is first hard-capped at ``_MAX_PER_FILE_CHARS``.
+    """
+    # Hard cap each file individually first.
+    capped: list[tuple[str, str]] = []
+    for name, text in blocks:
+        t = text.strip()
+        if not t:
+            continue
+        if len(t) > _MAX_PER_FILE_CHARS:
+            t = t[:_MAX_PER_FILE_CHARS].rstrip() + " […]"
+        capped.append((name, t))
+
+    if not capped:
+        return ""
+
+    combined_len = sum(len(t) for _, t in capped)
+
+    # Under budget → keep everything.
+    if combined_len <= total_budget:
+        parts = [f"[File: {name}]\n{text}" for name, text in capped]
+        return "\n\n".join(parts)
+
+    # Over budget → allocate each file a slice proportional to its size,
+    # guaranteeing every file a minimum floor so short files stay intact.
+    n = len(capped)
+    floor = min(1_500, total_budget // (n * 2) or 1)
+    reserved = floor * n
+    flexible = max(total_budget - reserved, 0)
+
+    parts: list[str] = []
+    for name, text in capped:
+        share = int(flexible * (len(text) / combined_len))
+        allowance = floor + share
+        if len(text) > allowance:
+            text = text[:allowance].rstrip() + " […truncated]"
+        parts.append(f"[File: {name}]\n{text}")
+
+    return "\n\n".join(parts)
+
+
 async def _extract_files_text(files: list[UploadFile]) -> str:
     """
-    Read each uploaded file and route it to the appropriate parser.
+    Read each uploaded file, route it to the appropriate parser, then combine
+    all extracted text within a shared character budget.
 
-    Returns a single combined string (one block per file, separated by
-    double newlines).  Errors on individual files are logged and skipped
-    so one bad file does not abort the whole request.
+    Each file is parsed independently (errors on one file are logged and
+    skipped so a single bad file does not abort the request) and every file
+    that yields text is represented in the output via ``_fair_share_budget`` —
+    the combined text is trimmed proportionally when it exceeds the budget so
+    no single file is silently dropped.
     """
     from app.services.document_parsers.pdf_parser      import PDFParser
     from app.services.document_parsers.docx_parser     import DocxParser
@@ -556,7 +616,8 @@ async def _extract_files_text(files: list[UploadFile]) -> str:
         "application/x-subrip",
     }
 
-    blocks: list[str] = []
+    # (filename, extracted_text) — one entry per file that yielded text.
+    blocks: list[tuple[str, str]] = []
 
     for upload in files:
         fname   = upload.filename or ""
@@ -568,23 +629,30 @@ async def _extract_files_text(files: list[UploadFile]) -> str:
             logger.warning("_extract_files_text: could not read '%s': %s", fname, exc)
             continue
 
+        if len(data) > _MAX_UPLOAD_BYTES:
+            logger.warning(
+                "_extract_files_text: '%s' is %d bytes (> %d limit) — skipping",
+                fname, len(data), _MAX_UPLOAD_BYTES,
+            )
+            continue
+
         try:
             if pdf_parser.can_handle(fname, mime):
                 doc = pdf_parser.parse(data, fname)
-                blocks.append(f"[File: {fname}]\n{doc.text}")
+                blocks.append((fname, doc.text))
 
             elif docx_parser.can_handle(fname, mime):
                 doc = docx_parser.parse(data, fname)
-                blocks.append(f"[File: {fname}]\n{doc.text}")
+                blocks.append((fname, doc.text))
 
             elif subtitle_parser.can_handle(fname, mime):
                 doc = subtitle_parser.parse(data, fname)
-                blocks.append(f"[File: {fname}]\n{doc.text}")
+                blocks.append((fname, doc.text))
 
             elif mime in _PLAIN_TEXT_MIMES or fname.lower().endswith(".txt"):
                 text = data.decode("utf-8", errors="replace").strip()
                 if text:
-                    blocks.append(f"[File: {fname}]\n{text}")
+                    blocks.append((fname, text))
 
             elif mime.startswith("image/"):
                 # Images are not text-parseable here; skip with a note so the
@@ -601,7 +669,11 @@ async def _extract_files_text(files: list[UploadFile]) -> str:
                 "_extract_files_text: failed to parse '%s': %s", fname, exc
             )
 
-    return "\n\n".join(blocks)
+    logger.info(
+        "_extract_files_text: parsed %d/%d file(s) with text — raw total %d chars",
+        len(blocks), len(files), sum(len(t) for _, t in blocks),
+    )
+    return _fair_share_budget(blocks, _MAX_FILE_CONTENT_CHARS)
 
 
 # ── Source-token cache helpers ────────────────────────────────────────────────
@@ -754,6 +826,16 @@ async def generate_course_outline_from_files(
 
     ``target_language`` / ``native_language`` work the same as the JSON endpoint.
     """
+    # Reject oversized uploads BEFORE consuming an AI credit.
+    if files and len(files) > _MAX_UPLOAD_FILES:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Too many files ({len(files)}). "
+                f"Please upload at most {_MAX_UPLOAD_FILES} files."
+            ),
+        )
     # Consumes one AI course-generation credit based on the teacher's active tariff.
     check_and_consume_teacher_ai_quota(db, current_user, "course_generation")
     provider, plan = _get_provider_for_user(current_user, db)

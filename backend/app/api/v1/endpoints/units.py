@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, asc, func
 from typing import List, Optional, Dict, Any
@@ -24,6 +24,7 @@ from app.schemas.unit import (
     UnitBulkAction, UnitSummaryResponse
 )
 from app.services.media_block_utils import normalise_media_blocks
+from app.services.export import render_unit_export, slugify
 from app.services.segment_publication_policy import (
     maybe_consume_course_publish_for_new_live_segment,
 )
@@ -335,6 +336,65 @@ async def get_unit(
         tests=test_data,
         segments=segments_data,
         homework_blocks=homework_blocks_normalised,
+    )
+ 
+ 
+@router.get("/admin/units/{unit_id}/export/html")
+async def export_unit_html(
+    unit_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_teacher),
+    db: Session = Depends(get_db),
+):
+    """
+    Export a unit as a single, self-contained .html file.
+
+    The downloaded file opens directly in any browser with no login and no
+    backend calls (remote media stays linked to the CDN — not inlined). It
+    is generated fresh on every request — never cached — so a teacher's
+    latest edits are always reflected.
+
+    Auth mirrors get_unit() exactly: a teacher can only export units that
+    belong to courses they own. Exported files embed the answer key in plain
+    JS, so this check must not be relaxed.
+    """
+    # Same ownership gate as get_unit() — exported files contain the full
+    # answer key in their embedded <script>, so never skip this.
+    teacher_course_ids = [c.id for c in db.query(Course.id).filter(
+        Course.created_by == current_user.id
+    ).all()]
+
+    if not teacher_course_ids:
+        raise HTTPException(status_code=404, detail="Unit not found")
+
+    # Only segments + their media_blocks are needed — all gradable content
+    # (including timed/untimed tests, which are inline media_blocks) lives
+    # there. No videos/tasks/tests/presentations eager-load required.
+    unit = db.query(Unit).options(
+        joinedload(Unit.segments),
+    ).filter(
+        Unit.id == unit_id,
+        Unit.course_id.in_(teacher_course_ids),
+    ).first()
+
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+
+    sorted_segments = sorted(unit.segments or [], key=lambda s: s.order_index)
+    segments_data = [_segment_to_dict(s) for s in sorted_segments]
+
+    # Absolute origin (e.g. https://linguai.net) so relative media paths like
+    # /api/v1/static/... resolve when the exported file is opened offline.
+    # Absolute CDN URLs and base64 data: URIs are left untouched.
+    asset_base_url = str(request.base_url).rstrip("/")
+
+    html = render_unit_export(unit.title, segments_data, asset_base_url=asset_base_url)
+
+    filename = f"{slugify(unit.title)}.html"
+    return Response(
+        content=html,
+        media_type="text/html",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
  
  

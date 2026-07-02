@@ -1,0 +1,26 @@
+{#
+  app/templates/export/_gap_fill.html.j2
+
+  Renders one QuestionGroup of kind "gap_fill" (one type_word_in_gap block).
+  Walks the pre-normalised `fragments` list in document order, emitting text
+  verbatim and an `.answer-input` for each gap — exactly the reference
+  file's "answer-input inline in prose" pattern, but driven by our
+  segments/gaps data model instead of hardcoded notes-completion HTML.
+
+  Expects `group` (a QuestionGroup with .gap_fill_block populated) in scope.
+#}
+{% set gap_numbers = group.gap_fill_block.fragments | selectattr('0', 'equalto', 'gap') | map(attribute='1') | list %}
+{% if gap_numbers %}
+<div class="question"
+     data-q-start="{{ gap_numbers[0] }}"
+     data-q-end="{{ gap_numbers[-1] }}">
+  {% if group.gap_fill_block.title %}<div class="question-group-title">{{ group.gap_fill_block.title }}</div>{% endif %}
+  <div class="gap-fill-block">
+    <p>
+    {%- for kind, value in group.gap_fill_block.fragments -%}
+      {%- if kind == "text" -%}{{ value }}{%- else -%}<input type="text" class="answer-input" id="q{{ value }}" placeholder="{{ value }}">{%- endif -%}
+    {%- endfor -%}
+    </p>
+  </div>
+</div>
+{% endif %}

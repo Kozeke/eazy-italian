@@ -1,0 +1,20 @@
+{#
+  app/templates/export/_passage_text.html.j2
+
+  Renders one PassageBlock (a "text" media block — grammar rules, vocab
+  notes, etc.) in the left panel. The HTML body is pre-rendered in Python
+  by markdown_to_html() / normalise_text_block() in export_service.py —
+  this partial is intentionally a thin wrapper so the "one partial per
+  kind" convention stays uniform even though passage blocks need no
+  question-numbering logic at the template layer.
+
+  Not currently {% include %}-ed from unit_export.html.j2 (which inlines
+  `block.html` directly in its passage-panel loop for one fewer indirection)
+  — kept as the documented per-kind partial for the extension-point
+  convention described in export_service.py's docstring, and as the seam to
+  switch to if passage rendering ever needs template-level logic (e.g. a
+  per-block heading style that differs from the gradable partials).
+
+  Expects `block` (a PassageBlock) in scope.
+#}
+<div class="reading-passage passage-block">{{ block.html | safe }}</div>

@@ -1,0 +1,31 @@
+{#
+  app/templates/export/_multiple_choice.html.j2
+
+  Renders one QuestionGroup of kind "multiple_choice" — the questions
+  loaded from a test_with_timer / test_without_timer block via the
+  Test → TestQuestion → Question chain. Reuses the reference file's
+  .multi-choice-question / .multi-choice-option pattern; radio when there's
+  exactly one correct option, checkbox when there are several (mirrors
+  question_service.py's correct_option_ids contract — see
+  normalise_test_block() / _mc_draft_to_question() in export_service.py).
+
+  Expects `group` (a QuestionGroup with .multiple_choice_questions
+  populated) in scope.
+#}
+{% if group.title %}<div class="question-group-title">{{ group.title }}</div>{% endif %}
+{% for q in group.multiple_choice_questions %}
+<div class="multi-choice-question" data-q-start="{{ q.number }}" data-q-end="{{ q.number }}">
+  <div class="question-prompt-text">
+    <span class="q-num-badge">{{ q.number }}</span>
+    <span>{{ q.prompt }}</span>
+  </div>
+  <div class="multi-choice-options">
+    {% for opt in q.options %}
+    <label class="multi-choice-option">
+      <input type="{{ 'checkbox' if q.multi else 'radio' }}" name="q{{ q.number }}" value="{{ opt.id }}">
+      {{ opt.text }}
+    </label>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}

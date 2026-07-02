@@ -1010,16 +1010,18 @@
       "openUnit": "Open unit",
       "linkCopied": "Link copied",
       "linkCopyFailed": "Could not copy link",
+      "exportInProgress": "Preparing export…",
+      "exportComplete": "Unit downloaded",
+      "exportFailed": "Export failed — try again",
       "share": {
         "forTeacher": "For teacher",
-        "forStudent": "For student",
-        "menuLabel": "Copy classroom link"
+        "forStudent": "For student"
       },
       "aria": {
         "reorder": "Reorder",
         "shareUnit": "Share unit",
         "copyUnitLink": "Copy link to unit",
-        "openShareMenu": "Share — copy link for teacher or student",
+        "downloadUnit": "Download interactive HTML",
         "moreOptions": "More options"
       },
       "actions": {
@@ -1182,7 +1184,8 @@
       "title2": "smarter with",
       "titleHighlight": "AI",
       "subtitle": "Build structured courses, generate lessons in minutes, and track every student's progress — all in one beautiful platform.",
-      "startFree": "Start for free →"
+      "startFree": "Start for free →",
+      "langsLabel": "Generate lessons in"
     },
     "benefits": {
       "title": "Why Choose Us",
@@ -1217,7 +1220,11 @@
       "lessons": "Lessons",
       "rating": "Rating",
       "satisfaction": "Satisfaction Rate",
-      "teachers": "Expert Teachers"
+      "teachers": "Expert Teachers",
+      "exerciseTypes": "Exercise types",
+      "generationTime": "Avg. lesson generation time",
+      "autoGraded": "Auto-graded exercises",
+      "languages": "Teaching languages"
     },
     "features": {
       "title": "Why Learn With Us",
@@ -1276,46 +1283,37 @@
       "copyright": "© 2024 EZ Italian. All rights reserved."
     },
     "featuresSection": {
-      "label": "Platform features",
-      "heading": "Everything you need to teach",
-      "headingHighlight": "smarter",
-      "items": [
-        {
-          "icon": "✦",
-          "title": "AI Course Builder",
-          "body": "Describe your course topic and let AI generate a full structured curriculum — units, lessons, and exercises — in minutes."
-        },
-        {
-          "icon": "🎯",
-          "title": "Live Classroom Mode",
-          "body": "Teach in real time. See which slide every student is on, who's stuck, and whose answers are live — all on one screen."
-        },
-        {
-          "icon": "📊",
-          "title": "Progress Analytics",
-          "body": "Detailed per-student and per-class dashboards. Identify gaps before students even tell you about them."
-        },
-        {
-          "icon": "🧩",
-          "title": "12+ Exercise Types",
-          "body": "Drag-to-gap, match pairs, true/false, listening, build-a-sentence and more — all generated or hand-crafted in one editor."
-        },
-        {
-          "icon": "📁",
-          "title": "Homework & Self-Study",
-          "body": "Assign exercises as homework. Students complete them at their own pace; you review and give feedback in one place."
-        },
-        {
-          "icon": "🌐",
-          "title": "Any Language",
-          "body": "Italian, English, Spanish, French, German, Russian — LinguAI works for any language course you teach."
-        }
-      ]
+      "label": "Features",
+      "heading": "Everything you need to",
+      "headingHighlight": "teach brilliantly",
+      "subtext": "One platform — from content creation to classroom management and grading.",
+      "f1Title": "Structured course builder",
+      "f1Body": "Organise teaching into courses, units, and lessons. Drag to reorder, nest freely, and always give students a clear path forward.",
+      "f2Title": "AI content generation",
+      "f2Body": "Describe a topic — get a full lesson deck, interactive exercises, and a graded test generated in minutes. No blank-page anxiety.",
+      "f3Title": "Live classroom mode",
+      "f3Body": "Assign lessons to classrooms. Students follow at their own pace through slides, drag-and-drop tasks, and timed tests.",
+      "f4Title": "Export & share anywhere",
+      "f4Body": "Export any lesson as a self-contained interactive file. Send it to students or screen-share it on any call — exercises auto-check instantly, no account needed.",
+      "f5Title": "Rich exercise types",
+      "f5Body": "Drag-to-gap, match pairs, sort into columns, type word, true/false, build sentence — 12+ interactive exercise types built in.",
+      "f6Title": "Homework & self-study",
+      "f6Body": "Assign homework that students complete independently. Submissions are collected and graded automatically, saving hours each week."
     },
     "exercisesSection": {
-      "label": "Interactive exercises",
+      "label": "Exercise library",
       "heading": "12+ interactive",
-      "headingHighlight": "exercise types"
+      "headingHighlight": "exercise types",
+      "subtext": "Every exercise is interactive, auto-graded, and works seamlessly on desktop and mobile.",
+      "tryCaption": "Click any exercise above to try it — this is exactly what your students see.",
+      "reset": "Reset"
+    },
+    "demoSection": {
+      "label": "See it in action",
+      "heading": "Describe it. AI",
+      "headingHighlight": "builds the whole lesson.",
+      "subtext": "Type a topic or upload a file — get grammar, vocabulary, and interactive exercises in minutes. No credit card needed to try.",
+      "cta": "Try it free →"
     },
     "aiSection": {
       "label": "AI Generation",
@@ -1362,75 +1360,42 @@
         }
       ]
     },
-    "testimonialsSection": {
-      "label": "What teachers say",
-      "heading": "Built for language",
-      "headingHighlight": "educators, by educators",
-      "items": [
-        {
-          "text": "I used to spend entire Sundays preparing lesson materials. Now I describe the topic, tweak the AI output, and I'm done in 20 minutes. My students love the interactive exercises.",
-          "name": "Silvia M.",
-          "role": "Italian teacher, Milan"
-        },
-        {
-          "text": "The live classroom mode changed how I teach. I can see in real time who is stuck on slide 4 and who has already finished the test. No more guessing.",
-          "name": "Lorenzo P.",
-          "role": "Language school director, Rome"
-        },
-        {
-          "text": "The analytics panel is genuinely useful. I identified that 60% of my class was struggling with subjunctive before anyone told me — the data just showed it.",
-          "name": "Chiara F.",
-          "role": "Private tutor, Florence"
-        }
-      ]
+    "founderSection": {
+      "label": "Why I built this",
+      "heading": "Learning a language is hard enough —",
+      "headingHighlight": "the practice shouldn't be boring",
+      "p1": "I built LinguAI around one idea: students learn better when exercises are actually engaging. Tools like Kahoot made quizzes fun — but that's just one format. LinguAI gives you a rich variety of interactive exercise types: drag-and-drop, matching, gap-fill, build-a-sentence, and more — so your students stay engaged instead of grinding through the same worksheet every time.",
+      "p2": "You describe the lesson, AI builds it with varied interactive practice, and everything's auto-checked. Less prep for you, more fun for them.",
+      "p3": "It's early, and I'm building this in the open. Try it free — and tell me what would make it better.",
+      "name": "Kozy-Korpesh",
+      "role": "Founder, LinguAI"
     },
     "pricingSection": {
       "label": "Pricing",
       "heading": "Simple, transparent",
       "headingHighlight": "pricing",
-      "subtext": "Start for free. Upgrade when you're ready. No hidden fees.",
+      "subtext": "Start for free. Upgrade when you're ready. No credit card required.",
       "mostPopular": "MOST POPULAR",
-      "plans": {
-        "free": {
-          "name": "Free",
-          "price": "€0",
-          "period": "forever free",
-          "features": [
-            "1 course, 3 units",
-            "Up to 15 students",
-            "5 AI generations / month",
-            "Basic analytics"
-          ],
-          "cta": "Get started"
-        },
-        "pro": {
-          "name": "Pro",
-          "price": "€19",
-          "period": "per month, billed monthly",
-          "features": [
-            "Unlimited courses & units",
-            "Unlimited students",
-            "Unlimited AI generations",
-            "Full analytics dashboard",
-            "Homework & self-study mode",
-            "Priority support"
-          ],
-          "cta": "Get started free"
-        },
-        "school": {
-          "name": "School",
-          "price": "€49",
-          "period": "per month · up to 10 teachers",
-          "features": [
-            "Everything in Pro",
-            "Team management",
-            "Shared course library",
-            "School-wide analytics",
-            "Dedicated onboarding"
-          ],
-          "cta": "Contact us"
-        }
-      }
+      "freeName": "Free",
+      "freeSubtitle": "Get started at no cost",
+      "freePer": "forever free",
+      "freeCta": "Get started",
+      "standardName": "Standard",
+      "standardSubtitle": "For active teachers",
+      "trialCta": "Start free trial",
+      "proName": "Pro",
+      "proSubtitle": "Unlimited AI, for serious educators",
+      "rowExercises": "AI exercise generations",
+      "rowUnits": "AI unit generations",
+      "rowCourses": "AI course generations",
+      "rowPublish": "Publish to students",
+      "rowLive": "Live classroom",
+      "rowAnalytics": "Analytics",
+      "basic": "Basic",
+      "full": "Full",
+      "fullExports": "Full + exports",
+      "unlimited": "Unlimited",
+      "footnote": "All plans include homework mode, 12+ exercise types, and student progress tracking. Prices in USD · Billed via Stripe · Cancel anytime."
     },
     "ctaSection": {
       "label": "Ready to start?",
