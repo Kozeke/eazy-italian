@@ -1299,27 +1299,39 @@ function ExdOrderDemo() {
 }
 
 function ExdTimgDemo() {
-  const answer = "sole";
-  const [val, setVal] = useState("");
-  const norm = val.trim().toLowerCase();
-  const ok = norm === answer;
-  const bad = !ok && norm.length >= answer.length;
+  const cards = [
+    { id: "sun", emoji: "☀️", answer: "sole" },
+    { id: "dog", emoji: "🐶", answer: "cane" },
+    { id: "cat", emoji: "🐱", answer: "gatto" },
+  ];
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const norm = (s: string) => s.trim().toLowerCase();
+  const isOk = (id: string, answer: string) => norm(vals[id] ?? "") === answer;
+  const isBad = (id: string, answer: string) => {
+    const v = norm(vals[id] ?? "");
+    return v !== answer && v.length >= answer.length;
+  };
+  const done = cards.every((c) => isOk(c.id, c.answer));
   return (
     <div>
       <div className="exd-title">Type word to image</div>
       <div className="exd-instr">Type the Italian word for what you see. In real lessons these are AI-generated images.</div>
-      <div className="exd-imgcard" style={{ cursor: "default" }}>
-        <div className="exd-imgshell">☀️</div>
-        <input
-          className={`exd-input${ok ? " ok" : ""}${bad ? " bad" : ""}`}
-          style={{ width: "100%", minWidth: 0 }}
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          placeholder="Type here…"
-          aria-label="Answer"
-        />
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {cards.map((c) => (
+          <div key={c.id} className={`exd-imgcard${isBad(c.id, c.answer) ? " bad" : ""}`} style={{ cursor: "default" }}>
+            <div className="exd-imgshell">{c.emoji}</div>
+            <input
+              className={`exd-input${isOk(c.id, c.answer) ? " ok" : ""}${isBad(c.id, c.answer) ? " bad" : ""}`}
+              style={{ width: "100%", minWidth: 0 }}
+              value={vals[c.id] ?? ""}
+              onChange={(e) => setVals({ ...vals, [c.id]: e.target.value })}
+              placeholder="Type here…"
+              aria-label={`Answer for ${c.emoji}`}
+            />
+          </div>
+        ))}
       </div>
-      {ok && <ExdDone text="Correct — typed answers auto-check against each image." />}
+      {done && <ExdDone text="Correct — typed answers auto-check against each image." />}
     </div>
   );
 }
