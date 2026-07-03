@@ -1302,13 +1302,13 @@
       "f4Title": "Export & share anywhere",
       "f4Body": "Export any lesson as a self-contained interactive file. Send it to students or screen-share it on any call — exercises auto-check instantly, no account needed.",
       "f5Title": "Rich exercise types",
-      "f5Body": "Drag-to-gap, match pairs, sort into columns, type word, true/false, build sentence — 12+ interactive exercise types built in.",
+      "f5Body": "Drag-to-gap, match pairs, sort into columns, type word, true/false, build sentence — 14+ interactive exercise types built in.",
       "f6Title": "Homework & self-study",
       "f6Body": "Assign homework that students complete independently. Submissions are collected and graded automatically, saving hours each week."
     },
     "exercisesSection": {
       "label": "Exercise library",
-      "heading": "12+ interactive",
+      "heading": "14+ interactive",
       "headingHighlight": "exercise types",
       "subtext": "Every exercise is interactive, auto-graded, and works seamlessly on desktop and mobile.",
       "tryCaption": "Click any exercise above to try it — this is exactly what your students see.",
@@ -1398,7 +1398,7 @@
       "rowLive": "Live classroom",
       "rowExportHtml": "Export interactive HTML",
       "unlimited": "Unlimited",
-      "footnote": "All plans include homework mode, 12+ exercise types, and student progress tracking. Prices in USD · Billed via Stripe · Cancel anytime."
+      "footnote": "All plans include homework mode, 14+ exercise types, and student progress tracking. Prices in USD · Billed via Stripe · Cancel anytime."
     },
     "ctaSection": {
       "label": "Ready to start?",

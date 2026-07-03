@@ -849,7 +849,7 @@ function LangSwitcher() {
 
 /* ─── Interactive exercise demo player ─────────────────────────────────── */
 /* Demo ids — selected via the exercise pills above the player (no duplicate tab row) */
-type ExdTabId = "gap" | "type" | "form" | "match" | "build" | "sort" | "order" | "tf" | "img" | "timg" | "quiz" | "timed";
+type ExdTabId = "gap" | "type" | "form" | "match" | "build" | "sort" | "order" | "tf" | "img" | "timg" | "selimg" | "anagram" | "quiz" | "timed";
 
 function ExdDone({ text }: { text: string }) {
   return <div className="exd-done">✓ {text}</div>;
@@ -1158,7 +1158,7 @@ function ExdImgDemo() {
   );
   return (
     <div>
-      <div className="exd-title">Word to image</div>
+      <div className="exd-title">Drag word to image</div>
       <div className="exd-instr">Drag a word onto the picture it names — or tap-tap. In real lessons these are AI-generated images.</div>
       <div className="exd-pool">
         {bank.map((w) => (
@@ -1299,39 +1299,114 @@ function ExdOrderDemo() {
 }
 
 function ExdTimgDemo() {
+  // Mirrors TypeWordToImageBlock: a typed field under each image.
   const cards = [
-    { id: "sun", emoji: "☀️", answer: "sole" },
-    { id: "dog", emoji: "🐶", answer: "cane" },
-    { id: "cat", emoji: "🐱", answer: "gatto" },
+    { emoji: "☀️", answer: "sole" },
+    { emoji: "🌙", answer: "luna" },
   ];
-  const [vals, setVals] = useState<Record<string, string>>({});
-  const norm = (s: string) => s.trim().toLowerCase();
-  const isOk = (id: string, answer: string) => norm(vals[id] ?? "") === answer;
-  const isBad = (id: string, answer: string) => {
-    const v = norm(vals[id] ?? "");
-    return v !== answer && v.length >= answer.length;
-  };
-  const done = cards.every((c) => isOk(c.id, c.answer));
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const done = cards.every((c) => (answers[c.emoji] ?? "").trim().toLowerCase() === c.answer);
   return (
     <div>
       <div className="exd-title">Type word to image</div>
-      <div className="exd-instr">Type the Italian word for what you see. In real lessons these are AI-generated images.</div>
+      <div className="exd-instr">Type the word that matches each picture. In real lessons these are AI-generated images.</div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-        {cards.map((c) => (
-          <div key={c.id} className={`exd-imgcard${isBad(c.id, c.answer) ? " bad" : ""}`} style={{ cursor: "default" }}>
-            <div className="exd-imgshell">{c.emoji}</div>
-            <input
-              className={`exd-input${isOk(c.id, c.answer) ? " ok" : ""}${isBad(c.id, c.answer) ? " bad" : ""}`}
-              style={{ width: "100%", minWidth: 0 }}
-              value={vals[c.id] ?? ""}
-              onChange={(e) => setVals({ ...vals, [c.id]: e.target.value })}
-              placeholder="Type here…"
-              aria-label={`Answer for ${c.emoji}`}
-            />
-          </div>
+        {cards.map((c) => {
+          const val = answers[c.emoji] ?? "";
+          const norm = val.trim().toLowerCase();
+          const solved = norm === c.answer;
+          const bad = !solved && norm.length >= c.answer.length;
+          return (
+            <div key={c.emoji} className="exd-imgcard" style={{ cursor: "default", width: 150 }}>
+              <div className="exd-imgshell">{c.emoji}</div>
+              <input
+                className={`exd-input${solved ? " ok" : ""}${bad ? " bad" : ""}`}
+                style={{ width: "100%", minWidth: 0 }}
+                value={val}
+                onChange={(e) => setAnswers({ ...answers, [c.emoji]: e.target.value })}
+                placeholder="Type word…"
+                aria-label={`Word for ${c.emoji}`}
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+            </div>
+          );
+        })}
+      </div>
+      {done && <ExdDone text="Correct — every image is auto-checked against its word." />}
+    </div>
+  );
+}
+
+function ExdSelImgDemo() {
+  // Mirrors SelectFormToImageBlock: a dropdown of word forms under each image.
+  const cards = [
+    { emoji: "🐈", answer: "gatti", opts: ["gatto", "gatti", "gatta"] },
+    { emoji: "🍏", answer: "mele", opts: ["mela", "mele", "melo"] },
+  ];
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  const done = cards.every((c) => picks[c.emoji] === c.answer);
+  return (
+    <div>
+      <div className="exd-title">Select word to image</div>
+      <div className="exd-instr">Pick the correct form from the dropdown under each picture (plurals here).</div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {cards.map((c) => {
+          const val = picks[c.emoji] ?? "";
+          const solved = val === c.answer;
+          const wrong = val !== "" && !solved;
+          return (
+            <div key={c.emoji} className="exd-imgcard" style={{ cursor: "default", width: 150 }}>
+              <div className="exd-imgshell">{c.emoji}</div>
+              <select
+                className={`exd-input${solved ? " ok" : ""}${wrong ? " bad" : ""}`}
+                style={{ width: "100%", minWidth: 0, cursor: "pointer", height: 34 }}
+                value={val}
+                onChange={(e) => setPicks({ ...picks, [c.emoji]: e.target.value })}
+                aria-label="Select form"
+              >
+                <option value="">Select form…</option>
+                {c.opts.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          );
+        })}
+      </div>
+      {done && <ExdDone text="Correct forms — the dropdown checks instantly." />}
+    </div>
+  );
+}
+
+function ExdAnagramDemo() {
+  const answer = "ciao";
+  const scrambled = ["a", "c", "o", "i"];
+  const [built, setBuilt] = useState<string[]>([]);
+  const [bad, setBad] = useState(false);
+  const done = built.join("") === answer;
+  const used = (i: number) => built.includes(`${i}`);
+  const tap = (letter: string, i: number) => {
+    if (used(i)) return;
+    const next = [...built, `${i}`];
+    const word = next.map((k) => scrambled[Number(k)]).join("");
+    if (answer.startsWith(word)) setBuilt(next);
+    else { setBad(true); setTimeout(() => setBad(false), 450); }
+  };
+  return (
+    <div>
+      <div className="exd-title">Anagram</div>
+      <div className="exd-instr">Tap the letters in order to unscramble the greeting (hello → …).</div>
+      <div className={`exd-buildline${bad ? " over" : ""}`} style={bad ? { borderColor: "#ef4444", background: "#fee2e2" } : undefined}>
+        {built.length
+          ? built.map((k) => <span key={k} className="exd-built" style={{ minWidth: 30, justifyContent: "center", textTransform: "uppercase" }}>{scrambled[Number(k)]}</span>)
+          : <span className="exd-buildline-hint">Letters appear here…</span>}
+      </div>
+      <div className="exd-pool">
+        {scrambled.map((l, i) => (
+          <span key={i} className={`exd-chip${used(i) ? " used" : ""}`} style={{ minWidth: 34, justifyContent: "center", textTransform: "uppercase", fontWeight: 700 }} onClick={() => tap(l, i)}>{l}</span>
         ))}
       </div>
-      {done && <ExdDone text="Correct — typed answers auto-check against each image." />}
+      {done && <ExdDone text="Ciao! Anagrams are checked letter by letter." />}
     </div>
   );
 }
@@ -1342,7 +1417,7 @@ function ExerciseDemoPlayer({ tab }: { tab: ExdTabId }) {
   const demos = {
     gap: <ExdGapDemo />, type: <ExdTypeDemo />, form: <ExdFormDemo />, match: <ExdMatchDemo />,
     build: <ExdBuildDemo />, sort: <ExdSortDemo />, order: <ExdOrderDemo />, tf: <ExdTfDemo />,
-    img: <ExdImgDemo />, timg: <ExdTimgDemo />, quiz: <ExdQuizDemo />, timed: <ExdTimedDemo />,
+    img: <ExdImgDemo />, timg: <ExdTimgDemo />, selimg: <ExdSelImgDemo />, anagram: <ExdAnagramDemo />, quiz: <ExdQuizDemo />, timed: <ExdTimedDemo />,
   };
   return (
     <div className="exd-wrap" id="exercise-demo">
@@ -1502,7 +1577,7 @@ export default function LandingPage() {
             { icon: "✨", bg: "#fef3c7", title: t('landing.featuresSection.f2Title', 'AI content generation'), body: t('landing.featuresSection.f2Body', 'Describe a topic — get a full lesson deck, interactive exercises, and a graded test generated in minutes. No blank-page anxiety.') },
             { icon: "🎓", bg: "#dcfce7", title: t('landing.featuresSection.f3Title', 'Live classroom mode'), body: t('landing.featuresSection.f3Body', 'Assign lessons to classrooms. Students follow at their own pace through slides, drag-and-drop tasks, and timed tests.') },
             { icon: "📤", bg: "#e0f2fe", title: t('landing.featuresSection.f4Title', 'Export & share anywhere'), body: t('landing.featuresSection.f4Body', 'Export any lesson as a self-contained interactive file. Send it to students or screen-share it on any call — exercises auto-check instantly, no account needed.') },
-            { icon: "🎯", bg: "#fce7f3", title: t('landing.featuresSection.f5Title', 'Rich exercise types'), body: t('landing.featuresSection.f5Body', 'Drag-to-gap, match pairs, sort into columns, type word, true/false, build sentence — 12+ interactive exercise types built in.') },
+            { icon: "🎯", bg: "#fce7f3", title: t('landing.featuresSection.f5Title', 'Rich exercise types'), body: t('landing.featuresSection.f5Body', 'Drag-to-gap, match pairs, sort into columns, image labeling, anagrams, true/false, build sentence — 14 interactive exercise types built in.') },
             { icon: "🏠", bg: "#f0fdf4", title: t('landing.featuresSection.f6Title', 'Homework & self-study'), body: t('landing.featuresSection.f6Body', 'Assign homework that students complete independently. Submissions are collected and graded automatically, saving hours each week.') },
           ].map((f) => (
             <div className="feat-card" key={f.title}>
@@ -1517,7 +1592,7 @@ export default function LandingPage() {
       {/* ── EXERCISE TYPES ── */}
       <section id="exercises" style={{ overflow: "hidden" }}>
         <div className="section-label">{t('landing.exercisesSection.label', 'Exercise library')}</div>
-        <h2>{t('landing.exercisesSection.heading', '12+ interactive')}<br /><em>{t('landing.exercisesSection.headingHighlight', 'exercise types')}</em></h2>
+        <h2>{t('landing.exercisesSection.heading', '14 interactive')}<br /><em>{t('landing.exercisesSection.headingHighlight', 'exercise types')}</em></h2>
         <p className="section-sub">{t('landing.exercisesSection.subtext', 'Every exercise is interactive, auto-graded, and works seamlessly on desktop and mobile.')}</p>
 
         <div style={{ position: "relative", marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -1531,6 +1606,7 @@ export default function LandingPage() {
                 { bg: "linear-gradient(135deg,#a855f7,#6366f1)", rot: "-1deg", label: "☰ Sort into columns", tab: "sort" },
                 { bg: "linear-gradient(135deg,#22d3ee,#6366f1)", rot: "2deg", label: "⏱ Test with timer", tab: "timed" },
                 { bg: "linear-gradient(135deg,#22d3ee,#4ade80)", rot: "-1.5deg", label: "✅ True / false", tab: "tf" },
+                { bg: "linear-gradient(135deg,#f87171,#fb923c)", rot: "1deg", label: "🔤 Anagram", tab: "anagram" },
               ] as { bg: string; rot: string; label: string; tab: ExdTabId }[]).map((p) => (
                 <div
                   key={p.label}
@@ -1555,12 +1631,13 @@ export default function LandingPage() {
             {/* RIGHT */}
             <div className="exercise-pills-side" style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
               {([
-                { bg: "linear-gradient(135deg,#f87171,#a855f7)", rot: "2deg", label: "🖼 Word to image", tab: "img" },
+                { bg: "linear-gradient(135deg,#f87171,#a855f7)", rot: "2deg", label: "🖼 Drag word to image", tab: "img" },
                 { bg: "linear-gradient(135deg,#fb923c,#facc15)", rot: "-1.5deg", label: "🖼 Type word to image", tab: "timg" },
-                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "1deg", label: "📝 Build sentence", tab: "build" },
-                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "-2deg", label: "↕ Order paragraphs", tab: "order" },
-                { bg: "linear-gradient(135deg,#4ade80,#facc15)", rot: "1.5deg", label: "💬 Match pairs", tab: "match" },
-                { bg: "linear-gradient(135deg,#a855f7,#ec4899)", rot: "-1deg", label: "🎯 Test without timer", tab: "quiz" },
+                { bg: "linear-gradient(135deg,#facc15,#4ade80)", rot: "1deg", label: "🖼 Select word to image", tab: "selimg" },
+                { bg: "linear-gradient(135deg,#6366f1,#22d3ee)", rot: "-2deg", label: "📝 Build sentence", tab: "build" },
+                { bg: "linear-gradient(135deg,#22d3ee,#a855f7)", rot: "1.5deg", label: "↕ Order paragraphs", tab: "order" },
+                { bg: "linear-gradient(135deg,#4ade80,#facc15)", rot: "-1deg", label: "💬 Match pairs", tab: "match" },
+                { bg: "linear-gradient(135deg,#a855f7,#ec4899)", rot: "2deg", label: "🎯 Test without timer", tab: "quiz" },
               ] as { bg: string; rot: string; label: string; tab: ExdTabId }[]).map((p) => (
                 <div
                   key={p.label}
@@ -1601,7 +1678,7 @@ export default function LandingPage() {
       {/* ── STATS BAND ── */}
       <div className="stats-band">
         <div className="stats-band-inner">
-          <div><div className="stat-num">12+</div><div className="stat-label">{t('landing.stats.exerciseTypes', 'Exercise types')}</div></div>
+          <div><div className="stat-num">14</div><div className="stat-label">{t('landing.stats.exerciseTypes', 'Exercise types')}</div></div>
           <div><div className="stat-num">3 min</div><div className="stat-label">{t('landing.stats.generationTime', 'Avg. lesson generation time')}</div></div>
           <div><div className="stat-num">100%</div><div className="stat-label">{t('landing.stats.autoGraded', 'Auto-graded exercises')}</div></div>
           <div><div className="stat-num">6</div><div className="stat-label">{t('landing.stats.languages', 'Teaching languages')}</div></div>
@@ -1807,7 +1884,7 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val">1 total</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val">1 course</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val dash">—</span></div>
-              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExportHtml', 'Export interactive HTML')}</span><span className="feat-row-val dash">—</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.basic', 'Basic')}</span></div>
             </div>
             <div className="price-cta">
               <Link to="/register" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--text-sub)", border: "1.5px solid var(--border)", borderRadius: "var(--r)", background: "var(--bg)" }}>{t('landing.pricingSection.freeCta', 'Get started')}</Link>
@@ -1831,7 +1908,7 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val">5 / mo</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val check">✓</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val check">✓</span></div>
-              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExportHtml', 'Export interactive HTML')}</span><span className="feat-row-val check">✓</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.full', 'Full')}</span></div>
             </div>
             <div className="price-cta">
               <Link to="/register" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--primary-dk)", border: "1.5px solid var(--primary)", borderRadius: "var(--r)", background: "var(--tint)" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
@@ -1858,7 +1935,7 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val unlimited">{t('landing.pricingSection.unlimited', 'Unlimited')}</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val check">✓</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val check">✓</span></div>
-              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExportHtml', 'Export interactive HTML')}</span><span className="feat-row-val check">✓</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.fullExports', 'Full + exports')}</span></div>
             </div>
             <div className="price-cta">
               <Link to="/register" style={{ display: "block", background: "#fff", color: "var(--primary-dk)", borderRadius: "var(--r)", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
@@ -1868,7 +1945,7 @@ export default function LandingPage() {
 
         {/* Footnote */}
         <p style={{ marginTop: 20, fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
-          {t('landing.pricingSection.footnote', 'All plans include homework mode, 12+ exercise types, and student progress tracking. Prices in USD · Billed via Stripe · Cancel anytime.')}
+          {t('landing.pricingSection.footnote', 'All plans include homework mode, 14+ exercise types, and student progress tracking. Prices in USD · Billed via Stripe · Cancel anytime.')}
         </p>
       </section>
 

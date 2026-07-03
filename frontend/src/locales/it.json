@@ -1213,13 +1213,13 @@
         "f4Title": "Esporta e condividi ovunque",
         "f4Body": "Esporta qualsiasi lezione come file interattivo autonomo. Invialo agli studenti o condividilo in qualsiasi videochiamata — gli esercizi si correggono subito, senza account.",
         "f5Title": "Ricca varietà di esercizi",
-        "f5Body": "Trascina nelle lacune, abbina coppie, ordina in colonne, scrivi la parola, vero/falso, costruisci frasi — oltre 12 tipi di esercizi interattivi integrati.",
+        "f5Body": "Trascina nelle lacune, abbina coppie, ordina in colonne, scrivi la parola, vero/falso, costruisci frasi — oltre 14 tipi di esercizi interattivi integrati.",
         "f6Title": "Compiti e studio autonomo",
         "f6Body": "Assegna compiti che gli studenti completano in autonomia. Le risposte vengono raccolte e valutate automaticamente, risparmiando ore ogni settimana."
       },
       "exercisesSection": {
         "label": "Libreria di esercizi",
-        "heading": "12+ interattivi",
+        "heading": "14+ interattivi",
         "headingHighlight": "tipi di esercizi",
         "subtext": "Ogni esercizio è interattivo, con valutazione automatica e funziona perfettamente su desktop e mobile.",
         "tryCaption": "Clicca su qualsiasi esercizio sopra per provarlo — è esattamente ciò che vedono i tuoi studenti.",
@@ -1309,7 +1309,7 @@
         "rowLive": "Classe in diretta",
         "rowExportHtml": "Export HTML interattivo",
         "unlimited": "Illimitato",
-        "footnote": "Tutti i piani includono modalità compiti, oltre 12 tipi di esercizi e monitoraggio del progresso degli studenti. Prezzi in USD · Fatturazione via Stripe · Annulla in qualsiasi momento."
+        "footnote": "Tutti i piani includono modalità compiti, oltre 14 tipi di esercizi e monitoraggio del progresso degli studenti. Prezzi in USD · Fatturazione via Stripe · Annulla in qualsiasi momento."
       },
       "ctaSection": {
         "label": "Pronto per iniziare?",
