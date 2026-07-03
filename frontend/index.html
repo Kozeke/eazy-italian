@@ -9,7 +9,37 @@
     <meta property="og:title" content="LinguAI - AI-Powered Language Teaching Platform" />
     <meta property="og:description" content="Современная платформа для изучения итальянского языка с интерактивными уроками, заданиями и тестами" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://eazy-italian.com" />
+    <meta property="og:url" content="https://linguai.net" />
+    <!--
+      GA4 Consent Mode v2 — must run before any analytics script or React mounts.
+      Sets all consent signals to denied by default (required for EEA / GDPR).
+      If the user already accepted on a previous visit (stored in localStorage),
+      the signals are upgraded to granted immediately so no data is lost.
+      The gtag/js script itself is loaded by react-ga4 inside the React bundle.
+    -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+
+      gtag('consent', 'default', {
+        ad_storage:           'denied',
+        ad_user_data:         'denied',
+        ad_personalization:   'denied',
+        analytics_storage:    'denied',
+        wait_for_update:      500,
+      });
+
+      try {
+        if (localStorage.getItem('linguai_cookie_consent') === 'granted') {
+          gtag('consent', 'update', {
+            ad_storage:         'granted',
+            ad_user_data:       'granted',
+            ad_personalization: 'granted',
+            analytics_storage:  'granted',
+          });
+        }
+      } catch (e) {}
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">

@@ -630,7 +630,7 @@ function ActivationStep({
       <p style={{ fontSize:'11px', color:c.mutedText, marginTop:'12px' }}>
         {t('auth.havingTrouble')}{' '}
         <a
-          href="mailto:support@ezitalian.com"
+          href="mailto:kozykorpesh.tolep@gmail.com"
           style={{ color:c.linkColor, textDecoration:'underline' }}
         >
           {t('auth.contactSupport')}

@@ -1,11 +1,13 @@
 /**
  * Google Analytics 4 (GA4) initialization and helpers for the SPA.
- * Measurement ID is read from VITE_GA_MEASUREMENT_ID; tracking is skipped when unset.
+ * The gtag.js script is loaded from index.html; react-ga4 hooks into the same tag.
+ * Measurement ID is read from VITE_GA_MEASUREMENT_ID (injected at build time).
  */
 
 import ReactGA from 'react-ga4';
+import { hasAnalyticsConsent } from './consent';
 
-// GA4 measurement ID from Vite env (e.g. G-XXXXXXXXXX); empty in local dev when not configured
+// GA4 measurement ID from Vite env (e.g. G-XXXXXXXXXX); empty when not configured
 const measurementId = (import.meta.env.VITE_GA_MEASUREMENT_ID ?? '').trim();
 
 // Whether GA4 was successfully initialized for this session
@@ -28,7 +30,10 @@ export type PendingCheckout = {
 export function initAnalytics(): void {
   if (isInitialized || !measurementId) return;
 
-  ReactGA.initialize(measurementId);
+  // send_page_view false — RouteChangeTracker sends SPA pageviews after consent
+  ReactGA.initialize(measurementId, {
+    gtagOptions: { send_page_view: false },
+  });
   isInitialized = true;
 }
 
@@ -36,11 +41,12 @@ export function initAnalytics(): void {
  * Sends a pageview hit for SPA route changes (pathname + query string).
  */
 export function trackPageView(path: string): void {
-  if (!isInitialized) return;
+  if (!isInitialized || !hasAnalyticsConsent()) return;
 
-  ReactGA.send({
-    hitType: 'pageview',
-    page: path,
+  ReactGA.gtag('event', 'page_view', {
+    page_path: path,
+    page_location: `${window.location.origin}${path}`,
+    page_title: document.title,
   });
 }
 
@@ -53,7 +59,7 @@ export function trackEvent(options: {
   label?: string;
   value?: number;
 }): void {
-  if (!isInitialized) return;
+  if (!isInitialized || !hasAnalyticsConsent()) return;
 
   ReactGA.event(options);
 }
@@ -62,7 +68,7 @@ export function trackEvent(options: {
  * Fires GA4 recommended sign_up after a new account is created.
  */
 export function trackSignUp(role: 'teacher' | 'student'): void {
-  if (!isInitialized) return;
+  if (!isInitialized || !hasAnalyticsConsent()) return;
 
   ReactGA.gtag('event', 'sign_up', {
     method: 'email',
@@ -99,7 +105,7 @@ export function consumePendingCheckout(): PendingCheckout | null {
  * Fires GA4 begin_checkout when the user starts a tariff subscription checkout.
  */
 export function trackBeginCheckout(checkout: PendingCheckout): void {
-  if (!isInitialized) return;
+  if (!isInitialized || !hasAnalyticsConsent()) return;
 
   ReactGA.gtag('event', 'begin_checkout', {
     currency: checkout.currency,
@@ -121,7 +127,7 @@ export function trackBeginCheckout(checkout: PendingCheckout): void {
  * Fires GA4 purchase on the post-checkout success page.
  */
 export function trackPurchase(checkout: PendingCheckout): void {
-  if (!isInitialized) return;
+  if (!isInitialized || !hasAnalyticsConsent()) return;
 
   ReactGA.gtag('event', 'purchase', {
     currency: checkout.currency,

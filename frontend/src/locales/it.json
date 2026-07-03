@@ -16,6 +16,12 @@
       "search": "Cerca...",
       "filters": "Filtri"
     },
+    "cookieConsent": {
+      "title": "Utilizziamo i cookie",
+      "body": "Utilizziamo cookie analitici per capire come viene usato LinguAI e migliorare il prodotto. Puoi accettare o rifiutare i cookie opzionali. I cookie essenziali sono sempre attivi.",
+      "accept": "Accetta",
+      "decline": "Rifiuta"
+    },
     "errorPage": {
       "title": "Something went wrong",
       "subtitle": "We couldn't complete that action. Your editor may be out of sync. Try going back, then reopen the lesson or refresh the page.",

@@ -9,6 +9,7 @@ import './index.css'
 import { AuthProvider } from './hooks/useAuth'
 import { TeacherClassroomTransitionProvider } from './contexts/TeacherClassroomTransitionContext'
 import RouteChangeTracker from './components/analytics/RouteChangeTracker'
+import CookieConsent from './components/analytics/CookieConsent'
 import { initAnalytics } from './utils/analytics'
 
 // Initialize GA4 before the React tree mounts when VITE_GA_MEASUREMENT_ID is set
@@ -43,6 +44,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             }}
           />
         </AuthProvider>
+        <CookieConsent />
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,
