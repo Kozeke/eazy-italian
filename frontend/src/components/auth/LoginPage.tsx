@@ -74,10 +74,16 @@ function LoginShell({ children }: { children: React.ReactNode }) {
       padding: '20px 14px 40px',
       fontFamily: "'Inter', system-ui, sans-serif",
     }}>
-      {/* Logo keeps brand anchor while page adopts catalog shell style */}
-      <div style={{ marginBottom: '12px' }}>
-        <a href="/" style={{ display: 'inline-block' }} aria-label="LinguAI home">
-          <LinguAiLogo height={46} showWordmark />
+      {/* Logo centered above the card — same max width as the form shell */}
+      <div style={{
+        width: '100%',
+        maxWidth: '360px',
+        display: 'flex',
+        justifyContent: 'center',
+        marginBottom: '12px',
+      }}>
+        <a href="/" style={{ display: 'flex' }} aria-label="LinguAI home">
+          <LinguAiLogo height={46} showWordmark style={{ display: 'block' }} />
         </a>
       </div>
 

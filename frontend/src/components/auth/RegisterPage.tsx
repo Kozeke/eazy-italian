@@ -650,11 +650,17 @@ function Shell({ children, hideLogo }: { children: React.ReactNode; hideLogo?: b
       padding:'20px 14px 40px',
       fontFamily:"'Inter', system-ui, sans-serif",
     }}>
-      {/* Logo — hidden on the trial/success step */}
+      {/* Logo centered above the card — hidden on the trial/success step */}
       {!hideLogo && (
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom:'14px' }}>
-          <a href="/" style={{ display:'inline-block' }} aria-label="LinguAI home">
-            <LinguAiLogo height={46} showWordmark />
+        <div style={{
+          width:'100%',
+          maxWidth:'360px',
+          display:'flex',
+          justifyContent:'center',
+          marginBottom:'14px',
+        }}>
+          <a href="/" style={{ display:'flex' }} aria-label="LinguAI home">
+            <LinguAiLogo height={46} showWordmark style={{ display: 'block' }} />
           </a>
         </div>
       )}

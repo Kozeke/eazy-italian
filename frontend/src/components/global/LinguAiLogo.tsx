@@ -10,7 +10,9 @@ export function LinguAiLogo({
   ...rest
 }: SVGProps<SVGSVGElement> & { height?: number; showWordmark?: boolean }) {
   const h = height;
-  const w = width ?? (showWordmark ? (h * 180) / 40 : h);
+  // Tighter wordmark viewBox removes excess right padding so centered layouts look optically balanced
+  const wordmarkViewWidth = 135;
+  const w = width ?? (showWordmark ? (h * wordmarkViewWidth) / 40 : h);
   const mark = (
     <>
       <circle cx="20" cy="20" r="17" stroke="#6C6FEF" strokeWidth="1.6" />
@@ -25,7 +27,7 @@ export function LinguAiLogo({
     <svg
       width={w}
       height={h}
-      viewBox={showWordmark ? '0 0 180 40' : '0 0 40 40'}
+      viewBox={showWordmark ? `0 0 ${wordmarkViewWidth} 40` : '0 0 40 40'}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
