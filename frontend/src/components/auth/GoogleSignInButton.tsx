@@ -6,7 +6,7 @@
  * receive a credential JWT for POST /auth/google.
  */
 
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGoogleOAuth, type CredentialResponse } from '@react-oauth/google';
 import { useTranslation } from 'react-i18next';
 import { normalizeInterfaceLanguage } from '../../i18n';
