@@ -20,10 +20,31 @@ import i18n, { normalizeInterfaceLanguage } from '../i18n';
 // Matches axios baseURL and fetchWithAuth refresh target (VITE_API_BASE_URL).
 const API_BASE = API_BASE_URL;
 
+// Result when Google sign-in succeeds and JWT tokens were issued.
+export type GoogleAuthSuccess = {
+  needsRole: false;
+  user: User;
+  isNewUser: boolean;
+};
+
+// Result when Google verified the email but the user must pick an account type.
+export type GoogleAuthNeedsRole = {
+  needsRole: true;
+  email: string;
+  firstName: string;
+  lastName: string;
+};
+
+export type GoogleAuthResult = GoogleAuthSuccess | GoogleAuthNeedsRole;
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
+  loginWithGoogle: (
+    credential: string,
+    options?: { role?: 'teacher' | 'student'; locale?: string },
+  ) => Promise<GoogleAuthResult>;
   register: (userData: any) => Promise<User>;
   logout: () => Promise<boolean>; // Returns true if logout was performed, false if blocked
   // Reloads /users/me into context after profile updates or external changes.
@@ -151,6 +172,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Verifies a Google ID token with the backend and stores JWT tokens when issued.
+  const loginWithGoogle = async (
+    credential: string,
+    options?: { role?: 'teacher' | 'student'; locale?: string },
+  ): Promise<GoogleAuthResult> => {
+    const response = await authApi.googleAuth({
+      credential,
+      role: options?.role,
+      locale: options?.locale ?? normalizeInterfaceLanguage(i18n.language),
+    });
+
+    if (response.needs_role) {
+      return {
+        needsRole: true,
+        email: response.email ?? '',
+        firstName: response.first_name ?? '',
+        lastName: response.last_name ?? '',
+      };
+    }
+
+    if (!response.access_token) {
+      throw new Error('Google sign-in did not return an access token');
+    }
+
+    localStorage.setItem('token', response.access_token);
+    if (response.refresh_token) {
+      localStorage.setItem('refresh_token', response.refresh_token);
+    }
+    const currentUser = await authApi.getCurrentUser();
+    setUser(currentUser);
+    return {
+      needsRole: false,
+      user: currentUser,
+      isNewUser: Boolean(response.is_new_user),
+    };
+  };
+
   const register = async (userData: any) => {
     try {
       await authApi.register(userData);
@@ -228,6 +286,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     login,
+    loginWithGoogle,
     register,
     logout,
     refreshUser,

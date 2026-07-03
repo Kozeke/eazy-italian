@@ -150,6 +150,9 @@
       "validEmailRequired": "Inserisci un indirizzo email valido.",
       "emailAlreadyRegistered": "Questa email è già registrata. Accedi invece.",
       "fillAllFieldsError": "Compila tutti i campi.",
+      "orContinueWithEmail": "oppure continua con email",
+      "continueWithGoogle": "Continua con Google",
+      "googleSignInFailed": "Accesso con Google non riuscito. Riprova.",
       "passwordMin8Error": "La password deve avere almeno 8 caratteri.",
       "registrationFailedError": "Registrazione fallita. Riprova.",
       "pleaseEnterCode": "Inserisci il codice.",
@@ -620,6 +623,7 @@
         "newUpdates": "New updates available",
         "blog": "Blog",
         "youtube": "YouTube channel",
+        "instagram": "Instagram",
         "support": "Support service"
       },
       "subscription": {
@@ -804,6 +808,7 @@
         "stayOnThisUnit": "Stay on this unit",
         "switchUnit": "Switch unit",
         "noCourseInUrl": "No course specified in the URL.",
+        "sessionStaleRetry": "Lo stato della sessione non era aggiornato. Riprova tra un momento.",
         "mediaKind": {
           "image": "Image",
           "video": "Video",
@@ -1111,7 +1116,12 @@
           "footerAllDone": "All units are ready — click Open on any card above to enter it.",
           "footerExpandHint": "Expand any unit to preview its segment plan before generating",
           "addUnit": "Add unit",
-          "adding": "Adding…"
+          "adding": "Adding…",
+          "courseReadyTitle": "Il tuo corso è pronto.",
+          "courseReadySubtitle_one": "{{count}} lezione generata con grammatica, vocabolario ed esercizi interattivi.",
+          "courseReadySubtitle_other": "{{count}} lezioni generate con grammatica, vocabolario ed esercizi interattivi.",
+          "courseReadyPreview": "Anteprima prima lezione",
+          "courseReadyPublish": "Pubblica in una classe"
         }
       },
       "header": {
@@ -1125,7 +1135,18 @@
         "chooseUnit": "Choose Unit",
         "unitShort": "Unit",
         "chooseShort": "Choose",
-        "addStudentAria": "Add student to this class"
+        "addStudentAria": "Add student to this class",
+        "exportUnit": "Esporta come HTML",
+        "exportUnitAria": "Esporta unità come HTML",
+        "exportUnitError": "Esportazione non riuscita. Riprova."
+      },
+      "firstGen": {
+        "backdropAria": "Sfondo celebrazione prima generazione",
+        "closeAria": "Chiudi",
+        "title": "La tua prima lezione è pronta.",
+        "body": "Visualizzala ora, o esportala come file HTML interattivo da condividere direttamente con gli studenti — nessun account richiesto.",
+        "previewCta": "Anteprima lezione",
+        "exportCta": "Esporta come HTML"
       },
       "enrollStudentModal": {
         "title": "Enroll a student",

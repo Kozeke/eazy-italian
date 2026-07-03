@@ -23,7 +23,9 @@ class User(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     role = Column(Enum(UserRole), default=UserRole.STUDENT, nullable=False)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=True)
+    # Stores Google subject id for OAuth sign-in; null for password-only accounts.
+    google_id = Column(String, unique=True, index=True, nullable=True)
     email_verified_at = Column(DateTime, nullable=True)
     locale = Column(String, default="en", nullable=False)
     notification_prefs = Column(JSON, default=dict)

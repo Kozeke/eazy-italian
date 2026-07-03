@@ -15,6 +15,8 @@ import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { LinguAiLogo } from '../global/LinguAiLogo';
 import { useTranslation } from 'react-i18next';
+import GoogleSignInButton, { AuthDivider } from './GoogleSignInButton';
+import { isGoogleAuthEnabled } from './GoogleAuthProvider';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 type LoginMode = 'password' | 'magic';
@@ -269,7 +271,7 @@ function PrimaryBtn({ loading, icon, children, disabled, style, ...rest }: BtnPr
 export default function LoginPage() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const { t }     = useTranslation();
 
   const [mode, setMode]           = useState<LoginMode>('password');
@@ -363,6 +365,26 @@ export default function LoginPage() {
     }
   };
 
+  /* Google OAuth sign-in */
+  const handleGoogleSuccess = async (credential: string) => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await loginWithGoogle(credential);
+      if (result.needsRole) {
+        setError(t('auth.noAccountFound'));
+        return;
+      }
+      handleAfterLogin(result.user);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || t('auth.googleSignInFailed');
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const switchMode = (m: LoginMode) => {
     setMode(m);
     setError('');
@@ -410,6 +432,17 @@ export default function LoginPage() {
           </div>
         ) : (
           <div style={{ animation: 'pmFadeUp 0.2s ease-out' }}>
+
+            {isGoogleAuthEnabled() && (
+              <>
+                <GoogleSignInButton
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError(t('auth.googleSignInFailed'))}
+                  disabled={loading}
+                />
+                <AuthDivider />
+              </>
+            )}
 
             <SegTabs mode={mode} onChange={switchMode} />
 

@@ -8,6 +8,7 @@ import {
   LoginCredentials,
   RegisterData,
   TokenResponse,
+  GoogleAuthResponse,
   GradeDetail,
   PaginatedResponse,
   Student,
@@ -181,6 +182,19 @@ export const authApi = {
     const response: AxiosResponse<User> = await api.post(
       "/auth/register",
       userData,
+    );
+    return response.data;
+  },
+
+  // Exchanges a Google Identity Services credential for app JWT tokens or a role prompt.
+  googleAuth: async (payload: {
+    credential: string;
+    role?: "student" | "teacher";
+    locale?: string;
+  }): Promise<GoogleAuthResponse> => {
+    const response: AxiosResponse<GoogleAuthResponse> = await api.post(
+      "/auth/google",
+      payload,
     );
     return response.data;
   },

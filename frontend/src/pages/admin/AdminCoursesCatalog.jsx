@@ -74,9 +74,6 @@ const CSS = `
 @keyframes cat-fadeUp  { from{opacity:0;transform:translateY(8px)}  to{opacity:1;transform:none} }
 @keyframes cat-popIn   { from{opacity:0;transform:scale(.96)}        to{opacity:1;transform:scale(1)} }
 @keyframes cat-shimmer { 0%{background-position:-600px 0} 100%{background-position:600px 0} }
-@keyframes cat-float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
-@keyframes cat-floatB  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-
 .cat-root {
   min-height:100%;
   /* background:${T.bg}; */
@@ -364,74 +361,6 @@ const CSS = `
   animation:cat-shimmer 1.6s infinite linear;
 }
 
-/* ── Empty state ── */
-.cat-empty {
-  min-height:50vh; display:flex; align-items:center;
-  justify-content:center; padding:40px;
-  position:relative; overflow:hidden;
-  animation:cat-fadeUp .38s both;
-}
-.cat-empty-floater {
-  position:absolute; pointer-events:none; user-select:none;
-  opacity:0; transition:opacity .7s;
-}
-.cat-empty-floater.v { opacity:.42; }
-.cat-empty-card {
-  position:relative; z-index:2;
-  background:white; border:1px solid ${T.border};
-  border-radius:20px; padding:44px 44px 36px;
-  text-align:center; max-width:440px; width:100%;
-  box-shadow:0 6px 24px rgba(108,111,239,.07);
-  animation:cat-popIn .38s .06s both;
-}
-.cat-empty-orb {
-  width:68px; height:68px; border-radius:20px;
-  background:${T.violetL}; border:1.5px solid rgba(108,111,239,.15);
-  display:flex; align-items:center; justify-content:center; font-size:32px;
-  margin:0 auto 18px;
-  animation:cat-float 4s ease-in-out infinite;
-}
-.cat-empty-badge {
-  display:inline-flex; align-items:center; gap:5px;
-  background:${T.violetL}; border:1px solid rgba(108,111,239,.18);
-  border-radius:999px; padding:4px 13px;
-  font-family:${T.dFont}; font-size:10.5px; font-weight:800;
-  color:${T.violetD}; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;
-}
-.cat-empty-title {
-  font-family:${T.dFont}; font-size:clamp(17px,3vw,22px); font-weight:900;
-  color:${T.text}; line-height:1.2; margin-bottom:8px;
-}
-.cat-empty-title span { color:${T.violet}; }
-.cat-empty-sub {
-  font-size:13px; color:${T.sub}; line-height:1.7;
-  max-width:300px; margin:0 auto 20px;
-}
-.cat-empty-feats {
-  display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:20px;
-}
-.cat-empty-feat {
-  border-radius:10px; padding:10px 9px;
-  display:flex; align-items:center; gap:8px;
-  font-family:${T.dFont}; font-size:11px; font-weight:700;
-  color:white; line-height:1.3;
-}
-.cat-empty-cta {
-  width:100%; border:none; border-radius:11px;
-  background:${T.violet}; color:white;
-  font-family:${T.dFont}; font-size:14px; font-weight:800;
-  padding:13px 24px; cursor:pointer;
-  box-shadow:0 2px 10px rgba(108,111,239,.22);
-  display:flex; align-items:center; justify-content:center; gap:8px;
-  transition:all .17s;
-}
-.cat-empty-cta:hover {
-  background:${T.violetD};
-  box-shadow:0 4px 16px rgba(108,111,239,.28);
-  transform:translateY(-1px);
-}
-.cat-empty-note { margin-top:9px; font-size:11.5px; color:${T.muted}; }
-
 /* no results */
 .cat-no-res {
   display:flex; flex-direction:column;
@@ -480,7 +409,6 @@ const I = {
   Trash:    ()=><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M5 4V2.5h6V4M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   Units:    ()=><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.4"/><path d="M5 6h6M5 9h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
   Students: ()=><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.4"/><path d="M1 14c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><path d="M11 3a2.5 2.5 0 0 1 0 5M15 14c0-2.2-1.5-4.08-3.5-4.72" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
-  Spark:    ()=><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.5 4.5H14L10.5 8 12 12.5 8 10l-4 2.5 1.5-4.5L2 5.5h4.5L8 1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>,
 };
 
 /* ── Skeleton ── */
@@ -493,52 +421,6 @@ const Skel = ({i}) => (
     </div>
   </div>
 );
-
-/* ── Empty state ── */
-const EmptyState = ({onNew, t}) => {
-  const [v, setV] = useState(false);
-  useEffect(()=>{ const t=setTimeout(()=>setV(true),80); return()=>clearTimeout(t); },[]);
-  const FLOATS = [
-    {e:"📚",x:"5%", y:"10%",s:28,d:0},  {e:"✏️",x:"88%",y:"12%",s:22,d:.5},
-    {e:"🎯",x:"3%", y:"72%",s:24,d:1.1},{e:"🌍",x:"86%",y:"74%",s:22,d:.3},
-  ];
-  const FEATS = [
-    {e:"🧠",l:t("admin.courses.empty.aiBuilder", { defaultValue: "AI course builder" }), g:`linear-gradient(135deg,${T.violet},#9B9EF7)`},
-    {e:"🚀",l:t("admin.courses.empty.lessonByLesson", { defaultValue: "Lesson by lesson" }),  g:`linear-gradient(135deg,${T.violetD},${T.violet})`},
-    {e:"📊",l:t("admin.courses.empty.liveAnalytics", { defaultValue: "Live analytics" }),    g:`linear-gradient(135deg,${T.lime},${T.teal})`},
-    {e:"📝",l:t("admin.courses.empty.autoTestGen", { defaultValue: "Auto test gen" }),     g:`linear-gradient(135deg,${T.amber},${T.orange})`},
-  ];
-  return (
-    <div className="cat-empty">
-      {FLOATS.map((f,i)=>(
-        <div key={i} className={`cat-empty-floater ${v?"v":""}`}
-          style={{left:f.x,top:f.y,fontSize:f.s,transition:`opacity .7s ${f.d}s`,
-            animation:v?`${i%2?"cat-floatB":"cat-float"} ${3.4+i*.4}s ease-in-out infinite ${f.d}s`:"none"}}>
-          {f.e}
-        </div>
-      ))}
-      <div className="cat-empty-card">
-        <div className="cat-empty-orb">🎓</div>
-        <div className="cat-empty-badge"><I.Spark/> {t("admin.courses.empty.welcome", { defaultValue: "Welcome to your studio" })}</div>
-        <h2 className="cat-empty-title">{t("admin.courses.empty.titlePrefix", { defaultValue: "Build your first" })} <span>{t("admin.courses.empty.titleHighlight", { defaultValue: "AI-powered course" })}</span></h2>
-        <p className="cat-empty-sub">
-          {t("admin.courses.empty.subtitle", { defaultValue: "Create engaging language courses with AI-generated slides, tasks and tests." })}
-        </p>
-        <div className="cat-empty-feats">
-          {FEATS.map((f,i)=>(
-            <div key={f.l} className="cat-empty-feat" style={{background:f.g,
-              opacity:v?1:0,transform:v?"scale(1)":"scale(.92)",
-              transition:`all .34s cubic-bezier(.22,.68,0,1.3) ${.07+i*.06}s`}}>
-              <span style={{fontSize:16}}>{f.e}</span><span>{f.l}</span>
-            </div>
-          ))}
-        </div>
-        <button className="cat-empty-cta" onClick={onNew}>✨ {t("admin.courses.empty.createFirst", { defaultValue: "Create First Course" })}</button>
-        <p className="cat-empty-note">{t("admin.courses.empty.note", { defaultValue: "Takes ~2 minutes - AI does the heavy lifting" })}</p>
-      </div>
-    </div>
-  );
-};
 
 /* ── Course card (grid) ── */
 const Card = ({course, idx, onOpen}) => {
@@ -677,6 +559,14 @@ export default function AdminCoursesCatalog() {
     return () => window.removeEventListener("keydown", fn);
   }, []);
 
+  // First-run experience: automatically open the course creation modal
+  // when the user has no courses, so they are guided immediately.
+  useEffect(()=>{
+    if (!loading && courses.length === 0) {
+      setCreateModalOpen(true);
+    }
+  }, [loading, courses.length]);
+
   const filtered = useMemo(()=>{
     const q = query.toLowerCase().trim();
     return courses.filter(c =>
@@ -762,9 +652,6 @@ export default function AdminCoursesCatalog() {
               {[...Array(5)].map((_,i) => <Skel key={i} i={i+1}/>)}
             </div>
           )}
-
-          {/* Empty state */}
-          {!loading && courses.length === 0 && null}
 
           {/* No filter results */}
           {!loading && courses.length > 0 && filtered.length === 0 && (

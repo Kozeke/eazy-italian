@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   ChevronDown,
+  Download,
   GraduationCap,
   BookOpen,
   ClipboardList,
@@ -90,6 +91,13 @@ export interface ClassroomHeaderProps {
    * Rendered only when isTeacher=true.
    */
   onAddStudent?: () => void;
+
+  /**
+   * Called when the teacher clicks the "Export as HTML" icon (Download).
+   * Rendered only when isTeacher=true and a unit is selected.
+   * Triggers a browser download of the current unit as a self-contained HTML file.
+   */
+  onExportUnit?: () => void;
 
   /**
    * Optional: homework-tab-only toggle for StudentAnswersPanel (lesson tab uses
@@ -320,6 +328,7 @@ export default function ClassroomHeader({
   onGenerateSuccess,
   onlineUsers = [],
   onAddStudent,
+  onExportUnit,
   onToggleAnswersPanel,
   answersPanelOpen = false,
   answersPanelHeaderButtonRef,
@@ -514,6 +523,18 @@ export default function ClassroomHeader({
                       disabled={!onAddStudent}
                     >
                       <UserPlus size={15} strokeWidth={2.2} />
+                    </button>
+
+                    {/* Export current unit as a self-contained HTML file */}
+                    <button
+                      type="button"
+                      onClick={onExportUnit}
+                      aria-label={t('classroom.header.exportUnitAria', 'Export as HTML')}
+                      title={t('classroom.header.exportUnit', 'Export as HTML')}
+                      className="ch-icon-btn ch-icon-btn--export"
+                      disabled={!onExportUnit || !currentUnit}
+                    >
+                      <Download size={15} strokeWidth={2.2} />
                     </button>
 
                     <OnlinePresenceCluster users={onlineUsers} />

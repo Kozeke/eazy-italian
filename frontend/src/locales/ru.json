@@ -150,6 +150,9 @@
     "validEmailRequired": "Введите корректный email адрес.",
     "emailAlreadyRegistered": "Этот email уже зарегистрирован. Войдите вместо этого.",
     "fillAllFieldsError": "Пожалуйста, заполните все поля.",
+    "orContinueWithEmail": "или продолжите с email",
+    "continueWithGoogle": "Продолжить с Google",
+    "googleSignInFailed": "Не удалось войти через Google. Попробуйте ещё раз.",
     "passwordMin8Error": "Пароль должен содержать не менее 8 символов.",
     "registrationFailedError": "Регистрация не удалась. Попробуйте ещё раз.",
     "pleaseEnterCode": "Пожалуйста, введите код.",
@@ -622,6 +625,7 @@
       "newUpdates": "Доступны новые обновления",
       "blog": "Блог",
       "youtube": "YouTube-канал",
+      "instagram": "Instagram",
       "support": "Служба поддержки"
     },
     "subscription": {
@@ -806,6 +810,7 @@
       "stayOnThisUnit": "Остаться на этом уроке",
       "switchUnit": "Переключить урок",
       "noCourseInUrl": "В URL не указан курс.",
+      "sessionStaleRetry": "Данные сессии устарели. Пожалуйста, попробуйте ещё раз через момент.",
       "mediaKind": {
         "image": "Изображение",
         "video": "Видео",
@@ -1119,7 +1124,12 @@
         "footerAllDone": "Все уроки готовы — нажмите «Открыть» на карточке, чтобы перейти к уроку.",
         "footerExpandHint": "Разверните любой урок, чтобы посмотреть план разделов перед генерацией",
         "addUnit": "Добавить урок",
-        "adding": "Добавление…"
+        "adding": "Добавление…",
+        "courseReadyTitle": "Ваш курс готов.",
+        "courseReadySubtitle_one": "{{count}} урок сгенерирован с грамматикой, лексикой и интерактивными упражнениями.",
+        "courseReadySubtitle_other": "{{count}} уроков сгенерировано с грамматикой, лексикой и интерактивными упражнениями.",
+        "courseReadyPreview": "Посмотреть первый урок",
+        "courseReadyPublish": "Опубликовать в класс"
       }
     },
     "header": {
@@ -1133,7 +1143,18 @@
       "chooseUnit": "Выбрать урок",
       "unitShort": "Урок",
       "chooseShort": "Выбор",
-      "addStudentAria": "Добавить ученика в этот класс"
+      "addStudentAria": "Добавить ученика в этот класс",
+      "exportUnit": "Экспорт как HTML",
+      "exportUnitAria": "Экспортировать юнит как HTML",
+      "exportUnitError": "Ошибка экспорта. Пожалуйста, попробуйте снова."
+    },
+    "firstGen": {
+      "backdropAria": "Фон модала первой генерации",
+      "closeAria": "Закрыть",
+      "title": "Ваш первый урок готов.",
+      "body": "Посмотрите его сейчас или экспортируйте как интерактивный HTML-файл, которым можно поделиться со студентами напрямую — без регистрации.",
+      "previewCta": "Посмотреть урок",
+      "exportCta": "Экспорт как HTML"
     },
     "enrollStudentModal": {
       "title": "Записать ученика",

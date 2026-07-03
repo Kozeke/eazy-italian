@@ -61,6 +61,24 @@ class VerifyEmailRequest(BaseModel):
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
 
+class GoogleAuthRequest(BaseModel):
+    # Stores the Google Identity Services JWT credential from the frontend button.
+    credential: str
+    # Required only when creating a brand-new account after role selection.
+    role: Optional[UserRole] = None
+    locale: str = "en"
+
+class GoogleAuthResponse(BaseModel):
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    token_type: str = "bearer"
+    # True when a new Google user must pick teacher/student before account creation.
+    needs_role: bool = False
+    is_new_user: bool = False
+    email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
 class UserResponse(UserBase):
     id: int
     role: UserRole

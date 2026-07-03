@@ -30,7 +30,7 @@ const API_V1_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/
 // Public YouTube channel opened from the help menu "YouTube channel" item
 const HELP_YOUTUBE_CHANNEL_URL = "https://www.youtube.com/@rd_team5861";
 
-// Public Instagram profile linked from the header actions bar
+// Public Instagram profile opened from the help menu "Instagram" item
 const INSTAGRAM_URL = "https://www.instagram.com/linguai_net?utm_source=qr";
 
 const T = {
@@ -257,17 +257,6 @@ const CSS = `
   .ah-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: ${T.white}; box-shadow: 0 1px 3px rgba(0,0,0,.18); transition: transform .2s cubic-bezier(.22,.68,0,1.2); }
   .ah-toggle--on .ah-toggle-thumb { transform: translateX(13px); }
 
-  /* ── Instagram icon link ────────────────────────────────────────────────── */
-  .ah-instagram-btn {
-    display: flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px; border-radius: 8px;
-    border: none; background: none; cursor: pointer;
-    color: ${T.muted}; text-decoration: none; flex-shrink: 0;
-    transition: background .14s, color .14s;
-  }
-  .ah-instagram-btn:hover { background: ${T.bg}; color: #C13584; }
-  .ah-instagram-btn:focus-visible { outline: 2px solid ${T.violet}; outline-offset: 2px; }
-
   /* ── Help ───────────────────────────────────────────────────────────────── */
   .ah-help-btn {
     display: flex; align-items: center; gap: 6px;
@@ -305,14 +294,6 @@ const IcoLogout  = () => (<svg width="16" height="16" viewBox="0 0 20 20" fill="
 const IcoHelp    = () => (<svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/><path d="M10 13.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M7.5 7.75C7.5 6.37 8.62 5.25 10 5.25s2.5 1.12 2.5 2.5c0 1.5-2.5 2.5-2.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>);
 const IcoSchool  = () => (<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 8l8-5 8 5-8 5-8-5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M5 9.5V15c0 1.1 2.24 2 5 2s5-.9 5-2V9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><path d="M18 8v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>);
 const IcoChatBubble = () => (<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M3 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H7l-4 3V4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>);
-// Instagram brand icon (simplified camera outline)
-const IcoInstagram = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
-    <circle cx="12" cy="12" r="4"/>
-    <circle cx="17.5" cy="6.5" r="0.9" fill="currentColor" stroke="none"/>
-  </svg>
-);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 /** Formats trial end date using the active UI locale when possible. */
@@ -544,6 +525,9 @@ function HelpDropdown({ onClose }) {
   const openYouTubeChannel = () => {
     window.open(HELP_YOUTUBE_CHANNEL_URL, "_blank", "noopener,noreferrer");
   };
+  const openInstagram = () => {
+    window.open(INSTAGRAM_URL, "_blank", "noopener,noreferrer");
+  };
   const openSupportChat = () => {
     openSupportChatWidget();
   };
@@ -557,6 +541,7 @@ function HelpDropdown({ onClose }) {
       <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.blog")}</button>
       */}
       <button type="button" className="ah-help-item" role="menuitem" onClick={runThenClose(openYouTubeChannel)}>{t("admin.help.youtube")}</button>
+      <button type="button" className="ah-help-item" role="menuitem" onClick={runThenClose(openInstagram)}>{t("admin.help.instagram")}</button>
       <div className="ah-help-sep" role="separator" />
       <button type="button" className="ah-help-item ah-help-item--with-icon" role="menuitem" onClick={runThenClose(openSupportChat)}>
         <span className="ah-help-support-ico" aria-hidden="true"><IcoChatBubble /></span>
@@ -688,18 +673,6 @@ export default function AdminHeader({
         <div style={{ flex: 1 }} aria-hidden="true" />
 
         <div className="ah-actions">
-          {/* Instagram profile link */}
-          <a
-            className="ah-instagram-btn"
-            href={INSTAGRAM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Instagram"
-            title="Instagram"
-          >
-            <IcoInstagram />
-          </a>
-
           {/* Help */}
           <div style={{ position: "relative" }}>
             <button type="button" className="ah-help-btn" onClick={openHelp} aria-haspopup="menu" aria-expanded={helpOpen} aria-label={t("admin.help.menuLabel")}>

@@ -70,8 +70,9 @@ class DeepSeekProvider(AIProvider):
         Optional system message prepended to every request.
         Useful for setting a global persona or output format constraint.
     json_mode : bool
-        When True, sets ``response_format={"type": "json_object"}`` so the model
-        always returns valid JSON.  The prompt must still ask for JSON explicitly.
+        When True, sets ``response_format={"type": "json_object"}`` for prompts
+        that mention JSON (DeepSeek API requirement).  Plain-text prompts
+        (e.g. drag-to-gap passage mode) skip JSON response format automatically.
 
     Example
     -------
@@ -124,6 +125,12 @@ class DeepSeekProvider(AIProvider):
         messages.append({"role": "user", "content": prompt})
         return messages
 
+    @staticmethod
+    def _prompt_requests_json(prompt: str, system_prompt: str | None = None) -> bool:
+        """Return True when prompt text satisfies DeepSeek's json_object requirement."""
+        combined = f"{system_prompt or ''} {prompt}"
+        return "json" in combined.lower()
+
     def _build_payload(self, prompt: str) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model":       self.model,
@@ -132,7 +139,8 @@ class DeepSeekProvider(AIProvider):
             "max_tokens":  self.max_tokens,
             "stream":      False,
         }
-        if self.json_mode:
+        # DeepSeek rejects json_object unless the prompt mentions "json" somewhere.
+        if self.json_mode and self._prompt_requests_json(prompt, self.system_prompt):
             payload["response_format"] = {"type": "json_object"}
         return payload
 

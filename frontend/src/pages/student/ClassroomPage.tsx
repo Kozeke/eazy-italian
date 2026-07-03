@@ -58,6 +58,7 @@ import HomeworkPlayer from "../../components/classroom/lesson/flow/homework/Home
 import UnitSelectorModal from "../../components/classroom/unit/UnitSelectorModal";
 import type { CreatingUnitMode } from "../../components/classroom/unit/UnitSelectorModal";
 import AdditionalMaterialsModal from "../../components/classroom/unit/AdditionalMaterialsModal";
+import FirstGenCelebrationModal from "../../components/classroom/FirstGenCelebrationModal";
 import ConnectPaymentModal from "../admin/components/ConnectPaymentModal";
 import StudentAnswersPanel from "../../components/classroom/unit/StudentAnswersPanel";
 import type { CourseEditData } from "../../components/classroom/unit/EditCourseModal";
@@ -668,6 +669,8 @@ function ClassroomPageInner({
   const [answersPanelOpen, setAnswersPanelOpen] = useState(false);
   // Controls the roster modal opened from the header add-student control (teacher only).
   const [enrollStudentModalOpen, setEnrollStudentModalOpen] = useState(false);
+  // Controls the one-time first-generation celebration modal (teacher only).
+  const [firstGenModalOpen, setFirstGenModalOpen] = useState(false);
   // Lesson rail wrapper — primary anchor for the answers popover on the lesson tab.
   const answersPanelAnchorRef = useRef<HTMLDivElement>(null);
   // Header answers icon — anchor when homework tab or lesson with hidden strip (≤480px).
@@ -715,15 +718,21 @@ function ClassroomPageInner({
         prev.delete('source_token');
         return prev;
       });
-      // ── Clear outline state so the panel fully dismisses ──────────────────
-      setCourseOutline(null);
-      // ── Clear both sessionStorage keys ────────────────────────────────────
+      // ── Clear sessionStorage keys immediately on SSE completion ───────────
+      // NOTE: courseOutline state is intentionally NOT cleared here.
+      // The panel stays mounted so the teacher sees the course-ready banner.
+      // It is cleared when the teacher opens a unit (all done) or clicks Publish.
       if (courseId) {
         sessionStorage.removeItem(`ai_outline_${courseId}`);
         sessionStorage.removeItem(`ai_source_token_${courseId}`);
         sessionStorage.removeItem(`ai_language_${courseId}`);
         sessionStorage.removeItem(`ai_native_language_${courseId}`);
       }
+      // Force a full classroom reload so course + units reflect the freshly-generated
+      // content. This ensures any subsequent teacher action (e.g. "Generate Unit")
+      // operates on up-to-date server state rather than the potentially stale
+      // snapshot that was loaded before the SSE stream started.
+      reloadUnits();
     },
   });
 
@@ -962,6 +971,53 @@ function ClassroomPageInner({
   const handleCloseUnitSelector = useCallback(() => setUnitSelectorOpen(false), []);
   const handleOpenUnitSelector  = useCallback(() => setUnitSelectorOpen(true),  []);
 
+  /**
+   * Called when the teacher clicks "Publish to a classroom" in the course-ready
+   * banner inside CourseOutlineReviewPanel.  Clears the outline so the panel
+   * unmounts and closes the unit selector, leaving the DraftCourseBanner visible.
+   */
+  const handleCourseReadyPublish = useCallback(() => {
+    // Clear the in-memory outline — panel unmounts, modal can close.
+    setCourseOutline(null);
+    setUnitSelectorOpen(false);
+  }, []);
+
+  /**
+   * Fetches the current unit as a self-contained HTML file from the teacher-only
+   * export endpoint and triggers a browser download.  Auth token is taken from
+   * localStorage (same source used by the axios interceptor in api.ts).
+   * Only wired when isTeacher=true and a unit is selected.
+   */
+  const handleExportUnit = useCallback(async () => {
+    if (!currentUnit?.id) return;
+    // Retrieve the auth token stored by the axios interceptor.
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(
+        `${API_V1_BASE}/units/admin/units/${currentUnit.id}/export/html`,
+        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
+      );
+      if (!res.ok) {
+        // Avoid crash if the server returns an unexpected error during export.
+        toast.error(t("classroom.header.exportUnitError", "Export failed. Please try again."));
+        return;
+      }
+      // Build a filename from the unit title for a friendlier download dialog.
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${currentUnit.title.replace(/[^\w\s-]/g, "").trim() || "unit"}.html`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Prevent crash if the network request fails (e.g. offline or CORS issue).
+      toast.error(t("classroom.header.exportUnitError", "Export failed. Please try again."));
+    }
+  }, [currentUnit, API_V1_BASE, t]);
+
   /** Field seeds for EditCourseModal — derived from loaded course row */
   const editCourseSeed = useMemo(() => courseToEditModalSeed(course), [course]);
 
@@ -1088,16 +1144,20 @@ function ClassroomPageInner({
   const generatingUnitIdRef = useRef<number | null>(null);
 
   const handleCreateAndGenerate = useCallback(async (): Promise<{ id: number; title: string } | null> => {
-    try {
+    // Prefer the loaded course.id over the URL param to avoid stale-closure mismatches.
+    const resolvedCourseId = course?.id ?? Number(courseId);
+
+    const attemptCreate = async (attemptCourseId: number) => {
       const nextOrderIndex = units.length;
       const newUnit = await unitsApi.createUnit({
         title: `Unit ${nextOrderIndex + 1}`,
         level: 'A1',
-        course_id: Number(courseId),
+        course_id: attemptCourseId,
         order_index: nextOrderIndex,
       } as any);
 
       try {
+        // Remove the auto-generated default segment so generation starts clean.
         const existingSegments = await segmentsApi.listSegments(newUnit.id);
         await Promise.all(existingSegments.map((s: any) => segmentsApi.deleteSegment(s.id)));
       } catch (cleanupErr) {
@@ -1106,11 +1166,27 @@ function ClassroomPageInner({
 
       generatingUnitIdRef.current = newUnit.id;
       return { id: newUnit.id, title: newUnit.title ?? `Unit ${nextOrderIndex + 1}` };
-    } catch (err) {
+    };
+
+    try {
+      return await attemptCreate(resolvedCourseId);
+    } catch (err: any) {
+      // If the server says this course doesn't belong to us, the client state is
+      // stale (race between SSE generation completing and classroom data reload).
+      // Reload classroom data and retry once with the freshly loaded course id.
+      const is403 = err?.response?.status === 403;
+      if (is403) {
+        console.warn('[handleCreateAndGenerate] 403 on first attempt — reloading classroom and retrying once');
+        reloadUnits();
+        // Wait one tick for React state to process the reload request, then allow
+        // the caller to surface the issue or the retry to succeed on the next render.
+        toast.error(t('classroom.page.sessionStaleRetry', 'Your session state was stale. Please try again in a moment.'));
+        return null;
+      }
       console.error('[handleCreateAndGenerate] failed to create unit:', err);
       return null;
     }
-  }, [units.length, courseId]);
+  }, [units.length, courseId, course?.id, reloadUnits, t]);
 
   /**
    * Deletes one teacher-selected unit from the course and keeps classroom navigation stable.
@@ -1203,9 +1279,27 @@ function ClassroomPageInner({
         setDraftSwitchModalOpen(true);
         return;
       }
+
+      // After full course generation, picking a unit exits the outline review flow.
+      if (courseOutline && !courseGen.isStreaming) {
+        const outlineUnitCount = courseOutline?.units?.length ?? 0;
+        const doneCount = Object.values(courseGen.unitStatuses).filter((s) => s === 'done').length;
+        if (outlineUnitCount > 0 && doneCount >= outlineUnitCount) {
+          setCourseOutline(null);
+        }
+      }
+
       navigateToUnit(unit);
     },
-    [isTeacher, unitDetail, currentUnit?.id, navigateToUnit],
+    [
+      isTeacher,
+      unitDetail,
+      currentUnit?.id,
+      navigateToUnit,
+      courseOutline,
+      courseGen.isStreaming,
+      courseGen.unitStatuses,
+    ],
   );
 
   /**
@@ -1682,6 +1776,7 @@ function ClassroomPageInner({
               }
             : {})}
           onAddStudent={isTeacher ? () => setEnrollStudentModalOpen(true) : undefined}
+          onExportUnit={isTeacher ? handleExportUnit : undefined}
         />
 
         <LiveSessionBanner />
@@ -1767,6 +1862,13 @@ function ClassroomPageInner({
             // Promise.all([reloadSlides(), reloadUnit()]);
             void reloadUnit();
           }
+          // Show the one-time celebration modal on the teacher's very first generation.
+          // The flag is set immediately so a fast double-fire never shows it twice.
+          const FIRST_GEN_FLAG = 'linguai_first_gen_done';
+          if (!localStorage.getItem(FIRST_GEN_FLAG)) {
+            localStorage.setItem(FIRST_GEN_FLAG, '1');
+            setFirstGenModalOpen(true);
+          }
         }}
         courseOutline={courseOutline}
         unitGenerationStatuses={courseGen.unitStatuses}
@@ -1792,6 +1894,7 @@ function ClassroomPageInner({
           reloadUnits();
         }}
         onReorderUnits={isTeacher ? handleReorderUnits : undefined}
+        onPublishCourse={isTeacher ? handleCourseReadyPublish : undefined}
       />
 
       {/* ── Additional materials modal — teachers upload, students download ── */}
@@ -1811,6 +1914,17 @@ function ClassroomPageInner({
         onClose={() => setEnrollStudentModalOpen(false)}
         courseId={courseId ? Number(courseId) : 0}
         onlineUserIds={onlineUserIdsForEnroll}
+      />
+
+      {/* ── First-generation celebration — shown once per account ─────────── */}
+      <FirstGenCelebrationModal
+        open={firstGenModalOpen}
+        onClose={() => setFirstGenModalOpen(false)}
+        onPreview={() => setFirstGenModalOpen(false)}
+        onExport={() => {
+          setFirstGenModalOpen(false);
+          void handleExportUnit();
+        }}
       />
 
       {/* ── Exit confirm dialog — design system styling ─────────────────── */}

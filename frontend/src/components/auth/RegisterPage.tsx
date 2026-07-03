@@ -29,6 +29,8 @@ import i18n, { normalizeInterfaceLanguage } from '../../i18n';
 import { useAuth } from '../../hooks/useAuth';
 import type { User as AuthUser } from '../../types';
 import { trackSignUp } from '../../utils/analytics';
+import GoogleSignInButton, { AuthDivider } from './GoogleSignInButton';
+import { isGoogleAuthEnabled } from './GoogleAuthProvider';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -68,7 +70,7 @@ type Step = 'email' | 'account-type' | 'student-info' | 'activation' | 'greeting
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
 
   const [step,      setStep]      = useState<Step>('email');
   const [email,     setEmail]     = useState('');
@@ -84,6 +86,8 @@ export default function RegisterPage() {
   const [timerOn,   setTimerOn]   = useState(false);
   // Holds the user returned after post-registration login so trial CTA routes to the correct home.
   const [newUser,   setNewUser]   = useState<AuthUser | null>(null);
+  // Holds the Google ID token between role selection and teacher account creation.
+  const [googleCredential, setGoogleCredential] = useState<string | null>(null);
   // Prevents duplicate send-registration-code calls (e.g. React Strict Mode double-invoke).
   const sendCodeInFlightRef = useRef(false);
 
@@ -195,10 +199,64 @@ export default function RegisterPage() {
       setStep('student-info');
       return;
     }
+    if (googleCredential) {
+      setLoading(true);
+      try {
+        const result = await loginWithGoogle(googleCredential, { role: 'teacher' });
+        if (result.needsRole) {
+          throw new Error(t('auth.registrationFailedError'));
+        }
+        setNewUser(result.user);
+        trackSignUp('teacher');
+        setStep('trial');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('auth.registrationFailedError'));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     setLoading(true);
     const sent = await sendRegistrationCode();
     setLoading(false);
     if (sent) setStep('activation');
+  };
+
+  // Completes Google sign-in on the email step (login or role selection).
+  const handleGoogleSuccess = async (credential: string) => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await loginWithGoogle(credential);
+      if (result.needsRole) {
+        setGoogleCredential(credential);
+        setEmail(result.email);
+        setFullName(`${result.firstName} ${result.lastName}`.trim());
+        setStep('account-type');
+        return;
+      }
+      setNewUser(result.user);
+      if (result.isNewUser) {
+        trackSignUp(result.user.role);
+      }
+      if (result.isNewUser) {
+        setStep('trial');
+        return;
+      }
+      if (result.user.role === 'teacher') {
+        navigate(
+          !result.user.onboarding_completed ? '/admin/courses' : '/admin/dashboard',
+          { replace: true },
+        );
+        return;
+      }
+      navigate('/student/classes', { replace: true });
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || t('auth.googleSignInFailed');
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Step 3 — verify the pre-registration OTP (user doesn't exist yet)
@@ -303,6 +361,18 @@ export default function RegisterPage() {
           <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
             <Title>{t('auth.createYourAccount')}</Title>
             <Sub>{t('auth.startWithEmail')}</Sub>
+            {isGoogleAuthEnabled() && (
+              <>
+                <div style={{ marginTop: '10px' }}>
+                  <GoogleSignInButton
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setError(t('auth.googleSignInFailed'))}
+                    disabled={loading}
+                  />
+                </div>
+                <AuthDivider />
+              </>
+            )}
             <form
               onSubmit={handleEmailSubmit}
               style={{ display:'flex', flexDirection:'column', gap:'7px', marginTop:'10px' }}

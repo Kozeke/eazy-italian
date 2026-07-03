@@ -95,4 +95,11 @@ i18n
     },
   });
 
+// Keeps document lang in sync with the active interface language for GIS and a11y.
+document.documentElement.lang = normalizeInterfaceLanguage(i18n.language);
+
+i18n.on('languageChanged', (language) => {
+  document.documentElement.lang = normalizeInterfaceLanguage(language);
+});
+
 export default i18n;

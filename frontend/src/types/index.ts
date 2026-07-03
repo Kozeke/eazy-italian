@@ -300,6 +300,18 @@ export interface TokenResponse {
   token_type: string;
 }
 
+// Stores backend response from POST /auth/google (tokens or role-selection prompt).
+export interface GoogleAuthResponse {
+  access_token?: string;
+  refresh_token?: string;
+  token_type?: string;
+  needs_role?: boolean;
+  is_new_user?: boolean;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+}
+
 export interface VideoProgressUpdate {
   watched_percentage: number;
   last_position_sec: number;

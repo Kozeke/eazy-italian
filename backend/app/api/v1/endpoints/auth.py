@@ -15,12 +15,14 @@ from app.models.user import User, UserRole
 from app.models.email_verification import EmailVerificationCode
 from app.schemas.user import (
     UserCreate, UserLogin, Token, UserResponse, RefreshTokenRequest,
-    MagicCodeRequest, VerifyEmailRequest, ResendVerificationRequest
+    MagicCodeRequest, VerifyEmailRequest, ResendVerificationRequest,
+    GoogleAuthRequest, GoogleAuthResponse,
 )
 from app.core.config import settings
 from app.core.teacher_tariffs import default_teacher_plan_ends_at
 from app.models.subscription import Subscription, SubscriptionName, UserSubscription
 from app.services.email_service import EmailService
+from app.services.google_oauth import verify_google_id_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -44,6 +46,62 @@ def get_or_create_free_subscription(db: Session) -> Subscription:
     db.flush()
     return free_subscription
 
+# Issues access and refresh JWT tokens for an authenticated user row.
+def issue_auth_tokens(user: User) -> dict:
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
+    )
+    refresh_token = create_refresh_token(data={"sub": str(user.id)})
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    }
+
+# Creates a user row with the default FREE subscription plan attached.
+def create_user_with_free_plan(
+    db: Session,
+    *,
+    email: str,
+    first_name: str,
+    last_name: str,
+    role: UserRole,
+    locale: str,
+    password_hash: str | None = None,
+    google_id: str | None = None,
+    email_verified: bool = False,
+) -> User:
+    db_user = User(
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        role=role,
+        password_hash=password_hash,
+        google_id=google_id,
+        locale=locale,
+    )
+    if email_verified:
+        db_user.email_verified_at = datetime.now(timezone.utc)
+
+    db.add(db_user)
+    db.flush()
+    free_sub = get_or_create_free_subscription(db)
+    free_plan_ends_at = (
+        default_teacher_plan_ends_at("free")
+        if db_user.role == UserRole.TEACHER
+        else None
+    )
+    db.add(UserSubscription(
+        user_id=db_user.id,
+        subscription_id=free_sub.id,
+        is_active=True,
+        ends_at=free_plan_ends_at,
+    ))
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
 @router.post("/register", response_model=UserResponse)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     # Check if user already exists
@@ -56,36 +114,15 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     
     # Create new user
     hashed_password = get_password_hash(user_data.password)
-    db_user = User(
+    db_user = create_user_with_free_plan(
+        db,
         email=user_data.email,
         first_name=user_data.first_name,
         last_name=user_data.last_name,
         role=user_data.role,
+        locale=user_data.locale,
         password_hash=hashed_password,
-        locale=user_data.locale
     )
-    
-    db.add(db_user)
-    db.flush()
-    # Stores the ensured FREE subscription used as the default plan for new users.
-    free_sub = get_or_create_free_subscription(db)
-
-    # Stores plan end for teachers: Free tier lasts 30 days then must renew or upgrade.
-    free_plan_ends_at = (
-        default_teacher_plan_ends_at("free")
-        if db_user.role == UserRole.TEACHER
-        else None
-    )
-
-    db.add(UserSubscription(
-        user_id=db_user.id,
-        subscription_id=free_sub.id,
-        is_active=True,
-        ends_at=free_plan_ends_at,
-    ))
-
-    db.commit()
-    db.refresh(db_user)
     
     # Send email verification code if email is not verified
     if not db_user.email_verified_at:
@@ -134,7 +171,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=Token)
 def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_credentials.email).first()
-    if not user or not verify_password(user_credentials.password, user.password_hash):
+    if not user or not user.password_hash or not verify_password(user_credentials.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -163,7 +200,7 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
 @router.post("/login-form", response_model=Token)
 def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
+    if not user or not user.password_hash or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -188,6 +225,104 @@ def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
+@router.post("/google", response_model=GoogleAuthResponse)
+def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
+    """
+    Sign in or register with a Google Identity Services ID token.
+    New users must pass role=teacher; student self-registration remains blocked.
+    """
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google sign-in is not configured",
+        )
+
+    try:
+        payload = verify_google_id_token(request.credential)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+        ) from exc
+
+    google_id = payload.get("sub")
+    email = payload.get("email")
+    if not google_id or not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google token is missing required profile fields",
+        )
+
+    first_name = payload.get("given_name") or email.split("@")[0]
+    last_name = payload.get("family_name") or first_name
+
+    user = db.query(User).filter(
+        (User.google_id == google_id) | (User.email == email)
+    ).first()
+
+    if user:
+        if user.google_id and user.google_id != google_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This email is linked to a different Google account",
+            )
+        if not user.google_id:
+            user.google_id = google_id
+        if not user.email_verified_at:
+            user.email_verified_at = datetime.now(timezone.utc)
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Inactive user",
+            )
+        user.last_login = datetime.now(timezone.utc)
+        db.commit()
+        tokens = issue_auth_tokens(user)
+        return GoogleAuthResponse(
+            **tokens,
+            is_new_user=False,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )
+
+    if request.role is None:
+        return GoogleAuthResponse(
+            needs_role=True,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+        )
+
+    if request.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Student accounts must be created by a teacher",
+        )
+
+    db_user = create_user_with_free_plan(
+        db,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        role=request.role,
+        locale=request.locale,
+        google_id=google_id,
+        email_verified=True,
+    )
+    db_user.last_login = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(db_user)
+
+    tokens = issue_auth_tokens(db_user)
+    return GoogleAuthResponse(
+        **tokens,
+        is_new_user=True,
+        email=db_user.email,
+        first_name=db_user.first_name,
+        last_name=db_user.last_name,
+    )
 
 @router.post("/refresh", response_model=Token)
 def refresh(payload: RefreshTokenRequest, db: Session = Depends(get_db)):

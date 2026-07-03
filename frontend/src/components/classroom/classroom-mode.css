@@ -496,6 +496,34 @@
   pointer-events: none;
 }
 
+/* ── Export-unit variant ─────────────────────────────────────────────────── */
+
+/* Resting state: same primary tint as --add for visual family consistency */
+.ch-icon-btn--export {
+  background: #EEF0FE;          /* primary tint */
+  color: #6C6FEF;               /* primary */
+}
+
+/* Hover: filled primary, matching --add interaction pattern */
+.ch-icon-btn--export:hover:not(:disabled) {
+  background: #6C6FEF;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(108, 111, 239, 0.28);
+}
+
+.ch-icon-btn--export:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Disabled when no unit is selected */
+.ch-icon-btn--export:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
 /* ── Exit variant ────────────────────────────────────────────────────────── */
 
 .ch-icon-btn--exit {

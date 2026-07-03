@@ -64,7 +64,6 @@ const EXERCISE_TYPE_DEFS: ExerciseTypeDef[] = [
   { value: "select_form_to_image", icon: "🖼▾" },
 ];
 
-const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const INSTRUCTION_LANG_VALUES = ["english", "russian"] as const;
 const SEGMENT_OPTIONS = [1, 2, 3, 4, 5, 6];
 
@@ -250,11 +249,9 @@ function UnitQuotaBadge({
 // Language and instruction language are no longer shown here — they are pulled
 // automatically from the course's native_language / target_language DB columns.
 function AdvancedPanel({
-  level, setLevel,
   numSegments, setNumSegments,
   selectedTypes, toggleType,
 }: {
-  level: string; setLevel: (v: string) => void;
   numSegments: number; setNumSegments: (v: number) => void;
   selectedTypes: Set<string>; toggleType: (v: string) => void;
 }) {
@@ -262,15 +259,9 @@ function AdvancedPanel({
 
   return (
     <div style={{ display: "flex", flexDirection: "column" as const, gap: 16, marginTop: 4 }}>
-      <div style={{ display: "flex", gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <Label>{t("classroom.generateUnitModal.labelLevel")}</Label>
-          <Select value={level} onChange={setLevel} options={LEVEL_OPTIONS} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <Label>{t("classroom.generateUnitModal.labelSegments")}</Label>
-          <Select value={String(numSegments)} onChange={(v) => setNumSegments(Number(v))} options={SEGMENT_OPTIONS.map(String)} />
-        </div>
+      <div>
+        <Label>{t("classroom.generateUnitModal.labelSegments")}</Label>
+        <Select value={String(numSegments)} onChange={(v) => setNumSegments(Number(v))} options={SEGMENT_OPTIONS.map(String)} />
       </div>
 
       <div>
@@ -437,8 +428,8 @@ export default function GenerateUnitModal({
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Shared advanced state
-  const [level,         setLevel]         = useState("A2");
+  // Default CEFR level sent to the generator (no longer exposed in advanced settings).
+  const level = "A2";
   // Language the course teaches — sourced from courses.target_language; not editable via UI.
   const language = courseTargetLanguage ?? "English";
   const [numSegments,   setNumSegments]   = useState(3);
@@ -906,7 +897,6 @@ export default function GenerateUnitModal({
                       padding: "14px 13px", border: `1px solid ${C.borderSoft}`,
                     }}>
                       <AdvancedPanel
-                        level={level} setLevel={setLevel}
                         numSegments={numSegments} setNumSegments={setNumSegments}
                         selectedTypes={selectedTypes} toggleType={toggleType}
                       />

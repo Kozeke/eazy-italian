@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/eazy_italian"
     REDIS_URL: str = "redis://localhost:6379"
     
+    # Google OAuth (same client id as frontend VITE_GOOGLE_CLIENT_ID)
+    GOOGLE_CLIENT_ID: str = ""
+
     # JWT
     SECRET_KEY: str = "your-super-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
