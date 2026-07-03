@@ -65,6 +65,17 @@ export function trackEvent(options: {
 }
 
 /**
+ * Fires a GA4 event when a teacher successfully generates their first AI course.
+ */
+export function trackCourseGenerated(mode: 'quick' | 'ai'): void {
+  if (!isInitialized || !hasAnalyticsConsent()) return;
+
+  ReactGA.gtag('event', 'course_generated', {
+    mode,
+  });
+}
+
+/**
  * Fires GA4 recommended sign_up after a new account is created.
  */
 export function trackSignUp(role: 'teacher' | 'student'): void {

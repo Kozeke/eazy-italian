@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
+import { trackEvent } from "../utils/analytics";
 
 /* ─── CSS (verbatim from landing__2_.html, adapted for JSX injection) ─── */
 const CSS = `
@@ -1385,7 +1386,7 @@ function ExdAnagramDemo() {
   const [bad, setBad] = useState(false);
   const done = built.join("") === answer;
   const used = (i: number) => built.includes(`${i}`);
-  const tap = (letter: string, i: number) => {
+  const tap = (i: number) => {
     if (used(i)) return;
     const next = [...built, `${i}`];
     const word = next.map((k) => scrambled[Number(k)]).join("");
@@ -1403,7 +1404,7 @@ function ExdAnagramDemo() {
       </div>
       <div className="exd-pool">
         {scrambled.map((l, i) => (
-          <span key={i} className={`exd-chip${used(i) ? " used" : ""}`} style={{ minWidth: 34, justifyContent: "center", textTransform: "uppercase", fontWeight: 700 }} onClick={() => tap(l, i)}>{l}</span>
+          <span key={i} className={`exd-chip${used(i) ? " used" : ""}`} style={{ minWidth: 34, justifyContent: "center", textTransform: "uppercase", fontWeight: 700 }} onClick={() => tap(i)}>{l}</span>
         ))}
       </div>
       {done && <ExdDone text="Ciao! Anagrams are checked letter by letter." />}
@@ -1442,6 +1443,31 @@ export default function LandingPage() {
   const [activeStep, setActiveStep] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [exdTab, setExdTab] = useState<ExdTabId>("gap");
+
+  // Ref placed on the first section after the hero; fires once when it scrolls into view
+  const postHeroRef = useRef<HTMLDivElement>(null);
+
+  // Tracks whether the user scrolled past the hero section (fires once per page load)
+  useEffect(() => {
+    const el = postHeroRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          trackEvent({ category: 'Landing', action: 'scroll_past_hero' });
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Tracks a CTA button click with its location on the page for comparison
+  const handleCtaClick = (location: string) => {
+    trackEvent({ category: 'Landing', action: 'cta_click', label: location });
+  };
 
   // Pills in the exercise-library visual double as navigation into the live demo below.
   const openExercise = (tab: ExdTabId) => {
@@ -1532,7 +1558,7 @@ export default function LandingPage() {
         <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.pricing', 'Pricing')}</a>
         <div className="mobile-menu-divider" />
         <Link to="/login" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.login', 'Log in')}</Link>
-        <Link to="/register" className="btn-mobile-cta" onClick={() => setMobileMenuOpen(false)}>{t('landing.nav.getStarted', 'Get started free')} →</Link>
+        <Link to="/register" className="btn-mobile-cta" onClick={() => { setMobileMenuOpen(false); handleCtaClick('nav_mobile'); }}>{t('landing.nav.getStarted', 'Get started free')} →</Link>
       </div>
 
       {/* ── HERO ── */}
@@ -1541,7 +1567,7 @@ export default function LandingPage() {
         <h1>{t('landing.hero.title1', 'Teach languages')}<br />{t('landing.hero.title2', 'smarter with')} <em>{t('landing.hero.titleHighlight', 'AI')}</em></h1>
         <p className="hero-sub">{t('landing.hero.subtitle', 'Build structured courses, generate lessons in minutes, and track every student\'s progress — all in one beautiful platform.')}</p>
         <div className="hero-cta">
-          <Link to="/register" className="btn-primary">{t('landing.hero.startFree', 'Start for free →')}</Link>
+          <Link to="/register" className="btn-primary" onClick={() => handleCtaClick('hero')}>{t('landing.hero.startFree', 'Start for free →')}</Link>
         </div>
 
         <div className="hero-langs">
@@ -1567,7 +1593,7 @@ export default function LandingPage() {
       </div>
 
       {/* ── FEATURES ── */}
-      <section id="features">
+      <section id="features" ref={postHeroRef}>
         <div className="section-label">{t('landing.featuresSection.label', 'Features')}</div>
         <h2>{t('landing.featuresSection.heading', 'Everything you need to')}<br /><em>{t('landing.featuresSection.headingHighlight', 'teach brilliantly')}</em></h2>
         <p className="section-sub">{t('landing.featuresSection.subtext', 'One platform — from content creation to classroom management and grading.')}</p>
@@ -1911,7 +1937,7 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.full', 'Full')}</span></div>
             </div>
             <div className="price-cta">
-              <Link to="/register" style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--primary-dk)", border: "1.5px solid var(--primary)", borderRadius: "var(--r)", background: "var(--tint)" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
+              <Link to="/register" onClick={() => handleCtaClick('pricing_standard')} style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--primary-dk)", border: "1.5px solid var(--primary)", borderRadius: "var(--r)", background: "var(--tint)" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
             </div>
           </div>
 
@@ -1938,7 +1964,7 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.fullExports', 'Full + exports')}</span></div>
             </div>
             <div className="price-cta">
-              <Link to="/register" style={{ display: "block", background: "#fff", color: "var(--primary-dk)", borderRadius: "var(--r)", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
+              <Link to="/register" onClick={() => handleCtaClick('pricing_pro')} style={{ display: "block", background: "#fff", color: "var(--primary-dk)", borderRadius: "var(--r)", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
             </div>
           </div>
         </div>
@@ -1956,7 +1982,7 @@ export default function LandingPage() {
           <h2>{t('landing.ctaSection.heading', 'Join teachers already')}<br /><em>{t('landing.ctaSection.headingHighlight', 'saving hours every week')}</em></h2>
           <p>{t('landing.ctaSection.body', 'Create your free account in 60 seconds. No credit card required.')}</p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <Link to="/register" className="btn-primary">{t('landing.ctaSection.primaryBtn', 'Get started free →')}</Link>
+            <Link to="/register" className="btn-primary" onClick={() => handleCtaClick('bottom_cta')}>{t('landing.ctaSection.primaryBtn', 'Get started free →')}</Link>
             <Link to="/login" className="btn-ghost">{t('landing.ctaSection.secondaryBtn', 'Sign in')}</Link>
           </div>
         </div>

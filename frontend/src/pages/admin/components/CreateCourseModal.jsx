@@ -26,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useTeacherClassroomTransition } from '../../../contexts/TeacherClassroomTransitionContext';
+import { trackCourseGenerated } from '../../../utils/analytics';
 // Optional second step: teacher attaches PDFs/docs before outline generation.
 import CourseFileUploadModal from './CourseFileUploadModal';
 
@@ -846,6 +847,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
       } catch (e) {
         console.warn('[CreateCourseModal] First unit failed, continuing.', e);
       }
+      trackCourseGenerated('quick');
       onCreated?.(course);
       goToClassroom(course.id, firstUnitId);
     } catch (err) {
@@ -968,6 +970,7 @@ export default function CreateCourseModal({ open, onClose, onCreated }) {
 
       await new Promise(r => setTimeout(r, 350));
 
+      trackCourseGenerated('ai');
       onCreated?.(course);
       goToClassroom(course.id, firstUnitId, {
         level,
