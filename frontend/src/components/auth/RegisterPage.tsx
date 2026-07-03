@@ -28,6 +28,7 @@ import { useTranslation } from 'react-i18next';
 import i18n, { normalizeInterfaceLanguage } from '../../i18n';
 import { useAuth } from '../../hooks/useAuth';
 import type { User as AuthUser } from '../../types';
+import { trackSignUp } from '../../utils/analytics';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -257,6 +258,7 @@ export default function RegisterPage() {
       // Replace any existing session so the dashboard shows this account, not a prior login.
       const user = await login(email, password);
       setNewUser(user);
+      trackSignUp(role);
       setStep('trial');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.registrationFailedError'));

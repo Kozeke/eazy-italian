@@ -8,6 +8,11 @@ import App from './App.tsx'
 import './index.css'
 import { AuthProvider } from './hooks/useAuth'
 import { TeacherClassroomTransitionProvider } from './contexts/TeacherClassroomTransitionContext'
+import RouteChangeTracker from './components/analytics/RouteChangeTracker'
+import { initAnalytics } from './utils/analytics'
+
+// Initialize GA4 before the React tree mounts when VITE_GA_MEASUREMENT_ID is set
+initAnalytics()
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,6 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <RouteChangeTracker />
         <AuthProvider>
           <TeacherClassroomTransitionProvider>
             <App />

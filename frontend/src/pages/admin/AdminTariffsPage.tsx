@@ -21,6 +21,11 @@ import { Crown, HelpCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { coursesApi } from "../../services/api";
 import AdminTariffsPaymentHistory from "./components/AdminTariffsPaymentHistory";
+import {
+  storePendingCheckout,
+  trackBeginCheckout,
+  type PendingCheckout,
+} from "../../utils/analytics";
 
 // Same origin as axios in services/api.ts so tariff requests hit :8000, not the Vite dev server
 const API_V1_BASE =
@@ -272,6 +277,15 @@ export default function AdminTariffsPage() {
         throw new Error(msg);
       }
       if (!data.url) throw new Error("No checkout URL");
+      // Persists plan/value for purchase attribution after Stripe redirects to /success
+      const checkout: PendingCheckout = {
+        plan,
+        duration: selectedDuration,
+        value: Number(plan === "standard" ? standardTotal : proTotal),
+        currency: "USD",
+      };
+      storePendingCheckout(checkout);
+      trackBeginCheckout(checkout);
       window.location.href = data.url;
     } catch {
       window.alert(t("admin.tariffs.stripeCheckoutError"));

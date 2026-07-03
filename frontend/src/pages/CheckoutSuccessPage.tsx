@@ -6,11 +6,19 @@
  */
 
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { consumePendingCheckout, trackPurchase } from "../utils/analytics";
 
 export default function CheckoutSuccessPage() {
   const { t } = useTranslation();
+
+  // Records purchase conversion after returning from Stripe Checkout
+  useEffect(() => {
+    const checkout = consumePendingCheckout();
+    if (checkout) trackPurchase(checkout);
+  }, []);
 
   // Shared shell width so the card aligns with other marketing/admin surfaces.
   const maxWidthClass = "mx-auto w-full max-w-lg";
