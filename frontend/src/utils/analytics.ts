@@ -64,6 +64,29 @@ export function trackEvent(options: {
   ReactGA.event(options);
 }
 
+/** Landing-page CTA placement for click_start_free events */
+export type StartFreeCtaLocation = 'hero' | 'demo' | 'nav' | 'pricing' | 'bottom';
+
+/**
+ * Fires once when the landing hero scrolls out of view (engagement signal).
+ */
+export function trackScrollPastHero(): void {
+  if (!isInitialized || !hasAnalyticsConsent()) return;
+
+  ReactGA.gtag('event', 'scroll_hero', {});
+}
+
+/**
+ * Fires when a "Start free" / register CTA is clicked on the landing page.
+ */
+export function trackClickStartFree(location: StartFreeCtaLocation = 'hero'): void {
+  if (!isInitialized || !hasAnalyticsConsent()) return;
+
+  ReactGA.gtag('event', 'click_start_free', {
+    cta_location: location,
+  });
+}
+
 /**
  * Fires a GA4 event when a teacher successfully generates their first AI course.
  */
