@@ -1904,9 +1904,9 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExercises', 'AI exercise generations')}</span><span className="feat-row-val">10 / mo</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowUnits', 'AI unit generations')}</span><span className="feat-row-val">3 / mo</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val">1 total</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExportHtml', 'Export interactive HTML')}</span><span className="feat-row-val dash">—</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val">1 course</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val dash">—</span></div>
-              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.basic', 'Basic')}</span></div>
             </div>
             <div className="price-cta">
               <Link to="/register" onClick={() => trackClickStartFree('pricing')} style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--text-sub)", border: "1.5px solid var(--border)", borderRadius: "var(--r)", background: "var(--bg)" }}>{t('landing.pricingSection.freeCta', 'Get started')}</Link>
@@ -1928,9 +1928,9 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExercises', 'AI exercise generations')}</span><span className="feat-row-val">100 / mo</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowUnits', 'AI unit generations')}</span><span className="feat-row-val">20 / mo</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val">5 / mo</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExportHtml', 'Export interactive HTML')}</span><span className="feat-row-val check">✓</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val check">✓</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val check">✓</span></div>
-              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.full', 'Full')}</span></div>
             </div>
             <div className="price-cta">
               <Link to="/register" onClick={() => trackClickStartFree('pricing')} style={{ display: "block", textAlign: "center", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", color: "var(--primary-dk)", border: "1.5px solid var(--primary)", borderRadius: "var(--r)", background: "var(--tint)" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
@@ -1955,9 +1955,9 @@ export default function LandingPage() {
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExercises', 'AI exercise generations')}</span><span className="feat-row-val unlimited">{t('landing.pricingSection.unlimited', 'Unlimited')}</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowUnits', 'AI unit generations')}</span><span className="feat-row-val unlimited">{t('landing.pricingSection.unlimited', 'Unlimited')}</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowCourses', 'AI course generations')}</span><span className="feat-row-val unlimited">{t('landing.pricingSection.unlimited', 'Unlimited')}</span></div>
+              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowExportHtml', 'Export interactive HTML')}</span><span className="feat-row-val check">✓</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowPublish', 'Publish to students')}</span><span className="feat-row-val check">✓</span></div>
               <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowLive', 'Live classroom')}</span><span className="feat-row-val check">✓</span></div>
-              <div className="feat-row"><span className="feat-row-label">{t('landing.pricingSection.rowAnalytics', 'Analytics')}</span><span className="feat-row-val">{t('landing.pricingSection.fullExports', 'Full + exports')}</span></div>
             </div>
             <div className="price-cta">
               <Link to="/register" onClick={() => trackClickStartFree('pricing')} style={{ display: "block", background: "#fff", color: "var(--primary-dk)", borderRadius: "var(--r)", padding: "13px 24px", fontSize: 15, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>{t('landing.pricingSection.trialCta', 'Start free trial')}</Link>
