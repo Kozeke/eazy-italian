@@ -62,6 +62,15 @@ export type Segment = {
 export type SectionSidePanelProps = {
   /** When false the panel is hidden and the flex layout returns to full-width. */
   open?: boolean;
+  /**
+   * 'desktop' (default): fixed 240px column that floats beside the lesson content.
+   * 'mobile': full-width bottom sheet — used when the caller renders this panel
+   * inside a mobile overlay/drawer instead of the desktop flex row.
+   * 'drawer': right-side overlay panel that sits on top of the lesson player.
+   */
+  variant?: 'desktop' | 'mobile' | 'drawer';
+  /** Shows a close (X) button in the header — pass when rendering as a mobile drawer. */
+  onClose?: () => void;
 
   // ── NEW: segment-based props ───────────────────────────────────────────────
   /** Segments for the active unit. When present, these are rendered instead of `units`. */
@@ -105,6 +114,8 @@ export type SectionSidePanelProps = {
 
 export default function SectionSidePanel({
   open = true,
+  variant = 'desktop',
+  onClose,
 
   // segment props
   segments:        segmentsProp,
@@ -207,23 +218,32 @@ export default function SectionSidePanel({
   return (
     <aside
       style={{
-        /* Sizing — sit flush beside .lp-player-frame */
-        width: 240,
+        /* Sizing — inline desktop column, bottom sheet, or full-height overlay drawer */
+        width: variant === 'mobile' ? '100%' : variant === 'drawer' ? 'min(280px, 92vw)' : 240,
         flexShrink: 0,
+        height: variant === 'drawer' ? '100%' : undefined,
 
-        /* Detach from full-height stretch — float like a card beside the content */
-        alignSelf: 'flex-start',
-        maxHeight: '50%',
+        /* Detach from full-height stretch — float like a card beside the content (desktop only) */
+        alignSelf: variant === 'mobile' || variant === 'drawer' ? undefined : 'flex-start',
+        maxHeight: variant === 'mobile' ? '80vh' : variant === 'drawer' ? '100%' : '50%',
 
         /* Internal layout */
         display: 'flex',
         flexDirection: 'column',
 
-        /* Visual — mirror .lp-player-frame */
+        /* Visual — mirror .lp-player-frame on desktop; flat-topped sheet on mobile */
         background: '#ffffff',
-        borderRadius: 'var(--lp-player-radius, 1rem)',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 24px 0 rgba(0, 0, 0, 0.06)',
+        borderRadius: variant === 'mobile'
+          ? '16px 16px 0 0'
+          : variant === 'drawer'
+            ? '16px 0 0 16px'
+            : 'var(--lp-player-radius, 1rem)',
+        border: variant === 'mobile' ? 'none' : '1px solid #e2e8f0',
+        boxShadow: variant === 'mobile'
+          ? '0 -8px 24px 0 rgba(28, 31, 58, 0.10)'
+          : variant === 'drawer'
+            ? '-8px 0 32px 0 rgba(28, 31, 58, 0.14)'
+            : '0 4px 24px 0 rgba(0, 0, 0, 0.06)',
         overflow: 'hidden',
       }}
       aria-label={
@@ -236,6 +256,13 @@ export default function SectionSidePanel({
           : t('classroom.sectionPanel.unitNavigator')
       }
     >
+
+      {/* ── Mobile drag-handle affordance (sheet grabber) ────────────────────── */}
+      {variant === 'mobile' && (
+        <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', padding: '10px 0 2px' }} aria-hidden="true">
+          <div style={{ width: 36, height: 4, borderRadius: 99, background: '#E5DEFF' }} />
+        </div>
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div
@@ -262,6 +289,28 @@ export default function SectionSidePanel({
             {t('classroom.sectionPanel.sections')}
           </p>
         </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close', 'Close')}
+            style={{
+              flexShrink: 0,
+              width: 28,
+              height: 28,
+              borderRadius: 12,
+              border: 'none',
+              background: '#F7F7FA',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#52525B',
+            }}
+          >
+            <X style={{ width: 15, height: 15 }} strokeWidth={2.2} />
+          </button>
+        )}
       </div>
 
       {/* ── Current unit progress summary ──────────────────────────────────── */}

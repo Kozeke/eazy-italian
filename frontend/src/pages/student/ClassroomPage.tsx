@@ -676,10 +676,10 @@ function ClassroomPageInner({
   const answersPanelAnchorRef = useRef<HTMLDivElement>(null);
   // Header answers icon — anchor when homework tab or lesson with hidden strip (≤480px).
   const answersHeaderButtonRef = useRef<HTMLButtonElement>(null);
-  // When true, LessonWorkspace hides the mobile answers strip (≤480px); header shows the toggle instead.
+  // When true, LessonWorkspace omits the mobile answers strip; header shows the toggle instead.
   const [lessonAnswersStripHidden, setLessonAnswersStripHidden] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 480px)").matches;
+    return window.matchMedia("(max-width: 1023px)").matches;
   });
 
   // ── Course data ───────────────────────────────────────────────────────────
@@ -746,7 +746,7 @@ function ClassroomPageInner({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mediaQuery = window.matchMedia("(max-width: 480px)");
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
     const syncLessonAnswersStrip = () => setLessonAnswersStripHidden(mediaQuery.matches);
     syncLessonAnswersStrip();
     mediaQuery.addEventListener("change", syncLessonAnswersStrip);

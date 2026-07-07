@@ -31,7 +31,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, Menu } from "lucide-react";
 
 // Register all exercise types before any SectionBlock / FlowItemRenderer mounts
 import "./flow/exerciseRegistrations";
@@ -312,7 +312,7 @@ function LessonWorkspace({
   const draftRouteContextStorageKey = "exerciseDraftsRouteContext";
   const routerLocation = useLocation();
   const navigate = useNavigate();
-  // Tracks whether the viewport is narrow enough to switch to the mobile single-column classroom layout.
+  // Tracks whether the viewport is narrow enough for mobile/tablet layout (≤1023px).
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 1023px)").matches;
@@ -338,6 +338,13 @@ function LessonWorkspace({
     mediaQuery.addEventListener("change", syncViewportMode);
     return () => mediaQuery.removeEventListener("change", syncViewportMode);
   }, []);
+
+  // Controls the hamburger overlay drawer for SectionSidePanel (phones + tablets).
+  const [sectionsOverlayOpen, setSectionsOverlayOpen] = useState(false);
+  // Close the drawer when widening past tablet or when the panel is disabled.
+  useEffect(() => {
+    if (!sidePanelOpen || !isMobileViewport) setSectionsOverlayOpen(false);
+  }, [sidePanelOpen, isMobileViewport]);
 
   // ── Persistence: hydration + autosave ────────────────────────────────────────
   const {
@@ -1210,16 +1217,46 @@ function LessonWorkspace({
   if (loading && !unit) return <LessonFlowSkeleton />;
   if (error) return <LessonFlowError message={error} />;
 
-  // Hides the floating section side panel on mobile to prevent horizontal overflow.
+  // Phones + tablets (≤1023px): hamburger overlay. Laptop/desktop (≥1024px): inline panel.
   const showDesktopSidePanel = sidePanelOpen && !isMobileViewport;
+  const showSectionsHamburger = sidePanelOpen && isMobileViewport;
 
-  // True when the teacher should see the answers rail (left on desktop, top strip on mobile).
+  // True when the teacher should see the answers rail (left on desktop only).
   const hasTeacherAnswersRail =
     mode === "teacher" && typeof onToggleAnswersPanel === "function";
 
-  // Uses a horizontal flex row when the sections panel and/or the answers rail needs column siblings.
+  // Horizontal row when the inline sections panel and/or answers rail needs siblings.
   const useWideLessonRow =
     showDesktopSidePanel || (hasTeacherAnswersRail && !isMobileViewport);
+
+  // Shared between the desktop inline panel and the mobile overlay drawer.
+  const sectionSidePanelSharedProps = {
+    segments: sidePanelSegments.length > 0 ? sidePanelSegments : undefined,
+    currentSegmentId: sidePanelSegments[visibleSectionIndex]?.id ?? null,
+    onSelectSegment: handleSelectSegment,
+    onAddSegment: mode === "teacher" ? handleAddSegment : undefined,
+    onRemoveSegment:
+      mode === "teacher" && sortedSegments.length > 1
+        ? handleRemoveSegment
+        : undefined,
+    onReorderSegments:
+      mode === "teacher" && sortedSegments.length > 1
+        ? handleReorderSegments
+        : undefined,
+    units,
+    currentUnitId,
+    completedUnitIds,
+    courseTitle,
+    onSelectUnit: mode === "teacher" ? () => {} : onSelectUnit,
+    onAddUnit: mode === "teacher" ? undefined : onAddUnit,
+    onFinishUnit,
+    onExtra: () => onExtra("extra"),
+    currentUnitSteps,
+    finishButtonVariant: sidePanelFinishVariant,
+    finishButtonDisabled: finishUnitActionPending,
+    publishBlocked,
+    onUpgradeForPublish,
+  } as const;
 
   // ── Main render ────────────────────────────────────────────────────────────────
   return (
@@ -1247,36 +1284,7 @@ function LessonWorkspace({
         ].join(" ")}
         style={{ gap: 3 }}
       >
-        {/* Mobile/tablet: compact strip aligned with lesson column; hidden ≤480px (header fallback). */}
-        {hasTeacherAnswersRail && isMobileViewport && (
-          <div
-            ref={answersPanelAnchorRef}
-            className="lw-answers-rail lw-answers-rail--mobile lw-answers-rail--mobile--responsive mt-1 shrink-0"
-            aria-label={t("classroom.lessonWorkspace.studentAnswers")}
-          >
-            {/* <div className="lw-answers-rail__head lw-answers-rail__head--mobile">
-              <span className="lw-answers-rail__title">Answers</span>
-            </div> */}
-            <div className="lw-answers-rail__body lw-answers-rail__body--mobile">
-              <button
-                type="button"
-                onClick={onToggleAnswersPanel}
-                aria-label={t("classroom.lessonWorkspace.viewStudentAnswers")}
-                aria-pressed={answersPanelOpen}
-                title={t("classroom.lessonWorkspace.studentAnswers")}
-                className={[
-                  "ch-icon-btn",
-                  answersPanelOpen
-                    ? "ch-icon-btn--answers ch-icon-btn--answers-active"
-                    : "ch-icon-btn--answers",
-                ].join(" ")}
-              >
-                <LayoutGrid size={15} strokeWidth={2.2} />
-              </button>
-            </div>
-          </div>
-        )}
-
+        {/* Desktop: answers rail beside the lesson column. Mobile/tablet use the header icon instead. */}
         {hasTeacherAnswersRail && !isMobileViewport && (
           <aside
             ref={answersPanelAnchorRef}
@@ -1308,13 +1316,23 @@ function LessonWorkspace({
 
         <div
           className={[
-            // flex-1: in column layout, take height below the answers rail; in row layout, fill beside the panel so .vlp-root gets a bounded flex height.
-            "flex  min-h-0 flex-col",
             showDesktopSidePanel
-              ? "min-w-[700px] max-w-[900px]"
-              : "w-full min-w-0 max-w-none",
+              ? "relative flex min-h-0 flex-col min-w-[700px] max-w-[900px]"
+              : "relative flex min-h-0 flex-col w-full min-w-0 max-w-none lw-lesson-column",
           ].join(" ")}
         >
+          {showSectionsHamburger && (
+            <button
+              type="button"
+              className="lw-sections-hamburger"
+              onClick={() => setSectionsOverlayOpen(true)}
+              aria-label={t("classroom.sectionPanel.sectionNavigator")}
+              aria-haspopup="dialog"
+              aria-expanded={sectionsOverlayOpen}
+            >
+              <Menu size={20} strokeWidth={2.2} />
+            </button>
+          )}
           <VerticalLessonPlayer
             key={`vlp-unit-${effectiveUnitId ?? "none"}`}
             flow={flow}
@@ -1380,40 +1398,40 @@ function LessonWorkspace({
         {showDesktopSidePanel && (
           <SectionSidePanel
             open={showDesktopSidePanel}
-            segments={
-              sidePanelSegments.length > 0 ? sidePanelSegments : undefined
-            }
-            currentSegmentId={
-              sidePanelSegments[visibleSectionIndex]?.id ?? null
-            }
-            onSelectSegment={handleSelectSegment}
-            onAddSegment={mode === "teacher" ? handleAddSegment : undefined}
-            onRemoveSegment={
-              mode === "teacher" && sortedSegments.length > 1
-                ? handleRemoveSegment
-                : undefined
-            }
-            onReorderSegments={
-              mode === "teacher" && sortedSegments.length > 1
-                ? handleReorderSegments
-                : undefined
-            }
-            units={units}
-            currentUnitId={currentUnitId}
-            completedUnitIds={completedUnitIds}
-            courseTitle={courseTitle}
-            onSelectUnit={mode === "teacher" ? () => {} : onSelectUnit}
-            onAddUnit={mode === "teacher" ? undefined : onAddUnit}
-            onFinishUnit={onFinishUnit}
-            onExtra={() => onExtra("extra")}
-            currentUnitSteps={currentUnitSteps}
-            finishButtonVariant={sidePanelFinishVariant}
-            finishButtonDisabled={finishUnitActionPending}
-            publishBlocked={publishBlocked}
-            onUpgradeForPublish={onUpgradeForPublish}
+            {...sectionSidePanelSharedProps}
           />
         )}
       </div>
+
+      {/* ── Mobile + tablet: hamburger → overlay drawer on top of VerticalLessonPlayer ── */}
+      {showSectionsHamburger && sectionsOverlayOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("classroom.sectionPanel.sectionNavigator")}
+          className="lw-sections-overlay"
+        >
+          <div
+            className="lw-sections-overlay__backdrop"
+            onClick={() => setSectionsOverlayOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="lw-sections-overlay__drawer">
+            <SectionSidePanel
+              open
+              variant="drawer"
+              onClose={() => setSectionsOverlayOpen(false)}
+              {...{
+                ...sectionSidePanelSharedProps,
+                onSelectSegment: (segment: Parameters<typeof handleSelectSegment>[0]) => {
+                  handleSelectSegment(segment);
+                  setSectionsOverlayOpen(false);
+                },
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

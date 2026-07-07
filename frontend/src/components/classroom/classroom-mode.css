@@ -162,16 +162,31 @@
   animation: ch-badge-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* ── Responsive: hide labels on very small screens ───────────────────────── */
+/* ── Responsive: icon-only tabs on small screens ─────────────────────────── */
 
 @media (max-width: 640px) {
   .ch-inline-tab {
+    position: relative;
+    gap: 0;
     padding: 5px 8px;
     font-size: 12px;
   }
 
+  /* Visually hidden but still read by screen readers (same pattern as 640–900px) */
   .ch-inline-tab__label {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .ch-inline-tab__badge {
+    margin-left: 2px;
   }
 }
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -496,34 +511,6 @@
   pointer-events: none;
 }
 
-/* ── Export-unit variant ─────────────────────────────────────────────────── */
-
-/* Resting state: same primary tint as --add for visual family consistency */
-.ch-icon-btn--export {
-  background: #EEF0FE;          /* primary tint */
-  color: #6C6FEF;               /* primary */
-}
-
-/* Hover: filled primary, matching --add interaction pattern */
-.ch-icon-btn--export:hover:not(:disabled) {
-  background: #6C6FEF;
-  color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(108, 111, 239, 0.28);
-}
-
-.ch-icon-btn--export:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: none;
-}
-
-/* Disabled when no unit is selected */
-.ch-icon-btn--export:disabled {
-  opacity: 0.4;
-  cursor: default;
-  pointer-events: none;
-}
-
 /* ── Exit variant ────────────────────────────────────────────────────────── */
 
 .ch-icon-btn--exit {
@@ -656,55 +643,61 @@
 
 @media (max-width: 639px) {
   .ch-main-row {
-    height: auto;
+    height: 48px;
     min-height: 48px;
-    align-items: flex-start;
-    padding-top: 4px;
-    padding-bottom: 4px;
+    align-items: center;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   .ch-main-inner {
-    height: auto;
-    min-height: 40px;
-    flex-wrap: wrap;
-    row-gap: 6px;
+    height: 100%;
+    min-height: 0;
+    flex-wrap: nowrap;
+    gap: 0.375rem;
     align-items: center;
+    overflow: hidden;
   }
 
   .ch-left-group {
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    overflow: hidden;
+  }
+
+  /* When tabs share the row, cap title width so lesson/homework pills stay inline */
+  .classroom-header--has-tabs .ch-left-group {
+    flex: 0 1 auto;
+    max-width: min(38vw, 120px);
+  }
+
+  .classroom-header--has-tabs .ch-course-title-mobile {
+    min-width: 0;
+  }
+
+  .classroom-header--has-tabs .ch-left-group > button:first-child {
+    padding-left: 0.375rem;
+    padding-right: 0.375rem;
   }
 
   .ch-main-spacer {
     display: none;
   }
 
-  .classroom-header--teacher .ch-right-content {
-    order: 2;
-    margin-left: 0;
-    width: calc(100% - 248px);
-    min-width: 0;
-    justify-content: flex-end;
-    padding-right: 6px;
-  }
-
+  .classroom-header--teacher .ch-right-content,
   .classroom-header--student .ch-right-content {
-    order: 2;
-    margin-left: 0;
-    width: calc(100% - 198px);
-    min-width: 0;
-    justify-content: flex-end;
-    padding-right: 6px;
+    display: none;
   }
 
+  /* Tabs stay on the same row as back + title (not a second row below the bar) */
   .ch-tabs-wrap {
-    order: 3;
-    width: 100%;
+    order: unset;
+    width: auto;
+    flex: 0 0 auto;
     display: flex;
     justify-content: flex-start;
-    overflow-x: auto;
-    padding-bottom: 2px;
+    overflow: visible;
+    padding-bottom: 0;
     scrollbar-width: none;
   }
 
@@ -713,11 +706,13 @@
   }
 
   .ch-tabs-wrap .ch-inline-tabs {
-    max-width: 100%;
+    max-width: none;
+    width: auto;
   }
 
   .ch-far-right-panel {
     --ch-exit-slot-width: 2.5rem;
+    height: 100%;
   }
 
   .ch-far-right-panel__change {
@@ -749,7 +744,7 @@
   }
 
   .ch-change-unit-label--mobile {
-    max-width: 72px;
+    max-width: 56px;
   }
 }
 
@@ -905,42 +900,28 @@
 
 @media (max-width: 479px) {
 
-  /* Ensure the header row never squeezes below 52px so the tab wrap on
-      row-3 still sits fully within the header background                      */
+  /* Single-row header — tabs stay inline with the title */
   .ch-main-row {
-    min-height: 52px !important;
+    min-height: 48px !important;
   }
 
-  /* Aggressive truncation on the course title for very tight viewports       */
-  .ch-main-bar-inner button .truncate {
-    max-width: 80px !important;
+  .classroom-header--has-tabs .ch-left-group {
+    max-width: min(34vw, 96px);
   }
 
-  /* Slightly smaller tab font on tiny screens                                */
+  /* Slightly smaller tab pills on tiny screens */
   .ch-inline-tab {
     font-size: 11.5px;
-    padding: 5px 8px;
+    padding: 5px 7px;
   }
 
-  /* Teacher main-bar right padding — narrow enough at 479px that we can
-      reduce the reservation slightly vs the ≤639px value                      */
+  /* Teacher main-bar right padding — narrow enough at 479px */
   .classroom-header--teacher .ch-main-bar-inner {
     padding-right: calc(var(--classroom-align-gutter) + 200px);
   }
 }
 
-/* ── 5. Far-right panel: pin icon cluster to the first logical row ────────
-        When the header wraps to 2 rows on mobile (tabs go to row 2), the
-        absolute `.ch-far-right-panel` still spans only the first ~48px row
-        so the exit / change-unit icons stay vertically centred with the
-        course title, not with the tab row below it.                           */
-
-@media (max-width: 639px) {
-  .ch-far-right-panel {
-    height: 48px; /* first row only — tabs row is below */
-    bottom: auto;
-  }
-}
+/* ── 5. Far-right panel: vertically centred in the single mobile header row ─ */
 
 /* ── 6. Header answers-panel button: tablet / mobile visibility ──────────── */
 /*       The LayoutGrid "answers" button is hidden via opacity in the rail    */
@@ -979,5 +960,34 @@
   .vlp-root {
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: none; /* disable any snap so free scroll feels natural */
+  }
+}
+
+/* ── 10. Tabs: compact icon-only pills when sharing the mobile header row ───
+        MUST stay the last .ch-inline-tab rules in this file. Labels are
+        visually hidden but remain accessible; icons keep the row narrow.    */
+
+@media (max-width: 639px) {
+  .ch-inline-tab {
+    position: relative;
+    gap: 0;
+    padding: 6px 8px;
+    min-height: 32px;
+  }
+
+  .ch-inline-tab__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .ch-inline-tab__badge {
+    margin-left: 2px;
   }
 }

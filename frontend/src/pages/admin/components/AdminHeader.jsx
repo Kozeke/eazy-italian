@@ -30,18 +30,18 @@ const API_V1_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/
 // Public YouTube channel opened from the help menu "YouTube channel" item
 const HELP_YOUTUBE_CHANNEL_URL = "https://www.youtube.com/@rd_team5861";
 
-// Public Instagram profile opened from the help menu "Instagram" item
+// Public Instagram profile linked from the header actions bar
 const INSTAGRAM_URL = "https://www.instagram.com/linguai_net?utm_source=qr";
 
 const T = {
-  violet:  "#6C6FEF",
-  violetL: "#EDE9FF",
+  violet:  "#6C6FEF",   // primary
+  violetDk:"#4F52C2",   // primary dark
+  violetL: "#EEF0FE",   // tint
   pink:    "#F0447C",
   lime:    "#0DB85E",
   limeL:   "#E9F9EE",
-  sky:     "#3B9EFF",
   white:   "#FFFFFF",
-  bg:      "#F8F8FC",
+  bg:      "#F7F7FA",   // background
   border:  "#E5DEFF",
   borderL: "#EBEBF0",
   text:    "#18181B",
@@ -95,7 +95,7 @@ const CSS = `
     color: ${T.white};
     background: ${T.expiredBtn};
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
     padding: 5px 14px;
     cursor: pointer;
     font-family: 'Inter', system-ui, sans-serif;
@@ -176,7 +176,7 @@ const CSS = `
     position: absolute; top: calc(100% + 8px); right: 0;
     background: ${T.white}; border: 1px solid ${T.borderL};
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.06);
+    box-shadow: 0 6px 20px rgba(108,111,239,.10), 0 2px 6px rgba(17,17,17,.05);
     z-index: 1100; transform-origin: top right;
     animation: ah-dd-in .14s cubic-bezier(.22,.68,0,1.2) forwards;
   }
@@ -204,18 +204,18 @@ const CSS = `
   .ah-tp-note { font-size: 12.5px; color: ${T.muted}; line-height: 1.5; margin-bottom: 14px; text-align: center; }
   /* Tinted blue note shown in the free-plan popover body */
   .ah-tp-note--trial-window {
-    background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 7px;
+    background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 12px;
     padding: 9px 11px; color: #1D4ED8; font-size: 12.5px; line-height: 1.55;
     margin-bottom: 14px; text-align: left;
   }
   .ah-tp-cta {
-    display: block; width: 100%; padding: 10px 0; border-radius: 8px;
-    background: ${T.sky}; color: ${T.white};
+    display: block; width: 100%; padding: 10px 0; border-radius: 12px;
+    background: ${T.violet}; color: ${T.white};
     font-size: 13.5px; font-weight: 600; text-align: center;
     border: none; cursor: pointer; font-family: 'Inter', system-ui, sans-serif;
     transition: background .14s;
   }
-  .ah-tp-cta:hover { background: #2280d4; }
+  .ah-tp-cta:hover { background: ${T.violetDk}; }
 
   /* ── Limits tab ─────────────────────────────────────────────────────────── */
   .ah-tp-limits-body { padding: 14px 16px 16px; }
@@ -241,7 +241,7 @@ const CSS = `
   .ah-dd-email { font-size: 11.5px; color: ${T.muted}; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ah-dd-item {
     display: flex; align-items: center; gap: 11px;
-    padding: 8px 10px; border-radius: 7px;
+    padding: 8px 10px; border-radius: 12px;
     font-size: 13.5px; font-weight: 500; color: ${T.sub};
     cursor: pointer; width: 100%; text-align: left;
     background: none; border: none; transition: background .12s, color .12s;
@@ -257,10 +257,21 @@ const CSS = `
   .ah-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: ${T.white}; box-shadow: 0 1px 3px rgba(0,0,0,.18); transition: transform .2s cubic-bezier(.22,.68,0,1.2); }
   .ah-toggle--on .ah-toggle-thumb { transform: translateX(13px); }
 
+  /* ── Instagram icon link ────────────────────────────────────────────────── */
+  .ah-instagram-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 12px;
+    border: none; background: none; cursor: pointer;
+    color: ${T.muted}; text-decoration: none; flex-shrink: 0;
+    transition: background .14s, color .14s;
+  }
+  .ah-instagram-btn:hover { background: ${T.bg}; color: #C13584; }
+  .ah-instagram-btn:focus-visible { outline: 2px solid ${T.violet}; outline-offset: 2px; }
+
   /* ── Help ───────────────────────────────────────────────────────────────── */
   .ah-help-btn {
     display: flex; align-items: center; gap: 6px;
-    padding: 0 12px; height: 32px; border-radius: 8px;
+    padding: 0 12px; height: 32px; border-radius: 12px;
     border: none; background: none; cursor: pointer;
     font-size: 13.5px; font-weight: 500; color: ${T.sub};
     font-family: 'Inter', system-ui, sans-serif; transition: background .14s, color .14s; flex-shrink: 0;
@@ -268,11 +279,11 @@ const CSS = `
   .ah-help-btn:hover { background: ${T.bg}; color: ${T.text}; }
   .ah-help-drop { width: 220px; padding: 6px; }
   .ah-help-section { padding: 6px 8px 4px; display: flex; align-items: center; gap: 8px; }
-  .ah-help-section-ico { width: 28px; height: 28px; border-radius: 7px; background: ${T.violetL}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: ${T.violet}; }
+  .ah-help-section-ico { width: 28px; height: 28px; border-radius: 10px; background: ${T.violetL}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: ${T.violet}; }
   .ah-help-section-title { font-size: 12px; font-weight: 600; color: ${T.text}; font-family: 'Inter', system-ui, sans-serif; }
   .ah-help-item {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 7px 10px; border-radius: 7px;
+    padding: 7px 10px; border-radius: 12px;
     font-size: 13px; font-weight: 500; color: ${T.sub};
     cursor: pointer; width: 100%; text-align: left;
     background: none; border: none; transition: background .12s, color .12s;
@@ -282,7 +293,44 @@ const CSS = `
   .ah-help-item--with-icon { justify-content: flex-start; gap: 8px; }
   .ah-help-dot { width: 7px; height: 7px; border-radius: 50%; background: ${T.pink}; flex-shrink: 0; }
   .ah-help-sep { height: 1px; background: ${T.borderL}; margin: 4px 2px; }
-  .ah-help-support-ico { width: 28px; height: 28px; border-radius: 7px; background: ${T.limeL}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: ${T.lime}; }
+  .ah-help-support-ico { width: 28px; height: 28px; border-radius: 10px; background: ${T.limeL}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: ${T.lime}; }
+
+  /* ── Dropdown overflow safety on narrow viewports ───────────────────────── */
+  .ah-dropdown { max-width: calc(100vw - 24px); }
+
+  /* ── Responsive breakpoints ──────────────────────────────────────────────
+     Header stays a single fixed-height row at every width: elements shrink
+     or hide (icon-only / no label) instead of wrapping, so HEADER_H never
+     needs to change and content never sits under the bar.
+  ───────────────────────────────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .ah-root { padding: 0 12px; }
+    .ah-actions { gap: 2px; }
+    .ah-logo svg { width: 140px; height: auto; }
+    .ah-help-btn { padding: 0 8px; gap: 0; }
+    .ah-help-btn-text { display: none; }
+    .ah-trial-pill { padding: 0 10px; font-size: 12px; }
+  }
+
+  @media (max-width: 480px) {
+    .ah-logo svg { width: 108px; height: auto; }
+    .ah-instagram-btn { display: none; }
+    .ah-trial-pill {
+      max-width: 108px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      padding: 0 8px; font-size: 11.5px;
+    }
+    .ah-divider { margin: 0 2px; }
+    .ah-avatar { width: 32px; height: 32px; font-size: 13px; }
+    .ah-expired-banner { padding: 0 12px; gap: 8px; }
+    .ah-expired-msg { font-size: 11.5px; }
+    .ah-expired-cta { padding: 4px 10px; font-size: 11.5px; }
+  }
+
+  @media (max-width: 360px) {
+    .ah-trial-pill { display: none; }
+    .ah-divider { display: none; }
+  }
 `;
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -294,6 +342,14 @@ const IcoLogout  = () => (<svg width="16" height="16" viewBox="0 0 20 20" fill="
 const IcoHelp    = () => (<svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/><path d="M10 13.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M7.5 7.75C7.5 6.37 8.62 5.25 10 5.25s2.5 1.12 2.5 2.5c0 1.5-2.5 2.5-2.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>);
 const IcoSchool  = () => (<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 8l8-5 8 5-8 5-8-5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M5 9.5V15c0 1.1 2.24 2 5 2s5-.9 5-2V9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><path d="M18 8v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>);
 const IcoChatBubble = () => (<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M3 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H7l-4 3V4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>);
+// Instagram brand icon (simplified camera outline)
+const IcoInstagram = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+    <circle cx="12" cy="12" r="4"/>
+    <circle cx="17.5" cy="6.5" r="0.9" fill="currentColor" stroke="none"/>
+  </svg>
+);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 /** Formats trial end date using the active UI locale when possible. */
@@ -525,9 +581,6 @@ function HelpDropdown({ onClose }) {
   const openYouTubeChannel = () => {
     window.open(HELP_YOUTUBE_CHANNEL_URL, "_blank", "noopener,noreferrer");
   };
-  const openInstagram = () => {
-    window.open(INSTAGRAM_URL, "_blank", "noopener,noreferrer");
-  };
   const openSupportChat = () => {
     openSupportChatWidget();
   };
@@ -541,7 +594,6 @@ function HelpDropdown({ onClose }) {
       <button type="button" className="ah-help-item" role="menuitem" onClick={onClose}>{t("admin.help.blog")}</button>
       */}
       <button type="button" className="ah-help-item" role="menuitem" onClick={runThenClose(openYouTubeChannel)}>{t("admin.help.youtube")}</button>
-      <button type="button" className="ah-help-item" role="menuitem" onClick={runThenClose(openInstagram)}>{t("admin.help.instagram")}</button>
       <div className="ah-help-sep" role="separator" />
       <button type="button" className="ah-help-item ah-help-item--with-icon" role="menuitem" onClick={runThenClose(openSupportChat)}>
         <span className="ah-help-support-ico" aria-hidden="true"><IcoChatBubble /></span>
@@ -673,10 +725,22 @@ export default function AdminHeader({
         <div style={{ flex: 1 }} aria-hidden="true" />
 
         <div className="ah-actions">
+          {/* Instagram profile link */}
+          <a
+            className="ah-instagram-btn"
+            href={INSTAGRAM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+            title="Instagram"
+          >
+            <IcoInstagram />
+          </a>
+
           {/* Help */}
           <div style={{ position: "relative" }}>
             <button type="button" className="ah-help-btn" onClick={openHelp} aria-haspopup="menu" aria-expanded={helpOpen} aria-label={t("admin.help.menuLabel")}>
-              <IcoHelp />{t("admin.help.button")}
+              <IcoHelp /><span className="ah-help-btn-text">{t("admin.help.button")}</span>
             </button>
             {helpOpen && <HelpDropdown onClose={closeHelp} />}
           </div>

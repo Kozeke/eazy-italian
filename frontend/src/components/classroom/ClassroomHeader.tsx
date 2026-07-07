@@ -20,7 +20,6 @@ import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   ChevronDown,
-  Download,
   GraduationCap,
   BookOpen,
   ClipboardList,
@@ -91,13 +90,6 @@ export interface ClassroomHeaderProps {
    * Rendered only when isTeacher=true.
    */
   onAddStudent?: () => void;
-
-  /**
-   * Called when the teacher clicks the "Export as HTML" icon (Download).
-   * Rendered only when isTeacher=true and a unit is selected.
-   * Triggers a browser download of the current unit as a self-contained HTML file.
-   */
-  onExportUnit?: () => void;
 
   /**
    * Optional: homework-tab-only toggle for StudentAnswersPanel (lesson tab uses
@@ -328,7 +320,6 @@ export default function ClassroomHeader({
   onGenerateSuccess,
   onlineUsers = [],
   onAddStudent,
-  onExportUnit,
   onToggleAnswersPanel,
   answersPanelOpen = false,
   answersPanelHeaderButtonRef,
@@ -336,6 +327,22 @@ export default function ClassroomHeader({
   // Provides localized labels for tabs, unit button, and header controls.
   const { t } = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Tracks the same "mobile layout" breakpoint LessonWorkspace uses (1023px), so header
+  // controls that are redundant on mobile (the lesson tab already has its own inline
+  // answers-rail toggle there) can be hidden instead of crowding the Lesson/Homework tabs.
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 1023px)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    const syncViewportMode = () => setIsMobileViewport(mediaQuery.matches);
+    syncViewportMode();
+    mediaQuery.addEventListener('change', syncViewportMode);
+    return () => mediaQuery.removeEventListener('change', syncViewportMode);
+  }, []);
 
   const canUseModal = units.length > 0 && typeof onSelectUnit === 'function';
   // Resolves either stored path or absolute URL into a browser-safe thumbnail source.
@@ -366,6 +373,8 @@ export default function ClassroomHeader({
           // Reserves correct main-bar padding for the viewport-pinned icon cluster (teacher vs student)
           isTeacher ? 'classroom-header--teacher' : 'classroom-header--student',
           hasRail ? 'classroom-header--has-rail' : '',
+          // Tightens mobile header layout when lesson/homework tabs share the main row.
+          showTabs ? 'classroom-header--has-tabs' : '',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -393,24 +402,32 @@ export default function ClassroomHeader({
               <button
                 type="button"
                 onClick={onBack}
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:hidden"
+                className={[
+                  'flex min-w-0 items-center rounded-lg text-left transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:hidden ch-course-title-mobile',
+                  showTabs ? 'max-w-[88px] gap-1 px-0.5 py-0.5' : 'flex-1 gap-2 px-1 py-1',
+                ].join(' ')}
                 aria-label={`Leave classroom (${course.title})`}
               >
-                {courseThumbnailSrc ? (
-                  <img
-                    src={courseThumbnailSrc}
-                    alt=""
-                    className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-slate-200"
-                  />
-                ) : (
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-violet-700 shadow-sm">
-                    <GraduationCap className="h-3.5 w-3.5 text-white" />
-                  </div>
+                {!showTabs && (
+                  courseThumbnailSrc ? (
+                    <img
+                      src={courseThumbnailSrc}
+                      alt=""
+                      className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-slate-200"
+                    />
+                  ) : (
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md shadow-sm" style={{ background: 'linear-gradient(135deg, #6C6FEF 0%, #4F52C2 100%)' }}>
+                      <GraduationCap className="h-3.5 w-3.5 text-white" />
+                    </div>
+                  )
                 )}
-                <span className="min-w-0 truncate text-xs font-semibold text-slate-800">
+                <span className={[
+                  'min-w-0 truncate font-semibold text-slate-800 ch-course-title-mobile__text',
+                  showTabs ? 'text-[11px] leading-tight' : 'text-xs',
+                ].join(' ')}>
                   {course.title}
                 </span>
-                {course.level && <LevelBadge level={course.level} />}
+                {!showTabs && course.level && <LevelBadge level={course.level} />}
               </button>
 
               <button
@@ -426,7 +443,7 @@ export default function ClassroomHeader({
                     className="h-7 w-7 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
                   />
                 ) : (
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-violet-700 shadow-sm">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg shadow-sm" style={{ background: 'linear-gradient(135deg, #6C6FEF 0%, #4F52C2 100%)' }}>
                     <GraduationCap className="h-4 w-4 text-white" />
                   </div>
                 )}
@@ -496,7 +513,7 @@ export default function ClassroomHeader({
               {isTeacher && (
                 <>
                   <div className="flex items-center gap-2">
-                    {onToggleAnswersPanel && (
+                    {onToggleAnswersPanel && !isMobileViewport && (
                       <button
                         ref={answersPanelHeaderButtonRef ?? undefined}
                         type="button"
@@ -523,18 +540,6 @@ export default function ClassroomHeader({
                       disabled={!onAddStudent}
                     >
                       <UserPlus size={15} strokeWidth={2.2} />
-                    </button>
-
-                    {/* Export current unit as a self-contained HTML file */}
-                    <button
-                      type="button"
-                      onClick={onExportUnit}
-                      aria-label={t('classroom.header.exportUnitAria', 'Export as HTML')}
-                      title={t('classroom.header.exportUnit', 'Export as HTML')}
-                      className="ch-icon-btn ch-icon-btn--export"
-                      disabled={!onExportUnit || !currentUnit}
-                    >
-                      <Download size={15} strokeWidth={2.2} />
                     </button>
 
                     <OnlinePresenceCluster users={onlineUsers} />

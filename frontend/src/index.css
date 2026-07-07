@@ -9,10 +9,37 @@
 @layer base {
   html {
     font-family: 'Inter', system-ui, sans-serif;
+    /* Stop iOS Safari from silently enlarging text after orientation/focus changes. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   
   body {
     @apply bg-gray-50 text-gray-900;
+  }
+}
+
+/*
+ * Global mobile safety net (applies app-wide, loaded before every page).
+ * Purpose: many inputs across the app use font sizes below 16px, which makes
+ * iOS Safari aggressively zoom in on focus and break the layout on phones.
+ * Flooring form controls at 16px on phone-width screens removes that zoom
+ * without touching the desktop/tablet admin UI. Scoped to <=480px so only
+ * real phones are affected. !important is required to beat inline styles.
+ */
+@media (max-width: 480px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Prevent a single wide element from forcing horizontal scroll on small screens. */
+@media (max-width: 480px) {
+  html,
+  body {
+    overflow-x: hidden;
   }
 }
 

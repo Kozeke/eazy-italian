@@ -223,6 +223,36 @@ const C = {
   hoverShadow: "0 8px 24px rgba(108,111,239,0.14), 0 2px 8px rgba(108,111,239,0.06)",
 };
 
+// Responsive gallery layout: one column on phones, two on tablet, three on desktop.
+const EXERCISE_DRAFTS_GALLERY_CSS = `
+  @keyframes pm-spin { to { transform: rotate(360deg); } }
+  .edp-gallery-shell {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 36px 16px 0;
+  }
+  @media (min-width: 640px) {
+    .edp-gallery-shell {
+      padding: 36px 24px 0;
+    }
+  }
+  .edp-template-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 481px) {
+    .edp-template-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 769px) {
+    .edp-template-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+`;
+
 // Contains template ids that should be hidden from the exercise gallery.
 const DISABLED_TEMPLATE_IDS = new Set<string>(["audio-repeat", "anagram"]);
 
@@ -349,6 +379,7 @@ function TemplateCard({
         transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s",
         position: "relative",
         userSelect: "none",
+        minWidth: 0,
       }}
     >
       {creating && (
@@ -439,7 +470,7 @@ function GallerySectionGroup({
         {sectionTitle}
       </p>
       {view === "grid" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        <div className="edp-template-grid">
           {templates.map((t) => (
             <TemplateCard key={t.id} template={t} creating={creating === t.id} onClick={() => onSelect(t.id)} />
           ))}
@@ -619,9 +650,9 @@ function AIBanner({ onGenerateAI }: { onGenerateAI?: () => void }) {
       tabIndex={0}
       onClick={onGenerateAI}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onGenerateAI?.()}
-      style={{ display: "flex", alignItems: "center", gap: 14, background: `linear-gradient(135deg, ${C.tint} 0%, #F3F0FF 100%)`, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", cursor: "pointer", marginBottom: 24, userSelect: "none" }}
+      style={{ display: "flex", alignItems: "center", gap: 14, background: `linear-gradient(135deg, ${C.tint} 0%, ${C.white} 100%)`, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", cursor: "pointer", marginBottom: 24, userSelect: "none" }}
     >
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary} 0%, #9333ea 100%)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDk} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Wand2 size={18} color="#fff" strokeWidth={2} />
       </div>
       <div>
@@ -680,8 +711,8 @@ function Gallery({
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "0 0 80px" }}>
-      <style>{`@keyframes pm-spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "36px 0 0" }}>
+      <style>{EXERCISE_DRAFTS_GALLERY_CSS}</style>
+      <div className="edp-gallery-shell">
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

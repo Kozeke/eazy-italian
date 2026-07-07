@@ -1185,11 +1185,11 @@
     padding: 10px 22px;
     font-size: 13px;
   }
- 
+
   .vlp-bottom-nav-inner {
     padding: 10px 1.5rem;
   }
- 
+
   /* Hide the floating section navigator on tablets (clutters small screens)  */
   .vlp-section-nav {
     display: none;
@@ -1238,7 +1238,16 @@
   }
  
   /* ── Bottom navigation ────────────────────────────────────────────────── */
- 
+
+  /* Pin prev/next to the bottom of the scrollport so it stays reachable while reading */
+  .vlp-bottom-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 15;
+    box-shadow: 0 -4px 14px rgba(28, 31, 58, 0.08);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   /* Full-width stacked buttons on small phones for thumb-friendly tapping    */
   .vlp-bottom-nav-inner {
     flex-direction: column-reverse; /* Primary (Next) on top for easy reach   */
