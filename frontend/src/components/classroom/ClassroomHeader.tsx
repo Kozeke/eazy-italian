@@ -26,6 +26,7 @@ import {
   UserPlus,
   LogOut,
   LayoutGrid,
+  Download,
 } from 'lucide-react';
 import UnitSelectorModal from './unit/UnitSelectorModal';
 import { type OnlineUser, getAvatarColor } from '../../hooks/useOnlinePresence';
@@ -90,6 +91,12 @@ export interface ClassroomHeaderProps {
    * Rendered only when isTeacher=true.
    */
   onAddStudent?: () => void;
+
+  /**
+   * Called when the teacher clicks the export icon — downloads the current unit
+   * as self-contained HTML. Rendered only when isTeacher=true and a unit is selected.
+   */
+  onExportUnit?: () => void | Promise<void>;
 
   /**
    * Optional: homework-tab-only toggle for StudentAnswersPanel (lesson tab uses
@@ -320,6 +327,7 @@ export default function ClassroomHeader({
   onGenerateSuccess,
   onlineUsers = [],
   onAddStudent,
+  onExportUnit,
   onToggleAnswersPanel,
   answersPanelOpen = false,
   answersPanelHeaderButtonRef,
@@ -541,6 +549,18 @@ export default function ClassroomHeader({
                     >
                       <UserPlus size={15} strokeWidth={2.2} />
                     </button>
+
+                    {onExportUnit && currentUnit && (
+                      <button
+                        type="button"
+                        onClick={() => void onExportUnit()}
+                        aria-label={t('classroom.header.exportUnitAria')}
+                        title={t('classroom.header.exportUnit')}
+                        className="ch-icon-btn ch-icon-btn--add"
+                      >
+                        <Download size={15} strokeWidth={2.2} />
+                      </button>
+                    )}
 
                     <OnlinePresenceCluster users={onlineUsers} />
                   </div>
