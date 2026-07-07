@@ -77,6 +77,27 @@ function authHeaders(): Record<string, string> {
   };
 }
 
+// ─── Mobile detection ───────────────────────────────────────────────────────
+// Below this width: segment-plan preview (expand-to-peek) is disabled entirely
+// (avoids misclicks on the card header) and touch targets for edit/delete are
+// enlarged and no longer hover-gated (hover doesn't reliably fire on touch).
+const MOBILE_BREAKPOINT = 640;
+
+function useIsMobile(breakpoint: number = MOBILE_BREAKPOINT): boolean {
+  const [isMobile, setIsMobile] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.innerWidth <= breakpoint,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const handler = () => setIsMobile(mq.matches);
+    handler();
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 interface SegmentPlanItem {
   index: number;
   title: string;
@@ -144,12 +165,6 @@ export interface CourseOutlineReviewPanelProps {
    * Parent should navigate to the unit and close the modal.
    */
   onSelectUnit?: (unit: any) => void;
-  /**
-   * Called when the teacher clicks "Publish to a classroom" in the course-ready banner.
-   * Parent should clear the outline and close/transition the modal so the teacher
-   * can proceed with course publishing (e.g. via DraftCourseBanner).
-   */
-  onPublishCourse?: () => void;
 }
 
 // ─── Status icon ──────────────────────────────────────────────────────────────
@@ -300,6 +315,7 @@ function UnitCard({
   onRemoveUnit,
   t,
 }: UnitCardProps) {
+  const isMobile = useIsMobile();
   // Whether the segment-plan block is expanded
   const [expanded,     setExpanded]     = useState(false);
   const [hovered,      setHovered]      = useState(false);
@@ -415,12 +431,22 @@ function UnitCard({
   }, [dbUnit?.id, planLoading, isGenerating, segmentPlans, title, description, sections, outlineUnit, index, level, language, t]);
 
   const handleToggle = () => {
+    // Segment-plan preview is disabled on mobile entirely — the card header
+    // is a large tap target and expand/collapse there caused misclicks.
+    if (isMobile) return;
     setExpanded((prev) => {
       const next = !prev;
       if (next) loadPlan();
       return next;
     });
   };
+
+  // If the viewport shrinks to mobile while a plan is expanded (e.g. rotating
+  // a tablet, or resizing a browser window), collapse it so the disabled
+  // feature never stays visibly "stuck open" on mobile.
+  useEffect(() => {
+    if (isMobile) setExpanded(false);
+  }, [isMobile]);
 
   // ── Auto-save ─────────────────────────────────────────────────────────────
   // Accepts explicit values so callers don't have to wait for setState to flush.
@@ -557,7 +583,7 @@ function UnitCard({
         style={{
           display: 'flex', alignItems: 'flex-start', gap: 10,
           padding: '12px 14px',
-          cursor: 'pointer', userSelect: 'none',
+          cursor: isMobile ? 'default' : 'pointer', userSelect: 'none',
         }}
         onClick={handleToggle}
       >
@@ -618,22 +644,26 @@ function UnitCard({
                 onClick={(e) => { e.stopPropagation(); setEditingTitle(true); }}
                 style={{
                   flexShrink: 0,
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '4px 7px', borderRadius: 7,
-                  border: `1px solid ${hovered ? DS.borderFocus : 'transparent'}`,
-                  background: hovered ? DS.tint : 'transparent',
-                  color: hovered ? DS.primary : DS.textSubtle,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  padding: isMobile ? 0 : '4px 7px',
+                  width: isMobile ? 40 : undefined,
+                  height: isMobile ? 40 : undefined,
+                  borderRadius: isMobile ? 10 : 7,
+                  border: `1px solid ${isMobile || hovered ? DS.borderFocus : 'transparent'}`,
+                  background: isMobile || hovered ? DS.tint : 'transparent',
+                  color: isMobile || hovered ? DS.primary : DS.textSubtle,
                   fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  opacity: hovered ? 1 : 0.4,
+                  opacity: isMobile ? 1 : (hovered ? 1 : 0.4),
                   transition: 'opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s',
                 }}
               >
-                <Pencil size={11} />
-                {hovered && <span>{t('classroom.unitList.actions.edit')}</span>}
+                <Pencil size={isMobile ? 17 : 11} />
+                {!isMobile && hovered && <span>{t('classroom.unitList.actions.edit')}</span>}
               </button>
             )}
 
-            {/* Delete button — shown on hover when not generating and not done */}
+            {/* Delete button — always visible & enlarged on mobile (hover doesn't
+                reliably fire on touch); shown on hover only on desktop */}
             {!isGenerating && !isDone && onRemoveUnit && (
               <button
                 title={t('classroom.unitSelector.outlineReview.removeUnitTitle')}
@@ -641,16 +671,17 @@ function UnitCard({
                 style={{
                   flexShrink: 0,
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: 26, height: 26, borderRadius: 7,
-                  border: `1px solid ${hovered ? '#FECACA' : 'transparent'}`,
-                  background: hovered ? '#FEF2F2' : 'transparent',
-                  color: hovered ? DS.danger : DS.textSubtle,
+                  width: isMobile ? 40 : 26, height: isMobile ? 40 : 26,
+                  borderRadius: isMobile ? 10 : 7,
+                  border: `1px solid ${isMobile || hovered ? '#FECACA' : 'transparent'}`,
+                  background: isMobile || hovered ? '#FEF2F2' : 'transparent',
+                  color: isMobile || hovered ? DS.danger : DS.textSubtle,
                   cursor: 'pointer',
-                  opacity: hovered ? 1 : 0.3,
+                  opacity: isMobile ? 1 : (hovered ? 1 : 0.3),
                   transition: 'opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s',
                 }}
               >
-                <Trash2 size={12} />
+                <Trash2 size={isMobile ? 18 : 12} />
               </button>
             )}
 
@@ -711,7 +742,7 @@ function UnitCard({
 
           {/* Section chips — editable when not generating/done */}
           {(sections.length > 0 || (!isGenerating && !isDone)) && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 7 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 8 : 4, marginTop: 7 }}>
               {sections.map((sec, sIdx) => {
                 const isEditingThis = editingSectionIdx === sIdx;
                 return (
@@ -721,8 +752,11 @@ function UnitCard({
                       display: 'inline-flex', alignItems: 'center', gap: 3,
                       background: isEditingThis ? DS.white : DS.bg,
                       border: `1px solid ${isEditingThis ? DS.borderFocus : DS.border}`,
-                      borderRadius: 6, padding: isEditingThis ? '1px 4px' : '2px 6px 2px 8px',
-                      fontSize: 10, color: DS.textMuted, fontWeight: 500,
+                      borderRadius: 6,
+                      padding: isEditingThis
+                        ? '1px 4px'
+                        : isMobile ? '5px 8px 5px 10px' : '2px 6px 2px 8px',
+                      fontSize: isMobile ? 12 : 10, color: DS.textMuted, fontWeight: 500,
                     }}
                   >
                     {isEditingThis && !isGenerating && !isDone ? (
@@ -766,17 +800,24 @@ function UnitCard({
                         {sec.title}
                       </span>
                     )}
-                    {/* Remove button — only in non-generating, non-done mode */}
+                    {/* Remove button — only in non-generating, non-done mode.
+                        Enlarged tap target + bigger glyph on mobile, since this
+                        is one of the smallest controls in the panel. */}
                     {!isGenerating && !isDone && !isEditingThis && (
                       <button
                         title="Remove section"
                         onClick={(e) => { e.stopPropagation(); removeSection(sIdx); }}
                         style={{
-                          display: 'inline-flex', alignItems: 'center',
-                          padding: '0 1px', marginLeft: 1,
-                          background: 'none', border: 'none',
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: isMobile ? 22 : undefined,
+                          height: isMobile ? 22 : undefined,
+                          padding: isMobile ? 0 : '0 1px',
+                          marginLeft: isMobile ? 2 : 1,
+                          borderRadius: isMobile ? 6 : 0,
+                          background: isMobile ? DS.bg : 'none',
+                          border: 'none',
                           cursor: 'pointer', color: DS.textSubtle,
-                          fontSize: 9, lineHeight: 1,
+                          fontSize: isMobile ? 14 : 9, lineHeight: 1,
                         }}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = DS.danger; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = DS.textSubtle; }}
@@ -840,20 +881,25 @@ function UnitCard({
               >
                 {t('classroom.unitSelector.outlineReview.open')} <ArrowRight size={11} />
               </button>
-              <span style={{ color: DS.textSubtle, display: 'flex' }}>
-                {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-              </span>
+              {!isMobile && (
+                <span style={{ color: DS.textSubtle, display: 'flex' }}>
+                  {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                </span>
+              )}
             </>
           ) : (
-            <span style={{ color: DS.textSubtle }}>
-              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-            </span>
+            !isMobile && (
+              <span style={{ color: DS.textSubtle }}>
+                {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              </span>
+            )
           )}
         </div>
       </div>
 
       {/* ── Segment plan (expand any unit — including done — to inspect the AI plan) ─ */}
-      {expanded && (
+      {/* Disabled on mobile — see handleToggle / isMobile guard above. */}
+      {expanded && !isMobile && (
         <div style={{
           borderTop: `1px solid ${DS.bg}`,
           padding: '10px 14px 10px 50px',
@@ -944,7 +990,6 @@ export default function CourseOutlineReviewPanel({
   onEditOutline,
   onOutlineChanged,
   onSelectUnit,
-  onPublishCourse,
 }: CourseOutlineReviewPanelProps) {
   // Localizes banner, footer, and unit-card chrome for the outline review step
   const { t } = useTranslation();
@@ -955,15 +1000,6 @@ export default function CourseOutlineReviewPanel({
   // from the outline before generating leaves stale DB records that are never
   // generated, so completion must be measured against what the outline says.
   const allDone    = !isGenerating && doneCount > 0 && doneCount >= totalUnits;
-
-  // First done DB unit by outline order — used by the course-ready "Preview" CTA.
-  const firstDoneUnit = React.useMemo(() => {
-    for (let i = 0; i < outlineUnits.length; i++) {
-      const dbUnit = (units ?? []).find((u: any) => u.order_index === i);
-      if (dbUnit && unitStatuses[dbUnit.id] === 'done') return dbUnit;
-    }
-    return null;
-  }, [outlineUnits, units, unitStatuses]);
 
   const [addingUnit, setAddingUnit] = React.useState(false);
   // Stores the last outline-mutation error so the teacher sees feedback instead of silence.
@@ -1032,168 +1068,85 @@ export default function CourseOutlineReviewPanel({
       <style>{`@keyframes corp-spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* ── Banner ───────────────────────────────────────────────────────── */}
-      {allDone ? (
-        /* ── Course-ready celebration banner — replaces the streaming header ── */
-        <div style={{
-          background: DS.white,
-          borderBottom: `1px solid ${DS.border}`,
-          padding: '16px 20px',
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            {/* Sparkle badge */}
-            <span style={{
-              width: 36, height: 36, borderRadius: 10, background: DS.tint,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 18, flexShrink: 0,
-            }} aria-hidden="true">✨</span>
+      <div style={{
+        background: DS.tint,
+        borderBottom: `1px solid ${DS.tintStrong}`,
+        padding: '13px 20px', flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <span style={{
+            width: 32, height: 32, borderRadius: 9, background: DS.primary,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            {isGenerating
+              ? <Loader2 size={15} color="#fff" style={{ animation: 'corp-spin 0.7s linear infinite' }} />
+              : <Sparkles size={15} color="#fff" />}
+          </span>
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {/* Headline */}
-              <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 700, color: DS.textMain, lineHeight: 1.3 }}>
-                {t('classroom.unitSelector.outlineReview.courseReadyTitle')}
-              </p>
-              {/* Subtitle with lesson count */}
-              <p style={{ margin: '0 0 12px', fontSize: 12, color: DS.textMuted, lineHeight: 1.45 }}>
-                {t('classroom.unitSelector.outlineReview.courseReadySubtitle', { count: doneCount })}
-              </p>
-
-              {/* CTA buttons */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {/* Primary: Preview first lesson */}
-                <button
-                  onClick={() => { if (firstDoneUnit) onSelectUnit?.(firstDoneUnit); }}
-                  disabled={!firstDoneUnit}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '8px 16px', borderRadius: 10, border: 'none',
-                    background: DS.primary, color: DS.white,
-                    fontSize: 12, fontWeight: 700, cursor: firstDoneUnit ? 'pointer' : 'not-allowed',
-                    opacity: firstDoneUnit ? 1 : 0.5,
-                    transition: 'background 0.15s, transform 0.1s',
-                    boxShadow: '0 2px 8px rgba(108,111,239,0.25)',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!firstDoneUnit) return;
-                    (e.currentTarget as HTMLButtonElement).style.background = DS.primaryDark;
-                    (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = DS.primary;
-                    (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
-                  }}
-                >
-                  <ArrowRight size={13} strokeWidth={2.5} />
-                  {t('classroom.unitSelector.outlineReview.courseReadyPreview')}
-                </button>
-
-                {/* Secondary: Publish to a classroom */}
-                <button
-                  onClick={() => onPublishCourse?.()}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '8px 16px', borderRadius: 10,
-                    border: `1.5px solid ${DS.borderFocus}`,
-                    background: DS.tint, color: DS.primaryDark,
-                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    transition: 'background 0.15s, border-color 0.15s',
-                  }}
-                  onMouseEnter={(e) => {
-                    const b = e.currentTarget as HTMLButtonElement;
-                    b.style.background = DS.tintStrong;
-                    b.style.borderColor = DS.primary;
-                  }}
-                  onMouseLeave={(e) => {
-                    const b = e.currentTarget as HTMLButtonElement;
-                    b.style.background = DS.tint;
-                    b.style.borderColor = DS.borderFocus;
-                  }}
-                >
-                  <Layers size={13} strokeWidth={2.2} />
-                  {t('classroom.unitSelector.outlineReview.courseReadyPublish')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* ── Streaming / pre-generation banner ─────────────────────────────── */
-        <div style={{
-          background: DS.tint,
-          borderBottom: `1px solid ${DS.tintStrong}`,
-          padding: '13px 20px', flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <span style={{
-              width: 32, height: 32, borderRadius: 9, background: DS.primary,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              margin: 0, fontSize: 13, fontWeight: 700, color: DS.primaryDark,
+              lineHeight: 1.3,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              {isGenerating
-                ? <Loader2 size={15} color="#fff" style={{ animation: 'corp-spin 0.7s linear infinite' }} />
-                : <Sparkles size={15} color="#fff" />}
-            </span>
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{
-                margin: 0, fontSize: 13, fontWeight: 700, color: DS.primaryDark,
-                lineHeight: 1.3,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {isGenerating
+              {allDone
+                ? t('classroom.unitSelector.outlineReview.bannerAllDone', { count: doneCount })
+                : isGenerating
                   ? t('classroom.unitSelector.outlineReview.bannerGenerating', { done: doneCount, total: totalUnits })
                   : t('classroom.unitSelector.outlineReview.unitsReadyToReview', { count: totalUnits })}
-              </p>
-              <p style={{ margin: 0, fontSize: 11, color: DS.primary, marginTop: 1 }}>
-                {isGenerating
+            </p>
+            <p style={{ margin: 0, fontSize: 11, color: DS.primary, marginTop: 1 }}>
+              {allDone
+                ? t('classroom.unitSelector.outlineReview.subtitleAllDone')
+                : isGenerating
                   ? t('classroom.unitSelector.outlineReview.subtitleGenerating')
                   : t('classroom.unitSelector.outlineReview.subtitleReview')}
-              </p>
-            </div>
-
-            {!isGenerating && onEditOutline && (
-              <button
-                onClick={onEditOutline}
-                style={{
-                  flexShrink: 0,
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  padding: '6px 12px', borderRadius: 9,
-                  border: `1.5px solid ${DS.borderFocus}`,
-                  background: DS.white, color: DS.primaryDark,
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  const b = e.currentTarget as HTMLButtonElement;
-                  b.style.background = DS.tint; b.style.borderColor = DS.primary;
-                }}
-                onMouseLeave={(e) => {
-                  const b = e.currentTarget as HTMLButtonElement;
-                  b.style.background = DS.white; b.style.borderColor = DS.borderFocus;
-                }}
-              >
-                <Pencil size={12} /> {t('classroom.unitSelector.courseGeneration.editOutline')}
-              </button>
-            )}
+            </p>
           </div>
 
-          {/* Progress bar — shown while streaming */}
-          {isGenerating && (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ height: 5, borderRadius: 3, background: DS.tintStrong, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', width: `${generationPercent}%`,
-                  background: DS.primary, borderRadius: 3,
-                  transition: 'width 0.5s ease',
-                }} />
-              </div>
-              <p style={{ margin: '4px 0 0', fontSize: 10, color: DS.primary, fontWeight: 600 }}>
-                {t('classroom.unitSelector.outlineReview.percentComplete', { percent: generationPercent })}
-              </p>
-            </div>
+          {!isGenerating && !allDone && onEditOutline && (
+            <button
+              onClick={onEditOutline}
+              style={{
+                flexShrink: 0,
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '6px 12px', borderRadius: 9,
+                border: `1.5px solid ${DS.borderFocus}`,
+                background: DS.white, color: DS.primaryDark,
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                const b = e.currentTarget as HTMLButtonElement;
+                b.style.background = DS.tint; b.style.borderColor = DS.primary;
+              }}
+              onMouseLeave={(e) => {
+                const b = e.currentTarget as HTMLButtonElement;
+                b.style.background = DS.white; b.style.borderColor = DS.borderFocus;
+              }}
+            >
+              <Pencil size={12} /> {t('classroom.unitSelector.courseGeneration.editOutline')}
+            </button>
           )}
         </div>
-      )}
+
+        {/* Progress bar */}
+        {(isGenerating || (allDone && totalUnits > 0)) && (
+          <div style={{ marginTop: 6 }}>
+            <div style={{ height: 5, borderRadius: 3, background: DS.tintStrong, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${generationPercent}%`,
+                background: DS.primary, borderRadius: 3,
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+            <p style={{ margin: '4px 0 0', fontSize: 10, color: DS.primary, fontWeight: 600 }}>
+              {t('classroom.unitSelector.outlineReview.percentComplete', { percent: generationPercent })}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* ── Outline mutation error banner ────────────────────────────────── */}
       {outlineError && (
@@ -1294,61 +1247,63 @@ export default function CourseOutlineReviewPanel({
         <div style={{ height: 12 }} />
       </div>
 
-      {/* ── Footer — hidden once course is ready (CTAs live in the banner above) ── */}
-      {!allDone && (
-        <div style={{
-          borderTop: `1px solid ${DS.tintStrong}`,
-          padding: '12px 18px', flexShrink: 0,
-          background: DS.white,
-          display: 'flex', alignItems: 'center', gap: 12,
-        }}>
-          {isGenerating ? (
-            <div style={{
-              flex: 1, display: 'flex', alignItems: 'center', gap: 8,
-              color: DS.primary, fontSize: 12, fontWeight: 600,
-            }}>
-              <Loader2 size={16} style={{ animation: 'corp-spin 0.7s linear infinite' }} />
-              {t('classroom.unitSelector.outlineReview.footerGenerating')}
-            </div>
-          ) : (
-            <>
-              <p style={{ flex: 1, margin: 0, fontSize: 11, color: DS.textMuted }}>
-                {t('classroom.unitSelector.outlineReview.footerExpandHint')}
-              </p>
-              <button
-                onClick={onStart}
-                style={{
-                  flexShrink: 0,
-                  display: 'inline-flex', alignItems: 'center', gap: 7,
-                  background: DS.primary, color: DS.white,
-                  border: 'none', borderRadius: 11,
-                  padding: '10px 20px',
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  transition: 'background 0.2s, transform 0.1s',
-                  boxShadow: '0 2px 10px rgba(108,111,239,0.30)',
-                }}
-                onMouseEnter={(e) => {
-                  const b = e.currentTarget as HTMLButtonElement;
-                  b.style.background = DS.primaryDark; b.style.transform = 'translateY(-1px)';
-                }}
-                onMouseLeave={(e) => {
-                  const b = e.currentTarget as HTMLButtonElement;
-                  b.style.background = DS.primary; b.style.transform = 'translateY(0)';
-                }}
-                onMouseDown={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0) scale(0.98)';
-                }}
-                onMouseUp={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
-                }}
-              >
-                <Sparkles size={15} />
-                {t('classroom.unitSelector.courseGeneration.generateCourseButton')}
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <div style={{
+        borderTop: `1px solid ${DS.tintStrong}`,
+        padding: '12px 18px', flexShrink: 0,
+        background: DS.white,
+        display: 'flex', alignItems: 'center', gap: 12,
+      }}>
+        {isGenerating ? (
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 8,
+            color: DS.primary, fontSize: 12, fontWeight: 600,
+          }}>
+            <Loader2 size={16} style={{ animation: 'corp-spin 0.7s linear infinite' }} />
+            {t('classroom.unitSelector.outlineReview.footerGenerating')}
+          </div>
+        ) : allDone ? (
+          <p style={{ flex: 1, margin: 0, fontSize: 11, color: DS.textMuted }}>
+            {t('classroom.unitSelector.outlineReview.footerAllDone')}
+          </p>
+        ) : (
+          <>
+            <p style={{ flex: 1, margin: 0, fontSize: 11, color: DS.textMuted }}>
+              {t('classroom.unitSelector.outlineReview.footerExpandHint')}
+            </p>
+            <button
+              onClick={onStart}
+              style={{
+                flexShrink: 0,
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                background: DS.primary, color: DS.white,
+                border: 'none', borderRadius: 11,
+                padding: '10px 20px',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                transition: 'background 0.2s, transform 0.1s',
+                boxShadow: '0 2px 10px rgba(108,111,239,0.30)',
+              }}
+              onMouseEnter={(e) => {
+                const b = e.currentTarget as HTMLButtonElement;
+                b.style.background = DS.primaryDark; b.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                const b = e.currentTarget as HTMLButtonElement;
+                b.style.background = DS.primary; b.style.transform = 'translateY(0)';
+              }}
+              onMouseDown={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0) scale(0.98)';
+              }}
+              onMouseUp={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
+              }}
+            >
+              <Sparkles size={15} />
+              {t('classroom.unitSelector.courseGeneration.generateCourseButton')}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

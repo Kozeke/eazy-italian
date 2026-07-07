@@ -52,31 +52,6 @@ import GenerateUnitModal from '../unit/GenerateUnitModal';
 import EditOutlineModal from './EditOutlineModal';
 import CourseOutlineReviewPanel from './CourseOutlineReviewPanel';
 import { resolveStaticAssetUrl } from '../../../services/api';
-import { getAppOrigin } from '../../../utils/appOrigin';
-import toast from 'react-hot-toast';
-
-/** Writes text to the system clipboard, with execCommand fallback for older browsers. */
-async function copyTextToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      const fallbackField = document.createElement('textarea');
-      fallbackField.value = text;
-      fallbackField.setAttribute('readonly', '');
-      fallbackField.style.position = 'fixed';
-      fallbackField.style.left = '-9999px';
-      document.body.appendChild(fallbackField);
-      fallbackField.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(fallbackField);
-      return ok;
-    } catch {
-      return false;
-    }
-  }
-}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -178,12 +153,6 @@ export type UnitSelectorModalProps = {
   generationLanguage?: string;
   onEditOutline?: (updatedOutline: any) => void;
   /**
-   * Called when the teacher clicks "Publish to a classroom" in the course-ready
-   * banner (shown after all units finish generating).  The parent should clear
-   * the outline and close/transition the modal.
-   */
-  onPublishCourse?: () => void;
-  /**
    * Teacher-only: persist a new canonical unit order after drag-and-drop in the list.
    */
   onReorderUnits?: (orderedUnitIds: number[]) => void | Promise<void>;
@@ -200,6 +169,27 @@ export type UnitSelectorModalProps = {
 };
 
 type ActiveTab = 'contents' | 'description';
+
+// ─── Mobile detection ───────────────────────────────────────────────────────
+// Below this width: drag-to-reorder is disabled (touch-drag inside a scrolling
+// list is a common source of accidental reorders) and a handful of controls
+// get larger touch targets.
+const MOBILE_BREAKPOINT = 640;
+
+function useIsMobile(breakpoint: number = MOBILE_BREAKPOINT): boolean {
+  const [isMobile, setIsMobile] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.innerWidth <= breakpoint,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const handler = () => setIsMobile(mq.matches);
+    handler();
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 /**
  * Picks the human-readable title for a unit row when both AI outline and DB titles exist.
@@ -463,13 +453,13 @@ export default function UnitSelectorModal({
   generationLevel = 'B1',
   generationLanguage = 'English',
   onEditOutline,
-  onPublishCourse,
   onReorderUnits,
   courseTargetLanguage,
   courseNativeLanguage,
 }: UnitSelectorModalProps) {
   // Provides localized labels for unit selector modal controls and states.
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [query, setQuery]               = useState('');
   const [activeTab, setActiveTab]       = useState<ActiveTab>('contents');
   const [courseMenuOpen, setCourseMenuOpen] = useState(false);
@@ -494,26 +484,6 @@ export default function UnitSelectorModal({
   const searchRef    = useRef<HTMLInputElement>(null);
   const panelRef     = useRef<HTMLDivElement>(null);
   const courseMenuRef = useRef<HTMLDivElement>(null);
-
-  // Copies the student classroom URL so teachers can share the course with learners.
-  const handleShareCourse = useCallback(async () => {
-    if (onShareCourse) {
-      onShareCourse();
-      return;
-    }
-    const cid = courseId != null ? Number(courseId) : NaN;
-    if (!Number.isFinite(cid)) return;
-    const url = `${getAppOrigin()}/student/classroom/${cid}`;
-    const ok = await copyTextToClipboard(url);
-    if (ok) {
-      toast.success(t('classroom.unitList.linkCopied'), {
-        duration: 1800,
-        style: { fontSize: 13, padding: '10px 14px' },
-      });
-    } else {
-      toast.error(t('classroom.unitList.linkCopyFailed'));
-    }
-  }, [courseId, onShareCourse, t]);
 
   // Reset state on open
   useEffect(() => {
@@ -580,11 +550,11 @@ export default function UnitSelectorModal({
     [filtered],
   );
 
-  // True while CourseOutlineReviewPanel replaces the unit list (outline generation flow).
-  const showOutlineReview = Boolean(courseOutline && activeTab === 'contents');
-
-  // Drag-and-drop would fight filtered subsets — only enable with an empty search query
-  const reorderEnabled = Boolean(isTeacher && onReorderUnits && !query.trim());
+  // Drag-and-drop would fight filtered subsets — only enable with an empty search query.
+  // Also disabled on mobile: touch-drag starting inside a scrolling list is a
+  // reliable source of accidental reorders, so mobile falls back to the plain list
+  // (UnitListItem also stops rendering the grip handle when no binder is passed).
+  const reorderEnabled = Boolean(isTeacher && onReorderUnits && !query.trim() && !isMobile);
 
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -690,7 +660,7 @@ export default function UnitSelectorModal({
           style={{
             position: 'absolute', right: 16, top: 16, zIndex: 10,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            borderRadius: 10, padding: 6,
+            borderRadius: 10, padding: isMobile ? 10 : 6,
             background: '#F7F7FA',
             border: 'none',
             color: '#9CA3AF',
@@ -701,7 +671,7 @@ export default function UnitSelectorModal({
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F7F7FA'; (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'; }}
           aria-label={t('common.close')}
         >
-          <X style={{ width: 18, height: 18 }} />
+          <X style={{ width: isMobile ? 20 : 18, height: isMobile ? 20 : 18 }} />
         </button>
 
         {/* ── Course header ─────────────────────────────────────────────────── */}
@@ -720,13 +690,13 @@ export default function UnitSelectorModal({
 
             <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               <button
-                onClick={() => { void handleShareCourse(); }}
+                onClick={onShareCourse}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   borderRadius: 10,
                   border: '1.5px solid #E5E7EB',
                   background: '#FFFFFF',
-                  padding: '5px 12px',
+                  padding: isMobile ? '9px 14px' : '5px 12px',
                   fontSize: 12, fontWeight: 600, color: '#374151',
                   cursor: 'pointer',
                   transition: 'border-color 0.15s, background 0.15s, color 0.15s',
@@ -747,7 +717,7 @@ export default function UnitSelectorModal({
                       borderRadius: 10,
                       border: '1.5px solid #E5E7EB',
                       background: courseMenuOpen ? '#EEF0FE' : '#FFFFFF',
-                      padding: 6,
+                      padding: isMobile ? 10 : 6,
                       color: courseMenuOpen ? '#6C6FEF' : '#6B7280',
                       cursor: 'pointer',
                       transition: 'all 0.15s',
@@ -768,27 +738,23 @@ export default function UnitSelectorModal({
                       padding: 5,
                       boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)',
                     }}>
-                      {!showOutlineReview && (
-                        <>
-                          <button
-                            type="button"
-                            style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#374151', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F7F7FA'; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                            onClick={() => { setCourseMenuOpen(false); setEditCourseOpen(true); }}
-                          >
-                            {t('classroom.unitSelector.courseSettings')}
-                          </button>
-                          <button
-                            style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#374151', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F7F7FA'; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                          >
-                            {t('classroom.unitSelector.copyCourse')}
-                          </button>
-                          <div style={{ margin: '4px 0', borderTop: '1px solid #F3F4F6' }} />
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#374151', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F7F7FA'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                        onClick={() => { setCourseMenuOpen(false); setEditCourseOpen(true); }}
+                      >
+                        {t('classroom.unitSelector.courseSettings')}
+                      </button>
+                      <button
+                        style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#374151', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F7F7FA'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                      >
+                        {t('classroom.unitSelector.copyCourse')}
+                      </button>
+                      <div style={{ margin: '4px 0', borderTop: '1px solid #F3F4F6' }} />
                       <button
                         style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 500, color: '#DC2626', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', transition: 'background 0.12s' }}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2'; }}
@@ -842,7 +808,7 @@ export default function UnitSelectorModal({
         {/* Generation panel — shown for the FULL outline flow:
             before generation, while generating, and after all done.
             Units with status 'done' are directly clickable to navigate.  */}
-        {showOutlineReview ? (
+        {courseOutline && activeTab === 'contents' ? (
           <CourseOutlineReviewPanel
             outline={courseOutline}
             unitStatuses={unitGenerationStatuses}
@@ -855,7 +821,6 @@ export default function UnitSelectorModal({
             onEditOutline={onEditOutline ? () => setEditOutlineOpen(true) : undefined}
             onOutlineChanged={(updated) => { onEditOutline?.(updated); }}
             onSelectUnit={(unit) => { handleSelect(unit); }}
-            onPublishCourse={onPublishCourse}
           />
         ) : activeTab === 'description' ? (
           <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '64px 0', fontSize: 13, color: '#9CA3AF' }}>
@@ -905,7 +870,7 @@ export default function UnitSelectorModal({
                   borderRadius: 12,
                   border: '1.5px solid #E5E7EB',
                   background: '#FFFFFF',
-                  padding: '7px 12px',
+                  padding: isMobile ? '10px 14px' : '7px 12px',
                   fontSize: 12, fontWeight: 600, color: '#6B7280',
                   cursor: 'pointer',
                   transition: 'all 0.15s',
@@ -1022,7 +987,7 @@ export default function UnitSelectorModal({
                     fontSize: 13, fontWeight: 600,
                     color: '#6C6FEF',
                     background: 'none', border: 'none',
-                    borderRadius: 10, padding: '6px 10px',
+                    borderRadius: 10, padding: isMobile ? '10px 12px' : '6px 10px',
                     cursor: 'pointer',
                     transition: 'background 0.15s, color 0.15s',
                   }}
@@ -1056,7 +1021,7 @@ export default function UnitSelectorModal({
                     fontSize: 13, fontWeight: 600,
                     color: creatingForGenerate ? '#A5A8F5' : '#6C6FEF',
                     background: 'none', border: 'none',
-                    borderRadius: 10, padding: '6px 10px',
+                    borderRadius: 10, padding: isMobile ? '10px 12px' : '6px 10px',
                     cursor: creatingForGenerate ? 'not-allowed' : 'pointer',
                     opacity: creatingForGenerate ? 0.6 : 1,
                     transition: 'background 0.15s, color 0.15s',

@@ -344,7 +344,7 @@ export default function UnitListItem({
     ? { bg: 'bg-[#EEF0FE] text-[#6C6FEF] ring-1 ring-[#C7CAFB]', icon: 'check' }
     : { bg: 'bg-slate-100 text-slate-400 group-hover:bg-[#EEF0FE] group-hover:text-[#6C6FEF]', icon: null };
 
-  const iconBtn = 'rounded-lg p-1.5 text-slate-400 hover:text-[#6C6FEF] hover:bg-[#EEF0FE] transition-colors';
+  const iconBtn = 'rounded-lg p-2 sm:p-1.5 text-slate-400 hover:text-[#6C6FEF] hover:bg-[#EEF0FE] active:text-[#6C6FEF] active:bg-[#EEF0FE] transition-colors';
 
   const shareEnabled = shareCourseId != null && Number.isFinite(Number(shareCourseId));
 
@@ -537,7 +537,7 @@ export default function UnitListItem({
             <span
               className={[
                 'shrink-0 ml-1 transition-opacity duration-150',
-                actionsOn ? 'group-hover:opacity-0' : '',
+                actionsOn ? 'opacity-0 sm:opacity-100 sm:group-hover:opacity-0' : '',
               ].join(' ')}
               aria-hidden
             >
@@ -565,24 +565,26 @@ export default function UnitListItem({
            */}
           {actionsOn && (
             <div
-              className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-150"
+              className="flex shrink-0 items-center gap-2 sm:gap-1 opacity-100 pointer-events-auto sm:opacity-0 sm:group-hover:opacity-100 sm:pointer-events-none sm:group-hover:pointer-events-auto transition-opacity duration-150"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Drag handle — @dnd-kit listeners when dragHandleBinder is passed */}
-              <button
-                type="button"
-                className={[
-                  iconBtn,
-                  dragHandleBinder ? 'touch-none cursor-grab active:cursor-grabbing' : '',
-                ].join(' ')}
-                aria-label={t('classroom.unitList.aria.reorder')}
-                onClick={(e) => e.stopPropagation()}
-                {...(dragHandleBinder?.attributes ?? {})}
-                {...(dragHandleBinder?.listeners ?? {})}
-                tabIndex={dragHandleBinder ? 0 : -1}
-              >
-                <AlignJustify className="h-4 w-4" />
-              </button>
+              {/* Drag handle — only rendered when a sortable parent actually wired it up.
+                  On mobile the parent disables drag-and-drop entirely (touch-drag inside a
+                  scrolling list is a common source of accidental reorders), so this simply
+                  never renders there. */}
+              {dragHandleBinder && (
+                <button
+                  type="button"
+                  className={[iconBtn, 'touch-none cursor-grab active:cursor-grabbing'].join(' ')}
+                  aria-label={t('classroom.unitList.aria.reorder')}
+                  onClick={(e) => e.stopPropagation()}
+                  {...dragHandleBinder.attributes}
+                  {...(dragHandleBinder.listeners ?? {})}
+                  tabIndex={0}
+                >
+                  <AlignJustify className="h-5 w-5 sm:h-4 sm:w-4" />
+                </button>
+              )}
 
               {/* Download — self-contained interactive HTML export */}
               <button
@@ -592,7 +594,7 @@ export default function UnitListItem({
                 tabIndex={-1}
                 onClick={handleExportHtml}
               >
-                <Download className="h-4 w-4" />
+                <Download className="h-5 w-5 sm:h-4 sm:w-4" />
               </button>
 
               {/* Three-dot menu */}
@@ -603,7 +605,7 @@ export default function UnitListItem({
                   tabIndex={-1}
                   onClick={(e) => { e.stopPropagation(); setDropdownOpen((v) => !v); }}
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="h-5 w-5 sm:h-4 sm:w-4" />
                 </button>
                 {dropdownOpen && (
                   <UnitActionDropdown
@@ -622,7 +624,7 @@ export default function UnitListItem({
 
               {/* "Открыть урок" pill */}
               <button
-                className="ml-1 rounded-full bg-[#6C6FEF] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#4F52C2] transition-colors whitespace-nowrap shadow-sm shadow-[#6C6FEF]/20"
+                className="ml-1 rounded-full bg-[#6C6FEF] px-4 py-2 sm:py-1.5 text-sm font-medium text-white hover:bg-[#4F52C2] transition-colors whitespace-nowrap shadow-sm shadow-[#6C6FEF]/20"
                 onClick={(e) => { e.stopPropagation(); onOpen ? onOpen(unit) : onClick(); }}
               >
                 {t('classroom.unitList.openUnit')}
