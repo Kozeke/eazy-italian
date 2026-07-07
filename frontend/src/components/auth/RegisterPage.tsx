@@ -63,6 +63,14 @@ const c = {
   errorBg:          '#FEF2F2',
 } as const;
 
+// Shared sizing tokens keep inputs/buttons on-brand and mobile-safe.
+// radius: 12px corner radius design token for inputs and buttons.
+const radius = '12px';
+// controlHeight: comfortable 48px touch target for inputs and primary buttons.
+const controlHeight = '48px';
+// inputFontSize: 16px minimum prevents iOS Safari from zooming in on focus.
+const inputFontSize = '16px';
+
 type Step = 'email' | 'account-type' | 'student-info' | 'activation' | 'greeting' | 'details' | 'trial';
 
 // ─── RegisterPage ─────────────────────────────────────────────────────────────
@@ -351,6 +359,12 @@ export default function RegisterPage() {
           100%{ opacity:1; transform:scale(1) }
         }
         input::placeholder { color:${c.inputPlaceholder}; }
+        /* Prevent iOS Safari from auto-zooming/reflowing when a form control gains focus. */
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        /* Guard against any single element forcing a horizontal scrollbar on small screens. */
+        html, body { overflow-x: hidden; }
+        /* Fallback floor: even if an inline style is missed, keep inputs at the no-zoom threshold on phones. */
+        @media (max-width: 480px) { input, select, textarea { font-size: 16px; } }
       `}</style>
 
       <div key={step} style={{ animation: 'regIn 0.2s ease-out', position:'relative' }}>
@@ -375,7 +389,7 @@ export default function RegisterPage() {
             )}
             <form
               onSubmit={handleEmailSubmit}
-              style={{ display:'flex', flexDirection:'column', gap:'7px', marginTop:'10px' }}
+              style={{ display:'flex', flexDirection:'column', gap:'12px', marginTop:'12px' }}
             >
               <InputRow
                 icon={<Mail style={{ width:16, height:16 }} />}
@@ -479,7 +493,7 @@ export default function RegisterPage() {
             <Title style={{ marginBottom:'14px' }}>{t('auth.completeRegistration')}</Title>
             <form
               onSubmit={handleDetailsSubmit}
-              style={{ display:'flex', flexDirection:'column', gap:'9px' }}
+              style={{ display:'flex', flexDirection:'column', gap:'14px' }}
             >
               <SideLabelRow label={t('auth.fullNameLabel')}>
                 <InputRow
@@ -622,7 +636,7 @@ function ActivationStep({
             display:'flex', alignItems:'center',
             background: c.inputBg,
             border:`1.5px solid ${focused ? c.inputBorderFocus : c.inputBorder}`,
-            borderRadius:'8px', height:'40px', padding:'0 10px',
+            borderRadius:radius, height:controlHeight, padding:'0 12px',
             transition:'border-color 0.15s, box-shadow 0.15s',
             boxShadow: focused ? `0 0 0 3px ${c.violetLight}` : 'none',
           }}>
@@ -641,7 +655,7 @@ function ActivationStep({
               onBlur={() => setFocused(false)}
               style={{
                 flex:1, background:'transparent', border:'none', outline:'none',
-                fontSize:'13px', color:c.inputText, letterSpacing:'0.08em',
+                fontSize:inputFontSize, color:c.inputText, letterSpacing:'0.08em', minWidth:0,
               }}
             />
           </div>
@@ -650,10 +664,10 @@ function ActivationStep({
             type="submit"
             disabled={loading}
             style={{
-              width:40, height:40, flexShrink:0,
+              width:48, height:48, flexShrink:0,
               display:'flex', alignItems:'center', justifyContent:'center',
               background: loading ? c.btnDisabled : c.btnBg,
-              border:'none', borderRadius:'8px', cursor: loading ? 'not-allowed' : 'pointer',
+              border:'none', borderRadius:radius, cursor: loading ? 'not-allowed' : 'pointer',
               transition:'background 0.15s',
             }}
           >
@@ -739,9 +753,10 @@ function Shell({ children, hideLogo }: { children: React.ReactNode; hideLogo?: b
         maxWidth:'360px',
         background:c.pageCard,
         border:`1px solid ${c.pageCardBorder}`,
-        borderRadius:'14px',
+        borderRadius:'16px',
         boxShadow:'0 1px 4px rgba(108,111,239,.04)',
-        padding:'22px 18px 18px',
+        padding:'26px 20px 22px',
+        boxSizing:'border-box',
       }}>
         {children}
       </div>
@@ -781,10 +796,10 @@ function RoleCard({ emoji, label, description, onSelect }: {
         <div style={{ fontSize:'11px', color:c.mutedText, lineHeight:1.4 }}>{description}</div>
       </div>
       <button type="button" style={{
-        marginTop:'2px', width:'100%', height:'32px',
+        marginTop:'2px', width:'100%', height:'40px',
         background: hov ? c.btnHover : c.btnBg,
-        color:c.btnText, border:'none', borderRadius:'8px',
-        fontSize:'12px', fontWeight:700, cursor:'pointer',
+        color:c.btnText, border:'none', borderRadius:radius,
+        fontSize:'13px', fontWeight:700, cursor:'pointer',
         transition:'background 0.15s',
       }}>
         {t('auth.selectCard')}
@@ -818,7 +833,7 @@ export function InputRow({
       display:'flex', alignItems:'center',
       background: c.inputBg,
       border:`1.5px solid ${focused ? c.inputBorderFocus : c.inputBorder}`,
-      borderRadius:'8px', height:'40px', padding:'0 10px',
+      borderRadius:radius, height:controlHeight, padding:'0 12px',
       transition:'border-color 0.15s, box-shadow 0.15s',
       boxShadow: focused ? `0 0 0 3px ${c.violetLight}` : 'none',
     }}>
@@ -827,7 +842,7 @@ export function InputRow({
         type={type} placeholder={placeholder} value={value}
         onChange={e => onChange(e.target.value)} autoFocus={autoFocus}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        style={{ flex:1, background:'transparent', border:'none', outline:'none', fontSize:'13px', color:c.inputText, minWidth:0 }}
+        style={{ flex:1, background:'transparent', border:'none', outline:'none', fontSize:inputFontSize, color:c.inputText, minWidth:0 }}
       />
     </div>
   );
@@ -851,7 +866,7 @@ export function PwInput({ placeholder, value, onChange }: {
         display:'flex', alignItems:'center',
         background: c.inputBg,
         border:`1.5px solid ${focused ? c.inputBorderFocus : c.inputBorder}`,
-        borderRadius:'8px', height:'40px', padding:'0 10px',
+        borderRadius:radius, height:controlHeight, padding:'0 12px',
         transition:'border-color 0.15s, box-shadow 0.15s',
         boxShadow: focused ? `0 0 0 3px ${c.violetLight}` : 'none',
       }}>
@@ -862,7 +877,7 @@ export function PwInput({ placeholder, value, onChange }: {
           type={show ? 'text' : 'password'} placeholder={placeholder ?? 'Password'} value={value}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          style={{ flex:1, background:'transparent', border:'none', outline:'none', fontSize:'13px', color:c.inputText, minWidth:0 }}
+          style={{ flex:1, background:'transparent', border:'none', outline:'none', fontSize:inputFontSize, color:c.inputText, minWidth:0 }}
         />
         <button type="button" onClick={() => setShow(!show)}
           style={{ background:'none', border:'none', cursor:'pointer', display:'flex', color:c.inputIcon, padding:0, marginLeft:'8px' }}>
@@ -900,11 +915,11 @@ export function BigBtn({
       type={type} onClick={onClick} disabled={loading}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        width:'100%', height:'42px',
+        width:'100%', height:controlHeight,
         display:'flex', alignItems:'center', justifyContent:'center', gap:'7px',
         background: loading ? c.btnDisabled : hov ? c.btnHover : c.btnBg,
-        color:c.btnText, border:'none', borderRadius:'10px',
-        fontSize:'13px', fontWeight:700,
+        color:c.btnText, border:'none', borderRadius:radius,
+        fontSize:'15px', fontWeight:700,
         cursor: loading ? 'not-allowed' : 'pointer',
         transition:'background 0.15s', letterSpacing:'0.01em',
         ...extra,
@@ -1056,7 +1071,7 @@ export function AuthInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-0 transition-colors placeholder:text-slate-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+        className="h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900 outline-none ring-0 transition-colors placeholder:text-slate-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
       />
     </div>
   );

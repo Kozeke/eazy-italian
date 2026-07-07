@@ -461,9 +461,10 @@ function DraftCourseBanner({
           borderBottom: "1px solid #C7CAFF",
           fontFamily: "'Inter', system-ui, sans-serif",
           flexShrink: 0,
+          flexWrap: "wrap",
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 500, color: "#4F52C2", display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#4F52C2", display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: "1 1 auto" }}>
           🔒 This course is not visible to students yet
           {errorMsg && (
             <span style={{ fontSize: 12, color: "#EF4444", marginLeft: 8 }}>

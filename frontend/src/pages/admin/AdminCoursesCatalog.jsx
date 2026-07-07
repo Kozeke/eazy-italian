@@ -117,7 +117,7 @@ const CSS = `
 }
 .cat-search input {
   flex:1; border:none; outline:none;
-  font-family:${T.bFont}; font-size:13.5px;
+  font-family:${T.bFont}; font-size:16px;
   color:${T.text}; background:transparent;
 }
 .cat-search input::placeholder { color:${T.mutedL}; }
@@ -137,7 +137,7 @@ const CSS = `
 .cat-select {
   background:white; border:1.5px solid ${T.border}; border-radius:9px;
   padding:7px 28px 7px 11px;
-  font-family:${T.bFont}; font-size:12.5px; font-weight:500; color:${T.sub};
+  font-family:${T.bFont}; font-size:16px; font-weight:500; color:${T.sub};
   outline:none; cursor:pointer; transition:border-color .14s;
   -webkit-appearance:none; appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23A1A1AA' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -396,6 +396,10 @@ const CSS = `
 }
 @media(max-width:480px){
   .cat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  /* Touch devices have no hover, so reveal row actions permanently or the
+     delete button is unreachable; also hide the progress bar to save width. */
+  .cat-row-actions { opacity:1; }
+  .cat-row-prog { display:none; }
 }
 `;
 
