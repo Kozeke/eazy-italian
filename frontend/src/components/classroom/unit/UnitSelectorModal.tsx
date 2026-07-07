@@ -153,6 +153,11 @@ export type UnitSelectorModalProps = {
   generationLanguage?: string;
   onEditOutline?: (updatedOutline: any) => void;
   /**
+   * Called when the teacher clicks "Publish to a classroom" after all units finish
+   * generating. Parent should clear the outline and close the unit selector.
+   */
+  onPublishCourse?: () => void;
+  /**
    * Teacher-only: persist a new canonical unit order after drag-and-drop in the list.
    */
   onReorderUnits?: (orderedUnitIds: number[]) => void | Promise<void>;
@@ -453,6 +458,7 @@ export default function UnitSelectorModal({
   generationLevel = 'B1',
   generationLanguage = 'English',
   onEditOutline,
+  onPublishCourse,
   onReorderUnits,
   courseTargetLanguage,
   courseNativeLanguage,
@@ -821,6 +827,7 @@ export default function UnitSelectorModal({
             onEditOutline={onEditOutline ? () => setEditOutlineOpen(true) : undefined}
             onOutlineChanged={(updated) => { onEditOutline?.(updated); }}
             onSelectUnit={(unit) => { handleSelect(unit); }}
+            onPublishCourse={onPublishCourse}
           />
         ) : activeTab === 'description' ? (
           <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '64px 0', fontSize: 13, color: '#9CA3AF' }}>

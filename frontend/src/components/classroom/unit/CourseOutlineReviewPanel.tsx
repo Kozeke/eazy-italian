@@ -165,6 +165,11 @@ export interface CourseOutlineReviewPanelProps {
    * Parent should navigate to the unit and close the modal.
    */
   onSelectUnit?: (unit: any) => void;
+  /**
+   * Called when the teacher clicks "Publish to a classroom" in the course-ready
+   * footer. Parent should clear the outline and close the unit selector.
+   */
+  onPublishCourse?: () => void;
 }
 
 // ─── Status icon ──────────────────────────────────────────────────────────────
@@ -990,6 +995,7 @@ export default function CourseOutlineReviewPanel({
   onEditOutline,
   onOutlineChanged,
   onSelectUnit,
+  onPublishCourse,
 }: CourseOutlineReviewPanelProps) {
   // Localizes banner, footer, and unit-card chrome for the outline review step
   const { t } = useTranslation();
@@ -1263,9 +1269,39 @@ export default function CourseOutlineReviewPanel({
             {t('classroom.unitSelector.outlineReview.footerGenerating')}
           </div>
         ) : allDone ? (
-          <p style={{ flex: 1, margin: 0, fontSize: 11, color: DS.textMuted }}>
-            {t('classroom.unitSelector.outlineReview.footerAllDone')}
-          </p>
+          <>
+            <p style={{ flex: 1, margin: 0, fontSize: 11, color: DS.textMuted }}>
+              {t('classroom.unitSelector.outlineReview.footerAllDone')}
+            </p>
+            {onPublishCourse && (
+              <button
+                type="button"
+                onClick={onPublishCourse}
+                style={{
+                  flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 16px', borderRadius: 11,
+                  border: `1.5px solid ${DS.borderFocus}`,
+                  background: DS.tint, color: DS.primaryDark,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  transition: 'background 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  const b = e.currentTarget as HTMLButtonElement;
+                  b.style.background = DS.tintStrong;
+                  b.style.borderColor = DS.primary;
+                }}
+                onMouseLeave={(e) => {
+                  const b = e.currentTarget as HTMLButtonElement;
+                  b.style.background = DS.tint;
+                  b.style.borderColor = DS.borderFocus;
+                }}
+              >
+                <Layers size={14} strokeWidth={2.2} />
+                {t('classroom.unitSelector.outlineReview.courseReadyPublish')}
+              </button>
+            )}
+          </>
         ) : (
           <>
             <p style={{ flex: 1, margin: 0, fontSize: 11, color: DS.textMuted }}>
