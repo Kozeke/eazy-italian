@@ -8,8 +8,9 @@ ARG VCS_REF=unknown
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies and CA certificates for HTTPS
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     nodejs \
     npm \
     curl \

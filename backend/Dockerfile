@@ -2,8 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including fonts
-RUN apt-get update && apt-get install -y \
+# Install system dependencies including fonts and CA certificates for HTTPS
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     gcc \
     postgresql-client \
     curl \

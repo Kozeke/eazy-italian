@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, BookOpen, Hash, Sparkles, CheckCircle2 } from 'lucide-react';
 import { API_V1_BASE } from '../../services/api';
 import { AuthShell, PrimaryButton, ErrorMsg } from './RegisterPage';
+import { useSafeAutoFocus, useAuthViewportGuard } from './useAuthMobileFix';
 
 // Extends the base AuthShell props with optional metadata fields for this page.
 type ExtendedAuthShellProps = React.ComponentProps<typeof AuthShell> & {
@@ -40,6 +41,10 @@ export default function JoinClassroomPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Instagram/Facebook/TikTok in-app browsers zoom into a corner when an
+  // input autoFocuses on load — this guards against that (see useAuthMobileFix.ts).
+  const safeAutoFocus = useSafeAutoFocus();
+  useAuthViewportGuard();
 
   const code = digits.join('').toUpperCase();
   const isComplete = code.length === CODE_LENGTH && !digits.includes('');
@@ -165,7 +170,7 @@ export default function JoinClassroomPage() {
                 inputMode="text"
                 maxLength={1}
                 value={d}
-                autoFocus={i === 0}
+                autoFocus={i === 0 && safeAutoFocus}
                 onChange={(e) => handleChange(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
                 placeholder="·"

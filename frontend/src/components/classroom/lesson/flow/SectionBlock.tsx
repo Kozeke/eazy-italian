@@ -29,11 +29,15 @@ import {
   Music,
   Upload,
   PlusCircle,
+  Wand2,
 } from "lucide-react";
 
 import type { LessonFlowItem } from "./lessonFlow.types";
 import type { PlayerMode } from "./VerticalLessonPlayer";
-import { SEGMENT_EDITABLE_EXERCISE_KINDS } from "../../../../pages/admin/exerciseTemplateRegistry";
+import {
+  SEGMENT_EDITABLE_EXERCISE_KINDS,
+  REFINABLE_BLOCK_KINDS,
+} from "../../../../pages/admin/exerciseTemplateRegistry";
 import { FlowItemRenderer } from "./FlowItemRenderer";
 import { ImageCarouselEditor, ImageCarouselViewer } from "./ImageCarousel.tsx";
 import type { CarouselSlide } from "./ImageCarousel.tsx";
@@ -174,6 +178,10 @@ interface SectionBlockProps {
   onReorderBlock?: (blockId: string, direction: "up" | "down") => void;
   /** Called when teacher clicks "Edit exercise" or "Edit (new version)" in the block menu */
   onEditBlock?: (blockId: string) => void;
+  /** Teacher: opens "Refine with AI" scoped to a single block (block menu). */
+  onRefineBlock?: (blockId: string) => void;
+  /** Teacher: opens "Refine with AI" scoped to the whole section (footer pill). */
+  onRefineSection?: () => void;
   /** Teacher: copy a persisted segment exercise into unit homework (saved via API). */
   onCopyExerciseToHomework?: (block: InlineMediaBlock) => void | Promise<void>;
 
@@ -519,6 +527,8 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
       onDeleteBlock,
       onReorderBlock,
       onEditBlock,
+      onRefineBlock,
+      onRefineSection,
       onCopyExerciseToHomework,
       onScrollToPrev,
       onScrollToNext,
@@ -883,6 +893,11 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                           ? () => onEditBlock(block.id)
                           : undefined
                       }
+                      onRefine={
+                        onRefineBlock && REFINABLE_BLOCK_KINDS.has(block.kind)
+                          ? () => onRefineBlock(block.id)
+                          : undefined
+                      }
                       onDelete={onDeleteBlock ? () => onDeleteBlock(block.id) : undefined}
                       onMoveUp={
                         onReorderBlock && blockIndex > 0
@@ -1071,6 +1086,11 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
                         ? () => onEditBlock(item.id)
                         : undefined
                     }
+                    onRefine={
+                      onRefineBlock && REFINABLE_BLOCK_KINDS.has(item.type)
+                        ? () => onRefineBlock(item.id)
+                        : undefined
+                    }
                     onDelete={onDeleteBlock ? () => onDeleteBlock(item.id) : undefined}
                     onMoveUp={
                       onReorderBlock && blockIndex > 0
@@ -1145,16 +1165,28 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
             </div>
           )}
 
-          {hasContent && isTeacher && onAddContent && (
+          {hasContent && isTeacher && (onAddContent || onRefineSection) && (
             <div className="vlp-section-actions">
-              <button
-                type="button"
-                className="vlp-section-add-btn"
-                onClick={onAddContent}
-              >
-                <PlusCircle size={16} strokeWidth={1.8} />
-                {t("classroom.sectionBlock.addContent")}
-              </button>
+              {onAddContent && (
+                <button
+                  type="button"
+                  className="vlp-section-add-btn"
+                  onClick={onAddContent}
+                >
+                  <PlusCircle size={16} strokeWidth={1.8} />
+                  {t("classroom.sectionBlock.addContent")}
+                </button>
+              )}
+              {onRefineSection && (
+                <button
+                  type="button"
+                  className="vlp-section-refine-btn"
+                  onClick={onRefineSection}
+                >
+                  <Wand2 size={16} strokeWidth={1.8} />
+                  {t("classroom.sectionBlock.refineWithAi")}
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -31,7 +31,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutGrid, Menu } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 
 // Register all exercise types before any SectionBlock / FlowItemRenderer mounts
 import "./flow/exerciseRegistrations";
@@ -44,6 +44,8 @@ import { buildLessonFlow, selectPrimaryItem } from "./flow/lessonFlow.builder";
 import type { LessonFlow } from "./flow/lessonFlow.types";
 import VerticalLessonPlayer from "./flow/VerticalLessonPlayer";
 import type { VerticalLessonPlayerProps } from "./flow/VerticalLessonPlayer";
+import RefineChatPanel from "./flow/RefineChatPanel";
+import type { RefineScope } from "./flow/RefineChatPanel";
 import {
   LessonFlowSkeleton,
   LessonFlowError,
@@ -77,6 +79,7 @@ import {
 } from "./mediaTemplateHandlers";
 import {
   SEGMENT_EDITABLE_EXERCISE_KINDS,
+  REFINABLE_BLOCK_KINDS,
   templateIdForSegmentExerciseKind,
 } from "../../../pages/admin/exerciseTemplateRegistry";
 
@@ -312,11 +315,14 @@ function LessonWorkspace({
   const draftRouteContextStorageKey = "exerciseDraftsRouteContext";
   const routerLocation = useLocation();
   const navigate = useNavigate();
-  // Tracks whether the viewport is narrow enough for mobile/tablet layout (≤1023px).
+  // Tracks whether the viewport is narrow enough to switch to the mobile single-column classroom layout.
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 1023px)").matches;
   });
+  // "Refine with AI" panel: null = closed. Scope carries everything the panel
+  // needs to call the API and patch local state back in — see RefineChatPanel.
+  const [refineScope, setRefineScope] = useState<RefineScope | null>(null);
   // Top of LessonWorkspace component body (around line 208):
   // console.log('[LessonWorkspace] mode prop =', mode);
 
@@ -338,13 +344,6 @@ function LessonWorkspace({
     mediaQuery.addEventListener("change", syncViewportMode);
     return () => mediaQuery.removeEventListener("change", syncViewportMode);
   }, []);
-
-  // Controls the hamburger overlay drawer for SectionSidePanel (phones + tablets).
-  const [sectionsOverlayOpen, setSectionsOverlayOpen] = useState(false);
-  // Close the drawer when widening past tablet or when the panel is disabled.
-  useEffect(() => {
-    if (!sidePanelOpen || !isMobileViewport) setSectionsOverlayOpen(false);
-  }, [sidePanelOpen, isMobileViewport]);
 
   // ── Persistence: hydration + autosave ────────────────────────────────────────
   const {
@@ -481,6 +480,8 @@ function LessonWorkspace({
   // Header LessonProgressRail disabled — was: debounce timer for onRailStateChange lift.
   // const railTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollToSectionRef = useRef<((index: number) => void) | null>(null);
+  // Anchors the portaled RefineChatPanel to the lesson player column.
+  const refineAnchorRef = useRef<HTMLDivElement>(null);
 
   // Tracks the previous effectiveUnitId so we can detect unit switches without
   // triggering the reset on the initial render (undefined sentinel).
@@ -1014,6 +1015,78 @@ function LessonWorkspace({
     ],
   );
 
+  // Opens "Refine with AI" scoped to a single block. Reuses the same
+  // section-lookup loop as handleEditBlock so both features stay consistent
+  // about which section "owns" a given block id.
+  const handleRefineBlock = useCallback(
+    (blockId: string) => {
+      if (mode !== "teacher") return;
+
+      let blockSectionId: string | null = null;
+      let found: InlineMediaBlock | null = null;
+      for (const [sectionId, blocks] of Object.entries(
+        inlineMediaBySectionId,
+      )) {
+        const hit = blocks.find((b) => b.id === blockId);
+        // Refine gate, NOT the edit gate: refinability is about having text
+        // content the model can rewrite, not about having a form editor page.
+        if (hit && REFINABLE_BLOCK_KINDS.has(hit.kind)) {
+          found = hit;
+          blockSectionId = sectionId;
+          break;
+        }
+      }
+      if (!found || !blockSectionId) {
+        console.warn(
+          "[LessonWorkspace] Refine block: no refinable segment block found for id",
+          blockId,
+        );
+        return;
+      }
+
+      const targetSegmentId: number | null =
+        sectionToSegmentIntegerIdMap[blockSectionId] ??
+        resolveSegmentIdForSection(blockSectionId, sortedSegments) ??
+        sortedSegments[0]?.id ??
+        null;
+      if (!targetSegmentId) return;
+
+      setRefineScope({
+        type: "block",
+        blockId,
+        blockTitle: found.title ?? found.kind,
+        sectionId: blockSectionId,
+        segmentId: targetSegmentId,
+      });
+    },
+    [
+      mode,
+      inlineMediaBySectionId,
+      sectionToSegmentIntegerIdMap,
+      sortedSegments,
+    ],
+  );
+
+  // Opens "Refine with AI" scoped to every block in a section (footer pill).
+  const handleRefineSection = useCallback(
+    (sectionId?: string) => {
+      if (mode !== "teacher" || !sectionId) return;
+      const targetSegmentId: number | null =
+        sectionToSegmentIntegerIdMap[sectionId] ??
+        resolveSegmentIdForSection(sectionId, sortedSegments) ??
+        sortedSegments[0]?.id ??
+        null;
+      if (!targetSegmentId) return;
+
+      setRefineScope({
+        type: "segment",
+        sectionId,
+        segmentId: targetSegmentId,
+      });
+    },
+    [mode, sectionToSegmentIntegerIdMap, sortedSegments],
+  );
+
   const handleResetBlockAnswers = useCallback(
     async (blockId: string, studentId?: number) => {
       if (!classroomId) return;
@@ -1217,46 +1290,16 @@ function LessonWorkspace({
   if (loading && !unit) return <LessonFlowSkeleton />;
   if (error) return <LessonFlowError message={error} />;
 
-  // Phones + tablets (≤1023px): hamburger overlay. Laptop/desktop (≥1024px): inline panel.
+  // Hides the floating section side panel on mobile to prevent horizontal overflow.
   const showDesktopSidePanel = sidePanelOpen && !isMobileViewport;
-  const showSectionsHamburger = sidePanelOpen && isMobileViewport;
 
-  // True when the teacher should see the answers rail (left on desktop only).
+  // True when the teacher should see the answers rail (left on desktop, top strip on mobile).
   const hasTeacherAnswersRail =
     mode === "teacher" && typeof onToggleAnswersPanel === "function";
 
-  // Horizontal row when the inline sections panel and/or answers rail needs siblings.
+  // Uses a horizontal flex row when the sections panel and/or the answers rail needs column siblings.
   const useWideLessonRow =
     showDesktopSidePanel || (hasTeacherAnswersRail && !isMobileViewport);
-
-  // Shared between the desktop inline panel and the mobile overlay drawer.
-  const sectionSidePanelSharedProps = {
-    segments: sidePanelSegments.length > 0 ? sidePanelSegments : undefined,
-    currentSegmentId: sidePanelSegments[visibleSectionIndex]?.id ?? null,
-    onSelectSegment: handleSelectSegment,
-    onAddSegment: mode === "teacher" ? handleAddSegment : undefined,
-    onRemoveSegment:
-      mode === "teacher" && sortedSegments.length > 1
-        ? handleRemoveSegment
-        : undefined,
-    onReorderSegments:
-      mode === "teacher" && sortedSegments.length > 1
-        ? handleReorderSegments
-        : undefined,
-    units,
-    currentUnitId,
-    completedUnitIds,
-    courseTitle,
-    onSelectUnit: mode === "teacher" ? () => {} : onSelectUnit,
-    onAddUnit: mode === "teacher" ? undefined : onAddUnit,
-    onFinishUnit,
-    onExtra: () => onExtra("extra"),
-    currentUnitSteps,
-    finishButtonVariant: sidePanelFinishVariant,
-    finishButtonDisabled: finishUnitActionPending,
-    publishBlocked,
-    onUpgradeForPublish,
-  } as const;
 
   // ── Main render ────────────────────────────────────────────────────────────────
   return (
@@ -1284,7 +1327,36 @@ function LessonWorkspace({
         ].join(" ")}
         style={{ gap: 3 }}
       >
-        {/* Desktop: answers rail beside the lesson column. Mobile/tablet use the header icon instead. */}
+        {/* Mobile/tablet: compact strip aligned with lesson column; hidden ≤480px (header fallback). */}
+        {hasTeacherAnswersRail && isMobileViewport && (
+          <div
+            ref={answersPanelAnchorRef}
+            className="lw-answers-rail lw-answers-rail--mobile lw-answers-rail--mobile--responsive mt-1 shrink-0"
+            aria-label={t("classroom.lessonWorkspace.studentAnswers")}
+          >
+            {/* <div className="lw-answers-rail__head lw-answers-rail__head--mobile">
+              <span className="lw-answers-rail__title">Answers</span>
+            </div> */}
+            <div className="lw-answers-rail__body lw-answers-rail__body--mobile">
+              <button
+                type="button"
+                onClick={onToggleAnswersPanel}
+                aria-label={t("classroom.lessonWorkspace.viewStudentAnswers")}
+                aria-pressed={answersPanelOpen}
+                title={t("classroom.lessonWorkspace.studentAnswers")}
+                className={[
+                  "ch-icon-btn",
+                  answersPanelOpen
+                    ? "ch-icon-btn--answers ch-icon-btn--answers-active"
+                    : "ch-icon-btn--answers",
+                ].join(" ")}
+              >
+                <LayoutGrid size={15} strokeWidth={2.2} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {hasTeacherAnswersRail && !isMobileViewport && (
           <aside
             ref={answersPanelAnchorRef}
@@ -1315,24 +1387,15 @@ function LessonWorkspace({
         )}
 
         <div
+          ref={refineAnchorRef}
           className={[
+            // flex-1: in column layout, take height below the answers rail; in row layout, fill beside the panel so .vlp-root gets a bounded flex height.
+            "flex  min-h-0 flex-col relative",
             showDesktopSidePanel
-              ? "relative flex min-h-0 flex-col min-w-[700px] max-w-[900px]"
-              : "relative flex min-h-0 flex-col w-full min-w-0 max-w-none lw-lesson-column",
+              ? "min-w-[700px] max-w-[900px]"
+              : "w-full min-w-0 max-w-none",
           ].join(" ")}
         >
-          {showSectionsHamburger && (
-            <button
-              type="button"
-              className="lw-sections-hamburger"
-              onClick={() => setSectionsOverlayOpen(true)}
-              aria-label={t("classroom.sectionPanel.sectionNavigator")}
-              aria-haspopup="dialog"
-              aria-expanded={sectionsOverlayOpen}
-            >
-              <Menu size={20} strokeWidth={2.2} />
-            </button>
-          )}
           <VerticalLessonPlayer
             key={`vlp-unit-${effectiveUnitId ?? "none"}`}
             flow={flow}
@@ -1387,51 +1450,81 @@ function LessonWorkspace({
                   onDeleteBlock: handleDeleteBlock,
                   onReorderBlock: handleReorderBlock,
                   onEditBlock: handleEditBlock,
+                  onRefineBlock: handleRefineBlock,
+                  onRefineSection: handleRefineSection,
                   onCopyExerciseToHomework,
                   onSectionTitleChange: persistSegmentTitleDebounced,
                   onResetBlockAnswers: handleResetBlockAnswers,
                 }
               : {})}
           />
+
+          {mode === "teacher" && refineScope && (
+            <RefineChatPanel
+              scope={refineScope}
+              anchorRef={refineAnchorRef}
+              blocks={inlineMediaBySectionId[refineScope.sectionId] ?? []}
+              isMobileViewport={isMobileViewport}
+              onClose={() => setRefineScope(null)}
+              onWidenToSection={() =>
+                setRefineScope((prev) =>
+                  prev
+                    ? { type: "segment", sectionId: prev.sectionId, segmentId: prev.segmentId }
+                    : prev,
+                )
+              }
+              /* Reuses handleRefineBlock so re-scoping runs the same
+                 SEGMENT_EDITABLE_EXERCISE_KINDS guard and section/segment
+                 resolution as opening the panel from the block menu. Stable
+                 useCallback identity keeps the panel's click listener from
+                 being re-registered on every render. */
+              onRescopeToBlock={handleRefineBlock}
+              onApplied={(updatedBlocks) => {
+                updatedBlocks.forEach((block) =>
+                  upsertInlineMediaBlock(refineScope.sectionId, block),
+                );
+              }}
+            />
+          )}
         </div>
 
         {showDesktopSidePanel && (
           <SectionSidePanel
             open={showDesktopSidePanel}
-            {...sectionSidePanelSharedProps}
+            segments={
+              sidePanelSegments.length > 0 ? sidePanelSegments : undefined
+            }
+            currentSegmentId={
+              sidePanelSegments[visibleSectionIndex]?.id ?? null
+            }
+            onSelectSegment={handleSelectSegment}
+            onAddSegment={mode === "teacher" ? handleAddSegment : undefined}
+            onRemoveSegment={
+              mode === "teacher" && sortedSegments.length > 1
+                ? handleRemoveSegment
+                : undefined
+            }
+            onReorderSegments={
+              mode === "teacher" && sortedSegments.length > 1
+                ? handleReorderSegments
+                : undefined
+            }
+            units={units}
+            currentUnitId={currentUnitId}
+            completedUnitIds={completedUnitIds}
+            courseTitle={courseTitle}
+            onSelectUnit={mode === "teacher" ? () => {} : onSelectUnit}
+            onAddUnit={mode === "teacher" ? undefined : onAddUnit}
+            onFinishUnit={onFinishUnit}
+            onExtra={() => onExtra("extra")}
+            currentUnitSteps={currentUnitSteps}
+            finishButtonVariant={sidePanelFinishVariant}
+            finishButtonDisabled={finishUnitActionPending}
+            publishBlocked={publishBlocked}
+            onUpgradeForPublish={onUpgradeForPublish}
           />
         )}
       </div>
-
-      {/* ── Mobile + tablet: hamburger → overlay drawer on top of VerticalLessonPlayer ── */}
-      {showSectionsHamburger && sectionsOverlayOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={t("classroom.sectionPanel.sectionNavigator")}
-          className="lw-sections-overlay"
-        >
-          <div
-            className="lw-sections-overlay__backdrop"
-            onClick={() => setSectionsOverlayOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="lw-sections-overlay__drawer">
-            <SectionSidePanel
-              open
-              variant="drawer"
-              onClose={() => setSectionsOverlayOpen(false)}
-              {...{
-                ...sectionSidePanelSharedProps,
-                onSelectSegment: (segment: Parameters<typeof handleSelectSegment>[0]) => {
-                  handleSelectSegment(segment);
-                  setSectionsOverlayOpen(false);
-                },
-              }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

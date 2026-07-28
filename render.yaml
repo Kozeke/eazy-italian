@@ -2,8 +2,13 @@ services:
   - type: web
     name: eazy-italian-frontend
     env: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: ./frontend/dist
+    # Root directory scoped to the frontend subfolder for monorepo support
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_GA_MEASUREMENT_ID
+        value: G-287NYCRGP7
     routes:
       - type: rewrite
         source: /*

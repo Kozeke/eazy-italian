@@ -8,7 +8,6 @@ import {
   LoginCredentials,
   RegisterData,
   TokenResponse,
-  GoogleAuthResponse,
   GradeDetail,
   PaginatedResponse,
   Student,
@@ -182,19 +181,6 @@ export const authApi = {
     const response: AxiosResponse<User> = await api.post(
       "/auth/register",
       userData,
-    );
-    return response.data;
-  },
-
-  // Exchanges a Google Identity Services credential for app JWT tokens or a role prompt.
-  googleAuth: async (payload: {
-    credential: string;
-    role?: "student" | "teacher";
-    locale?: string;
-  }): Promise<GoogleAuthResponse> => {
-    const response: AxiosResponse<GoogleAuthResponse> = await api.post(
-      "/auth/google",
-      payload,
     );
     return response.data;
   },
@@ -673,6 +659,36 @@ export const segmentsApi = {
   getStudentSegments: async (unitId: number): Promise<any[]> => {
     const response: AxiosResponse<any[]> = await api.get(
       `/units/${unitId}/segments`,
+    );
+    return response.data;
+  },
+};
+
+// ─── Refine API ("Refine with AI" conversational block editing) ──────────────
+
+export interface RefineRequestBody {
+  instruction: string;
+  block_id?: string | null;
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
+export interface RefineResponseBody {
+  block?: InlineMediaBlock;
+  previous_block?: InlineMediaBlock;
+  blocks?: InlineMediaBlock[];
+  previous_blocks?: InlineMediaBlock[];
+  summary: string;
+}
+
+export const refineApi = {
+  /** POST /segments/{segmentId}/refine — conversational edit of one block or a whole segment. */
+  refineSegment: async (
+    segmentId: number,
+    payload: RefineRequestBody,
+  ): Promise<RefineResponseBody> => {
+    const response: AxiosResponse<RefineResponseBody> = await api.post(
+      `/segments/${segmentId}/refine`,
+      payload,
     );
     return response.data;
   },
@@ -1384,7 +1400,7 @@ export const gradesApi = {
 
   getStudentEnrollments: async (studentId: number) => {
     const response = await api.get(
-      `admin/students/${studentId}/enrollments`,
+      `grades/admin/students/${studentId}/enrollments`,
     );
     return response.data;
   },

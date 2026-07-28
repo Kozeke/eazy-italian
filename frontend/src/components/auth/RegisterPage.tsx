@@ -31,6 +31,7 @@ import type { User as AuthUser } from '../../types';
 import { trackSignUp } from '../../utils/analytics';
 import GoogleSignInButton, { AuthDivider } from './GoogleSignInButton';
 import { isGoogleAuthEnabled } from './GoogleAuthProvider';
+import { useSafeAutoFocus, useAuthViewportGuard } from './useAuthMobileFix';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,10 @@ export default function RegisterPage() {
   const [googleCredential, setGoogleCredential] = useState<string | null>(null);
   // Prevents duplicate send-registration-code calls (e.g. React Strict Mode double-invoke).
   const sendCodeInFlightRef = useRef(false);
+  // Instagram/Facebook/TikTok in-app browsers zoom into a corner when an
+  // input autoFocuses on load — this guards against that (see useAuthMobileFix.ts).
+  const safeAutoFocus = useSafeAutoFocus();
+  useAuthViewportGuard();
 
   // Defines which registration step should open when the top-left back icon is clicked.
   const previousStepByStep: Partial<Record<Step, Step>> = {
@@ -397,7 +402,7 @@ export default function RegisterPage() {
                 placeholder={t('auth.email')}
                 value={email}
                 onChange={setEmail}
-                autoFocus
+                autoFocus={safeAutoFocus}
               />
               {error && <Err>{error}</Err>}
               <BigBtn type="submit" loading={loading} icon={<ArrowRight style={{ width:15, height:15 }} />}>
@@ -501,7 +506,7 @@ export default function RegisterPage() {
                   placeholder={t('auth.fullNamePlaceholder')}
                   value={fullName}
                   onChange={setFullName}
-                  autoFocus
+                  autoFocus={safeAutoFocus}
                 />
               </SideLabelRow>
               <SideLabelRow label={t('auth.passwordFieldLabel')}>

@@ -19,6 +19,7 @@ from app.api.v1.endpoints import presence, live   # add live
 from app.api.v1.endpoints import presence_rest
 from app.api.v1.endpoints import ai_health
 from app.api.v1.endpoints.stripe_webhook import router as stripe_webhook_router
+from app.api.v1.endpoints.refine import router as refine_router
 
 
 api_router = APIRouter()
@@ -65,3 +66,4 @@ from app.api.v1.endpoints import support_chat      # ← Support chat
 api_router.include_router(support_chat.router, tags=["Support Chat"])  # ← Support chat
 api_router.include_router(ai_health.router, prefix="/admin/ai", tags=["ai-health"])
 api_router.include_router(stripe_webhook_router, tags=["stripe-webhooks"])
+api_router.include_router(refine_router, prefix="", tags=["Refine"])

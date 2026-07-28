@@ -12,6 +12,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import { API_V1_BASE } from '../../services/api';
 import { PrimaryButton, ErrorMsg } from './RegisterPage';
+import { useSafeAutoFocus } from './useAuthMobileFix';
 
 interface EmailVerificationProps {
   email: string;
@@ -26,6 +27,9 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
   const [error, setError]             = useState('');
   const [success, setSuccess]         = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Instagram/Facebook/TikTok in-app browsers zoom into a corner when an
+  // input autoFocuses on load — this guards against that (see useAuthMobileFix.ts).
+  const safeAutoFocus = useSafeAutoFocus();
 
   // Start cooldown on mount
   useEffect(() => {
@@ -175,7 +179,7 @@ export default function EmailVerification({ email, onVerified }: EmailVerificati
               inputMode="numeric"
               maxLength={1}
               value={d}
-              autoFocus={i === 0}
+              autoFocus={i === 0 && safeAutoFocus}
               onChange={(e) => handleDigitChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
               className={[

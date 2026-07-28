@@ -27,6 +27,7 @@ import {
   ArrowDown,
   Pencil,
   Sparkles,
+  Wand2,
   Trash2,
   Copy,
   MoreHorizontal,
@@ -58,6 +59,8 @@ export interface ExerciseBlockMenuProps {
   onMoveDown?: () => void;
   onEdit?: () => void;    // "Редактировать упражнение"
   onEditNew?: () => void; // "Редактировать" + "Новая версия" badge
+  /** Opens the conversational "Refine with AI" panel scoped to this block. */
+  onRefine?: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
 }
@@ -210,6 +213,7 @@ export function ExerciseBlockMenu({
   onMoveDown,
   onEdit,
   onEditNew,
+  onRefine,
   onDelete,
   onDuplicate,
 }: ExerciseBlockMenuProps) {
@@ -351,6 +355,26 @@ export function ExerciseBlockMenu({
   return (
     <div className="ebm-wrapper">
       {children}
+
+      {/* Refine with AI — standalone button sitting immediately left of the ⋯
+          trigger, so the teacher can refine a specific exercise without having
+          to name it in the chat. Rendered here rather than in SectionBlock so
+          all three ExerciseBlockMenu call sites get it for free. */}
+      {onRefine && (
+        <button
+          type="button"
+          className="ebm-refine"
+          aria-label={t('classroom.exerciseMenu.refineWithAi')}
+          title={t('classroom.exerciseMenu.refineWithAi')}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(false);
+            onRefine();
+          }}
+        >
+          <Wand2 size={15} strokeWidth={1.9} />
+        </button>
+      )}
 
       {/* ⋯ trigger */}
       <button

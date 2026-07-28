@@ -881,11 +881,34 @@
         "newVersion": "New version",
         "deleteExercise": "Delete exercise",
         "copyExerciseTo": "Copy exercise to...",
+        "refineWithAi": "Refine with AI",
         "blockOptionsAria": "Block options",
         "resetConfirm": {
           "title": "Reset for all students?",
           "body": "Answers of all connected students will be cleared.",
           "confirm": "Reset"
+        }
+      },
+      "refinePanel": {
+        "title": "Refine with AI",
+        "wholeSection": "Whole section",
+        "widenScope": "Refine whole section instead",
+        "hint": "Describe the change you want — the AI will update the content in place.",
+        "thinking": "Thinking…",
+        "undo": "Undo",
+        "undoConfirmed": "Change undone",
+        "placeholder": "e.g. Make it harder, add two more gaps, simplify the wording…",
+        "send": "Send",
+        "errorCouldNotApply": "Could not apply the changes. Please try again.",
+        "errorQuota": "You've reached your monthly AI limit. Upgrade to keep refining.",
+        "errorGeneric": "Something went wrong. Please try again.",
+        "quick": {
+          "harder": "Make it harder",
+          "easier": "Make it easier",
+          "addWords": "Add more vocabulary words",
+          "addQuestions": "Add more questions",
+          "shorter": "Make it shorter",
+          "fixErrors": "Fix any errors"
         }
       },
       "bottomNav": {

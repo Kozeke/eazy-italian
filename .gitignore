@@ -94,7 +94,7 @@ dist
 public
 # Allow frontend static assets in Vite public folder (e.g., favicon) to be tracked.
 !frontend/public/
-!frontend/public/favicon.svg
+!frontend/public/**
 
 # Storybook build outputs
 .out

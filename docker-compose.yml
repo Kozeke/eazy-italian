@@ -74,10 +74,11 @@ services:
       - SECRET_KEY=your-super-secret-key-change-in-production
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=180
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-692433185695-ti5t4l30kr0sbhr19ran5n9rjcu7b4ss.apps.googleusercontent.com}
       - SMTP_HOST=smtp.gmail.com
       - SMTP_PORT=587
-      - SMTP_USER=your-email@gmail.com
-      - SMTP_PASSWORD=your-app-password
+      - SMTP_USER=kozykorpesh.tolep@gmail.com
+      - SMTP_PASSWORD=rcwoodzjgjoxymad
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002
       # AI Provider Configuration
       - AI_PROVIDER=groq
@@ -90,11 +91,9 @@ services:
       - EMBEDDING_MODEL=LaBSE
       - RAG_TOP_K=5
       - RAG_MIN_SIMILARITY=0.3
-      # Hugging Face Configuration (for image generation)
-      - HF_API_KEY=${HF_API_KEY:-your-huggingface-api-key}
-      - HF_MODEL=black-forest-labs/FLUX.1-schnell
-      - HF_WIDTH=512
-      - HF_HEIGHT=384
+      # fal.ai keys are loaded from env_file (./backend/.env) — do NOT
+      # re-declare them here with ${VAR:-} because that would override
+      # the .env value with an empty string when VAR is not set in the shell.
     ports:
       - "8000:8000"
     volumes:
@@ -175,6 +174,8 @@ services:
       - /app/node_modules
     environment:
       - VITE_API_BASE_URL=http://localhost:8000/api/v1
+      - VITE_GA_MEASUREMENT_ID=G-287NYCRGP7
+      - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-692433185695-ti5t4l30kr0sbhr19ran5n9rjcu7b4ss.apps.googleusercontent.com}
     depends_on:
       - backend
 

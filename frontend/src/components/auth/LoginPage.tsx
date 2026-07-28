@@ -17,6 +17,7 @@ import { LinguAiLogo } from '../global/LinguAiLogo';
 import { useTranslation } from 'react-i18next';
 import GoogleSignInButton, { AuthDivider } from './GoogleSignInButton';
 import { isGoogleAuthEnabled } from './GoogleAuthProvider';
+import { useSafeAutoFocus, useAuthViewportGuard } from './useAuthMobileFix';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 type LoginMode = 'password' | 'magic';
@@ -283,6 +284,10 @@ export default function LoginPage() {
   const [magicSent, setMagicSent] = useState(false);
 
   const emailRef = useRef<HTMLInputElement>(null);
+  // Instagram/Facebook/TikTok in-app browsers zoom into a corner when an
+  // input autoFocuses on load — this guards against that (see useAuthMobileFix.ts).
+  const safeAutoFocus = useSafeAutoFocus();
+  useAuthViewportGuard();
 
   /* Unchanged redirect logic */
   const nextPath = useMemo(() => {
@@ -402,6 +407,10 @@ export default function LoginPage() {
           to   { opacity: 1; transform: translateY(0); }
         }
         input::placeholder { color: ${c.inputPlaceholder}; }
+        /* Prevent iOS Safari / in-app browsers from auto-zooming or reflowing on focus. */
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        html, body { overflow-x: hidden; }
+        @media (max-width: 480px) { input, select, textarea { font-size: 16px; } }
       `}</style>
 
       <LoginShell>
@@ -458,7 +467,7 @@ export default function LoginPage() {
                   placeholder={t('auth.email')}
                   value={email}
                   onChange={setEmail}
-                  autoFocus
+                  autoFocus={safeAutoFocus}
                   inputRef={emailRef}
                 />
                 <Field
@@ -522,7 +531,7 @@ export default function LoginPage() {
                   placeholder={t('auth.email')}
                   value={email}
                   onChange={setEmail}
-                  autoFocus
+                  autoFocus={safeAutoFocus}
                   inputRef={emailRef}
                 />
 

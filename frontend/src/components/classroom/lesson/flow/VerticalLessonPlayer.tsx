@@ -98,6 +98,10 @@ export interface VerticalLessonPlayerProps {
   onReorderBlock?: (blockId: string, direction: 'up' | 'down') => void;
   /** Called when teacher clicks "Редактировать упражнение" or "Редактировать" */
   onEditBlock?: (blockId: string) => void;
+  /** Teacher: opens "Refine with AI" scoped to a single block (block menu). */
+  onRefineBlock?: (blockId: string) => void;
+  /** Teacher: opens "Refine with AI" scoped to the whole section (footer pill). */
+  onRefineSection?: (sectionId?: string) => void;
   /** Teacher: copy a segment inline exercise into unit homework (persisted). */
   onCopyExerciseToHomework?: (block: InlineMediaBlock) => void | Promise<void>;
   /** Teacher: live section title edits — parent debounces and persists to the API. */
@@ -150,6 +154,8 @@ export default function VerticalLessonPlayer({
   onDeleteBlock,
   onReorderBlock,
   onEditBlock,
+  onRefineBlock,
+  onRefineSection,
   onCopyExerciseToHomework,
   onSectionTitleChange,
   inlineMediaBySectionId,
@@ -342,10 +348,11 @@ export default function VerticalLessonPlayer({
           ? (slides: CarouselSlide[]) => handleCarouselChange(section.id, slides)
           : undefined,
         onAddContent: onAddContent ? () => handleAddContent(section.id) : undefined,
+        onRefineSection: onRefineSection ? () => onRefineSection(section.id) : undefined,
         onScrollToPrev: () => scrollToSection(index - 1),
         onScrollToNext: () => scrollToSection(index + 1),
       })),
-    [sections, onInlineMediaChange, onCarouselSlidesChange, onAddContent, handleMediaChange, handleCarouselChange, handleAddContent, scrollToSection],
+    [sections, onInlineMediaChange, onCarouselSlidesChange, onAddContent, onRefineSection, handleMediaChange, handleCarouselChange, handleAddContent, scrollToSection],
   );
 
   return (
@@ -381,6 +388,8 @@ export default function VerticalLessonPlayer({
               onDeleteBlock={onDeleteBlock}
               onReorderBlock={onReorderBlock}
               onEditBlock={onEditBlock}
+              onRefineBlock={onRefineBlock}
+              onRefineSection={callbacks?.onRefineSection}
               onCopyExerciseToHomework={onCopyExerciseToHomework}
               onSectionTitleChange={
                 onSectionTitleChange

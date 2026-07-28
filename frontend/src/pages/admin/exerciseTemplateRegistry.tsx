@@ -596,6 +596,38 @@ export const SEGMENT_EDITABLE_EXERCISE_KINDS = new Set<string>([
 ]);
 
 /**
+ * Block kinds that can be sent to the "Refine with AI" endpoint.
+ *
+ * MUST mirror the backend's REFINABLE_KINDS in app/api/v1/endpoints/refine.py
+ * (= CUSTOM_EXERCISE_KINDS | TEXT_KINDS | VOCABULARY_KINDS in media_block_utils.py).
+ *
+ * Deliberately NOT the same set as SEGMENT_EDITABLE_EXERCISE_KINDS: that set
+ * means "has a form editor page", which is a different question. Using it as
+ * the refine gate hid the button on true_false (refinable, but no form editor)
+ * while showing it on image / gif_animation / video_embed / audio_embed, where
+ * the backend rejects the request with a 400.
+ */
+export const REFINABLE_BLOCK_KINDS = new Set<string>([
+  "text",
+  "vocabulary",
+  "true_false",
+  "drag_to_gap",
+  "drag_to_image",
+  "drag_word_to_image",
+  "type_word_to_image",
+  "select_form_to_image",
+  "type_word_in_gap",
+  "select_word_form",
+  "build_sentence",
+  "match_pairs",
+  "order_paragraphs",
+  "sort_into_columns",
+  "test_without_timer",
+  "test_with_timer",
+  "image_stacked",
+]);
+
+/**
  * Maps a persisted segment block `kind` to the gallery template id used by
  * ExerciseDraftsPage.handleCreate / findTemplate.
  */

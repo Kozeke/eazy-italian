@@ -136,19 +136,6 @@ export default function VocabularyBlock({ item }: ExerciseBlockProps) {
         >
           {title}
         </span>
-        <span
-          style={{
-            flexShrink: 0,
-            fontSize: 11,
-            fontWeight: 600,
-            color: C.sub,
-            background: C.white,
-            borderRadius: 999,
-            padding: "3px 10px",
-          }}
-        >
-          {entries.length} {entries.length === 1 ? "word" : "words"}
-        </span>
       </div>
 
       {/* Table body — horizontal scroll on very narrow viewports */}
