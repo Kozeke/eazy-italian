@@ -240,7 +240,7 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      const result = await loginWithGoogle(credential);
+      const result = await loginWithGoogle(credential, { role: 'teacher' });
       if (result.needsRole) {
         setGoogleCredential(credential);
         setEmail(result.email);
