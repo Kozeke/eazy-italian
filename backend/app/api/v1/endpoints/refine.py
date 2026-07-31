@@ -81,13 +81,14 @@ REFINABLE_KINDS: set = CUSTOM_EXERCISE_KINDS | TEXT_KINDS | VOCABULARY_KINDS
 # Bump on every edit. Logged on each request so the running build is never in
 # doubt — three separate debugging rounds were lost to a stale file that looked
 # current because an older error string was mistaken for a newer one.
-REFINE_IMPL_VERSION = "6-task-first-prompt+noop-guard"
+REFINE_IMPL_VERSION = "7-build-sentence-reduced-view"
 
 # Reuse the existing DeepSeek→Groq exercise provider chain + JSON helpers.
 from app.services.ai_exercise_generator import (
     get_exercise_deepseek_groq_chain,
     _robust_json_loads,      # noqa: PLC2701 — intentional internal reuse
     _validate_drag_to_gap,   # noqa: PLC2701 — the one real per-kind validator today
+    build_sentence_data_from_sentences,  # noqa: PLC2701 — shared token/id assembly, see below
 )
 from app.services.ai.providers.base import AIProviderError
 
@@ -149,6 +150,90 @@ def _find_block(media_blocks: list, block_id: str) -> tuple[int, dict] | None:
     return None
 
 
+# ── build_sentence: reduced editable view ───────────────────────────────────
+#
+# A build_sentence block's `data` stores the same sentence content THREE times
+# (sentences[], question.tokens+correct_order, payload.tokens+correct_order),
+# cross-linked by opaque token ids like "tok_0_0". Sending that whole graph to
+# the LLM and asking it to hand-edit it in place was the root cause of the
+# "model returns content unchanged" failures: the prompt's "never change id"
+# rule (meant for the top-level block id/kind) reads, to the model, as
+# covering every id it sees — including the nested token ids that a real edit
+# necessarily has to regenerate. Faced with that contradiction, the model
+# played it safe and echoed the input back, then wrote a summary describing
+# the edit it didn't actually make.
+#
+# Fix: don't expose the token/id graph to the LLM at all. It only ever sees
+# and edits plain sentence strings; the token ids, correct_order and
+# sentence_groups are rebuilt on the backend afterwards via
+# build_sentence_data_from_sentences (the same assembly
+# generate_build_sentence_from_unit_content uses at initial generation time).
+
+def _build_sentence_editable_view(data: dict) -> dict:
+    """Reduce a build_sentence block's `data` to {title, sentences: [str, ...]}."""
+    title = str(data.get("title") or "").strip()
+    raw_sentences = data.get("sentences")
+
+    sentences: list[str] = []
+    if isinstance(raw_sentences, list) and raw_sentences:
+        for row in raw_sentences:
+            if isinstance(row, dict):
+                text = row.get("sentence")
+                if not text:
+                    text = " ".join(str(w) for w in (row.get("words") or []))
+                sentences.append(str(text).strip())
+            else:
+                sentences.append(str(row).strip())
+    else:
+        # Legacy/manual-editor block with no `sentences[]` — fall back to
+        # reconstructing plain text from the ordering_words `question` shape.
+        question = data.get("question") or {}
+        tokens = {t.get("id"): t.get("text", "") for t in (question.get("tokens") or []) if isinstance(t, dict)}
+        groups = (question.get("metadata") or {}).get("sentence_groups") or []
+        for group_ids in groups:
+            words = [str(tokens.get(tid, "")) for tid in group_ids]
+            sentences.append(" ".join(w for w in words if w))
+
+    return {"title": title, "sentences": [s for s in sentences if s]}
+
+
+def _prompt_view_for_block(block: dict) -> dict:
+    """
+    The block as rendered into the LLM prompt. Identical to the stored block
+    for every kind except build_sentence, which gets the reduced view above.
+    Never mutates the input block.
+    """
+    if block.get("kind") == "build_sentence" and isinstance(block.get("data"), dict):
+        view = dict(block)
+        view["data"] = _build_sentence_editable_view(block["data"])
+        return view
+    return block
+
+
+def _semantic_signature(block: dict) -> Any:
+    """
+    What the no-op guard compares. Default: the whole block, unchanged
+    behaviour. build_sentence gets its own signature because its stored
+    `data` carries backend bookkeeping — regenerated token ids, a fresh
+    word-bank shuffle — that legitimately differs on every reconstruction
+    even when the sentence text itself is untouched. Comparing full-dict
+    equality there would report "changed" on every single refine call
+    regardless of whether the model did anything; comparing just the
+    sentence text (+ title) is the actual signal that matters.
+    """
+    if block.get("kind") == "build_sentence":
+        data = block.get("data") or {}
+        sentences = data.get("sentences") or []
+        return (
+            data.get("title"),
+            tuple(
+                s.get("sentence") if isinstance(s, dict) else s
+                for s in sentences
+            ),
+        )
+    return block
+
+
 def _build_refine_prompt(
     *,
     target_language: str | None,
@@ -161,6 +246,10 @@ def _build_refine_prompt(
     """
     POSITION-ZERO rules block first, then content, then instruction, then history.
     Smaller/faster models (Groq fallback) ignore instructions buried lower down.
+
+    NOTE: `scope_blocks` here is the PROMPT view (see _prompt_view_for_block) —
+    for build_sentence blocks that means the reduced {title, sentences: [str]}
+    shape, not the full stored `data`. Merge/persistence use the real blocks.
     """
     n = len(scope_blocks)
     rules = [
@@ -289,6 +378,34 @@ def _validate_block(kind: str, original: dict, updated: Any) -> tuple[dict | Non
     if not isinstance(updated, dict):
         return None, f"Expected a JSON object, got {type(updated).__name__}."
 
+    if kind == "build_sentence" and isinstance(updated.get("data"), dict):
+        # `updated["data"]` is still the REDUCED view we sent the model
+        # ({title, sentences: [str, ...]}) — expand it back into the full
+        # production shape (sentences[]/question/payload with token ids,
+        # correct_order, sentence_groups) before the generic merge below,
+        # which takes `data` wholesale. This is the one place the token/id
+        # graph gets rebuilt, and it's done in code, not by the model.
+        reduced = updated["data"]
+        title = str(reduced.get("title") or original.get("data", {}).get("title") or "").strip()
+        raw_sentences = reduced.get("sentences")
+        if not isinstance(raw_sentences, list) or not raw_sentences:
+            return None, 'build_sentence: "data.sentences" must be a non-empty array of strings.'
+
+        sentence_strings: list[str] = []
+        for item in raw_sentences:
+            if isinstance(item, str):
+                text = item.strip()
+            elif isinstance(item, dict):
+                # Tolerate the model echoing back the old row-object shape.
+                text = str(item.get("sentence") or " ".join(item.get("words") or [])).strip()
+            else:
+                text = str(item).strip()
+            if not text:
+                return None, "build_sentence: each sentence must be non-empty text."
+            sentence_strings.append(text)
+
+        updated = {**updated, "data": build_sentence_data_from_sentences(title, sentence_strings)}
+
     merged, error = _merge_over_original(original, updated)
     if error:
         return None, error
@@ -325,11 +442,15 @@ async def _call_llm_with_retry(
     validation_error: str | None = None
     last_exc: str | None = None
 
+    # What the model actually sees. Identical to scope_blocks for every kind
+    # except build_sentence (reduced view — see _prompt_view_for_block).
+    prompt_blocks = [_prompt_view_for_block(b) for b in scope_blocks]
+
     for attempt in range(2):
         prompt = _build_refine_prompt(
             target_language=target_language,
             native_language=native_language,
-            scope_blocks=scope_blocks,
+            scope_blocks=prompt_blocks,
             instruction=instruction,
             history=history,
             validation_error=validation_error,
@@ -397,8 +518,16 @@ async def _call_llm_with_retry(
             # A response that changed nothing is a failed refine, not a success:
             # the teacher burns a credit and sees "updated" with identical
             # content. Retry once with an explicit corrective instruction.
+            #
+            # Compared via _semantic_signature, not raw equality — for most
+            # kinds those are the same thing, but build_sentence's `data` is
+            # rebuilt from scratch on every attempt (fresh token ids, fresh
+            # word-bank shuffle) so raw dict equality would never hold even
+            # when the model changed nothing. The signature strips that
+            # backend bookkeeping down to the sentence text that actually
+            # matters for the no-op check.
             if all(
-                merged == original
+                _semantic_signature(merged) == _semantic_signature(original)
                 for merged, original in zip(cleaned_blocks, scope_blocks)
             ):
                 validation_error = (
