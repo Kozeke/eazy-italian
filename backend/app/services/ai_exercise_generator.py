@@ -2200,6 +2200,43 @@ def _ordering_words_from_build_sentence_rows(
     return question, payload
 
 
+def build_sentence_data_from_sentences(
+    title: str,
+    sentence_strings: list[str],
+) -> dict[str, Any]:
+    """
+    Assembles the full build_sentence `data` shape from plain sentence strings.
+
+    Shared by initial generation and refine: splits each string into words,
+    builds sentence rows (id/words/shuffled/sentence), then expands into the
+    ordering_words question + payload with token ids, correct_order, and
+    sentence_groups. Keeps the LLM from inventing or preserving token ids.
+    """
+    # Row objects matching the shape BuildSentenceEditorPage / Block expect
+    sentences_out: list[dict[str, Any]] = []
+    for i, sent in enumerate(sentence_strings, 1):
+        # Tokenize on whitespace — same split generate_build_sentence uses
+        words = str(sent).split()
+        # Bank order shown to the student (scrambled copy of correct words)
+        shuffled = words[:]
+        random.shuffle(shuffled)
+        sentences_out.append({
+            "id": f"bs_{i}",
+            "words": words,
+            "shuffled": shuffled,
+            "sentence": str(sent),
+        })
+
+    # Expands rows into the production question/payload token graph
+    question, payload = _ordering_words_from_build_sentence_rows(title, sentences_out)
+    return {
+        "title": title,
+        "sentences": sentences_out,
+        "question": question,
+        "payload": payload,
+    }
+
+
 async def generate_build_sentence_from_unit_content(
     unit_content: str,
     pair_count: int | None = None,  # reuse pair_count as sentence count
@@ -2304,29 +2341,13 @@ async def generate_build_sentence_from_unit_content(
                     f"expected {sentence_count}."
                 )
 
-            sentences_out = []
-            for i, sent in enumerate(raw_sentences, 1):
-                words = str(sent).split()
-                shuffled = words[:]
-                random.shuffle(shuffled)
-                sentences_out.append({
-                    "id":       f"bs_{i}",
-                    "words":    words,
-                    "shuffled": shuffled,
-                    "sentence": str(sent),
-                })
-
+            # Resolved display title for the exercise (falls back if model omitted it)
             resolved_title = str(parsed.get("title", "")).strip() or fallback_title
-            question, payload = _ordering_words_from_build_sentence_rows(
+            # Normalize LLM strings into the full sentences/question/payload shape
+            data = build_sentence_data_from_sentences(
                 resolved_title,
-                sentences_out,
+                [str(sent) for sent in raw_sentences],
             )
-            data = {
-                "title":     resolved_title,
-                "sentences": sentences_out,
-                "question":  question,
-                "payload":   payload,
-            }
             metadata = {
                 "generation_model":    getattr(_provider, "model", "unknown"),
                 "generation_attempts": attempt + 1,
