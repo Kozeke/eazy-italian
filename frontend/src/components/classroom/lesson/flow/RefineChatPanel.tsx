@@ -132,17 +132,63 @@ function flashBlocks(blockIds: string[]) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-/** One-tap preset instructions. Labels come from i18n so they are sent to the
- *  model in the teacher's UI language; the backend's language rules keep the
- *  generated content in the course's target language regardless. */
-const QUICK_ACTION_KEYS = [
+/** i18n key for a one-tap refine preset (label is also sent as the instruction). */
+type QuickActionKey =
+  | "harder"
+  | "easier"
+  | "addWords"
+  | "addQuestions"
+  | "shorter"
+  | "fixErrors";
+
+/** Default chip order when the scoped block is neither vocab nor Q&A. */
+const DEFAULT_QUICK_ACTIONS: readonly QuickActionKey[] = [
   "harder",
   "easier",
   "addWords",
   "addQuestions",
   "shorter",
   "fixErrors",
-] as const;
+];
+
+/** Block kinds whose primary refine action is adding vocabulary entries. */
+const VOCABULARY_KINDS = new Set<string>(["vocabulary"]);
+
+/** Block kinds whose primary refine action is adding questions / items. */
+const QUESTION_KINDS = new Set<string>([
+  "test_without_timer",
+  "test_with_timer",
+  "true_false",
+]);
+
+/** Resolves which exercise kind the panel is refining (null for mixed section). */
+function resolveScopedKind(
+  scope: RefineScope,
+  blocks: InlineMediaBlock[],
+): string | null {
+  if (scope.type === "block") {
+    return blocks.find((b) => b.id === scope.blockId)?.kind ?? null;
+  }
+  // Whole-section: only specialize when every block shares the same kind family.
+  const kinds = blocks.map((b) => b.kind).filter(Boolean);
+  if (kinds.length === 0) return null;
+  const allVocab = kinds.every((k) => VOCABULARY_KINDS.has(k));
+  if (allVocab) return "vocabulary";
+  const allQuestions = kinds.every((k) => QUESTION_KINDS.has(k));
+  if (allQuestions) return kinds[0];
+  return null;
+}
+
+/** Orders quick-action chips so the most relevant refine for this exercise is first. */
+function quickActionsForKind(kind: string | null): readonly QuickActionKey[] {
+  if (kind && VOCABULARY_KINDS.has(kind)) {
+    return ["addWords", "harder", "easier", "shorter", "fixErrors", "addQuestions"];
+  }
+  if (kind && QUESTION_KINDS.has(kind)) {
+    return ["addQuestions", "harder", "easier", "shorter", "fixErrors", "addWords"];
+  }
+  return DEFAULT_QUICK_ACTIONS;
+}
 
 export default function RefineChatPanel({
   scope,
@@ -167,6 +213,9 @@ export default function RefineChatPanel({
   } | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
+  // Exercise-aware chip order — vocab leads with add-words, tests/T-F with add-questions.
+  const quickActionKeys = quickActionsForKind(resolveScopedKind(scope, blocks));
+
   // Session-only history — reset whenever the scope actually changes
   // (different block, or widened from block → whole section).
   useEffect(() => {
@@ -184,28 +233,44 @@ export default function RefineChatPanel({
   // Blocks are identified by the same [data-lesson-focus-anchor] attribute the
   // scroll-to-block and pulse-flash paths already use.
   //
+  // Clicks outside the panel (and not on a lesson block) dismiss it — same for
+  // other chrome buttons (nav, side panel, menus). Escape does the same.
+  //
   // UX TRADEOFF (deliberate, flagging it): this fires on ANY click inside a
   // block, including a teacher clicking into an exercise to try it out — which
   // re-scopes and therefore clears the session chat history. That is what the
   // spec asks for. If it proves annoying in real use, the narrower fix is to
   // re-scope only on clicks that land on non-interactive parts of the block.
   useEffect(() => {
-    const handler = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
-      // Never re-scope from clicks inside the panel itself.
+      // Clicks inside the panel never dismiss or re-scope.
       if (panelRef.current?.contains(target)) return;
 
       const anchor = target.closest<HTMLElement>("[data-lesson-focus-anchor]");
       const blockId = anchor?.getAttribute("data-lesson-focus-anchor");
-      if (!blockId) return;
-      if (scope.type === "block" && scope.blockId === blockId) return;
+      if (blockId) {
+        // Same block (or any block while scoped to whole section) — keep open /
+        // re-scope rather than close.
+        if (scope.type === "block" && scope.blockId === blockId) return;
+        onRescopeToBlock(blockId);
+        return;
+      }
 
-      onRescopeToBlock(blockId);
+      onClose();
     };
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [scope, onRescopeToBlock]);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    // pointerdown so dismiss happens before other buttons act on the same tap.
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [scope, onRescopeToBlock, onClose]);
 
   const scopeLabel =
     scope.type === "block" ? scope.blockTitle : t("classroom.refinePanel.wholeSection");
@@ -371,11 +436,13 @@ export default function RefineChatPanel({
       </div>
 
       {/* Quick actions — one-tap presets so the teacher doesn't have to type a
-          common instruction. Sends immediately; the input stays free for
-          anything custom. Hidden while a request is in flight. */}
+          common instruction. Order is exercise-specific (vocab → add words
+          first; test / true-false → add questions first). Sends immediately;
+          the input stays free for anything custom. Hidden while a request is
+          in flight. */}
       {!sending && (
         <div className="lw-refine-panel__quick">
-          {QUICK_ACTION_KEYS.map((key) => (
+          {quickActionKeys.map((key) => (
             <button
               key={key}
               type="button"
