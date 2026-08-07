@@ -84,7 +84,7 @@ export default function DragWordToImageBlock({
   const exerciseContentKey = useMemo(
     () =>
       JSON.stringify(
-        cards.map((card) => [card.id, card.answer.trim(), card.image_url ?? ""]),
+        cards.map((card) => [card.id, card.answer.trim(), card.imageUrl ?? ""]),
       ),
     [cards],
   );
