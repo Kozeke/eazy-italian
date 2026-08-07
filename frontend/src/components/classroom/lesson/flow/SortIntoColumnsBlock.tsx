@@ -174,9 +174,27 @@ export default function SortIntoColumnsBlock({
     () => (question ? buildColumns(question) : []),
     [question],
   );
-  const [wordPool] = useState<TokenDraft[]>(() =>
-    (question?.tokens ?? []).map((token) => ({ ...token })),
+
+  // Fingerprint of tokens + column layout so AI refine / editor saves rebuild
+  // the pool without remounting (same stale-state bug as DragToGapBlock).
+  const exerciseContentKey = useMemo(
+    () =>
+      JSON.stringify({
+        tokens: (question?.tokens ?? []).map((t) => [t.id, t.text]),
+        correct_order: question?.correct_order ?? [],
+        groups: question?.metadata?.sentence_groups ?? [],
+        titles: question?.metadata?.column_titles ?? [],
+      }),
+    [question],
   );
+
+  // Copies the current question tokens into a local drag pool
+  const buildWordPool = useCallback(
+    (): TokenDraft[] => (question?.tokens ?? []).map((token) => ({ ...token })),
+    [question],
+  );
+
+  const [wordPool, setWordPool] = useState<TokenDraft[]>(() => buildWordPool());
   const [placements, setPlacements] = useState<Record<string, number>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overColumnIndex, setOverColumnIndex] = useState<number | null>(null);
@@ -184,6 +202,20 @@ export default function SortIntoColumnsBlock({
     Record<number, "correct" | "wrong">
   >({});
   const completedRef = useRef(false);
+  // Skips the content-sync effect on first mount (pool already initialized)
+  const contentKeyRef = useRef(exerciseContentKey);
+
+  // After refine/edit, rebuild chips and clear stale placements immediately.
+  useEffect(() => {
+    if (contentKeyRef.current === exerciseContentKey) return;
+    contentKeyRef.current = exerciseContentKey;
+    setWordPool(buildWordPool());
+    setPlacements({});
+    setDraggingId(null);
+    setOverColumnIndex(null);
+    setFeedbackByColumn({});
+    completedRef.current = false;
+  }, [exerciseContentKey, buildWordPool]);
 
   const sortColumnsLiveBlob = useMemo<SortColumnsLiveBlob>(
     () => ({ placements, feedbackByColumn }),

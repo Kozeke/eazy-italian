@@ -866,7 +866,8 @@
         "renameSection": "Rename section",
         "sectionCounter": "Section {{current}} of {{total}}",
         "addContent": "Add content",
-        "noContentYet": "No content in this section yet."
+        "noContentYet": "No content in this section yet.",
+        "refineWithAi": "Raffina con l'IA"
       },
       "exerciseMenu": {
         "copyToHomework": "Copy to homework",
@@ -881,7 +882,7 @@
         "newVersion": "New version",
         "deleteExercise": "Delete exercise",
         "copyExerciseTo": "Copy exercise to...",
-        "refineWithAi": "Refine with AI",
+        "refineWithAi": "Raffina con l'IA",
         "blockOptionsAria": "Block options",
         "resetConfirm": {
           "title": "Reset for all students?",
@@ -890,25 +891,25 @@
         }
       },
       "refinePanel": {
-        "title": "Refine with AI",
-        "wholeSection": "Whole section",
-        "widenScope": "Refine whole section instead",
-        "hint": "Describe the change you want — the AI will update the content in place.",
-        "thinking": "Thinking…",
-        "undo": "Undo",
-        "undoConfirmed": "Change undone",
-        "placeholder": "e.g. Make it harder, add two more gaps, simplify the wording…",
-        "send": "Send",
-        "errorCouldNotApply": "Could not apply the changes. Please try again.",
-        "errorQuota": "You've reached your monthly AI limit. Upgrade to keep refining.",
-        "errorGeneric": "Something went wrong. Please try again.",
+        "title": "Raffina con l'IA",
+        "wholeSection": "Tutta la sezione",
+        "widenScope": "Raffina invece tutta la sezione",
+        "hint": "Descrivi la modifica che vuoi — l'IA aggiornerà il contenuto sul posto.",
+        "thinking": "Sto pensando…",
+        "undo": "Annulla",
+        "undoConfirmed": "Modifica annullata",
+        "placeholder": "es. Rendilo più difficile, aggiungi due lacune, semplifica il testo…",
+        "send": "Invia",
+        "errorCouldNotApply": "Impossibile applicare le modifiche. Riprova.",
+        "errorQuota": "Hai raggiunto il limite mensile di IA. Passa a un piano superiore per continuare.",
+        "errorGeneric": "Qualcosa è andato storto. Riprova.",
         "quick": {
-          "harder": "Make it harder",
-          "easier": "Make it easier",
-          "addWords": "Add more vocabulary words",
-          "addQuestions": "Add more questions",
-          "shorter": "Make it shorter",
-          "fixErrors": "Fix any errors"
+          "harder": "Rendilo più difficile",
+          "easier": "Rendilo più facile",
+          "addWords": "Aggiungi più parole di vocabolario",
+          "addQuestions": "Aggiungi più domande",
+          "shorter": "Rendilo più corto",
+          "fixErrors": "Correggi eventuali errori"
         }
       },
       "bottomNav": {

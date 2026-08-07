@@ -868,7 +868,8 @@
       "renameSection": "Переименовать раздел",
       "sectionCounter": "Раздел {{current}} из {{total}}",
       "addContent": "Добавить контент",
-      "noContentYet": "В этом разделе пока нет контента."
+      "noContentYet": "В этом разделе пока нет контента.",
+      "refineWithAi": "Улучшить с ИИ"
     },
     "exerciseMenu": {
       "copyToHomework": "Скопировать в дом. работу",

@@ -79,13 +79,28 @@ export default function DragWordToImageBlock({
   const isTeacher = liveCtx?.role === "teacher";
   const teacherDragHints = showTeacherExerciseHints(mode, liveCtx?.role);
 
-  const [wordPool] = useState<WordEntry[]>(() =>
-    shuffle(
-      cards
-        .filter((card) => card.answer.trim() !== "")
-        .map((card) => ({ id: card.id, word: card.answer.trim() })),
-    ),
+  // Fingerprint of card ids + answers so AI refine / editor saves rebuild the
+  // chip pool without remounting (same stale-state bug as DragToGapBlock).
+  const exerciseContentKey = useMemo(
+    () =>
+      JSON.stringify(
+        cards.map((card) => [card.id, card.answer.trim(), card.image_url ?? ""]),
+      ),
+    [cards],
   );
+
+  // Builds the shuffled answer-chip list from the current cards
+  const buildWordPool = useCallback(
+    (): WordEntry[] =>
+      shuffle(
+        cards
+          .filter((card) => card.answer.trim() !== "")
+          .map((card) => ({ id: card.id, word: card.answer.trim() })),
+      ),
+    [cards],
+  );
+
+  const [wordPool, setWordPool] = useState<WordEntry[]>(() => buildWordPool());
   const [placements, setPlacements] = useState<Record<string, string>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overCardId, setOverCardId] = useState<string | null>(null);
@@ -95,6 +110,20 @@ export default function DragWordToImageBlock({
 
   // Ensures onComplete runs once after the exercise is finished for this mount
   const completedRef = useRef(false);
+  // Skips the content-sync effect on first mount (pool already initialized)
+  const contentKeyRef = useRef(exerciseContentKey);
+
+  // After refine/edit, rebuild chips and clear stale placements immediately.
+  useEffect(() => {
+    if (contentKeyRef.current === exerciseContentKey) return;
+    contentKeyRef.current = exerciseContentKey;
+    setWordPool(buildWordPool());
+    setPlacements({});
+    setFeedbackByCard({});
+    setDraggingId(null);
+    setOverCardId(null);
+    completedRef.current = false;
+  }, [exerciseContentKey, buildWordPool]);
 
   // Bundles placement + feedback so one patch updates both sides atomically
   const dragToImageLiveBlob = useMemo<DragToImageLiveBlob>(

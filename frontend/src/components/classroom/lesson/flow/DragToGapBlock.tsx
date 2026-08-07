@@ -104,12 +104,30 @@ export default function DragToGapBlock({
   const teacherHintGaps = showTeacherExerciseHints(mode, liveCtx?.role);
 
   // Ordered list of gap IDs as they appear in the text.
-  const gapIds: string[] = segments
-    .filter((s): s is GapSeg => s.type === "gap")
-    .map((s) => s.id);
+  const gapIds = useMemo(
+    () =>
+      segments.filter((s): s is GapSeg => s.type === "gap").map((s) => s.id),
+    [segments],
+  );
 
-  // ── Word pool (shuffled, stable across re-renders) ─────────────────────────
-  const [wordPool] = useState<WordEntry[]>(() =>
+  // Fingerprint of layout + answers so AI refine / editor saves rebuild the pool
+  // without remounting the block (VocabularyBlock updates instantly because it
+  // has no mount-only interaction state).
+  const exerciseContentKey = useMemo(
+    () =>
+      JSON.stringify({
+        gaps: gapIds.map((id) => [id, gaps[id] ?? ""]),
+        segs: segments.map((s) =>
+          s.type === "gap"
+            ? `g:${(s as GapSeg).id}`
+            : `t:${(s as TextSeg).value}`,
+        ),
+      }),
+    [gapIds, gaps, segments],
+  );
+
+  // ── Word pool (shuffled; rebuilt when exerciseContentKey changes) ──────────
+  const [wordPool, setWordPool] = useState<WordEntry[]>(() =>
     shuffle(gapIds.map((id) => ({ id, word: gaps[id] ?? "" }))),
   );
 
@@ -124,6 +142,21 @@ export default function DragToGapBlock({
 
   // Prevents calling onComplete repeatedly once the exercise is considered done
   const completedRef = useRef(false);
+  // Skips the content-sync effect on the first mount (pool already initialized)
+  const contentKeyRef = useRef(exerciseContentKey);
+
+  // After refine/edit, rebuild chips and clear stale placements so the canvas
+  // matches the new data immediately (no section switch / remount required).
+  useEffect(() => {
+    if (contentKeyRef.current === exerciseContentKey) return;
+    contentKeyRef.current = exerciseContentKey;
+    setWordPool(shuffle(gapIds.map((id) => ({ id, word: gaps[id] ?? "" }))));
+    setPlacements({});
+    setFeedbackByGap({});
+    setDraggingId(null);
+    setOverGapId(null);
+    completedRef.current = false;
+  }, [exerciseContentKey, gapIds, gaps]);
 
   // Single patch payload keeps gap placements and feedback consistent across peers
   const dragToGapLiveBlob = useMemo<DragToGapLiveBlob>(

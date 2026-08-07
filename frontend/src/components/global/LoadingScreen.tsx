@@ -1,7 +1,16 @@
+/**
+ * LoadingScreen.tsx
+ *
+ * Full-viewport loading overlay with a localized motivational quote.
+ * Quote language follows the active interface language (i18n / profile setting).
+ */
+
 import React, { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+// Motivational line shown under the logo while the app is loading.
 interface Quote {
   text: string;
   attribution?: string;
@@ -412,27 +421,45 @@ interface LoadingScreenProps {
  *   );
  */
 const LoadingScreen: React.FC<LoadingScreenProps> = ({ isLoading, lang }) => {
+  // Reads live i18n language so quotes follow profile "interface language" even if prop is stale.
+  const { i18n } = useTranslation();
+  // Prefer explicit prop, then active i18n language, then browser locale.
+  const resolvedLang =
+    lang ??
+    i18n.language ??
+    (typeof navigator !== "undefined" ? navigator.language : "en");
+
+  // Controls fade-out unmount after loading finishes.
   const [visible, setVisible] = useState(true);
-  const quoteRef = useRef<Quote | null>(null);
+  // Holds the quote currently shown; refreshed when the overlay opens so language stays correct.
+  const [quote, setQuote] = useState<Quote>(() => pickQuote(resolvedLang));
+  // Tracks previous isLoading so we only re-pick when the overlay opens (not on every render).
+  const wasLoadingRef = useRef(isLoading);
+  // Remembers which quote locale is on screen so a mid-load language switch can refresh it.
+  const quoteLangRef = useRef(getFallbackLocale(resolvedLang));
 
-  // Pick once on mount and never change — prevents flicker on re-renders
-  if (!quoteRef.current) {
-    const detectedLang =
-      lang ??
-      (typeof navigator !== "undefined" ? navigator.language : "en");
-    quoteRef.current = pickQuote(detectedLang);
-  }
-
-  const quote = quoteRef.current;
-
+  // Handles fade visibility and re-picks a quote in the current interface language when shown.
+  // Avoids English quotes when locale was still default "en" on first mount, then switched to ru/it.
   useEffect(() => {
+    const justOpened = isLoading && !wasLoadingRef.current;
+    wasLoadingRef.current = isLoading;
+
+    // Normalized locale key used by the quote pool (e.g. "ru" from "ru-RU").
+    const locale = getFallbackLocale(resolvedLang);
+    const languageChanged = locale !== quoteLangRef.current;
+
+    if (isLoading && (justOpened || languageChanged)) {
+      quoteLangRef.current = locale;
+      setQuote(pickQuote(resolvedLang));
+    }
+
     if (!isLoading) {
       const timer = setTimeout(() => setVisible(false), 420);
       return () => clearTimeout(timer);
-    } else {
-      setVisible(true);
     }
-  }, [isLoading]);
+
+    setVisible(true);
+  }, [isLoading, resolvedLang]);
 
   if (!visible) return null;
 
