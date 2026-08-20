@@ -13,21 +13,23 @@
  * the corner, form gone". Real Safari and Chrome do not do this, so the
  * behavior change is scoped to detected in-app browsers only.
  *
- * Scope note: the race only exists on the FIRST paint of a page load. Steps
- * that mount later in a flow (OTP entry, details form) are safe to autofocus
- * normally, because layout has long since settled by then — so this module
- * deliberately does not suppress those.
+ * Scope note: the race exists on ROUTE ENTRY, not on page load. It fires just
+ * as reliably when the landing page is already open and the user taps through
+ * to /register client-side — React mounts the route and calls .focus() in the
+ * same commit, before the new route has been laid out, so the WebView latches
+ * onto a rect that is still at the origin. That reads as "zoomed into the
+ * top-left corner, form gone". Steps that mount later within an already-
+ * visible page (OTP entry, details form) are safe to autofocus normally,
+ * because layout has long since settled — this module does not suppress those.
  */
 
 import { useEffect, useState } from 'react';
 
-// Captures when this module was first evaluated, which is as close to
-// "navigation start" as we can get from inside the bundle. Used to tell a
-// first-paint mount apart from a later in-flow step mount.
-const moduleInitAt = typeof performance !== 'undefined' ? performance.now() : 0;
-
-// Window after page load during which a mount is treated as "first paint".
-const FIRST_PAINT_WINDOW_MS = 1500;
+// Window after an auth page *component mounts* during which its layout is
+// treated as still settling. Anchored to mount rather than to module eval or
+// document.readyState, because in an SPA the fragile moment is route entry —
+// which happens on client-side navigation just as much as on a cold load.
+const ROUTE_SETTLE_WINDOW_MS = 1200;
 
 // Detects known in-app browser WebViews (Instagram, Facebook, TikTok, LINE,
 // Snapchat, Twitter/X). Regular Safari/Chrome deliberately do not match.
@@ -44,31 +46,36 @@ export function isInAppBrowser(): boolean {
   );
 }
 
-// True only while we are still inside the fragile first-paint window.
-function isDuringFirstPaint(): boolean {
-  if (typeof document === 'undefined') return false;
-  if (document.readyState === 'complete') {
-    const elapsed =
-      typeof performance !== 'undefined' ? performance.now() - moduleInitAt : Infinity;
-    return elapsed < FIRST_PAINT_WINDOW_MS;
-  }
-  return true;
-}
-
 /**
  * Use in place of a bare `autoFocus` prop on the first field of an auth form.
  *
- * Returns false ONLY when we are in an in-app browser during first paint —
- * i.e. exactly the case that triggers the zoom bug. Normal browsers, and
- * later-mounting steps in any browser, keep their existing autofocus.
+ * In an in-app browser this starts false and flips to true once the page has
+ * had ROUTE_SETTLE_WINDOW_MS to lay out. Normal browsers get true immediately
+ * and are never affected.
  *
- * The value is captured once via the useState initializer so it stays stable
- * for the lifetime of the component. This matters: React only honours
- * `autoFocus` at mount, so a value that flipped on a later render would be
- * silently ignored and would only cause confusion.
+ * The value is deliberately LIVE rather than frozen, which is the opposite of
+ * what it used to be. React only honours `autoFocus` when an input mounts, so:
+ *   - the first field, which mounts in the same commit as the page, reads
+ *     false and never steals focus during route entry — the flip afterwards is
+ *     invisible to it, because it is already mounted;
+ *   - fields that mount later in the flow (details, OTP) read the settled true
+ *     and keep their autofocus, since layout has long since stabilised.
+ * That is exactly the split we want, and it needs no call-site changes.
+ *
+ * Why not the old readyState/elapsed check: on a client-side navigation
+ * (landing → /register) the document has been `complete` for a long time, so
+ * that check reported "not first paint" and let the email field autofocus into
+ * a freshly-mounted, not-yet-laid-out route. Anchoring to mount fixes it.
  */
 export function useSafeAutoFocus(): boolean {
-  const [safe] = useState(() => !(isInAppBrowser() && isDuringFirstPaint()));
+  const [safe, setSafe] = useState(() => !isInAppBrowser());
+
+  useEffect(() => {
+    if (safe) return;
+    const timer = window.setTimeout(() => setSafe(true), ROUTE_SETTLE_WINDOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [safe]);
+
   return safe;
 }
 
