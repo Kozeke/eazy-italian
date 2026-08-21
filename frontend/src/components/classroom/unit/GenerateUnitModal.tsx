@@ -64,7 +64,8 @@ const EXERCISE_TYPE_DEFS: ExerciseTypeDef[] = [
   { value: "select_form_to_image", icon: "🖼▾" },
 ];
 
-const INSTRUCTION_LANG_VALUES = ["english", "russian"] as const;
+// Allowed explanation languages sent as instruction_language; unknown values fall back to English.
+const INSTRUCTION_LANG_VALUES = ["english", "russian", "kazakh"] as const;
 const SEGMENT_OPTIONS = [1, 2, 3, 4, 5, 6];
 
 // ── Quota types ───────────────────────────────────────────────────────────────

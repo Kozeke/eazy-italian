@@ -64,6 +64,8 @@ const LANGUAGE_DETECT_MAP = {
   French:  ['french', 'français', 'francais'],
   German:  ['german', 'deutsch'],
   Italian: ['italian', 'italiano'],
+  // Kazakh is offered as an explanation language (and can be auto-detected from the prompt).
+  Kazakh:  ['kazakh', 'қазақ', 'қазақша', 'qazaq', 'qazaqsha', 'казах'],
   Russian: ['russian', 'русский', 'russkiy', 'рус'],
   Spanish: ['spanish', 'español', 'espanol', 'castellano'],
 };
@@ -73,7 +75,8 @@ const ALL_LANGUAGES = Object.keys(LANGUAGE_DETECT_MAP).sort();
 
 /** Country-flag emoji for each language (best-effort). */
 const FLAG_MAP = {
-  English: '🇬🇧', French: '🇫🇷', German: '🇩🇪', Italian: '🇮🇹', Russian: '🇷🇺', Spanish: '🇪🇸',
+  English: '🇬🇧', French: '🇫🇷', German: '🇩🇪', Italian: '🇮🇹',
+  Kazakh: '🇰🇿', Russian: '🇷🇺', Spanish: '🇪🇸',
 };
 
 /**
