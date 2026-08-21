@@ -46,12 +46,42 @@ export function isInAppBrowser(): boolean {
   );
 }
 
+// Detects non-Safari iOS browsers. Chrome, Firefox, Edge and Opera on iOS are
+// all thin wrappers around WKWebView, so they inherit the same focus/zoom
+// behaviour as the in-app browsers above. Real Safari does not match.
+function isNonSafariIosBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /CriOS|FxiOS|EdgiOS|OPiOS/i.test(navigator.userAgent || '');
+}
+
+// Every browser whose viewport is worth repairing: embedded WebKit of any kind.
+export function isEmbeddedWebKit(): boolean {
+  return isInAppBrowser() || isNonSafariIosBrowser();
+}
+
+// Autofocus during route entry is only ever a problem on touch devices, where
+// focusing raises the keyboard and the viewport animates against a route that
+// has only just mounted. Which browser it is turns out not to matter, so this
+// gates on the device rather than on the user agent.
+//
+// `coarse || narrow` rather than `&&` is deliberate: over-blocking costs a
+// desktop user in a narrow window nothing more than a missing autofocus for
+// ROUTE_SETTLE_WINDOW_MS, whereas under-blocking is the original bug.
+function isMobileLikeViewport(): boolean {
+  if (typeof window === 'undefined') return false;
+  const coarse =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches;
+  const narrow = window.innerWidth <= 820;
+  return coarse || narrow;
+}
+
 /**
  * Use in place of a bare `autoFocus` prop on the first field of an auth form.
  *
- * In an in-app browser this starts false and flips to true once the page has
- * had ROUTE_SETTLE_WINDOW_MS to lay out. Normal browsers get true immediately
- * and are never affected.
+ * On a mobile-like viewport this starts false and flips to true once the page
+ * has had ROUTE_SETTLE_WINDOW_MS to lay out. Desktop gets true immediately
+ * and is never affected.
  *
  * The value is deliberately LIVE rather than frozen, which is the opposite of
  * what it used to be. React only honours `autoFocus` when an input mounts, so:
@@ -68,7 +98,7 @@ export function isInAppBrowser(): boolean {
  * a freshly-mounted, not-yet-laid-out route. Anchoring to mount fixes it.
  */
 export function useSafeAutoFocus(): boolean {
-  const [safe, setSafe] = useState(() => !isInAppBrowser());
+  const [safe, setSafe] = useState(() => !isMobileLikeViewport());
 
   useEffect(() => {
     if (safe) return;
@@ -80,10 +110,10 @@ export function useSafeAutoFocus(): boolean {
 }
 
 /**
- * Repairs the viewport for in-app browsers, then puts it back exactly as it
- * was on unmount.
+ * Repairs the viewport for embedded-WebKit browsers (in-app browsers plus
+ * Chrome/Firefox/Edge on iOS), then puts it back exactly as it was on unmount.
  *
- * Two things happen, both only inside in-app browsers:
+ * Two things happen, both only inside those browsers:
  *   1. If the viewport meta tag is missing entirely, a correct one is added.
  *      A missing tag alone is enough to cause this bug before any JS runs.
  *   2. A one-shot zoom reset: clamp maximum-scale for a single frame, then
@@ -97,7 +127,7 @@ export function useSafeAutoFocus(): boolean {
  */
 export function useAuthViewportGuard(): void {
   useEffect(() => {
-    if (!isInAppBrowser()) return;
+    if (!isEmbeddedWebKit()) return;
 
     const head = document.head;
     if (!head) return;
