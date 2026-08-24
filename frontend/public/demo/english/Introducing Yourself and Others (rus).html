@@ -1,57 +1,9 @@
-"""
-app/services/export/templates.py
-
-The self-contained HTML/CSS/JS, embedded as module-level string constants and
-loaded into a Jinja2 Environment via DictLoader at import time. No app/templates
-folder to ship, no Docker COPY step, no TemplateNotFound at runtime.
-
-autoescape is ON for all templates: teacher-authored prompts/options/items are
-HTML-escaped automatically. Only the passage markdown (already escaped inside
-markdown_to_html) uses | safe; the answer key uses | tojson.
-"""
-
-from __future__ import annotations
-
-from jinja2 import DictLoader, Environment, select_autoescape
-
-from .models import ExportContext
-
-# Header brand mark is an inline SVG in _TPL_UNIT_EXPORT (no external assets).
-
-_TPL_UNIT_EXPORT = r"""\
-{# ════════════════════════════════════════════════════════════════════════════
-   app/templates/export/unit_export.html.j2
-
-   Self-contained single-file HTML export shell.
-
-   This is the reference file's (Chilli_Peppers_part_1.html) split-pane
-   layout, resizer, sticky timer header, panel-sync navigation, and results
-   modal — reused close to verbatim per the implementation brief, with:
-     - IELTS branding swapped for LinguAI brand colors (#6C6FEF / #4F52C2),
-       per "Open questions to confirm with product" → resolved in favour of
-       the mandatory design system rather than the IELTS file's blue.
-     - Band-score table dropped entirely (IELTS-specific, brief says it must go).
-     - Highlighting / notes / context-menu kept (generic UX win, brief said
-       this was Claude's call) but trimmed to the minimal version needed.
-     - Telegram link / IELTS logo / watermark removed (not relevant to us).
-     - The hardcoded `correctAnswers` dict and `totalQuestions=13` constant
-       are now templated from real unit data instead of one passage's
-       13 fixed questions.
-     - Multi-part skeleton (switchToPart) kept as a single-part no-op so a
-       future course-level (multi-unit) export is a thin follow-on per the
-       brief's "Architect it so a course-level export ... is a thin
-       follow-on, not a rewrite" requirement — NOT built out now.
-
-   Business logic (what each question means, how it's scored) lives entirely
-   in export_service.py and is injected here as already-normalised data.
-   This template only knows how to lay things out.
-════════════════════════════════════════════════════════════════════════════ #}
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ unit_title }} — LinguAI</title>
+<title>Introducing Yourself and Others — LinguAI</title>
 <style>
 /* CSS Reset & Base Styles */
 * {
@@ -692,10 +644,10 @@ body {
         <text class="brand-word-ai" x="106" y="26" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-weight="700" font-size="19" letter-spacing="-0.5">AI</text>
       </svg>
     </div>
-    <div class="unit-title-header">{{ unit_title }}</div>
+    <div class="unit-title-header">Introducing Yourself and Others</div>
   </div>
   <div class="header-right">
-    {% if total_questions > 0 %}
+    
     <div class="timer-container">
       <span class="timer-display">60:00</span>
       <div class="timer-controls">
@@ -707,7 +659,7 @@ body {
         </button>
       </div>
     </div>
-    {% endif %}
+    
     <button class="dark-mode-btn" id="dark-mode-toggle" title="Toggle Dark Mode">
       <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -726,54 +678,677 @@ body {
   </noscript>
   <div class="panels-container">
     <div class="passage-panel" id="passage-panel">
-      {# Phone-only fold control: collapsing one panel lets the other fill the screen. #}
+      
       <button type="button" class="panel-toggle" data-panel-target="passage-panel" aria-controls="passage-panel-body" aria-expanded="true">
         <span>Reading &amp; rules</span>
         <svg class="panel-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="panel-body" id="passage-panel-body">
-      {% if passage_blocks %}
-        {% for block in passage_blocks %}
-        <div class="reading-passage passage-block">{{ block.html | safe }}</div>
-        {% endfor %}
-      {% else %}
-        <div class="empty-state">No reading content in this unit.</div>
-      {% endif %}
+      
+        
+        <div class="reading-passage passage-block"><h4>Learning Aims &amp; Outcomes</h4>
+<h2>Learning Aims</h2>
+<p>By the end of this unit, you will be able to introduce yourself and others naturally in English, using nuanced phrases like &quot;It's a pleasure to make your acquaintance&quot; and &quot;May I present my colleague?&quot; This skill is critical for forging professional alliances, expanding social circles, and navigating high-stakes networking events. Mastering introductions enables you to project confidence and cultural awareness in complex English interactions.</p>
+<h3>Learning Outcomes</h3>
+<ul><li>Employ formal and informal greetings with appropriate register and tone.</li><li>Elicit and provide detailed information about someone's professional background (e.g., industry, role, expertise).</li><li>Introduce a third person using sophisticated phrases like &quot;Allow me to introduce...&quot;</li><li>Respond to introductions with varied expressions such as &quot;Delighted to meet you&quot; or &quot;I've heard so much about you.&quot;</li><li>Analyze and adapt introduction styles based on social versus professional contexts, including cultural nuances.</li></ul></div>
+        
+        <div class="reading-passage passage-block"><h4>What We Will Cover</h4>
+<h2>Unit Overview</h2>
+<p>This unit is structured into two demanding sections that progressively challenge your fluency. First, you will master articulating your own background with nuanced detail, then tackle the complexities of introducing others across varied formal and informal scenarios.</p>
+<h3>Unit Roadmap</h3>
+<ul><li><strong>Articulating Your Background</strong> – Develop the ability to convey detailed personal information—including career history, regional origins, and niche interests—using advanced grammatical structures.</li><li><strong>Introducing Others</strong> – Refine your skill in presenting a friend or colleague with sophisticated phrasing and context-appropriate register for both social and professional environments.</li></ul></div>
+        
+        <div class="reading-passage passage-block"><div class="vocab-export"><h4>Key Vocabulary<span class="vocab-count">15 words</span></h4><table class="vocab-table"><thead><tr><th>Word (English)</th><th>Translation (English)</th><th>Example</th></tr></thead><tbody><tr class="vocab-row"><td class="vocab-word">introduce</td><td class="vocab-translation">to tell someone your name or another person's name for the first time</td><td class="vocab-example">Let me introduce my friend Sarah.</td></tr><tr class="vocab-row vocab-row-alt"><td class="vocab-word">meet</td><td class="vocab-translation">to see and talk to someone for the first time</td><td class="vocab-example">Nice to meet you, Maria.</td></tr><tr class="vocab-row"><td class="vocab-word">name</td><td class="vocab-translation">the word that people use to call you</td><td class="vocab-example">My name is David.</td></tr><tr class="vocab-row vocab-row-alt"><td class="vocab-word">colleague</td><td class="vocab-translation">a person you work with</td><td class="vocab-example">This is my colleague, Mr. Lee.</td></tr><tr class="vocab-row"><td class="vocab-word">background</td><td class="vocab-translation">your past experience, education, and family history</td><td class="vocab-example">I come from a teaching background.</td></tr><tr class="vocab-row vocab-row-alt"><td class="vocab-word">from</td><td class="vocab-translation">used to say where you were born or live</td><td class="vocab-example">I am from Brazil.</td></tr><tr class="vocab-row"><td class="vocab-word">pleased</td><td class="vocab-translation">happy or glad, often used in greetings</td><td class="vocab-example">Pleased to meet you.</td></tr><tr class="vocab-row vocab-row-alt"><td class="vocab-word">this is</td><td class="vocab-translation">used to introduce someone to another person</td><td class="vocab-example">This is my sister, Anna.</td></tr><tr class="vocab-row"><td class="vocab-word">call</td><td class="vocab-translation">to use a name for someone or something</td><td class="vocab-example">You can call me Tom.</td></tr><tr class="vocab-row vocab-row-alt"><td class="vocab-word">friend</td><td class="vocab-translation">a person you like and know well</td><td class="vocab-example">He is a good friend of mine.</td></tr><tr class="vocab-row"><td class="vocab-word">origin</td><td class="vocab-translation">the place where someone comes from</td><td class="vocab-example">His origin is from Mexico.</td></tr><tr class="vocab-row vocab-row-alt"><td class="vocab-word">greeting</td><td class="vocab-translation">a friendly word or gesture when meeting someone</td><td class="vocab-example">A warm greeting is important in business.</td></tr><tr class="vocab-row"><td class="vocab-word">formal</td><td class="vocab-translation">suitable for official or serious situations</td><td class="vocab-example">Use formal language in a job interview.</td></tr><tr class="vocab-row vocab-row-alt"><td class="vocab-word">informal</td><td class="vocab-translation">relaxed and suitable for casual situations</td><td class="vocab-example">We use informal words with close friends.</td></tr><tr class="vocab-row"><td class="vocab-word">acquaintance</td><td class="vocab-translation">a person you know slightly but not well</td><td class="vocab-example">She is an acquaintance from work.</td></tr></tbody></table></div></div>
+        
+        <div class="reading-passage passage-block"><h4>Describing Your Origin and Occupation</h4>
+<h2>Rule / Explanation</h2>
+<p>When talking about your background, use the verb <em>come from</em> to say where you are from, and <em>work as</em> to describe your job. The structure is: subject + <em>come from</em> + place, and subject + <em>work as</em> + job title. For example, <em>I come from Spain</em> and <em>I work as a teacher</em>. Use the present simple tense because these facts are generally true.</p>
+<h3>Key Points</h3>
+<ul><li><strong>Come from</strong> — Use this phrase to state your place of origin. Example: <em>I come from Italy</em> means Italy is your home country.</li><li><strong>Work as</strong> — Use this to specify your profession. Example: <em>I work as an engineer</em> tells others your job role.</li><li><strong>Present simple tense</strong> — Use this tense for permanent situations like your birthplace and job. No auxiliary verb is needed for positive statements.</li><li><strong>Preposition 'in'</strong> — Use <em>in</em> before a city or country when saying where you work. Example: <em>I work in London</em>.</li></ul>
+<h3>Examples</h3>
+<p>✓ <em>I come from Spain</em> — Correct: states the country of origin. ✓ <em>She comes from Mexico</em> — Correct: uses third person singular with -s. ✓ <em>I work as a teacher</em> — Correct: describes the job role. ✓ <em>He works as a doctor</em> — Correct: third person singular with -s. ✓ <em>They come from Brazil</em> — Correct: plural subject with no -s. ✓ <em>We work as nurses</em> — Correct: plural subject with no -s.</p></div>
+        
+        <div class="reading-passage passage-block"><h4>Introducing a Friend or Colleague</h4>
+<h2>Rule / Explanation</h2>
+<p>When introducing someone, you can use various phrases depending on the formality of the situation. In informal settings, <em>This is</em> is common, but in formal contexts, you might use <em>May I introduce</em> or <em>I'd like to present</em>. The introduction should include the person's name, their relationship to you, and optionally a brief description of their role or background. This helps the listener understand who the person is and why they are being introduced.</p>
+<h3>Key Points</h3>
+<ul><li><strong>Formal vs. Informal</strong> — Choose the phrase based on the setting. <em>This is</em> is casual; <em>May I introduce</em> is more formal.</li><li><strong>Name and Relationship</strong> — Always state the person's name and how you know them, e.g., <em>my colleague</em> or <em>our guest speaker</em>.</li><li><strong>Additional Details</strong> — Add a sentence about their role, experience, or a positive trait to give more context.</li><li><strong>Tone and Body Language</strong> — Maintain a confident and welcoming tone. In formal settings, use a more measured pace and avoid overly casual language.</li></ul>
+<h3>Examples</h3>
+<p>✓ <em>This is Maria, she's my classmate.</em> — Informal: uses <em>This is</em> + name + description. ✓ <em>May I introduce our keynote speaker, Dr. Elena Rodriguez?</em> — Formal: uses <em>May I introduce</em> + title + name. ✓ <em>I'd like to present my colleague, Mr. Smith, who has been with the company for ten years.</em> — Formal: adds a relative clause for detail. ✓ <em>This is Anna. She works with me.</em> — Informal: adds a second sentence with <em>She works</em>. ✓ <em>Allow me to introduce our special guest, Professor James Whitfield, who is a leading authority in his field.</em> — Formal: uses <em>Allow me to introduce</em> + title + name + description.</p></div>
+        
+      
       </div>
     </div>
 
-    {% if total_questions > 0 %}<div class="resizer" id="resizer"></div>{% endif %}
+    <div class="resizer" id="resizer"></div>
 
-    <div class="questions-panel" id="questions-panel" {% if total_questions == 0 %}style="display:none;"{% endif %}>
-      {# Phone-only fold control — mirrors the reading panel above. #}
+    <div class="questions-panel" id="questions-panel" >
+      
       <button type="button" class="panel-toggle" data-panel-target="questions-panel" aria-controls="questions-panel-body" aria-expanded="true">
         <span>Exercises</span>
         <svg class="panel-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="panel-body" id="questions-panel-body">
       <div class="questions-container">
-        {% for group in question_groups %}
-          {% if group.kind == "true_false" %}
-            {% include "export/_true_false.html.j2" %}
-          {% elif group.kind == "gap_fill" %}
-            {% include "export/_gap_fill.html.j2" %}
-          {% elif group.kind == "multiple_choice" %}
-            {% include "export/_multiple_choice.html.j2" %}
-          {% elif group.kind == "order" %}
-            {% include "export/_order.html.j2" %}
-          {% elif group.kind == "sort" %}
-            {% include "export/_sort.html.j2" %}
-          {% elif group.kind == "match" %}
-            {% include "export/_match.html.j2" %}
-          {% endif %}
-        {% endfor %}
+        
+          
+            
+<div class="question" data-q-start="1" data-q-end="9">
+  <div class="question-group-title">Introducing Yourself and Others: Background and Jobs</div>
+  
+  <div class="tf-question" data-q-start="1" data-q-end="1">
+    <div class="tf-question-line">
+      <span class="tf-question-number">1</span>
+      <span class="tf-question-text">The phrase &#39;come from&#39; is used to say where you are from.</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q1" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q1" value="false"> False</label>
+    </div>
+  </div>
+  
+  <div class="tf-question" data-q-start="2" data-q-end="2">
+    <div class="tf-question-line">
+      <span class="tf-question-number">2</span>
+      <span class="tf-question-text">The phrase &#39;work as&#39; is used to describe your hobby.</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q2" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q2" value="false"> False</label>
+    </div>
+  </div>
+  
+  <div class="tf-question" data-q-start="3" data-q-end="3">
+    <div class="tf-question-line">
+      <span class="tf-question-number">3</span>
+      <span class="tf-question-text">The present simple tense is used for permanent situations like your birthplace and job.</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q3" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q3" value="false"> False</label>
+    </div>
+  </div>
+  
+  <div class="tf-question" data-q-start="4" data-q-end="4">
+    <div class="tf-question-line">
+      <span class="tf-question-number">4</span>
+      <span class="tf-question-text">To state your profession, you should use the phrase &#39;work as&#39; followed by a place.</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q4" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q4" value="false"> False</label>
+    </div>
+  </div>
+  
+  <div class="tf-question" data-q-start="5" data-q-end="5">
+    <div class="tf-question-line">
+      <span class="tf-question-number">5</span>
+      <span class="tf-question-text">The sentence &#39;I come from Spain&#39; means Spain is your home country.</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q5" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q5" value="false"> False</label>
+    </div>
+  </div>
+  
+  <div class="tf-question" data-q-start="6" data-q-end="6">
+    <div class="tf-question-line">
+      <span class="tf-question-number">6</span>
+      <span class="tf-question-text">In positive statements about your background, you need an auxiliary verb.</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q6" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q6" value="false"> False</label>
+    </div>
+  </div>
+  
+  <div class="tf-question" data-q-start="7" data-q-end="7">
+    <div class="tf-question-line">
+      <span class="tf-question-number">7</span>
+      <span class="tf-question-text">The phrase &#39;live in&#39; is used to talk about your current city or country.</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q7" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q7" value="false"> False</label>
+    </div>
+  </div>
+  
+  <div class="tf-question" data-q-start="8" data-q-end="8">
+    <div class="tf-question-line">
+      <span class="tf-question-number">8</span>
+      <span class="tf-question-text">When introducing someone else, you can say &#39;This is my friend, Anna.&#39;</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q8" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q8" value="false"> False</label>
+    </div>
+  </div>
+  
+  <div class="tf-question" data-q-start="9" data-q-end="9">
+    <div class="tf-question-line">
+      <span class="tf-question-number">9</span>
+      <span class="tf-question-text">The verb &#39;be&#39; is never used to describe someone&#39;s job.</span>
+    </div>
+    <div class="tf-options">
+      <label class="tf-option"><input type="radio" name="q9" value="true"> True</label>
+      <label class="tf-option"><input type="radio" name="q9" value="false"> False</label>
+    </div>
+  </div>
+  
+</div>
+          
+        
+          
+            
+<div class="t2-question match-question" data-q-start="10" data-q-end="10"
+     data-kind="match" data-qnum="10">
+  <div class="question-prompt-text">
+    <span class="q-num-badge">10</span>
+    <span>Introducing Your Background</span>
+  </div>
+  <div class="match-grid" id="match-grid-10" data-qnum="10">
+    <div class="match-col match-left">
+      
+      <button type="button" class="match-item match-left-item" data-side="left" data-item-id="l_3">Nice to meet you</button>
+      
+      <button type="button" class="match-item match-left-item" data-side="left" data-item-id="l_1">I come from</button>
+      
+      <button type="button" class="match-item match-left-item" data-side="left" data-item-id="l_4">This is my colleague</button>
+      
+      <button type="button" class="match-item match-left-item" data-side="left" data-item-id="l_5">He comes from</button>
+      
+      <button type="button" class="match-item match-left-item" data-side="left" data-item-id="l_6">She works as</button>
+      
+      <button type="button" class="match-item match-left-item" data-side="left" data-item-id="l_2">I work as</button>
+      
+    </div>
+    <div class="match-col match-right">
+      
+      <button type="button" class="match-item match-right-item" data-side="right" data-item-id="r_6">an engineer</button>
+      
+      <button type="button" class="match-item match-right-item" data-side="right" data-item-id="r_2">a teacher</button>
+      
+      <button type="button" class="match-item match-right-item" data-side="right" data-item-id="r_1">Spain</button>
+      
+      <button type="button" class="match-item match-right-item" data-side="right" data-item-id="r_4">Introducing a coworker</button>
+      
+      <button type="button" class="match-item match-right-item" data-side="right" data-item-id="r_3">Pleased to meet you</button>
+      
+      <button type="button" class="match-item match-right-item" data-side="right" data-item-id="r_5">Italy</button>
+      
+    </div>
+  </div>
+  <div class="match-pairs-list" id="match-pairs-10"></div>
+</div>
+
+          
+        
+          
+            
+
+
+<div class="question"
+     data-q-start="11"
+     data-q-end="18">
+  <div class="question-group-title">Introducing Others: Formal and Informal Contexts</div>
+  <div class="gap-fill-block">
+    <p>Good afternoon, esteemed guests and distinguished colleagues.<input type="text" class="answer-input" id="q11" placeholder="11">our keynote speaker, Dr. Elena Rodriguez. She<input type="text" class="answer-input" id="q12" placeholder="12">the global marketing strategy for over a decade.<input type="text" class="answer-input" id="q13" placeholder="13">our special guest, Professor James Whitfield, who<input type="text" class="answer-input" id="q14" placeholder="14">.Furthermore,<input type="text" class="answer-input" id="q15" placeholder="15">our visiting scholar, Dr. Mei Lin, who<input type="text" class="answer-input" id="q16" placeholder="16">.And<input type="text" class="answer-input" id="q17" placeholder="17">our panel moderator, Mr. David Chen, who<input type="text" class="answer-input" id="q18" placeholder="18">.</p>
+  </div>
+</div>
+
+          
+        
+          
+            
+<div class="t2-question order-question" data-q-start="19" data-q-end="19"
+     data-kind="order" data-qnum="19">
+  <div class="question-prompt-text">
+    <span class="q-num-badge">19</span>
+    <span>Introducing Colleagues and Friends: Advanced Sentence Assembly</span>
+  </div>
+  
+  
+  <div class="order-row order-row-labeled">
+    <div class="order-row-label">Sentence 1</div>
+    <div class="order-list" data-qnum="19" data-row="0">
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_2">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">hectic</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_6">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">Sarah,</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_10">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">to</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_1">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">her</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_8">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">finds</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_13">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">team</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_12">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">new</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_11">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">assist</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_7">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">always</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_14">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">members.</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_3">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">schedule,</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_4">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">my</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_9">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">time</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_0">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">Despite</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_0_5">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">colleague,</span>
+      </div>
+      
+    </div>
+  </div>
+  
+  <div class="order-row order-row-labeled">
+    <div class="order-row-label">Sentence 2</div>
+    <div class="order-list" data-qnum="19" data-row="1">
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_7">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">Tom</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_16">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">an</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_3">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">for</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_2">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">abroad</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_10">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">languages</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_14">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">acts</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_11">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">fluently</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_6">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">friend</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_4">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">years,</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_5">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">my</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_12">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">and</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_1">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">lived</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_17">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">interpreter.</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_9">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">three</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_8">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">speaks</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_0">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">Having</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_15">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">as</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_1_13">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">often</span>
+      </div>
+      
+    </div>
+  </div>
+  
+  <div class="order-row order-row-labeled">
+    <div class="order-row-label">Sentence 3</div>
+    <div class="order-list" data-qnum="19" data-row="2">
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_0">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">Although</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_2">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">is</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_10">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">our</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_4">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">classmate,</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_11">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">schedules</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_8">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">together</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_3">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">my</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_5">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">we</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_7">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">study</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_1">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">she</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_6">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">rarely</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_12">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">conflict.</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_2_9">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">because</span>
+      </div>
+      
+    </div>
+  </div>
+  
+  <div class="order-row order-row-labeled">
+    <div class="order-row-label">Sentence 4</div>
+    <div class="order-list" data-qnum="19" data-row="3">
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_6">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">month,</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_3">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">who</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_4">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">joined</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_2">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">manager,</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_1">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">new</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_13">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">already</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_16">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">changes.</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_8">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">in</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_15">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">several</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_0">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">The</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_5">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">last</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_11">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">and</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_10">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">team</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_12">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">has</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_7">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">works</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_14">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">implemented</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_3_9">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">my</span>
+      </div>
+      
+    </div>
+  </div>
+  
+  <div class="order-row order-row-labeled">
+    <div class="order-row-label">Sentence 5</div>
+    <div class="order-list" data-qnum="19" data-row="4">
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_7">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">I</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_5">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">meeting</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_14">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">projects</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_3">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">a</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_0">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">It</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_13">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">future</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_2">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">been</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_6">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">you;</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_12">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">on</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_10">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">can</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_1">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">has</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_9">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">we</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_11">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">collaborate</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_4">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">pleasure</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_8">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">hope</span>
+      </div>
+      
+      <div class="order-item" draggable="true" data-item-id="tok_4_15">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="order-item-text">soon.</span>
+      </div>
+      
+    </div>
+  </div>
+  
+</div>
+
+          
+        
       </div>
       </div>
     </div>
   </div>
 </div>
 
-{% if total_questions > 0 %}
+
 <div class="nav-arrows">
   <button class="nav-arrow prev" onclick="previousQuestion()" id="prevBtn" aria-label="Previous question">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -785,11 +1360,47 @@ body {
 
 <nav class="nav-row" aria-label="Questions">
   <div class="question-wrapper">
-    <span class="attempted-count" id="attempted-count">0 of {{ total_questions }}</span>
+    <span class="attempted-count" id="attempted-count">0 of 19</span>
     <div class="subquestion-nav">
-      {% for n in range(1, total_questions + 1) %}
-      <button class="subQuestion" onclick="goToQuestion({{ n }})"><span class="sr-only">Question {{ n }}</span><span aria-hidden="true">{{ n }}</span></button>
-      {% endfor %}
+      
+      <button class="subQuestion" onclick="goToQuestion(1)"><span class="sr-only">Question 1</span><span aria-hidden="true">1</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(2)"><span class="sr-only">Question 2</span><span aria-hidden="true">2</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(3)"><span class="sr-only">Question 3</span><span aria-hidden="true">3</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(4)"><span class="sr-only">Question 4</span><span aria-hidden="true">4</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(5)"><span class="sr-only">Question 5</span><span aria-hidden="true">5</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(6)"><span class="sr-only">Question 6</span><span aria-hidden="true">6</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(7)"><span class="sr-only">Question 7</span><span aria-hidden="true">7</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(8)"><span class="sr-only">Question 8</span><span aria-hidden="true">8</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(9)"><span class="sr-only">Question 9</span><span aria-hidden="true">9</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(10)"><span class="sr-only">Question 10</span><span aria-hidden="true">10</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(11)"><span class="sr-only">Question 11</span><span aria-hidden="true">11</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(12)"><span class="sr-only">Question 12</span><span aria-hidden="true">12</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(13)"><span class="sr-only">Question 13</span><span aria-hidden="true">13</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(14)"><span class="sr-only">Question 14</span><span aria-hidden="true">14</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(15)"><span class="sr-only">Question 15</span><span aria-hidden="true">15</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(16)"><span class="sr-only">Question 16</span><span aria-hidden="true">16</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(17)"><span class="sr-only">Question 17</span><span aria-hidden="true">17</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(18)"><span class="sr-only">Question 18</span><span aria-hidden="true">18</span></button>
+      
+      <button class="subQuestion" onclick="goToQuestion(19)"><span class="sr-only">Question 19</span><span aria-hidden="true">19</span></button>
+      
     </div>
   </div>
   <button id="deliver-button" aria-label="Check your answers" class="deliver-button">
@@ -803,12 +1414,12 @@ body {
     <button class="modal-close-btn" onclick="closeResultsModal()">&times;</button>
     <h2>Results</h2>
     <div class="results-summary">
-      <p>Score: <span id="results-score"></span> / {{ total_questions }}</p>
+      <p>Score: <span id="results-score"></span> / 19</p>
     </div>
     <div id="results-details" class="results-details-container"></div>
   </div>
 </div>
-{% endif %}
+
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -817,7 +1428,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let timeInSeconds = 3600;
   let timerInterval;
   let activeQuestionElement = null;
-  const totalQuestions = {{ total_questions }};
+  const totalQuestions = 19;
 
   // --- DARK MODE ---
   const darkModeToggle = document.getElementById('dark-mode-toggle');
@@ -849,7 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- ANSWERS (embedded by export_service.py via build_export_context) ---
   // Values are either a string (radio/single-correct/gap) or an array of
   // strings (checkbox / multi-correct MCQ) — see normalise_test_block().
-  const correctAnswers = {{ correct_answers | tojson }};
+  const correctAnswers = {"1": "true", "10": {"kind": "match", "pairs": {"l_1": "r_1", "l_2": "r_2", "l_3": "r_3", "l_4": "r_4", "l_5": "r_5", "l_6": "r_6"}}, "11": "allow me to take this opportunity to present", "12": "has been spearheading the development and implementation of", "13": "i am deeply honored and privileged to introduce", "14": "is a distinguished alumnus of our university and a leading authority in his discipline", "15": "i would like to take a moment to extend a warm and heartfelt welcome to", "16": "has been seconded from our overseas branch to contribute his expertise to this project", "17": "may i take the liberty of introducing", "18": "is a renowned expert in his field, with over two decades of professional experience", "19": {"kind": "order", "order": ["tok_0_0", "tok_0_1", "tok_0_2", "tok_0_3", "tok_0_4", "tok_0_5", "tok_0_6", "tok_0_7", "tok_0_8", "tok_0_9", "tok_0_10", "tok_0_11", "tok_0_12", "tok_0_13", "tok_0_14", "tok_1_0", "tok_1_1", "tok_1_2", "tok_1_3", "tok_1_4", "tok_1_5", "tok_1_6", "tok_1_7", "tok_1_8", "tok_1_9", "tok_1_10", "tok_1_11", "tok_1_12", "tok_1_13", "tok_1_14", "tok_1_15", "tok_1_16", "tok_1_17", "tok_2_0", "tok_2_1", "tok_2_2", "tok_2_3", "tok_2_4", "tok_2_5", "tok_2_6", "tok_2_7", "tok_2_8", "tok_2_9", "tok_2_10", "tok_2_11", "tok_2_12", "tok_3_0", "tok_3_1", "tok_3_2", "tok_3_3", "tok_3_4", "tok_3_5", "tok_3_6", "tok_3_7", "tok_3_8", "tok_3_9", "tok_3_10", "tok_3_11", "tok_3_12", "tok_3_13", "tok_3_14", "tok_3_15", "tok_3_16", "tok_4_0", "tok_4_1", "tok_4_2", "tok_4_3", "tok_4_4", "tok_4_5", "tok_4_6", "tok_4_7", "tok_4_8", "tok_4_9", "tok_4_10", "tok_4_11", "tok_4_12", "tok_4_13", "tok_4_14", "tok_4_15"]}, "2": "false", "3": "true", "4": "false", "5": "true", "6": "false", "7": "true", "8": "true", "9": "false"};
 
   // --- INIT ---
   function initialize() {
@@ -1460,315 +2071,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-"""
-
-_TPL_TRUE_FALSE = r"""\
-{#
-  app/templates/export/_true_false.html.j2
-
-  Renders one QuestionGroup of kind "true_false". Reuses the reference
-  file's .tf-question / .tf-options / .tf-option markup and classes, but
-  with two options (true/false) instead of the IELTS file's three-way
-  TRUE/FALSE/NOT GIVEN — our TrueFalseBlock.tsx data model is binary.
-
-  Expects `group` (a QuestionGroup with .true_false_questions populated)
-  in scope, provided by the {% include %} loop in unit_export.html.j2.
-#}
-<div class="question" data-q-start="{{ group.true_false_questions[0].number }}" data-q-end="{{ group.true_false_questions[-1].number }}">
-  {% if group.title %}<div class="question-group-title">{{ group.title }}</div>{% endif %}
-  {% for q in group.true_false_questions %}
-  <div class="tf-question" data-q-start="{{ q.number }}" data-q-end="{{ q.number }}">
-    <div class="tf-question-line">
-      <span class="tf-question-number">{{ q.number }}</span>
-      <span class="tf-question-text">{{ q.prompt }}</span>
-    </div>
-    <div class="tf-options">
-      <label class="tf-option"><input type="radio" name="q{{ q.number }}" value="true"> True</label>
-      <label class="tf-option"><input type="radio" name="q{{ q.number }}" value="false"> False</label>
-    </div>
-  </div>
-  {% endfor %}
-</div>
-"""
-
-_TPL_GAP_FILL = r"""\
-{#
-  app/templates/export/_gap_fill.html.j2
-
-  Renders one QuestionGroup of kind "gap_fill" (type_word_in_gap or drag_to_gap).
-  Walks the pre-normalised `fragments` list in document order, emitting text
-  verbatim and an `.answer-input` for each gap — exactly the reference
-  file's "answer-input inline in prose" pattern, but driven by our
-  segments/gaps data model instead of hardcoded notes-completion HTML.
-
-  Expects `group` (a QuestionGroup with .gap_fill_block populated) in scope.
-#}
-{% set gap_numbers = group.gap_fill_block.fragments | selectattr('0', 'equalto', 'gap') | map(attribute='1') | list %}
-{% if gap_numbers %}
-<div class="question"
-     data-q-start="{{ gap_numbers[0] }}"
-     data-q-end="{{ gap_numbers[-1] }}">
-  {% if group.gap_fill_block.title %}<div class="question-group-title">{{ group.gap_fill_block.title }}</div>{% endif %}
-  <div class="gap-fill-block">
-    <p>
-    {%- for kind, value in group.gap_fill_block.fragments -%}
-      {%- if kind == "text" -%}{{ value }}{%- else -%}<input type="text" class="answer-input" id="q{{ value }}" placeholder="{{ value }}">{%- endif -%}
-    {%- endfor -%}
-    </p>
-  </div>
-</div>
-{% endif %}
-"""
-
-_TPL_MULTIPLE_CHOICE = r"""\
-{#
-  app/templates/export/_multiple_choice.html.j2
-
-  Renders one QuestionGroup of kind "multiple_choice" — the questions
-  loaded from a test_with_timer / test_without_timer block via the
-  Test → TestQuestion → Question chain. Reuses the reference file's
-  .multi-choice-question / .multi-choice-option pattern; radio when there's
-  exactly one correct option, checkbox when there are several (mirrors
-  question_service.py's correct_option_ids contract — see
-  normalise_test_block() / _mc_draft_to_question() in export_service.py).
-
-  Expects `group` (a QuestionGroup with .multiple_choice_questions
-  populated) in scope.
-#}
-{% if group.title %}<div class="question-group-title">{{ group.title }}</div>{% endif %}
-{% for q in group.multiple_choice_questions %}
-<div class="multi-choice-question" data-q-start="{{ q.number }}" data-q-end="{{ q.number }}">
-  <div class="question-prompt-text">
-    <span class="q-num-badge">{{ q.number }}</span>
-    <span>{{ q.prompt }}</span>
-  </div>
-  <div class="multi-choice-options">
-    {% for opt in q.options %}
-    <label class="multi-choice-option">
-      <input type="{{ 'checkbox' if q.multi else 'radio' }}" name="q{{ q.number }}" value="{{ opt.id }}">
-      {{ opt.text }}
-    </label>
-    {% endfor %}
-  </div>
-</div>
-{% endfor %}
-"""
-
-_TPL_PASSAGE_TEXT = r"""\
-{#
-  app/templates/export/_passage_text.html.j2
-
-  Renders one PassageBlock (a "text" media block — grammar rules, vocab
-  notes, etc.) in the left panel. The HTML body is pre-rendered in Python
-  by markdown_to_html() / normalise_text_block() in export_service.py —
-  this partial is intentionally a thin wrapper so the "one partial per
-  kind" convention stays uniform even though passage blocks need no
-  question-numbering logic at the template layer.
-
-  Not currently {% include %}-ed from unit_export.html.j2 (which inlines
-  `block.html` directly in its passage-panel loop for one fewer indirection)
-  — kept as the documented per-kind partial for the extension-point
-  convention described in export_service.py's docstring, and as the seam to
-  switch to if passage rendering ever needs template-level logic (e.g. a
-  per-block heading style that differs from the gradable partials).
-
-  Expects `block` (a PassageBlock) in scope.
-#}
-<div class="reading-passage passage-block">{{ block.html | safe }}</div>
-"""
-
-
-
-# ── Tier-2 partials ─────────────────────────────────────────────────────────────
-#
-# Each renders one question into a draggable widget. The student arranges
-# items; the embedded grader (see _TPL_UNIT_EXPORT's <script>) reads the
-# data-* answer keys and the live DOM order at Check-time. No per-question
-# JS here — the partials are pure markup with data-attributes the generic
-# grader understands.
-
-# ORDER (build_sentence, order_paragraphs): a vertical list of draggable rows.
-# Items are pre-scrambled by the server so the initial order is not the answer.
-_TPL_ORDER = r"""\
-{% for q in group.order_questions %}
-<div class="t2-question order-question" data-q-start="{{ q.number }}" data-q-end="{{ q.number }}"
-     data-kind="order" data-qnum="{{ q.number }}">
-  <div class="question-prompt-text">
-    <span class="q-num-badge">{{ q.number }}</span>
-    <span>{{ q.prompt }}</span>
-  </div>
-  {% set multi = q.rows | length > 1 %}
-  {% for row in q.rows %}
-  <div class="order-row{% if multi %} order-row-labeled{% endif %}">
-    {% if multi %}<div class="order-row-label">Sentence {{ loop.index }}</div>{% endif %}
-    <div class="order-list" data-qnum="{{ q.number }}" data-row="{{ loop.index0 }}">
-      {% for item in row %}
-      <div class="order-item" draggable="true" data-item-id="{{ item.id }}">
-        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
-        <span class="order-item-text">{{ item.text }}</span>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endfor %}
-</div>
-{% endfor %}
-"""
-
-# SORT (sort_into_columns): a pool of chips + N column drop-zones.
-_TPL_SORT = r"""\
-{% for q in group.sort_questions %}
-<div class="t2-question sort-question" data-q-start="{{ q.number }}" data-q-end="{{ q.number }}"
-     data-kind="sort" data-qnum="{{ q.number }}">
-  <div class="question-prompt-text">
-    <span class="q-num-badge">{{ q.number }}</span>
-    <span>{{ q.prompt }}</span>
-  </div>
-  <div class="sort-pool" id="sort-pool-{{ q.number }}" data-qnum="{{ q.number }}" data-zone="pool">
-    {% for item in q.scrambled %}
-    <div class="sort-chip" draggable="true" data-item-id="{{ item.id }}">{{ item.text }}</div>
-    {% endfor %}
-  </div>
-  <div class="sort-columns">
-    {% for col in q.columns %}
-    <div class="sort-column">
-      <div class="sort-column-title">{{ col.title }}</div>
-      <div class="sort-dropzone" data-qnum="{{ q.number }}" data-zone="{{ loop.index0 }}"></div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endfor %}
-"""
-
-# MATCH (match_pairs): two columns; click a left then a right to link them.
-_TPL_MATCH = r"""\
-{% for q in group.match_questions %}
-<div class="t2-question match-question" data-q-start="{{ q.number }}" data-q-end="{{ q.number }}"
-     data-kind="match" data-qnum="{{ q.number }}">
-  <div class="question-prompt-text">
-    <span class="q-num-badge">{{ q.number }}</span>
-    <span>{{ q.prompt }}</span>
-  </div>
-  <div class="match-grid" id="match-grid-{{ q.number }}" data-qnum="{{ q.number }}">
-    <div class="match-col match-left">
-      {% for item in q.left_items %}
-      <button type="button" class="match-item match-left-item" data-side="left" data-item-id="{{ item.id }}">{{ item.text }}</button>
-      {% endfor %}
-    </div>
-    <div class="match-col match-right">
-      {% for item in q.right_scrambled %}
-      <button type="button" class="match-item match-right-item" data-side="right" data-item-id="{{ item.id }}">{{ item.text }}</button>
-      {% endfor %}
-    </div>
-  </div>
-  <div class="match-pairs-list" id="match-pairs-{{ q.number }}"></div>
-</div>
-{% endfor %}
-"""
-
-
-# ── Registry + environment ──────────────────────────────────────────────────────
-
-def _clean_template(src: str) -> str:
-    """
-    Each _TPL_* constant is written as r\"\"\"\\<newline>...  The leading
-    backslash was intended as a line-continuation to swallow the first
-    newline, but in a RAW string the backslash is literal — so it leaked a
-    stray '\\' into rendered output (visible at the very top of the export).
-    Strip a single leading backslash and the surrounding newline here so the
-    fix applies uniformly to every template without editing 8 constants.
-    """
-    if src.startswith("\\"):
-        src = src[1:]
-    return src.lstrip("\n")
-
-
-_EXPORT_TEMPLATES: dict[str, str] = {
-    "export/unit_export.html.j2": _clean_template(_TPL_UNIT_EXPORT),
-    "export/_true_false.html.j2": _clean_template(_TPL_TRUE_FALSE),
-    "export/_gap_fill.html.j2": _clean_template(_TPL_GAP_FILL),
-    "export/_multiple_choice.html.j2": _clean_template(_TPL_MULTIPLE_CHOICE),
-    "export/_passage_text.html.j2": _clean_template(_TPL_PASSAGE_TEXT),
-    "export/_order.html.j2": _clean_template(_TPL_ORDER),
-    "export/_sort.html.j2": _clean_template(_TPL_SORT),
-    "export/_match.html.j2": _clean_template(_TPL_MATCH),
-}
-
-_export_jinja_env = Environment(
-    loader=DictLoader(_EXPORT_TEMPLATES),
-    autoescape=select_autoescape(["html.j2", "j2"], default=True),
-)
-
-
-def _scramble(ids_or_items: list, seed: str) -> list:
-    """
-    Deterministic scramble so the initial on-screen order is not the answer,
-    but is stable across re-renders of the same question. Uses a simple
-    seeded key sort (no RNG state, no external dep). Guarantees the result
-    differs from the input when there are >= 2 distinct items.
-    """
-    import hashlib
-
-    def key(idx: int, item) -> str:
-        ident = getattr(item, "id", None) or str(item)
-        return hashlib.md5(f"{seed}:{ident}".encode()).hexdigest()
-
-    indexed = list(enumerate(ids_or_items))
-    shuffled = sorted(indexed, key=lambda pair: key(pair[0], pair[1]))
-    result = [item for _, item in shuffled]
-    # If the hash happened to preserve order, rotate by one so students never
-    # see the answer pre-arranged.
-    if len(result) >= 2 and all(a is b for a, b in zip(result, ids_or_items)):
-        result = result[1:] + result[:1]
-    return result
-
-
-def render_export(ctx: ExportContext) -> str:
-    """
-    Render an ExportContext to the final self-contained HTML string.
-
-    Attaches server-side scrambled orderings to each Tier-2 question so the
-    initial layout never reveals the answer key. Scramble is deterministic
-    per (unit_title, question_number) so re-exports are byte-stable unless the
-    content changes.
-    """
-    for group in ctx.question_groups:
-        if group.kind == "order":
-            for q in group.order_questions:
-                # Build rows honouring group_sizes (build_sentence: one row per
-                # sentence, each its own word bank — matches BuildSentenceBlock).
-                # order_paragraphs has no group_sizes → a single row.
-                by_id = {it.id: it for it in q.items}
-                rows: list[list] = []
-                if q.group_sizes and sum(q.group_sizes) == len(q.correct_order):
-                    cursor = 0
-                    for r_idx, size in enumerate(q.group_sizes):
-                        row_ids = q.correct_order[cursor:cursor + size]
-                        cursor += size
-                        row_items = [by_id[i] for i in row_ids if i in by_id]
-                        rows.append(_scramble(list(row_items), f"{ctx.unit_title}:{q.number}:row{r_idx}"))
-                else:
-                    ordered = [by_id[i] for i in q.correct_order if i in by_id]
-                    rows.append(_scramble(list(ordered), f"{ctx.unit_title}:{q.number}"))
-                q.rows = rows
-                # Flat scramble kept for backwards compatibility / single-row use.
-                q.scrambled = [it for row in rows for it in row]
-        elif group.kind == "sort":
-            for q in group.sort_questions:
-                q.scrambled = _scramble(list(q.items), f"{ctx.unit_title}:{q.number}")
-        elif group.kind == "match":
-            for q in group.match_questions:
-                q.right_scrambled = _scramble(list(q.right_items), f"{ctx.unit_title}:{q.number}:r")
-
-    template = _export_jinja_env.get_template("export/unit_export.html.j2")
-    html = template.render(
-        unit_title=ctx.unit_title,
-        passage_blocks=ctx.passage_blocks,
-        question_groups=ctx.question_groups,
-        correct_answers=ctx.correct_answers,
-        total_questions=ctx.total_questions,
-    )
-    # Strip any leading whitespace left by the top-of-file Jinja comment so the
-    # file starts cleanly at <!DOCTYPE html>.
-    return html.lstrip()
