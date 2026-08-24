@@ -577,11 +577,16 @@ body {
   margin-left: auto; cursor: pointer; border: none; background: none;
   color: var(--incorrect-color); font-weight: 700; font-size: 15px;
 }
+/* Responsive: stack the split view into a single column on tablets and phones.
    The default layout puts passage + questions side by side, each with a
    min-width. Below 820px the two minimums (plus the resizer/border/padding)
    exceed the viewport, and the side-by-side flex row would otherwise clip the
    questions panel off-screen. Here we switch to a single scrolling column so
    both panels are always reachable. */
+/* Panel fold controls — phone only. The desktop split view keeps both panels
+   open side by side and uses the resizer instead, so the buttons stay hidden. */
+.panel-toggle { display: none; }
+
 @media (max-width: 820px) {
   .main-container { height: auto; min-height: calc(100vh - 60px); }
   .panels-container {
@@ -597,6 +602,40 @@ body {
     padding: 20px 18px;
   }
   .passage-panel { padding-bottom: 8px; }
+
+  /* Sticky so the learner can fold the panel from anywhere inside it without
+     scrolling back up. `top` clears the fixed 60px header. */
+  .panel-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    position: sticky;
+    top: 60px;
+    z-index: 30;
+    margin-bottom: 14px;
+    padding: 11px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--brand-tint);
+    color: var(--brand-primary-dark);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+  }
+  .panel-toggle-chevron { flex-shrink: 0; transition: transform 0.18s ease; }
+  .panel-collapsed .panel-toggle-chevron { transform: rotate(-90deg); }
+  .panel-collapsed .panel-body { display: none; }
+  .panel-collapsed .panel-toggle { margin-bottom: 0; }
+  /* Folded panels drop their reading clearance so the open panel fills the screen. */
+  .passage-panel.panel-collapsed { padding-bottom: 12px; }
+  .questions-panel.panel-collapsed { padding-bottom: 16px; }
+
   .questions-panel {
     border-left: none;
     border-top: 1px solid var(--border-color);
@@ -656,6 +695,12 @@ body {
 <div class="main-container" id="main-container">
   <div class="panels-container">
     <div class="passage-panel" id="passage-panel">
+      {# Phone-only fold control: collapsing one panel lets the other fill the screen. #}
+      <button type="button" class="panel-toggle" data-panel-target="passage-panel" aria-controls="passage-panel-body" aria-expanded="true">
+        <span>Reading &amp; rules</span>
+        <svg class="panel-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="panel-body" id="passage-panel-body">
       {% if passage_blocks %}
         {% for block in passage_blocks %}
         <div class="reading-passage passage-block">{{ block.html | safe }}</div>
@@ -663,11 +708,18 @@ body {
       {% else %}
         <div class="empty-state">No reading content in this unit.</div>
       {% endif %}
+      </div>
     </div>
 
     {% if total_questions > 0 %}<div class="resizer" id="resizer"></div>{% endif %}
 
     <div class="questions-panel" id="questions-panel" {% if total_questions == 0 %}style="display:none;"{% endif %}>
+      {# Phone-only fold control — mirrors the reading panel above. #}
+      <button type="button" class="panel-toggle" data-panel-target="questions-panel" aria-controls="questions-panel-body" aria-expanded="true">
+        <span>Exercises</span>
+        <svg class="panel-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="panel-body" id="questions-panel-body">
       <div class="questions-container">
         {% for group in question_groups %}
           {% if group.kind == "true_false" %}
@@ -684,6 +736,7 @@ body {
             {% include "export/_match.html.j2" %}
           {% endif %}
         {% endfor %}
+      </div>
       </div>
     </div>
   </div>
@@ -1173,6 +1226,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 
+  // --- PANEL FOLDING (phone) ---
+  // Phones stack the reading and exercise panels into one long column, so both
+  // compete for a short viewport. Folding one away gives the other the full
+  // screen, which is the point of the toggles rendered inside each panel.
+  function setPanelCollapsed(panel, collapsed) {
+    if (!panel) return;
+    panel.classList.toggle('panel-collapsed', collapsed);
+    const toggle = panel.querySelector('.panel-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+
+  // Used by navigation before measuring: scrolling to a hidden target is a no-op.
+  function ensurePanelExpanded(panel) {
+    if (panel && panel.classList.contains('panel-collapsed')) setPanelCollapsed(panel, false);
+  }
+
+  document.querySelectorAll('.panel-toggle').forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      const panel = document.getElementById(toggle.dataset.panelTarget);
+      if (!panel) return;
+      const willCollapse = !panel.classList.contains('panel-collapsed');
+      setPanelCollapsed(panel, willCollapse);
+      // Folding a panel above the viewport would otherwise leave the reader
+      // stranded in blank space, so bring the header they tapped back into view.
+      if (willCollapse) toggle.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+
   // --- NAVIGATION ---
   // Single-part skeleton today; switchToPart is kept as the seam a future
   // course-level (multi-unit) export hooks into without touching goToQuestion.
@@ -1261,12 +1342,38 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
+  // Returns the region the target has to be inside to count as "already visible".
+  // On desktop each panel is its own scrollport, so that region is the panel box.
+  // On phones (<=820px) the panels switch to overflow-y:visible and the page
+  // scrolls instead, which makes the panel box as tall as all of its content —
+  // every question then measures as "inside the panel" and navigation would
+  // never scroll. In that case the viewport, minus the fixed header and bottom
+  // nav bar, is the real visible region.
+  function getVisibleBounds(panel) {
+    if (panel) {
+      const overflowY = window.getComputedStyle(panel).overflowY;
+      const panelScrolls =
+        (overflowY === 'auto' || overflowY === 'scroll') &&
+        panel.scrollHeight > panel.clientHeight + 1;
+      if (panelScrolls) {
+        const panelRect = panel.getBoundingClientRect();
+        return { top: panelRect.top, bottom: panelRect.bottom };
+      }
+    }
+    const headerEl = document.querySelector('.header');
+    const navRowEl = document.querySelector('.nav-row');
+    const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 0;
+    const navHeight = navRowEl ? navRowEl.getBoundingClientRect().height : 0;
+    return { top: headerHeight, bottom: window.innerHeight - navHeight };
+  }
+
   function scrollIntoViewIfNeeded(element) {
     const panel = element.closest('.questions-panel, .passage-panel');
-    if (!panel) return;
-    const panelRect = panel.getBoundingClientRect();
+    // A folded panel has no laid-out target to scroll to, so open it first.
+    ensurePanelExpanded(panel);
+    const bounds = getVisibleBounds(panel);
     const elementRect = element.getBoundingClientRect();
-    if (elementRect.top < panelRect.top || elementRect.bottom > panelRect.bottom) {
+    if (elementRect.top < bounds.top || elementRect.bottom > bounds.bottom) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
